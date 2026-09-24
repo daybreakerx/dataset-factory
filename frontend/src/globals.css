@@ -1,186 +1,39 @@
-/*
- * 全局样式与设计令牌——实现侧令牌副本（自包含，随公开仓走）。
- *
- * 唯一事实源 = 协作层 `context/design/ui-system.css`（可执行取值）+ `ui-spec.md`（规范正文）；
- * 本文件按 T30（2026-09-16）同步其 v4–v20 口径：--n-* 中性阶 16 档、语义色三件组（底/边/字）、
- * --on-ink、shadcn 语义槽对齐。改视觉先改 ui-system.css，再同步到这里——两边取值保持一字不差。
- *
- * 亮暗切换走 class 策略（<html class="dark">），由 useTheme 钩子管理（跟随系统 + 手动记忆）。
- * 暗色 = 刻度整体翻转：槽位一律指向 --n-* / 语义色令牌，只有「亮色字面值 + 暗色重定义」的
- * 画布、侧栏交互态、暗色主钮文字三处按 ui-system.css 原样写字面值。
- */
+/* ==========================================================================
+   全局样式与实现侧接线——设计令牌已迁至本目录 tokens.css（唯一取值源）。
+   ------------------------------------------------------------------
+   本文件只装三类东西：
+   1. 接线——@import tokens + @theme 翻译表（把令牌翻译成 Tailwind 工具类）；
+   2. 实现侧本地槽——shadcn 对齐别名（--destructive / --sidebar / --success 系）
+      与系统渲染适配（color-scheme）、实现侧 z 基线（浮层压 z-50 一档，见 tokens）；
+   3. 实现侧组件特例——.cb 复选框、滚动条定式、基础层。
+
+   规范正文见协作层 context/design/ui-spec.md；组件类（原型侧）在协作层
+   context/design/base.css。改视觉先改 tokens.css——本文件不承载任何取值。
+   ========================================================================== */
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "../tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 
-/* ==========================================================================
-   1 · 原始刻度（primitive）——与 ui-system.css §1 一字不差
-   ========================================================================== */
+/* 实现侧接线槽：shadcn 组件消费的别名，一律指向 tokens 的语义值（本地定义，不进 tokens） */
 :root {
   color-scheme: light; /* 滚动条底槽与表单控件的系统渲染随主题（深色不再按亮色画） */
-
-  /* 中性阶（静白蓝灰，色相 213~220、低饱和）16 档：三层底 = --background(#F8F8F8) /
-     --n-75(#ECECEE 侧栏) / --card(纯白)；层级靠明度阶梯 + hairline */
-  --n-0: 0 0% 100%;
-  --n-25: 220 33% 99%;
-  --n-50: 210 27% 98%;
-  --n-75: 240 5.5% 92.9%;
-  --n-100: 214 25% 96%;
-  --n-150: 216 20% 93%;
-  --n-200: 216 16% 91%;
-  --n-250: 217 15% 86%;
-  --n-300: 217 16% 84%;
-  --n-400: 217 12% 65%;
-  --n-500: 213 13% 46%;
-  --n-600: 214 18% 34%;
-  --n-700: 215 23% 27%;
-  --n-800: 213 33% 14%;
-  --n-900: 221 39% 11%;
-  --n-1000: 221 43% 8%;
-
-  /* 语义色（低饱和 tint，每组三件：底 / 边 / 字）+ 实底章档与状态点档 */
-  --ok-bg: 152 49% 96%;
-  --ok-bd: 152 44% 86%;
-  --ok-ink: 152 70% 30%;
-  --warn-bg: 36 100% 96%;
-  --warn-bd: 36 94% 77%;
-  --warn-ink: 36 91% 34%;
-  --bad-bg: 7 86% 97%;
-  --bad-bd: 7 88% 94%;
-  --bad-ink: 4 74% 49%;
-  --bad-ink-soft: 4 56% 50%; /* 大面积破坏性按钮档（降饱和的沉稳红） */
-  --bad-ink-strong: 4 73% 36%; /* danger 实底 hover 深红 */
-  --info-bg: 210 100% 97%;
-  --info-bd: 208 100% 85%;
-  --info-ink: 217 79% 51%;
-  --ok-dot: 152 74% 37%;
-  --warn-dot: 36 95% 50%;
-  --bad-dot: 4 84% 60%;
-  --info-dot: 217 91% 60%;
-  --h-xs: 22px;
-  --h-sm: 26px;
-  --h-md: 30px;
-  --h-lg: 34px;
-  --w-col-left: 320px;
-  --lh-tight: 1.35;
-  --lh-base: 1.55;
-  --lh-loose: 1.75;
-  /* 阴影档（与 ui-system.css §1 一字不差）：实现侧此前漏抄 --sh-1，labeling 两处
-     shadow-(--sh-1) 一直解析成 none；2026-09-20 补上（有意演进，随基线重采生效）。 */
-  --sh-1: 0 1px 2px hsl(220 26% 14% / 0.04), 0 1px 3px hsl(220 26% 14% / 0.05);
-  /* 层级（§2.5 只允许这四个值）：实现侧浮层现统一压在 z-50 一档，toast 按规范要盖过弹窗
-     （原型 --z-toast 300 > --z-modal 200），故取 50 之上的一档。 */
-  --z-toast: 60;
-}
-
-/* ==========================================================================
-   2 · 语义槽（shadcn 对齐）——与 ui-system.css §2 一字不差
-   ========================================================================== */
-:root {
-  --background: 0 0% 97.3%; /* 页面底 = 画布 #F8F8F8（用户拍板 HEX 字面值；暗色在 .dark 重定义） */
-  --foreground: var(--n-900);
-
-  --card: var(--n-0);
-  --card-foreground: var(--n-900);
-  --popover: var(--n-0);
-  --popover-foreground: var(--n-900);
-
-  /* 主色 = 蓝 #2563EB；hover / press 三态齐备 */
-  --primary: 221 83% 53%;
-  --primary-hover: 221 83% 45%;
-  --primary-press: 221 83% 38%;
-  --primary-foreground: var(--n-0);
-
-  --secondary: var(--n-100);
-  --secondary-foreground: var(--n-900);
-  --muted: var(--n-100);
-  --muted-foreground: var(--n-700);
-  --accent: var(--n-50);
-  --accent-foreground: var(--n-900);
-
-  /* 侧栏内交互态专用（比侧栏底 --n-75 深半档 / 一档，避免亮底上选中态消失） */
-  --nav-hover: 240 5.5% 90.5%;
-  --nav-active: 240 5.5% 88%;
-
   --destructive: var(--bad-ink);
   --destructive-foreground: var(--n-0);
-  /* 画在语义实底（状态章 / 实底钮）上的文字与图形：亮取白，暗随 n-0 翻近黑 */
-  --on-ink: var(--n-0);
-
-  --border: var(--n-200);
-  --input: var(--n-250);
-  --text-1: var(--n-900);
-  --text-2: var(--n-800);
-  --text-3: var(--n-700);
-  --text-4: var(--n-600);
   --success: var(--ok-ink);
   --success-foreground: var(--n-0);
-
-  /* 侧栏：比画布深一档（#ECECEE），与内容区分层 */
   --sidebar: var(--n-75);
   --sidebar-foreground: var(--n-900);
 }
-
-/* 暗色：刻度整体翻转（与 ui-system.css .dark 一字不差）；槽位随指向自动翻转，
-   只有亮色字面值的三处在此重定义。 */
 .dark {
   color-scheme: dark;
-
-  --n-0: 220 6% 8%;
-  --n-25: 220 6% 10%;
-  --n-50: 220 7% 5.5%;
-  --n-75: 220 5% 9%;
-  --n-100: 220 6% 11.5%;
-  --n-150: 220 6% 13.5%;
-  --n-200: 220 6% 16%;
-  --n-250: 220 5% 19%;
-  --n-300: 220 5% 25%;
-  --n-400: 220 4% 35%;
-  --n-500: 220 4% 50%;
-  --n-600: 220 5% 64%;
-  --n-700: 220 6% 78%;
-  --n-800: 220 8% 84%;
-  --n-900: 220 10% 90%;
-  --n-1000: 220 10% 95%;
-
-  --ok-bg: 152 30% 14%;
-  --ok-bd: 152 25% 24%;
-  --ok-ink: 152 55% 70%;
-  --warn-bg: 36 45% 15%;
-  --warn-bd: 36 40% 26%;
-  --warn-ink: 36 92% 66%;
-  --bad-bg: 5 40% 16%;
-  --bad-bd: 5 35% 27%;
-  --bad-ink: 5 85% 72%;
-  --bad-ink-soft: 4 60% 62%;
-  --bad-ink-strong: 5 85% 62%;
-  --info-bg: 212 55% 15%;
-  --info-bd: 211 55% 30%;
-  --info-ink: 208 100% 74%;
-
-  /* 暗色主色蓝提亮一档；蓝底按钮文字两态都取纯白（不随正文压暗），章类字色走 --on-ink */
-  --primary: 217 91% 60%;
-  --primary-hover: 213 94% 67%;
-  --primary-press: 210 98% 73%;
-  --primary-foreground: 0 0% 100%;
-
-  /* 亮色画布是字面值不自动翻转，暗色画布回刻度 */
-  --background: var(--n-0);
-  --nav-hover: 220 6% 11.5%; /* 比侧栏 n-75（9%）亮一档 */
-  --nav-active: 220 6% 13.5%; /* 选中再亮一档 */
-  --sh-1:
-    0 1px 2px hsl(0 0% 0% / 0.3), 0 1px 3px hsl(0 0% 0% / 0.26); /* 暗色阴影重定义（ui-system.css .dark 同值） */
 }
 
-/* 字体族令牌：与 ui-system.css --font-sans / --font-mono 一字不差（非 inline 块，
-   变量真实发射到 :root，页面可直接 var(--font-sans) 引用；font-sans / font-mono 工具类同源）。 */
-@theme {
-  --font-sans:
-    "HarmonyOS Sans SC", "HarmonyOS Sans", "MiSans", -apple-system, "Segoe UI", Roboto,
-    "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-mono:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+/* 字体族：tokens.css 是唯一源，这里只做工具类接线（inline 引用，不重复定义） */
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
 /* 把 HSL 令牌映射成 Tailwind 的颜色工具类（bg-background / text-muted-foreground /
@@ -253,26 +106,25 @@
   --color-warn-dot: hsl(var(--warn-dot));
   --color-bad-dot: hsl(var(--bad-dot));
   --color-info-dot: hsl(var(--info-dot));
-  /* 字号 6 档：与 ui-system.css --t-* 一字不差，工具类 text-t-* 与规范类名 t-* 一一对应；
-     行高走规范三档（tight 1.35 / base 1.55）。一期页面的任意字号留待二期前端批统一清理。 */
-  --text-t-xs: 11px;
-  --text-t-xs--line-height: 1.35;
-  --text-t-sm: 12px;
-  --text-t-sm--line-height: 1.55;
-  --text-t-md: 13px;
-  --text-t-md--line-height: 1.55;
-  --text-t-lg: 14px;
-  --text-t-lg--line-height: 1.55;
-  --text-t-xl: 16px;
-  --text-t-xl--line-height: 1.35;
-  --text-t-2xl: 24px;
-  --text-t-2xl--line-height: 1.35;
-  /* 圆角阶梯 = ui-system.css 圆角 5 档（r-xs 4 / r-sm 8 / r-md 12 / r-lg 14）；
+  /* 字号 6 档：值指向 tokens 的 --t-*（行高绑规范三档），工具类 text-t-* 与规范类名 t-* 一一对应 */
+  --text-t-xs: var(--t-xs);
+  --text-t-xs--line-height: var(--lh-tight);
+  --text-t-sm: var(--t-sm);
+  --text-t-sm--line-height: var(--lh-base);
+  --text-t-md: var(--t-md);
+  --text-t-md--line-height: var(--lh-base);
+  --text-t-lg: var(--t-lg);
+  --text-t-lg--line-height: var(--lh-base);
+  --text-t-xl: var(--t-xl);
+  --text-t-xl--line-height: var(--lh-tight);
+  --text-t-2xl: var(--t-2xl);
+  --text-t-2xl--line-height: var(--lh-tight);
+  /* 圆角阶梯指向 tokens 的 --r-*（r-xs 4 / r-sm 8 / r-md 12 / r-lg 14，错位对齐 Tailwind 命名）；
      rounded-full 用 Tailwind 内置（等价 r-full 999px）。 */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 14px;
+  --radius-sm: var(--r-xs);
+  --radius-md: var(--r-sm);
+  --radius-lg: var(--r-md);
+  --radius-xl: var(--r-lg);
 }
 
 @layer base {
@@ -280,8 +132,12 @@
     @apply border-border;
     letter-spacing: 0;
   }
+  /* 焦点（2026-09-24 撤销 09-17 撤环裁决，与原型侧 base.css 同款）：键盘聚焦出环、
+     鼠标聚焦不出环——:focus-visible 由浏览器自动区分聚焦来源。输入框类由描边加深
+     规则覆盖（聚焦指示 = 描边加深）；其余控件出环。环色 = 主色蓝，offset 2px。 */
   :focus-visible {
-    outline: none;
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
   }
   html {
     height: 100%;
@@ -298,10 +154,8 @@
 }
 
 /* --- 复选框唯一形态 .cb（V13，2026-09-21 审计）----------------------------
-   ui-spec :380 定 .cb 为复选框唯一形态（14×14、圆角 4px、选中黑底白勾、暗色自动
-   翻深勾），令牌实体在 context/design/ui-system.css:442-489。此前规范有定义、
-   构建里没有这个类——5 处 className="cb" 静默失效成了裸复选框。此份从 ui-system
-   同源搬运并适配本应用令牌（--r-* 等原型令牌在构建里不存在，圆角按规范写 4px）。 */
+   ui-spec 定 .cb 为复选框唯一形态（14×14、圆角 4px、选中黑底白勾、暗色自动
+   翻深勾），令牌与原型实体见协作层 base.css。此份为构建内适配（值同规范）。 */
 .cb {
   appearance: none;
   flex: none;
@@ -309,7 +163,7 @@
   height: 14px;
   margin: 0;
   border: 1px solid hsl(var(--input));
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   background-color: hsl(var(--card));
   cursor: pointer;
   transition:
@@ -348,10 +202,9 @@
   cursor: not-allowed;
 }
 
-/* --- 滚动条定式（ui-system.css §15 的实现侧同步，T30 漏搬）------------------
+/* --- 滚动条定式（原型侧 base.css 同款，实现侧同步）------------------------
    默认隐形、滚动或悬停才显形；拇指色 --n-300 指向中性刻度，随 .dark 自动翻转——
-   此前实现侧裸用浏览器原生滚动条，深色模式下亮色滚动条贴深底刺眼。原型用
-   var(--r-full)，本仓无 --r-* 令牌，圆角写等价值（.cb 同款适配）。 */
+   此前实现侧裸用浏览器原生滚动条，深色模式下亮色滚动条贴深底刺眼。 */
 * {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
@@ -368,7 +221,7 @@
 }
 *::-webkit-scrollbar-thumb {
   background: transparent;
-  border-radius: 9999px;
+  border-radius: var(--r-full);
   border: 3px solid transparent;
   background-clip: content-box;
 }

@@ -5,7 +5,11 @@ import { describe, expect, it } from "vitest";
 import { buttonVariants } from "./components/ui/button";
 import { cn } from "./lib/utils";
 
-const css = readFileSync("src/globals.css", "utf8");
+/** 令牌拆分（2026-09-24）后设计值住在根目录 tokens.css（唯一取值源）、globals.css 只装
+ *  接线与实现侧特例——两个文件合并解析，令牌断言照旧全覆盖。 */
+const css = [readFileSync("tokens.css", "utf8"), readFileSync("src/globals.css", "utf8")].join(
+  "\n",
+);
 
 function declarations(selector: string): Map<string, string> {
   const result = new Map<string, string>();
@@ -90,7 +94,7 @@ describe("设计系统类门禁", () => {
   });
 
   it("color-scheme 与滚动条定式随主题落进构建（深色滚动条适配）", () => {
-    // ui-system.css §15（默认隐形、悬停显形、拇指色随 --n-300 翻转）曾漏搬进实现侧，
+    // base.css §15（默认隐形、悬停显形、拇指色随 --n-300 翻转）曾漏搬进实现侧，
     // 深色模式下亮色原生滚动条贴深底；color-scheme 让系统级渲染（滚动条底槽、表单
     // 控件）跟随主题。这份断言防止两处再次静默缺失。
     expect(declarations(":root").get("color-scheme")).toBe("light");
