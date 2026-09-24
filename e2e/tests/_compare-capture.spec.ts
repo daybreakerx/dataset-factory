@@ -108,3 +108,149 @@ test("measure save-button computed styles", async ({ page }) => {
   await page.waitForTimeout(300);
   console.log("SAVE_PROMPT_OVER:", JSON.stringify(await savePrompt.evaluate(SAVE_PROPS), null, 2));
 });
+
+// 零件取证 · 策略下拉 computed style 实测（同一 CMP_CAPTURE=1 门）
+// 触发件（名字输入框 hover/focus + 箭头钮）→ 弹层（面板/头行/新建钮）→ 行（当前/普通/坏/hover）→ 锁定提示。
+// 坏行 = API 建一条策略再删其引用提示词（数据根是本次运行新建的临时根，删了无碍）。
+const BOX = (el: HTMLElement): Record<string, string | number> => {
+  const cs = getComputedStyle(el);
+  return {
+    width: el.offsetWidth, height: el.offsetHeight,
+    paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight,
+    paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom,
+    borderRadius: cs.borderRadius,
+    backgroundColor: cs.backgroundColor,
+    color: cs.color,
+    fontSize: cs.fontSize, fontWeight: cs.fontWeight,
+    borderTopWidth: cs.borderTopWidth, borderTopColor: cs.borderTopColor,
+    boxShadow: cs.boxShadow === "none" ? "none" : "(has shadow)",
+    opacity: cs.opacity,
+  };
+};
+const TXT = (el: HTMLElement): Record<string, string | number> => {
+  const cs = getComputedStyle(el);
+  return {
+    text: (el.textContent ?? "").slice(0, 12),
+    offsetLeft: el.offsetLeft, offsetTop: el.offsetTop, offsetWidth: el.offsetWidth,
+    fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color,
+  };
+};
+
+test("measure strategy-dropdown computed styles", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.reload();
+
+  // 造两行：正常策略（引用种子提示词）＋ 坏行（自建临时提示词供其引用，建完即删→引用悬空）；种子数据零触碰
+  const badRowSetup = await page.evaluate(async () => {
+    const eps: Array<{ id: string }> = await (await fetch("/api/endpoints")).json();
+    const ps: Array<{ id: string }> = await (await fetch("/api/prompts")).json();
+    if (eps.length === 0 || ps.length === 0) return { ok: false, why: "no seed" };
+    const pc = await fetch("/api/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "取证·临时提示词", description: "取证用", body: "占位正文" }),
+    });
+    if (!pc.ok) return { ok: false, stage: "prompt", status: pc.status };
+    const tmp = (await pc.json()) as { id: string };
+    const mk = (name: string, promptId: string) =>
+      fetch("/api/strategies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description: "取证用策略描述文本", endpoint_id: eps[0].id, prompt_id: promptId, skill_ids: [] }),
+      }).then(async (r) => ({ ok: r.ok, status: r.status, body: r.ok ? null : await r.text() }));
+    const good = await mk("取证·正常策略", ps[0].id);
+    const bad = await mk("取证·引用悬空", tmp.id);
+    if (!good.ok || !bad.ok) return { ok: false, stage: "strategy", good, bad };
+    const del = await fetch("/api/prompts/" + tmp.id, { method: "DELETE" });
+    return { ok: del.ok, goodStatus: good.status, badStatus: bad.status, deletedPromptStatus: del.status };
+  });
+  console.log("BADROW_SETUP:", JSON.stringify(badRowSetup));
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  const nameInput = page.getByLabel("策略名称");
+  await nameInput.waitFor({ state: "visible", timeout: 10_000 });
+
+  // 触发件：名字输入框
+  console.log("STRAT_TRIGGER:", JSON.stringify(await nameInput.evaluate(BOX), null, 2));
+  await nameInput.hover();
+  await page.waitForTimeout(200);
+  console.log("STRAT_TRIGGER_HOVER:", JSON.stringify(await nameInput.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { borderTopColor: cs.borderTopColor, backgroundColor: cs.backgroundColor };
+  }), null, 2));
+  await nameInput.focus();
+  await page.waitForTimeout(200);
+  console.log("STRAT_TRIGGER_FOCUS:", JSON.stringify(await nameInput.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { borderTopColor: cs.borderTopColor, backgroundColor: cs.backgroundColor, outlineWidth: cs.outlineWidth };
+  }), null, 2));
+  const chev = page.getByRole("button", { name: "切换策略" });
+  console.log("STRAT_CHEVRON:", JSON.stringify(await chev.evaluate(BOX), null, 2));
+
+  // 打开下拉；挪开鼠标防悬停污染、等入场动画落定
+  await chev.click();
+  const menu = page.getByRole("menu");
+  await menu.waitFor({ state: "visible", timeout: 5000 });
+  await page.mouse.move(10, 500);
+  await page.waitForTimeout(400);
+  console.log("STRAT_PANEL:", JSON.stringify(await menu.evaluate(BOX), null, 2));
+  const headRow = menu.locator("div").filter({ hasText: "策略库 · 共" }).first();
+  console.log("STRAT_HEAD:", JSON.stringify(await headRow.evaluate(BOX), null, 2));
+  const addBtn = menu.getByRole("button", { name: "新建策略" });
+  console.log("STRAT_ADD:", JSON.stringify(await addBtn.evaluate(BOX), null, 2));
+  const goodRow = menu.locator("div.group").filter({ hasText: "取证·正常策略" });
+  const badRowLoc = menu.locator("div.group").filter({ hasText: "引用缺失" });
+  console.log("STRAT_ROWS_COUNT:", JSON.stringify({ good: await goodRow.count(), bad: await badRowLoc.count() }));
+  const normalRow = goodRow.first();
+  console.log("STRAT_ROW_NORMAL:", JSON.stringify(await normalRow.evaluate(BOX), null, 2));
+  const normalName = normalRow.locator("span.text-t-md").first();
+  console.log("STRAT_ROW_NAME:", JSON.stringify(await normalName.evaluate(TXT), null, 2));
+  const normalWcount = normalRow.locator("span.shrink-0").first();
+  console.log("STRAT_ROW_WCOUNT:", JSON.stringify(await normalWcount.evaluate(TXT), null, 2));
+  const normalDesc = normalRow.locator("span.truncate.text-t-xs").first();
+  console.log("STRAT_ROW_DESC:", JSON.stringify(await normalDesc.evaluate(TXT), null, 2));
+  const rowIcon = normalRow.getByRole("button").nth(1);
+  console.log("STRAT_ROW_ICON:", JSON.stringify(await rowIcon.evaluate(BOX), null, 2));
+  await normalRow.hover();
+  await page.waitForTimeout(150);
+  console.log("STRAT_ROW_HOVER:", JSON.stringify(await normalRow.evaluate((el) => {
+    return { backgroundColor: getComputedStyle(el).backgroundColor };
+  }), null, 2));
+
+  // 选中正常行（当前态）→ 重开量当前行与坏行
+  await normalRow.locator("button").first().click();
+  await menu.waitFor({ state: "hidden", timeout: 5000 });
+  await chev.click();
+  await menu.waitFor({ state: "visible", timeout: 5000 });
+  await page.mouse.move(10, 500);
+  await page.waitForTimeout(400);
+  const curRow = goodRow.first();
+  console.log("STRAT_ROW_CURRENT:", JSON.stringify(await curRow.evaluate(BOX), null, 2));
+  const curName = curRow.locator("span.text-t-md").first();
+  console.log("STRAT_ROW_CUR_NAME:", JSON.stringify(await curName.evaluate(TXT), null, 2));
+  if ((await badRowLoc.count()) > 0) {
+    console.log("STRAT_ROW_BAD:", JSON.stringify(await badRowLoc.first().evaluate(BOX), null, 2));
+    const badName = badRowLoc.first().locator("span.text-t-md").first();
+    console.log("STRAT_BAD_NAME:", JSON.stringify(await badName.evaluate(TXT), null, 2));
+    const badText = badRowLoc.first().locator("span.text-bad-ink").first();
+    console.log("STRAT_BAD_TEXT:", JSON.stringify(await badText.evaluate(TXT), null, 2));
+  } else {
+    console.log("STRAT_ROW_BAD:", JSON.stringify({ absent: true }));
+  }
+
+  // 锁定提示：脏着点另一行（坏行）
+  await page.keyboard.press("Escape");
+  await page.getByLabel("策略描述").fill("取证改描述触发锁定");
+  await chev.click();
+  await menu.waitFor({ state: "visible", timeout: 5000 });
+  await badRowLoc.first().locator("button").first().click();
+  await page.waitForTimeout(300);
+  const notice = page.locator('[role="status"]').last();
+  if ((await notice.count()) > 0) {
+    console.log("STRAT_NOTICE:", JSON.stringify(await notice.evaluate(BOX), null, 2));
+  } else {
+    console.log("STRAT_NOTICE:", JSON.stringify({ absent: true }));
+  }
+});
