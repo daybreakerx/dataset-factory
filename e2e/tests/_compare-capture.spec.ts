@@ -254,3 +254,39 @@ test("measure strategy-dropdown computed styles", async ({ page }) => {
     console.log("STRAT_NOTICE:", JSON.stringify({ absent: true }));
   }
 });
+
+// 零件取证 · 悬停说明（Tip）computed style 实测（同一 CMP_CAPTURE=1 门）
+// 触发件 = 策略行箭头钮（Tip「切换策略」）；量气泡形态与相对触发件的位置。
+test("measure tooltip computed styles", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  const chev = page.getByRole("button", { name: "切换策略" });
+  await chev.waitFor({ state: "visible", timeout: 10_000 });
+  await chev.hover();
+  const tip = page.locator('[data-slot="tooltip-content"]');
+  await tip.waitFor({ state: "visible", timeout: 5000 });
+  await page.waitForTimeout(500);
+  console.log("TIP_BUBBLE:", JSON.stringify(await tip.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    return {
+      width: el.offsetWidth, height: el.offsetHeight,
+      paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight,
+      paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom,
+      borderRadius: cs.borderRadius,
+      backgroundColor: cs.backgroundColor,
+      color: cs.color,
+      fontSize: cs.fontSize, fontWeight: cs.fontWeight, lineHeight: cs.lineHeight,
+      borderTopWidth: cs.borderTopWidth, borderTopColor: cs.borderTopColor,
+      boxShadow: cs.boxShadow,
+      maxWidth: cs.maxWidth,
+      opacity: cs.opacity,
+      rectTop: Math.round(r.top), rectLeft: Math.round(r.left),
+    };
+  }), null, 2));
+  const box = await chev.boundingBox();
+  console.log("TIP_TRIGGER_BOX:", JSON.stringify({ top: Math.round(box.y), bottom: Math.round(box.y + box.height), left: Math.round(box.x), width: Math.round(box.width) }));
+});
