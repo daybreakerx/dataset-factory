@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { test } from "@playwright/test";
 
 // 零件取证 · 发送钮 computed style 实测（默认跳过，CMP_CAPTURE=1 才跑）
@@ -637,4 +640,244 @@ test("measure chat-message computed styles", async ({ page }) => {
     note: "amber-100/amber-700 为 Tailwind 默认字面量、非语义令牌——疑似违 2.1，进对齐批裁决",
   }));
   await page.evaluate(async () => { await fetch("/__test__/gated-release", { method: "POST" }); });
+});
+
+// 零件取证 · 附件条（attachment）computed style 实测（同一 CMP_CAPTURE=1 门）
+// 待发附件卡：图片卡全量实测；视频卡用真 mp4（客户端抽帧，解码失败静默回退图标——
+// captureVideoMeta 失败即 {}，实际落哪个形态如实记录）；行为事实：单槽（再选即替换）、
+// 移除即清、缩略图点击开大图预览（lightbox）。
+test("measure attachment computed styles", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.reload();
+
+  const shell = page.locator("div.mt-auto > div.rounded-xl.border-input");
+  await shell.waitFor({ state: "visible", timeout: 10_000 });
+
+  // ① 图片附件卡
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "att-probe.png", mimeType: "image/png", buffer: PNG_1PX,
+  });
+  const card = shell.locator("div.rounded-lg").first();
+  await card.waitFor({ state: "visible", timeout: 10_000 });
+  await page.waitForTimeout(300);
+
+  console.log("ATT_SHELL:", JSON.stringify(await shell.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: el.offsetWidth, borderRadius: cs.borderRadius, borderWidth: cs.borderTopWidth, borderColor: cs.borderTopColor, backgroundColor: cs.backgroundColor, padding: cs.padding };
+  }), null, 2));
+  console.log("ATT_CARD:", JSON.stringify(await card.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const kids = Array.from(el.children).map((c) => c.tagName.toLowerCase());
+    return { height: el.offsetHeight, childTags: kids.join(","), borderRadius: cs.borderRadius, borderWidth: cs.borderTopWidth, borderColor: cs.borderTopColor, backgroundColor: cs.backgroundColor, padding: cs.padding, gap: cs.gap, marginBottom: cs.marginBottom, maxWidth: cs.maxWidth };
+  }), null, 2));
+  const thumbBtn = card.locator("button[aria-label^='预览']").first();
+  console.log("ATT_THUMB_BTN:", JSON.stringify(await thumbBtn.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: el.offsetWidth, height: el.offsetHeight, cursor: cs.cursor };
+  }), null, 2));
+  console.log("ATT_THUMB_IMG:", JSON.stringify(await thumbBtn.locator("img").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: cs.width, height: cs.height, borderRadius: cs.borderRadius, objectFit: cs.objectFit };
+  }), null, 2));
+  console.log("ATT_NAME:", JSON.stringify(await card.locator("div.truncate").first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: el.textContent, fontSize: cs.fontSize, color: cs.color, fontWeight: cs.fontWeight };
+  }), null, 2));
+  console.log("ATT_SUB:", JSON.stringify(await card.locator(".text-t-xs").first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: el.textContent, fontSize: cs.fontSize, color: cs.color };
+  }), null, 2));
+  const BTN_SHAPE = (el: HTMLElement): Record<string, unknown> => {
+    const cs = getComputedStyle(el);
+    const svg = el.querySelector("svg");
+    return { width: el.offsetWidth, height: el.offsetHeight, borderRadius: cs.borderRadius, backgroundColor: cs.backgroundColor, color: cs.color, svgWidth: svg ? getComputedStyle(svg).width : null };
+  };
+  const rmBtn = card.getByRole("button", { name: "移除附件" });
+  console.log("ATT_REMOVE:", JSON.stringify(await rmBtn.evaluate(BTN_SHAPE), null, 2));
+  await rmBtn.hover();
+  await page.waitForTimeout(250);
+  console.log("ATT_REMOVE_HOVER:", JSON.stringify(await rmBtn.evaluate((el) => ({ backgroundColor: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color })), null, 2));
+  await page.mouse.move(10, 500);
+  console.log("ATT_ADD_BTN:", JSON.stringify(await page.getByRole("button", { name: "附图片或视频（最多 1 个）" }).evaluate(BTN_SHAPE), null, 2));
+  console.log("ATT_SKILL_BTN:", JSON.stringify(await page.getByRole("button", { name: "添加 Skill" }).evaluate(BTN_SHAPE), null, 2));
+  console.log("ATT_HELPER:", JSON.stringify(await page.getByText("Enter 发送 · Shift+Enter 换行").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: el.textContent, fontSize: cs.fontSize, color: cs.color, marginLeft: cs.marginLeft };
+  }), null, 2));
+  const ta = page.getByLabel("打标指令");
+  console.log("ATT_TEXTAREA:", JSON.stringify(await ta.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { minHeight: cs.minHeight, padding: cs.padding, fontSize: cs.fontSize, lineHeight: cs.lineHeight, color: cs.color };
+  }), null, 2));
+  await ta.focus();
+  await page.waitForTimeout(200);
+  console.log("ATT_SHELL_FOCUSWITHIN:", JSON.stringify(await shell.evaluate((el) => ({ borderColor: getComputedStyle(el).borderTopColor })), null, 2));
+  await page.mouse.move(10, 500);
+  console.log("ATT_ACCEPT:", JSON.stringify({ accept: await page.locator('input[type="file"]').getAttribute("accept") }));
+
+  // ② 视频附件卡（真 mp4；封面抽帧成败如实记录——Chromium 缺 H.264 解码时静默回退图标）
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "att-probe.mp4", mimeType: "video/mp4",
+    buffer: readFileSync(resolve(process.cwd(), "../../context/test/materials/videos/mp4/preparing-a-bowl-with-yogurt-and-43925.mp4")),
+  });
+  await card.getByText("att-probe.mp4").waitFor({ state: "visible", timeout: 10_000 });
+  await page.waitForTimeout(3500);   // 抽帧 3s 超时窗走完，落定封面或图标
+  console.log("ATT_VIDEO_CARD:", JSON.stringify(await card.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { height: el.offsetHeight, paddingRight: cs.paddingRight };
+  }), null, 2));
+  console.log("ATT_FPS_INPUT:", JSON.stringify(await page.getByLabel("视频抽帧 fps").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: el.offsetWidth, height: el.offsetHeight, borderRadius: cs.borderRadius, borderWidth: cs.borderTopWidth, borderColor: cs.borderTopColor, backgroundColor: cs.backgroundColor, fontSize: cs.fontSize, padding: cs.padding };
+  }), null, 2));
+  console.log("ATT_MAXFRAMES_INPUT:", JSON.stringify(await page.getByLabel("视频抽帧帧数上限").evaluate((el) => ({ width: el.offsetWidth, height: el.offsetHeight })), null, 2));
+  console.log("ATT_FPS_LABEL:", JSON.stringify(await card.locator("label").filter({ hasText: "fps" }).first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: el.textContent, fontSize: cs.fontSize, color: cs.color, gap: cs.gap };
+  }), null, 2));
+  const videoThumbImg = thumbBtn.locator("img");
+  const videoThumbIcon = thumbBtn.locator("svg");
+  const hasPoster = (await videoThumbImg.count()) > 0;
+  console.log("ATT_VIDEO_THUMB:", JSON.stringify({
+    hasPosterImg: hasPoster,
+    hasFallbackIcon: (await videoThumbIcon.count()) > 0,
+    ...(hasPoster
+      ? await videoThumbImg.evaluate((el) => ({ width: getComputedStyle(el).width, height: getComputedStyle(el).height, borderRadius: getComputedStyle(el).borderRadius }))
+      : await videoThumbIcon.evaluate((el) => ({ width: el.offsetWidth, height: el.offsetHeight, borderRadius: getComputedStyle(el).borderRadius, backgroundColor: getComputedStyle(el).backgroundColor, padding: getComputedStyle(el).padding }))),
+  }, null, 2));
+  console.log("ATT_VIDEO_SUB:", JSON.stringify({ text: await card.locator(".text-t-xs").first().textContent() }));
+
+  // ③ 替换（单槽）：再选一张图 → 名字换新、仍只一张卡
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "att-probe-2.png", mimeType: "image/png", buffer: PNG_1PX,
+  });
+  await page.waitForTimeout(500);
+  console.log("ATT_REPLACE:", JSON.stringify({ cardCount: await shell.locator("div.rounded-lg").count(), name: await card.locator("div.truncate").first().textContent() }));
+
+  // ④ 缩略图点击 → 大图预览（lightbox）→ Esc 关闭
+  await thumbBtn.click();
+  await page.locator("div.fixed.inset-0.z-50").first().waitFor({ state: "visible", timeout: 5_000 });
+  console.log("ATT_PREVIEW:", JSON.stringify({ lightboxOpen: await page.locator("div.fixed.inset-0.z-50").count() > 0 }));
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+
+  // ⑤ 移除 → 条消失
+  await rmBtn.click();
+  await page.waitForTimeout(300);
+  console.log("ATT_REMOVE_RESULT:", JSON.stringify({ cardCount: await shell.locator("div.rounded-lg").count() }));
+});
+
+// 零件取证 · Skill 选择（skill-picker）computed style 实测（同一 CMP_CAPTURE=1 门）
+// API 造数：临时 SKILL.md ×3 → /api/skills/import → 停用其一；量触发件／弹层／勾选行／指示器／
+// 已选 chips；行为事实：勾选即时生效（会话域）、菜单不关、脏态不拦（toggleSkill 无 dirty 检查）。
+test("measure skill-picker computed styles", async ({ page }) => {
+  test.setTimeout(120_000);
+  const dir = mkdtempSync(join(tmpdir(), "dsf-skill-probe-"));
+  const mk = (file: string, name: string, desc: string): string => {
+    const p = join(dir, file);
+    writeFileSync(p, `---\nname: ${name}\ndescription: ${desc}\nlicense: MIT\n---\n\n取证用技能正文。\n`);
+    return p;
+  };
+  const paths = [
+    mk("skill-a.md", "取证·skill甲", "面向取证场景的描述甲，用于量行内描述截断。"),
+    mk("skill-b.md", "取证·skill乙", "面向取证场景的描述乙。"),
+    mk("skill-off.md", "取证·skill停用", "面向取证场景的停用描述。"),
+  ];
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  const ids: string[] = [];
+  for (const p of paths) {
+    const r = await page.evaluate(async (src) => {
+      const res = await fetch("/api/skills/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: src }),
+      });
+      return { status: res.status, body: await res.json() };
+    }, p);
+    console.log("SKILL_IMPORT:", JSON.stringify({ path: p.split(/[\\/]/).pop(), status: r.status, id: (r.body as { id?: string }).id }));
+    ids.push((r.body as { id?: string }).id ?? "");
+  }
+  await page.evaluate(async (sid) => { await fetch(`/api/skills/${sid}/disable`, { method: "POST" }); }, ids[2]);
+  await page.reload();
+
+  const addBtn = page.getByRole("button", { name: "添加 Skill" });
+  await addBtn.waitFor({ state: "visible", timeout: 10_000 });
+  console.log("SKILL_TRIGGER:", JSON.stringify(await addBtn.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const svg = el.querySelector("svg");
+    return { width: el.offsetWidth, height: el.offsetHeight, borderRadius: cs.borderRadius, backgroundColor: cs.backgroundColor, color: cs.color, svgWidth: svg ? getComputedStyle(svg).width : null };
+  }), null, 2));
+  await addBtn.click();
+  const menu = page.getByRole("menu");
+  await menu.waitFor({ state: "visible", timeout: 5_000 });
+  await page.waitForTimeout(300);
+
+  console.log("SKILL_MENU:", JSON.stringify(await menu.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: el.offsetWidth, height: el.offsetHeight, maxWidth: cs.maxWidth, borderRadius: cs.borderRadius, borderWidth: cs.borderTopWidth, borderColor: cs.borderTopColor, backgroundColor: cs.backgroundColor, padding: cs.padding, gap: cs.gap, boxShadow: cs.boxShadow === "none" ? "none" : "(has shadow)" };
+  }), null, 2));
+  console.log("SKILL_LABEL:", JSON.stringify(await page.getByText(/Skill 库 · 共/).evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: el.textContent, fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color, padding: cs.padding };
+  }), null, 2));
+  console.log("SKILL_HEAD_ACTIONS:", JSON.stringify({ settingsBtnCount: await menu.locator("button").count(), note: "头行动作钮位（原型有 settings 钮）" }));
+
+  const rowOn = menu.getByRole("menuitemcheckbox", { name: "取证·skill甲" });
+  const rowOff = menu.getByRole("menuitemcheckbox", { name: /取证·skill停用/ });
+  console.log("SKILL_ROW:", JSON.stringify(await rowOn.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { height: el.offsetHeight, borderRadius: cs.borderRadius, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, fontSize: cs.fontSize, color: cs.color };
+  }), null, 2));
+  console.log("SKILL_ROW_DESC:", JSON.stringify({ descCount: await rowOn.locator("span").count(), note: "实现行内是否渲染 description" }));
+  const indicator = rowOn.locator("span.absolute").first();
+  console.log("SKILL_INDICATOR:", JSON.stringify(await indicator.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const svg = el.querySelector("svg");
+    return { boxW: el.offsetWidth, boxH: el.offsetHeight, left: cs.left, svgW: svg ? getComputedStyle(svg).width : null, svgVisible: svg ? getComputedStyle(svg).display : null };
+  }), null, 2));
+  console.log("SKILL_ROW_DISABLED:", JSON.stringify(await rowOff.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: (el.textContent ?? "").slice(0, 22), opacity: cs.opacity, color: cs.color, dataDisabled: el.getAttribute("data-disabled") };
+  }), null, 2));
+  await rowOn.hover();
+  await page.waitForTimeout(250);
+  console.log("SKILL_ROW_HOVER:", JSON.stringify(await rowOn.evaluate((el) => ({ backgroundColor: getComputedStyle(el).backgroundColor })), null, 2));
+  await page.mouse.move(10, 500);
+
+  // 勾选两个（菜单保持打开——onSelect preventDefault）
+  await rowOn.click();
+  await menu.getByRole("menuitemcheckbox", { name: "取证·skill乙" }).click();
+  await page.waitForTimeout(300);
+  console.log("SKILL_CHECKED_STATE:", JSON.stringify({
+    menuStillOpen: await menu.isVisible(),
+    rowChecked: await rowOn.getAttribute("data-state"),
+  }));
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+
+  // 已选 chips（输入区 Foot）
+  const chipX = page.getByRole("button", { name: "移除 Skill 取证·skill甲" });
+  await chipX.waitFor({ state: "visible", timeout: 5_000 });
+  const chip = chipX.locator("..");
+  console.log("SKILL_CHIP_STRIP:", JSON.stringify(await chip.evaluate((el) => {
+    const cs = getComputedStyle(el.parentElement);
+    return { gap: cs.gap, overflowX: cs.overflowX };
+  }), null, 2));
+  console.log("SKILL_CHIP:", JSON.stringify(await chip.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { height: el.offsetHeight, borderRadius: cs.borderRadius, borderWidth: cs.borderTopWidth, borderColor: cs.borderTopColor, backgroundColor: cs.backgroundColor, color: cs.color, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, fontSize: cs.fontSize, gap: cs.gap };
+  }), null, 2));
+  console.log("SKILL_CHIP_X:", JSON.stringify(await chipX.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const svg = el.querySelector("svg");
+    return { w: el.offsetWidth, h: el.offsetHeight, color: cs.color, svgW: svg ? getComputedStyle(svg).width : null, bg: cs.backgroundColor };
+  }), null, 2));
+  await chipX.click();
+  await page.waitForTimeout(300);
+  console.log("SKILL_CHIP_REMOVE:", JSON.stringify({ chipsLeft: await page.getByRole("button", { name: /移除 Skill / }).count() }));
 });
