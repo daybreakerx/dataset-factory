@@ -255,6 +255,132 @@ test("measure strategy-dropdown computed styles", async ({ page }) => {
   }
 });
 
+// 零件取证 · 提示词场景下拉（select-scene）computed style 实测（同一 CMP_CAPTURE=1 门）
+// 触发件（名字输入框 hover/focus + 箭头钮 + 脏态禁用）→ 弹层（面板/头行/新建钮）→ 行（当前语义行/普通/hover/删除钮）。
+// 数据 = API 自建两条提示词（数据根本次运行新建，零种子触碰）；进页自动选中首条，首行即「当前」语义行。
+const SCENE_BOX = (el: HTMLElement): Record<string, string | number> => {
+  const cs = getComputedStyle(el);
+  return {
+    width: el.offsetWidth, height: el.offsetHeight,
+    minWidth: cs.minWidth,
+    paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight,
+    paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom,
+    borderRadius: cs.borderRadius,
+    backgroundColor: cs.backgroundColor,
+    color: cs.color,
+    fontSize: cs.fontSize, fontWeight: cs.fontWeight, lineHeight: cs.lineHeight,
+    borderTopWidth: cs.borderTopWidth, borderTopColor: cs.borderTopColor,
+    boxShadow: cs.boxShadow,
+    opacity: cs.opacity,
+  };
+};
+
+test("measure prompt-dropdown computed styles", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+
+  const setup = await page.evaluate(async () => {
+    const mk = (name: string, desc: string) =>
+      fetch("/api/prompts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description: desc, body: "取证正文：" + name }),
+      }).then(async (r) => ({ ok: r.ok, status: r.status, body: r.ok ? null : await r.text() }));
+    const a = await mk("取证·场景甲", "三到五句自然连贯的详细描述，覆盖主体、动作与光影。");
+    const b = await mk("取证·场景乙", "逗号分隔的标签短语，训练快但信息量少。");
+    return { a, b };
+  });
+  console.log("SCENE_SETUP:", JSON.stringify(setup));
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  const nameInput = page.getByLabel("名称", { exact: true });
+  await nameInput.waitFor({ state: "visible", timeout: 10_000 });
+
+  // 触发件：名字输入框（静置 / hover / focus；focus 额外看 outlineStyle——#13 口径 = 打字框无环）
+  console.log("SCENE_TRIGGER:", JSON.stringify(await nameInput.evaluate(SCENE_BOX), null, 2));
+  await nameInput.hover();
+  await page.waitForTimeout(200);
+  console.log("SCENE_TRIGGER_HOVER:", JSON.stringify(await nameInput.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { borderTopColor: cs.borderTopColor, backgroundColor: cs.backgroundColor };
+  }), null, 2));
+  await nameInput.focus();
+  await page.waitForTimeout(200);
+  console.log("SCENE_TRIGGER_FOCUS:", JSON.stringify(await nameInput.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { borderTopColor: cs.borderTopColor, backgroundColor: cs.backgroundColor, outlineStyle: cs.outlineStyle, outlineWidth: cs.outlineWidth };
+  }), null, 2));
+  await page.mouse.move(10, 500);
+  await page.waitForTimeout(200);
+
+  // 箭头钮（干净态可点）
+  const chev = page.getByRole("button", { name: "切换提示词" });
+  console.log("SCENE_CHEVRON:", JSON.stringify(await chev.evaluate(SCENE_BOX), null, 2));
+
+  // 打开弹层；挪开鼠标防悬停污染、等入场动画落定
+  await chev.click();
+  const menu = page.getByRole("menu");
+  await menu.waitFor({ state: "visible", timeout: 5000 });
+  await page.mouse.move(10, 500);
+  await page.waitForTimeout(400);
+  console.log("SCENE_PANEL:", JSON.stringify(await menu.evaluate(SCENE_BOX), null, 2));
+  const headRow = menu.locator("div").filter({ hasText: "提示词库 · 共" }).first();
+  console.log("SCENE_HEAD:", JSON.stringify(await headRow.evaluate(SCENE_BOX), null, 2));
+  console.log("SCENE_HEAD_LABEL:", JSON.stringify(await headRow.locator("span").first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: (el.textContent ?? "").slice(0, 16), fontSize: cs.fontSize, color: cs.color };
+  }), null, 2));
+  const addBtn = menu.getByRole("button", { name: "新建提示词" });
+  console.log("SCENE_ADD:", JSON.stringify(await addBtn.evaluate(SCENE_BOX), null, 2));
+
+  const rows = menu.locator("div.max-h-80 > div");
+  console.log("SCENE_ROWS_COUNT:", JSON.stringify({ count: await rows.count() }));
+  const row1 = rows.first();   // 首条 = 当前选中（实现侧无当前行样式，实测验证）
+  console.log("SCENE_ROW_FIRST:", JSON.stringify(await row1.evaluate(SCENE_BOX), null, 2));
+  console.log("SCENE_ROW_NAME:", JSON.stringify(await row1.locator("span.text-t-md").first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: (el.textContent ?? "").slice(0, 12), fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color };
+  }), null, 2));
+  console.log("SCENE_ROW_DESC:", JSON.stringify(await row1.locator("span.text-t-xs").first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: (el.textContent ?? "").slice(0, 12), fontSize: cs.fontSize, color: cs.color };
+  }), null, 2));
+  const rowDel = row1.getByRole("button", { name: /删除提示词/ });
+  console.log("SCENE_ROW_DELETE:", JSON.stringify(await rowDel.evaluate(SCENE_BOX), null, 2));
+  console.log("SCENE_ROW_DELETE_ICON:", JSON.stringify(await rowDel.evaluate((el) => {
+    const svg = el.querySelector("svg");
+    return svg ? { width: getComputedStyle(svg).width, height: getComputedStyle(svg).height, color: getComputedStyle(svg).color } : {};
+  }), null, 2));
+  await row1.hover();
+  await page.waitForTimeout(150);
+  console.log("SCENE_ROW_HOVER:", JSON.stringify(await row1.evaluate((el) => {
+    return { backgroundColor: getComputedStyle(el).backgroundColor };
+  }), null, 2));
+  await page.mouse.move(10, 500);
+  await page.waitForTimeout(150);
+
+  // 弹层位置（默认方向与间距）
+  const pos = await page.evaluate(() => {
+    const menu = document.querySelector('[role="menu"]');
+    const trigger = document.querySelector('[aria-label="切换提示词"]');
+    if (!menu || !trigger) return {};
+    const m = menu.getBoundingClientRect();
+    const t = trigger.getBoundingClientRect();
+    return { menuTop: Math.round(m.top), triggerBottom: Math.round(t.bottom), gap: Math.round(m.top - t.bottom), alignLeft: Math.round(m.left), triggerLeft: Math.round(t.left) };
+  });
+  console.log("SCENE_PANEL_POS:", JSON.stringify(pos, null, 2));
+
+  // 关闭弹层 → 制造脏态 → 箭头钮禁用行为（以实现为准的逻辑事实；顺带核保存钮 Tip 存在）
+  await page.keyboard.press("Escape");
+  await page.getByLabel("描述", { exact: true }).fill("取证修改描述");
+  await page.waitForTimeout(300);
+  console.log("SCENE_CHEV_DIRTY:", JSON.stringify(await chev.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { disabled: String((el as HTMLButtonElement).disabled), backgroundColor: cs.backgroundColor, color: cs.color, opacity: cs.opacity };
+  }), null, 2));
+});
+
 // 零件取证 · 悬停说明（Tip）computed style 实测（同一 CMP_CAPTURE=1 门）
 // 触发件 = 策略行箭头钮（Tip「切换策略」）；量气泡形态与相对触发件的位置。
 test("measure tooltip computed styles", async ({ page }) => {
