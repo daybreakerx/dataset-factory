@@ -515,3 +515,126 @@ test("measure endpoint-switcher computed styles", async ({ page }) => {
   await page.waitForTimeout(150);
   console.log("EP_ROW_HOVER:", JSON.stringify(await activeRow.evaluate((el) => ({ backgroundColor: getComputedStyle(el).backgroundColor })), null, 2));
 });
+
+// 零件取证 · 聊天消息（chat-message）computed style 实测（同一 CMP_CAPTURE=1 门）
+// 稳定态（用户气泡／AI 整框／头像／meta 行／空态）走真实往返；瞬态（响应中／未完成章）
+// 借 serving.py 的闸门端点（gated-e2e-model＋带素材发送→挂起→停止）实测；
+// 思考折叠区假模型无 reasoning 输出、不可达 → 代码级取值（对账注明）。
+const PNG_1PX = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+test("measure chat-message computed styles", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.reload();
+
+  // ① 空态
+  const empty = page.getByText(/暂无消息/);
+  await empty.waitFor({ state: "visible", timeout: 10_000 });
+  console.log("CHATMSG_EMPTY:", JSON.stringify(await empty.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { fontSize: cs.fontSize, color: cs.color, textAlign: cs.textAlign, marginTop: cs.marginTop };
+  }), null, 2));
+
+  // ② 文本往返（默认种子端点，假模型秒回）
+  await page.getByLabel("打标指令").fill("取证·用户消息：给这张图写一段训练用描述。");
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+  await page.getByText("E2E 假模型的打标结果").last().waitFor({ state: "visible", timeout: 20_000 });
+  await page.mouse.move(10, 500);
+  await page.waitForTimeout(300);
+  const userBubble = page.getByText("取证·用户消息：给这张图写一段训练用描述。").last();
+  console.log("CHATMSG_USER_BUBBLE:", JSON.stringify(await userBubble.evaluate(SCENE_BOX), null, 2));
+  const aiBox = page.locator(".rounded-xl.rounded-bl-sm").last();
+  console.log("CHATMSG_AI_BOX:", JSON.stringify(await aiBox.evaluate(SCENE_BOX), null, 2));
+  console.log("CHATMSG_AI_TEXT:", JSON.stringify(await page.getByText("E2E 假模型的打标结果").last().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { fontSize: cs.fontSize, lineHeight: cs.lineHeight, color: cs.color, padding: cs.padding };
+  }), null, 2));
+  const avatar = page.locator("span.bg-black").last();
+  console.log("CHATMSG_AVATAR:", JSON.stringify(await avatar.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const img = el.querySelector("img");
+    return { width: el.offsetWidth, height: el.offsetHeight, borderRadius: cs.borderRadius, backgroundColor: cs.backgroundColor, marginRight: cs.marginRight, logoSize: img ? getComputedStyle(img).width : null };
+  }), null, 2));
+  const metaRow = page.locator(".text-muted-foreground.flex").last();
+  console.log("CHATMSG_META:", JSON.stringify(await metaRow.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { fontSize: cs.fontSize, color: cs.color, gap: cs.gap, marginTop: cs.marginTop };
+  }), null, 2));
+  console.log("CHATMSG_META_MODEL:", JSON.stringify(await metaRow.locator("span.truncate").first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: (el.textContent ?? "").slice(0, 30), fontSize: cs.fontSize, color: cs.color };
+  }), null, 2));
+  const copyBtn = metaRow.getByRole("button", { name: "复制 caption" });
+  console.log("CHATMSG_COPY_BTN:", JSON.stringify(await copyBtn.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: el.offsetWidth, height: el.offsetHeight, borderRadius: cs.borderRadius };
+  }), null, 2));
+  console.log("CHATMSG_META_TIME:", JSON.stringify(await metaRow.locator("span.ml-auto").first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: (el.textContent ?? "").slice(0, 8), fontSize: cs.fontSize, color: cs.color };
+  }), null, 2));
+
+  // ③ 闸门端点：建 → 切换 → 带附件发送 → 挂起于闸门 → 实测「响应中」→ 停止 → 实测「未完成」章
+  const gateSetup = await page.evaluate(async () => {
+    const r = await fetch("/api/endpoints", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "取证·闸门端点",
+        base_url: "http://127.0.0.1:8765/fake-llm/v1",
+        model: "gated-e2e-model",
+        api_key: "sk-probe-noop", // pragma: allowlist secret — 取证造数假密钥
+        api_format: "openai-chat-completions",
+      }),
+    });
+    return { status: r.status };
+  });
+  console.log("CHATMSG_GATE_SETUP:", JSON.stringify(gateSetup));
+  await page.reload();
+  await page.getByRole("button", { name: "端点配置切换器" }).click();
+  const gateMenu = page.getByRole("menu");
+  await gateMenu.waitFor({ state: "visible", timeout: 5000 });
+  await gateMenu.getByRole("menuitem", { name: /取证·闸门端点/ }).click();
+  await page.waitForTimeout(500);
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "probe.png", mimeType: "image/png", buffer: PNG_1PX,
+  });
+  await page.getByLabel("打标指令").fill("取证·闸门消息：描述这张图。");
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+
+  // 等模型请求进闸门（服务器挂起 → 前端停在「响应中」）
+  await page.waitForFunction(async () => {
+    const r = await fetch("/__test__/gated-entered", { method: "POST" });
+    return (await r.json() as { entered: boolean }).entered;
+  }, undefined, { timeout: 20_000, polling: 300 });
+  await page.waitForTimeout(400);
+  const streamStatus = page.getByText(/响应中 · 已用时/);
+  console.log("CHATMSG_STREAM_STATUS:", JSON.stringify(await streamStatus.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: (el.textContent ?? "").slice(0, 16), fontSize: cs.fontSize, color: cs.color, padding: cs.padding };
+  }), null, 2));
+  const userAtt = page.locator("button[aria-label^='预览'], button[aria-label='probe.png']").last();
+  console.log("CHATMSG_ATT_THUMB:", JSON.stringify(await userAtt.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: el.offsetWidth, height: el.offsetHeight, borderRadius: cs.borderRadius, backgroundColor: cs.backgroundColor, boxShadow: cs.boxShadow === "none" ? "none" : "(has shadow)" };
+  }), null, 2));
+
+  // 停止 → 闸门阶段（思考与正文都为空）中断 = 不落消息（keepPartial 空内容早退，
+  // chat-session.tsx:365）——行为事实记录；「未完成」章只在已收到部分内容时出现，
+  // 假模型无分块节奏、窗口不可达 → 章取值走代码级（对账注明）。
+  await page.getByRole("button", { name: "停止生成" }).click();
+  await page.waitForTimeout(800);
+  const partial = page.getByText(/未完成 · 生成中断/);
+  const partialCount = await partial.count();
+  console.log("CHATMSG_PARTIAL:", JSON.stringify({ count: partialCount, note: partialCount === 0 ? "空内容中断不落消息（keepPartial 早退）" : "unexpected" }));
+  console.log("CHATMSG_PARTIAL_CODE_LEVEL:", JSON.stringify({
+    cls: "rounded-sm bg-amber-100 px-1.5 py-0.5 text-t-xs text-amber-700",
+    note: "amber-100/amber-700 为 Tailwind 默认字面量、非语义令牌——疑似违 2.1，进对齐批裁决",
+  }));
+  await page.evaluate(async () => { await fetch("/__test__/gated-release", { method: "POST" }); });
+});
