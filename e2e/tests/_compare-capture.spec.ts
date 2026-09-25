@@ -416,3 +416,102 @@ test("measure tooltip computed styles", async ({ page }) => {
   const box = await chev.boundingBox();
   console.log("TIP_TRIGGER_BOX:", JSON.stringify({ top: Math.round(box.y), bottom: Math.round(box.y + box.height), left: Math.round(box.x), width: Math.round(box.width) }));
 });
+
+// 零件取证 · 端点切换器（select-endpoint）computed style 实测（同一 CMP_CAPTURE=1 门）
+// 触发件（ghost 按钮：状态点＋「名字 · 模型」＋箭头）→ 弹层（面板/头行标签/行/active 点/分隔线/管理项）。
+// 数据 = 数据根种子端点 ＋ API 补建第二条（保证「当前＋普通」两行）；种子零触碰（不足两条才建）。
+test("measure endpoint-switcher computed styles", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.reload();
+
+  const setup = await page.evaluate(async () => {
+    const eps: Array<{ id: string; name: string }> = await (await fetch("/api/endpoints")).json();
+    let created: { status: number } | null = null;
+    if (eps.length < 2) {
+      const r = await fetch("/api/endpoints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "取证·备用端点",
+          base_url: "https://example.invalid/v1",
+          model: "probe-model",
+          api_key: "sk-probe-noop", // pragma: allowlist secret — 取证造数用假密钥，指向 example.invalid 不可达地址
+          api_format: "openai-chat-completions",
+        }),
+      });
+      created = { status: r.status };
+    }
+    return { count: eps.length, created };
+  });
+  console.log("EP_SETUP:", JSON.stringify(setup));
+  await page.reload();
+
+  const trigger = page.getByRole("button", { name: "端点配置切换器" });
+  await trigger.waitFor({ state: "visible", timeout: 10_000 });
+  console.log("EP_TRIGGER:", JSON.stringify(await trigger.evaluate(SCENE_BOX), null, 2));
+  console.log("EP_TRIGGER_DOT:", JSON.stringify(await trigger.locator("span.rounded-full").first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: cs.width, height: cs.height, backgroundColor: cs.backgroundColor, borderRadius: cs.borderRadius };
+  }), null, 2));
+  console.log("EP_TRIGGER_TEXT:", JSON.stringify(await trigger.locator("span.truncate").evaluate(TXT), null, 2));
+  console.log("EP_TRIGGER_CHEV:", JSON.stringify(await trigger.locator("svg").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: cs.width, height: cs.height, color: cs.color };
+  }), null, 2));
+  await trigger.hover();
+  await page.waitForTimeout(200);
+  console.log("EP_TRIGGER_HOVER:", JSON.stringify(await trigger.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { backgroundColor: cs.backgroundColor, color: cs.color };
+  }), null, 2));
+
+  // 打开弹层；挪开鼠标防悬停污染、等入场动画落定
+  await page.mouse.move(10, 500);
+  await trigger.click();
+  const menu = page.getByRole("menu");
+  await menu.waitFor({ state: "visible", timeout: 5000 });
+  await page.mouse.move(10, 500);
+  await page.waitForTimeout(400);
+  console.log("EP_PANEL:", JSON.stringify(await menu.evaluate(SCENE_BOX), null, 2));
+  console.log("EP_PANEL_POS:", JSON.stringify(await page.evaluate(() => {
+    const menus = Array.from(document.querySelectorAll('[role="menu"]'));
+    const m = menus[menus.length - 1].getBoundingClientRect();
+    const t = Array.from(document.querySelectorAll('button[aria-label="端点配置切换器"]')).pop()!.getBoundingClientRect();
+    return { popLeft: Math.round(m.left), popRight: Math.round(m.right), popTop: Math.round(m.top), chipLeft: Math.round(t.left), chipRight: Math.round(t.right), chipBottom: Math.round(t.bottom), align: Math.abs(m.right - t.right) < 2 ? "right" : (Math.abs(m.left - t.left) < 2 ? "left" : "other") };
+  }), null, 2));
+
+  const headLabel = menu.locator("div").filter({ hasText: "端点配置（当前使用）" }).last();
+  console.log("EP_HEAD_LABEL:", JSON.stringify(await headLabel.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: (el.textContent ?? "").slice(0, 20), fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom };
+  }), null, 2));
+
+  const items = menu.getByRole("menuitem");
+  console.log("EP_ITEMS_COUNT:", JSON.stringify({ count: await items.count() }));
+  // active 行 = 带 active 点（size-2 圆点）的行；管理项 = 「管理配置」
+  const activeDot = menu.locator("span.size-2.rounded-full");
+  console.log("EP_ACTIVE_DOT:", JSON.stringify(await activeDot.first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: cs.width, height: cs.height, backgroundColor: cs.backgroundColor, borderRadius: cs.borderRadius };
+  }), null, 2));
+  const activeRow = menu.getByRole("menuitem").filter({ has: page.locator("span.size-2") }).first();
+  console.log("EP_ROW_ACTIVE:", JSON.stringify(await activeRow.evaluate(SCENE_BOX), null, 2));
+  console.log("EP_ROW_ACTIVE_TEXT:", JSON.stringify(await activeRow.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: (el.textContent ?? "").slice(0, 30), fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color };
+  }), null, 2));
+  const manageItem = menu.getByRole("menuitem", { name: "管理配置…" });
+  console.log("EP_ROW_MANAGE:", JSON.stringify(await manageItem.evaluate(SCENE_BOX), null, 2));
+  const sep = menu.locator('[role="separator"]');
+  if ((await sep.count()) > 0) {
+    console.log("EP_SEPARATOR:", JSON.stringify(await sep.first().evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { height: el.offsetHeight, borderTopWidth: cs.borderTopWidth, borderTopColor: cs.borderTopColor, margin: cs.margin };
+    }), null, 2));
+  }
+  await activeRow.hover();
+  await page.waitForTimeout(150);
+  console.log("EP_ROW_HOVER:", JSON.stringify(await activeRow.evaluate((el) => ({ backgroundColor: getComputedStyle(el).backgroundColor })), null, 2));
+});
