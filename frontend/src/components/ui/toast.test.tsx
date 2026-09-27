@@ -5,7 +5,7 @@ import { toast } from "../../lib/toast";
 import { ToastViewport } from "./toast";
 
 /**
- * 浮层提示的渲染与消失（形态见 §5.11：黑底白字、居中贴底、几秒后自己走）。
+ * 浮层提示的渲染与消失（形态见 components/overlay.md：黑底白字、居中贴底、几秒后自己走）。
  *
  * 计时器全程造假：驻留时长 3.5 秒，用真时间等就等于每个用例白等 4 秒。
  */

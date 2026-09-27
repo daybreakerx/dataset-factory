@@ -94,9 +94,9 @@ const STOPPING_PROBE_MS = 1_000;
 const STOPPING_TRIES = 60;
 
 /**
- * 侧栏脚注的服务状态点（§5.14「状态点 + 版本号」组合口径）。
+ * 侧栏脚注的服务状态点（components/shell.md「状态点 + 版本号」组合口径）。
  *
- * 数据 = GET /api/service，不为点编造状态（§5.3）。探测时机四处：进页、窗口聚焦、
+ * 数据 = GET /api/service，不为点编造状态（components/marks.md）。探测时机四处：进页、窗口聚焦、
  * `df:service-changed`（任何一次请求连不上后端时由 `reportError` 广播）、常驻低频轮询。
  * 「正在停止」是点上的第四个状态：UI 关闭被受理但服务还在排空请求，这段时间既不是运行中
  * 也不是不可用，如实标出来（与「关闭前会等正在进行的请求跑完」的弹窗文案同一个事实）。

@@ -47,7 +47,7 @@ import {
 type Strategy = components["schemas"]["StrategyView"];
 type References = Pick<Strategy, "endpoint_id" | "prompt_id" | "skill_ids">;
 
-/** 悬停气泡里的出身三参数（§5.7 键值行：键用弱字、值用次字，键列全站统一 84px）。
+/** 悬停气泡里的出身三参数（components/data.md 键值行：键用弱字、值用次字，键列全站统一 84px）。
 
     策略存的是各资产的稳定 ID：展示前按传入的资产列表反查显示名；反查不到
     （资产已删除）时显示 ID 原样——缺失本身由 available / missing_refs 表达。

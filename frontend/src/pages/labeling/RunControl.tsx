@@ -464,7 +464,7 @@ export function RunControl({
         </>
       ) : (
         <>
-          {/* L6（2026-09-21 审计 / ui-spec §4.3）：禁用必须说明原因。 */}
+          {/* L6（2026-09-21 审计 / components/button.md）：禁用必须说明原因。 */}
           <Tip
             label={
               busy

@@ -7,7 +7,7 @@ import { FormError } from "../../components/form-error";
 import { Button } from "../../components/ui/button";
 import { Tip } from "../../components/ui/tooltip";
 
-/** 端点健康探测结果（§5.3：点的每个颜色都要有数据来源）。 */
+/** 端点健康探测结果（components/marks.md：点的每个颜色都要有数据来源）。 */
 type EndpointHealth = {
   status: "probing" | "ok" | "bad" | "unknown";
   message: string;
@@ -101,7 +101,7 @@ function useEndpointHealth(
 }
 
 const HEALTH_DOT: Record<EndpointHealth["status"], string> = {
-  // L14（2026-09-21 审计 / ui-spec :150）：.dot--run 的呼吸是全站唯一持续动画——
+  // L14（2026-09-21 审计 / DESIGN.md :150）：.dot--run 的呼吸是全站唯一持续动画——
   // 探测中改静态蓝点；「正在探测」的信息由文案承载，不靠动画。
   probing: "bg-info-dot",
   ok: "bg-ok-dot",

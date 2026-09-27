@@ -516,7 +516,7 @@ export function WorkdirSettings({
                   <span
                     className={`inline-flex h-4.5 shrink-0 items-center rounded-full px-2 text-t-xs font-medium ${runStates[batch.id] ? "bg-info-ink text-on-ink" : batch.active ? "bg-ok-ink text-on-ink" : "bg-muted text-text-3"}`}
                   >
-                    {/* Q3/Q7（ui-spec §5.2）：状态章一律实底彩色 + 白字——
+                    {/* Q3/Q7（components/marks.md）：状态章一律实底彩色 + 白字——
                         此前的带色文字是与原型 shell.css 同源的规范漂移。 */}
                     {runStates[batch.id] ? "运行中" : batch.active ? "活跃" : "已停用"}
                   </span>

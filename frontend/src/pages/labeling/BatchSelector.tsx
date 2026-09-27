@@ -50,7 +50,7 @@ interface Props {
  * 运行状态章的配方（顶栏胶囊第三段）。
  *
  * 取值沿用原型实测：已完成 = ink 实底 + `--on-ink` 字（暗色随 n-0 翻深，与
- * ui-spec 5.2「状态章实底彩字」一致）；已中断 = 中性浅底 + 次级文字（原型实测
+ * components/marks.md「状态章实底彩字」一致）；已中断 = 中性浅底 + 次级文字（原型实测
  * `rgb(242,244,247)` 即本仓的 `--muted`）；跑批中 = 信息蓝实底。
  */
 const RUN_STATE_BADGES: Record<string, { text: string; tone: string }> = {
@@ -76,7 +76,7 @@ export function BatchSelector({
     (entry) => entry.id === value?.batchId && entry.active,
   );
   const badge = batch && runState ? RUN_STATE_BADGES[runState] : undefined;
-  // V14：全站提示走自研气泡（ui-spec :343）——完整路径悬停可查，不再用原生 title。
+  // V14：全站提示走自研气泡（DESIGN.md :343）——完整路径悬停可查，不再用原生 title。
   const fullLocation = directory?.path
     ? `${directory.path}${batch ? ` / ${batch.name} · ${batch.id}` : ""}`
     : "";

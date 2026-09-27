@@ -4,7 +4,7 @@ import { dismissToast, getToastSnapshot, subscribeToast } from "../../lib/toast"
 import { cn } from "../../lib/utils";
 
 /**
- * 浮层提示的渲染端（§5.11 四类浮层里的 Toast）。
+ * 浮层提示的渲染端（components/overlay.md 四类浮层里的 Toast）。
  *
  * 形态照 `base.css` 的 `.toast`：黑底白字（全站唯一一处黑底浮层，暗色随 n-900 / n-0
  * 自动翻成浅底深字）、居中贴底、`--r-md` 圆角、几秒后自己消失。与原型不同的只有一处：

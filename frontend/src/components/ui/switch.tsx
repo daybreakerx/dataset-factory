@@ -10,7 +10,7 @@ function Switch({ className, ...props }: ComponentProps<typeof SwitchPrimitive.R
       data-slot="switch"
       className={cn(
         "peer inline-flex h-5 w-9 shrink-0 items-center rounded-full border border-transparent transition-colors",
-        // 全站不设焦点环（ui-spec §5.1，2026-09-17 用户裁决）。这里不能加
+        // 全站不设焦点环（components/form.md，2026-09-17 用户裁决）。这里不能加
         // focus-visible:ring：--ring 不在主题里，ring-2 会退化成 var(…, currentcolor)、
         // 画出 2px 正文色实心环（2026-09-20 实测过）；聚焦无可见指示属裁决范围。
         "focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
