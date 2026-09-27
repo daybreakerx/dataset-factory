@@ -5,9 +5,9 @@
    context/design/ui-system.css 的令牌区迁入）；规范正文见协作层
    context/design/DESIGN.md，组件类（稿侧）见协作层 context/design/base.css。
 
-   【消费者】原型稿（context/design/ui-prototype/，经 <link> 跨目录引用）
-   与实现（本目录 globals.css 经 @import 引用）——**改视觉只改这一处**，
-   两侧同时生效。
+   【消费者】原型稿（外层 context/design/ 的 prototype/ 页面稿·零件稿与
+   ui-prototype/ 动态原型，经 <link> 跨目录引用）与实现（本目录 globals.css
+   经 @import 引用）——**改视觉只改这一处**，两侧同时生效。
 
    【使用纪律】改动本文件前先读 DESIGN.md。两条铁律：
    1. 刻度外的值不存在。字号只有 6 档、间距只有 4 的倍数、圆角只有 5 档、

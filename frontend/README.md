@@ -7,7 +7,7 @@
 
 `tokens.css`（与 `src/` 并列、不进 `src`）是**唯一取值源**；`src/globals.css` 以 `@import "../tokens.css"` 接回，Tailwind 侧经 `@theme` / `@theme inline` 映射成工具类。
 
-**改令牌只改 `tokens.css` 一处**，原型稿（外层 `context/design/prototype/`）以 `<link>` 引同一份文件，两边的视觉同时变。「实现侧手抄副本＋保持一字不差」的旧机制已终结——不要再在 `src/` 里写第二份令牌。
+**改令牌只改 `tokens.css` 一处**，原型稿（外层 `context/design/prototype/`）以 `<link>` 引同一份文件，两边的视觉同时变；不要再在 `src/` 里写第二份令牌。
 
 ## Tailwind 映射表
 
