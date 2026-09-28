@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "@playwright/test";
@@ -1925,4 +1925,318 @@ test("measure settings-endpoint-config computed styles", async ({ page }) => {
       titleColor: h2 ? g(h2).color : null,
     };
   }), null, 2));
+});
+
+// 技能子页（设置页）computed style 实测——稿侧三侧取证的实现侧翼（SKS_*，2026-09-29）。
+// 对象 = 面板壳／左列（列表头/搜索/技能行/开关/字数/描述）／右列（名字框/状态章/描述行/文件胶囊/预览框/操作条）
+// ＋导入弹窗与删除确认。造数幂等：按名清旧再导三包（含 references/ 与 assets/ 验证胶囊图标分流）。
+test("measure settings-skills computed styles", async ({ page }) => {
+  test.setTimeout(120_000);
+  const dir = mkdtempSync(join(tmpdir(), "dsf-skills-page-probe-"));
+  const PNG_1PX = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  const pkg = (name: string, desc: string, extra: string[]): string => {
+    const root = join(dir, name);
+    mkdirSync(join(root, "references"), { recursive: true });
+    mkdirSync(join(root, "assets"), { recursive: true });
+    writeFileSync(join(root, "SKILL.md"), `---\nname: ${name}\ndescription: ${desc}\nlicense: MIT\n---\n\n# ${name}\n\n取证用技能正文，用于量预览框排版。\n`);
+    for (const rel of extra) {
+      const p = join(root, rel);
+      if (rel.endsWith(".png")) {
+        writeFileSync(p, PNG_1PX);
+      } else {
+        writeFileSync(p, "# 字段顺序参考\n\n1. 主体与动作。\n");
+      }
+    }
+    return root;
+  };
+  const packages = [
+    pkg("h3-prompt-writing", "面向取证场景的 caption 写作规范：字段顺序、详略与禁例。", ["references/h3-field-order.md", "assets/cover.png"]),
+    pkg("camera-angles", "镜头与构图术语表：景别、机位、光线方向。", []),
+    pkg("legacy-style", "早期风格指南（已取代，仅留档）。", []),
+  ];
+  const NAMES = ["h3-prompt-writing", "camera-angles", "legacy-style"];
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/");
+    await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+    // 造数（幂等）：先清旧（此前取证轮可能残留同名包）再导入
+    const cleanup = await page.evaluate(async (names) => {
+      const list: Array<{ name: string }> = await (await fetch("/api/skills")).json();
+      const removed: string[] = [];
+      for (const n of names) {
+        if (list.some((s) => s.name === n)) {
+          const res = await fetch(`/api/skills/${encodeURIComponent(n)}`, { method: "DELETE" });
+          removed.push(`${n}:${res.status}`);
+        }
+      }
+      return removed;
+    }, NAMES);
+    console.log("SKS_CLEANUP:", JSON.stringify(cleanup));
+    const imported: Array<{ name: string; status: number; chars: number | null }> = [];
+    for (const p of packages) {
+      const res = await page.evaluate(async (src) => {
+        const r = await fetch("/api/skills/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: src }),
+        });
+        return { status: r.status, body: (await r.json()) as { name?: string; body_chars?: number } };
+      }, p);
+      imported.push({ name: res.body.name ?? "", status: res.status, chars: res.body.body_chars ?? null });
+    }
+    console.log("SKS_IMPORT:", JSON.stringify(imported));
+    await page.evaluate(async () => { await fetch(`/api/skills/${encodeURIComponent("legacy-style")}/disable`, { method: "POST" }); });
+    await page.reload();
+
+    // 导航：设置 → 技能子页（应用恢复上次页面，先退回工作区再进）
+    const gotoSkills = async (): Promise<void> => {
+      const back = page.getByRole("button", { name: "返回工作区" });
+      if (await back.isVisible().catch(() => false)) {
+        await back.click();
+        await page.waitForTimeout(200);
+      }
+      await page.getByRole("button", { name: "策略", exact: true }).click();
+      await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+      await page.getByTestId("sidebar").getByRole("button", { name: "设置", exact: true }).click();
+      await page.getByTestId("sidebar").getByRole("button", { name: "技能", exact: true }).click();
+    };
+    await gotoSkills();
+    await page.getByRole("heading", { name: "技能", exact: true }).waitFor({ state: "visible", timeout: 10_000 });
+    await page.waitForTimeout(300);
+
+    console.log("SKS_PANEL:", JSON.stringify(await page.evaluate(() => {
+      const scope = document.querySelector('[data-testid="page-settings"]');
+      const h2 = scope?.querySelector("h2");
+      const panel = scope?.querySelector('[class*="grid-cols-[340px"]');
+      const g = (el: Element) => getComputedStyle(el as HTMLElement);
+      return {
+        h2: h2 ? [g(h2).fontSize, g(h2).fontWeight, g(h2).marginBottom, g(h2).color] : null,
+        panel: panel ? { cols: g(panel).gridTemplateColumns, radius: g(panel).borderRadius, bd: g(panel).borderTopWidth, bg: g(panel).backgroundColor, shadow: g(panel).boxShadow === "none" ? "none" : "(has shadow)" } : null,
+      };
+    }), null, 2));
+    console.log("SKS_LIST_HEAD:", JSON.stringify(await page.evaluate(() => {
+      const scope = document.querySelector('[data-testid="page-settings"]');
+      const h3 = Array.from(scope?.querySelectorAll("h3") ?? []).find((x) => x.textContent === "技能列表");
+      if (!h3) return null;
+      const head = h3.parentElement as HTMLElement;
+      const count = head.querySelector("span");
+      const importBtn = Array.from(head.querySelectorAll("button")).find((b) => b.textContent?.includes("导入 Skill"));
+      const g = (el: Element) => getComputedStyle(el as HTMLElement);
+      return {
+        head: [g(head).paddingTop, g(head).paddingRight, g(head).paddingBottom, g(head).columnGap],
+        title: [g(h3).fontSize, g(h3).fontWeight, g(h3).color],
+        count: count ? [g(count).fontSize, g(count).color, count.textContent] : null,
+        importBtn: importBtn ? [importBtn.offsetHeight, g(importBtn).fontSize, g(importBtn).color, g(importBtn).backgroundColor] : null,
+        importIc: importBtn?.querySelector("svg") ? g(importBtn.querySelector("svg") as Element).width : null,
+      };
+    }), null, 2));
+    console.log("SKS_SEARCH:", JSON.stringify(await page.evaluate(() => {
+      const scope = document.querySelector('[data-testid="page-settings"]');
+      const input = scope?.querySelector('input[aria-label="搜索技能"]');
+      if (!input) return null;
+      const wrap = input.parentElement as HTMLElement;
+      const ic = wrap.querySelector("svg");
+      const g = (el: Element) => getComputedStyle(el as HTMLElement);
+      return {
+        wrapMargin: g(wrap).margin,
+        input: [g(input).height, g(input).paddingLeft, g(input).borderRadius, g(input).fontSize, (input as HTMLInputElement).placeholder],
+        ic: ic ? [g(ic).width, g(ic).color, g(ic).position] : null,
+      };
+    }), null, 2));
+    console.log("SKS_ROWS:", JSON.stringify(await page.evaluate(() => {
+      const scope = document.querySelector('[data-testid="page-settings"]');
+      const rows = scope?.querySelectorAll(".space-y-1 > div");
+      if (!rows || rows.length === 0) return null;
+      const g = (el: Element) => getComputedStyle(el as HTMLElement);
+      const read = (row: Element) => {
+        const sw = row.querySelector('[data-slot="switch"]');
+        const nameBtn = row.querySelector("button.flex-1") ?? row.querySelectorAll("button")[1];
+        const name = nameBtn?.querySelector("span.truncate, span[class*='truncate']");
+        const spans = nameBtn ? Array.from(nameBtn.querySelectorAll("span")) : [];
+        const chars = spans.find((s) => /字$/.test((s.textContent ?? "").trim()));
+        const desc = spans.find((s) => (s.className as string).includes("line-clamp"));
+        return {
+          row: [g(row).padding, g(row).borderRadius, g(row).backgroundColor],
+          sw: sw ? [sw.getBoundingClientRect().width, sw.getBoundingClientRect().height, g(sw).backgroundColor, g(sw).borderRadius] : null,
+          name: name ? [g(name).fontSize, g(name).fontWeight, g(name).color] : null,
+          chars: chars ? [g(chars).fontSize, g(chars).color, chars.textContent] : null,
+          desc: desc ? [g(desc).fontSize, g(desc).color, g(desc).webkitLineClamp] : null,
+        };
+      };
+      return { count: rows.length, cur: read(rows[0]), plain: read(rows[1]) };
+    }), null, 2));
+    const offSwitch = page.locator('div.space-y-1 > div:has-text("legacy-style") [data-slot="switch"]');
+    console.log("SKS_SWITCH_OFF:", JSON.stringify(await offSwitch.evaluate((el) => {
+      const g = getComputedStyle(el);
+      return { w: el.getBoundingClientRect().width, h: el.getBoundingClientRect().height, bg: g.backgroundColor, radius: g.borderRadius };
+    }), null, 2));
+    // 搜索无匹配空态
+    await page.getByRole("textbox", { name: "搜索技能" }).fill("zzz-no-match");
+    await page.waitForTimeout(200);
+    console.log("SKS_NO_MATCH:", JSON.stringify(await page.evaluate(() => {
+      const scope = document.querySelector('[data-testid="page-settings"]');
+      const p = Array.from(scope?.querySelectorAll("p") ?? []).find((x) => x.textContent === "没有匹配的技能");
+      return p ? [getComputedStyle(p).fontSize, getComputedStyle(p).color, getComputedStyle(p).padding] : null;
+    }), null, 2));
+    await page.getByRole("textbox", { name: "搜索技能" }).fill("");
+    await page.waitForTimeout(200);
+    // 选中目标行（默认选中 list[0]；点 h3-prompt-writing 使与稿态一致）
+    await page.getByRole("button", { name: "h3-prompt-writing" }).first().click();
+    await page.waitForTimeout(400);
+    console.log("SKS_DETAIL:", JSON.stringify(await page.evaluate(() => {
+      const scope = document.querySelector('[data-testid="page-settings"]');
+      const nameInput = scope?.querySelector('input[aria-label="技能名称"]');
+      const badge = scope?.querySelector('[data-slot="badge"]');
+      const del = scope?.querySelector('button[aria-label="删除技能"]');
+      const descLabel = scope?.querySelector('label[for="skill-description"]');
+      const descInput = scope?.querySelector('input[aria-label="技能描述"]');
+      const g = (el: Element) => getComputedStyle(el as HTMLElement);
+      return {
+        name: nameInput ? [g(nameInput).fontSize, g(nameInput).fontWeight, g(nameInput).maxWidth, g(nameInput).minWidth, g(nameInput).borderTopColor, (nameInput as HTMLInputElement).value] : null,
+        badge: badge ? [badge.getBoundingClientRect().height, g(badge).borderRadius, g(badge).backgroundColor, g(badge).color, g(badge).fontSize, badge.textContent] : null,
+        del: del ? [del.getBoundingClientRect().width, g(del).color, (del as HTMLButtonElement).disabled] : null,
+        descLabel: descLabel ? [g(descLabel).fontSize, g(descLabel).columnGap] : null,
+        descLabelSpan: descLabel ? (() => { const s = descLabel.querySelector("span"); return s ? [getComputedStyle(s).fontSize, getComputedStyle(s).color] : null; })() : null,
+        descInput: descInput ? [(descInput as HTMLInputElement).disabled, g(descInput).height, g(descInput).fontSize] : null,
+      };
+    }), null, 2));
+    console.log("SKS_CHIPS:", JSON.stringify(await page.evaluate(() => {
+      const scope = document.querySelector('[data-testid="page-settings"]');
+      const chips = Array.from(scope?.querySelectorAll("button.rounded-full") ?? []);
+      const g = (el: Element) => getComputedStyle(el as HTMLElement);
+      const read = (el: Element) => {
+        const svg = el.querySelector("svg");
+        return [el.textContent, g(el).borderTopColor, g(el).backgroundColor, g(el).color, g(el).borderRadius, g(el).padding, svg ? g(svg).width : null, (el as HTMLButtonElement).disabled];
+      };
+      const md = chips.find((c) => c.textContent === "SKILL.md");
+      const ref = chips.find((c) => (c.textContent ?? "").startsWith("references/"));
+      const img = chips.find((c) => (c.textContent ?? "").startsWith("assets/"));
+      const row = md?.parentElement as HTMLElement;
+      return {
+        total: chips.length,
+        rowGap: row ? g(row).columnGap : null,
+        md: md ? read(md) : null,
+        ref: ref ? read(ref) : null,
+        img: img ? read(img) : null,
+      };
+    }), null, 2));
+    console.log("SKS_PREVIEW:", JSON.stringify(await page.evaluate(() => {
+      const scope = document.querySelector('[data-testid="page-settings"]');
+      const label = scope?.querySelector('label[for="skill-content"]');
+      const ta = scope?.querySelector('textarea[aria-label="技能文件内容"]');
+      const g = (el: Element) => getComputedStyle(el as HTMLElement);
+      return {
+        label: label ? [g(label).fontSize, g(label).color, g(label).fontWeight] : null,
+        ta: ta ? [g(ta).fontSize, g(ta).lineHeight, g(ta).padding, g(ta).borderRadius, g(ta).borderTopColor, g(ta).backgroundColor, g(ta).resize, g(ta).minHeight, g(ta).fontFamily.includes("Harmony")] : null,
+      };
+    }), null, 2));
+    console.log("SKS_FOOT:", JSON.stringify(await page.evaluate(() => {
+      const scope = document.querySelector('[data-testid="page-settings"]');
+      const discard = Array.from(scope?.querySelectorAll("button") ?? []).find((b) => b.textContent?.includes("放弃更改"));
+      const save = Array.from(scope?.querySelectorAll("button") ?? []).find((b) => b.textContent?.includes("保存更改"));
+      const row = discard?.parentElement as HTMLElement;
+      const g = (el: Element) => getComputedStyle(el as HTMLElement);
+      return {
+        row: row ? [g(row).justifyContent, g(row).columnGap, g(row).borderTopWidth, g(row).paddingTop] : null,
+        discard: discard ? [(discard as HTMLButtonElement).disabled, g(discard).backgroundColor, g(discard).color] : null,
+        save: save ? [(save as HTMLButtonElement).disabled, g(save).backgroundColor, g(save).color, save.querySelector("svg") ? g(save.querySelector("svg") as Element).width : null] : null,
+      };
+    }), null, 2));
+    // dirty 拦截：改描述 → 左列 fieldset 禁用；放弃更改 → 解除
+    await page.getByRole("textbox", { name: "技能描述" }).fill("临时改动以制造 dirty 态");
+    await page.waitForTimeout(200);
+    console.log("SKS_DIRTY:", JSON.stringify(await page.evaluate(() => {
+      const scope = document.querySelector('[data-testid="page-settings"]');
+      const fieldset = scope?.querySelector("fieldset");
+      const sw = fieldset?.querySelector('[data-slot="switch"]') as HTMLButtonElement | null;
+      const save = Array.from(scope?.querySelectorAll("button") ?? []).find((b) => b.textContent?.includes("保存更改"));
+      return {
+        fieldsetDisabled: fieldset ? (fieldset as HTMLFieldSetElement).disabled : null,
+        switchDisabled: sw ? sw.disabled : null,
+        saveBg: save ? getComputedStyle(save).backgroundColor : null,
+      };
+    }), null, 2));
+    await page.getByRole("button", { name: "放弃更改" }).click();
+    await page.waitForTimeout(200);
+
+    // 导入弹窗（打开即量、Esc 关）
+    await page.getByRole("button", { name: "导入 Skill" }).click();
+    await page.waitForTimeout(300);
+    console.log("SKS_IMPORT_DLG:", JSON.stringify(await page.evaluate(() => {
+      const dlg = document.querySelector('[data-slot="dialog-content"]');
+      if (!dlg) return null;
+      const g = (el: Element) => getComputedStyle(el as HTMLElement);
+      const title = dlg.querySelector('[data-slot="dialog-title"]');
+      const desc = dlg.querySelector('[data-slot="dialog-description"]');
+      const drop = dlg.querySelector('button[aria-label="拖入 Skill 包"]');
+      const grid = (drop?.nextElementSibling ?? null) as HTMLElement | null;
+      const btns = grid ? Array.from(grid.querySelectorAll("button")) : [];
+      const pathInput = dlg.querySelector('input[aria-label="skill 服务器路径"]');
+      const dirBtn = dlg.querySelector('button[aria-label="选择技能目录或文件"]');
+      const importBtn = Array.from(dlg.querySelectorAll("button")).find((b) => b.textContent?.trim() === "导入");
+      return {
+        w: dlg.getBoundingClientRect().width, radius: g(dlg).borderRadius, pad: g(dlg).padding, bg: g(dlg).backgroundColor,
+        title: title ? [g(title).fontSize, g(title).fontWeight, title.textContent] : null,
+        desc: desc ? [g(desc).fontSize, g(desc).color, desc.textContent] : null,
+        drop: drop ? [g(drop).padding, g(drop).borderTopStyle, g(drop).borderTopColor, g(drop).borderRadius, g(drop).color, g(drop).fontSize, drop.querySelector("svg") ? g(drop.querySelector("svg") as Element).width : null] : null,
+        gridCols: grid ? g(grid).gridTemplateColumns : null,
+        btn1: btns[0] ? [btns[0].textContent, btns[0].offsetHeight, g(btns[0]).backgroundColor, g(btns[0]).borderTopColor] : null,
+        btn2: btns[1] ? [btns[1].textContent, btns[1].offsetHeight] : null,
+        path: pathInput ? [(pathInput as HTMLInputElement).placeholder, g(pathInput).height] : null,
+        dirBtn: dirBtn ? [dirBtn.getBoundingClientRect().width, g(dirBtn).backgroundColor, dirBtn.querySelector("svg") ? g(dirBtn.querySelector("svg") as Element).width : null] : null,
+        importBtn: importBtn ? [(importBtn as HTMLButtonElement).disabled, importBtn.offsetHeight] : null,
+      };
+    }), null, 2));
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+
+    // 删除确认弹窗
+    await page.locator('button[aria-label="删除技能"]').first().click();
+    await page.waitForTimeout(300);
+    console.log("SKS_DELETE_DLG:", JSON.stringify(await page.evaluate(() => {
+      const dlg = document.querySelector('[data-slot="dialog-content"]');
+      if (!dlg) return null;
+      const g = (el: Element) => getComputedStyle(el as HTMLElement);
+      const title = dlg.querySelector('[data-slot="dialog-title"]');
+      const desc = dlg.querySelector('[data-slot="dialog-description"]');
+      const foot = dlg.querySelector('[data-slot="dialog-footer"]');
+      const cancel = foot?.querySelector("button:first-child");
+      const del = foot?.querySelector("button:last-child");
+      return {
+        w: dlg.getBoundingClientRect().width,
+        title: title ? [title.textContent, g(title).fontSize, g(title).fontWeight] : null,
+        desc: desc ? [desc.textContent, g(desc).fontSize] : null,
+        cancel: cancel ? [cancel.textContent, cancel.offsetHeight, g(cancel).backgroundColor] : null,
+        del: del ? [del.textContent, del.offsetHeight, g(del).backgroundColor, g(del).color] : null,
+      };
+    }), null, 2));
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+
+    // 暗色子集
+    await page.evaluate(() => localStorage.setItem("dsf-theme", "dark"));
+    await page.reload();
+    await gotoSkills();
+    await page.waitForTimeout(500);
+    console.log("SKS_DARK:", JSON.stringify(await page.evaluate(() => {
+      const scope = document.querySelector('[data-testid="page-settings"]');
+      const panel = scope?.querySelector('[class*="grid-cols-[340px"]');
+      const cur = scope?.querySelector(".space-y-1 > div:first-child");
+      const badge = scope?.querySelector('[data-slot="badge"]');
+      const g = (el: Element) => getComputedStyle(el as HTMLElement);
+      return {
+        pageBg: g(document.body).backgroundColor,
+        panelBg: panel ? g(panel).backgroundColor : null,
+        curBg: cur ? g(cur).backgroundColor : null,
+        badgeBg: badge ? g(badge).backgroundColor : null,
+        badgeColor: badge ? g(badge).color : null,
+      };
+    }), null, 2));
+    await page.evaluate(() => localStorage.setItem("dsf-theme", "light"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
