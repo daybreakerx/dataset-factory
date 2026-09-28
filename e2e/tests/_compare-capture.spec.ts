@@ -1635,3 +1635,294 @@ test("measure sidebar-version computed styles", async ({ page }) => {
     };
   }), null, 2));
 });
+
+// 端点配置子页（设置页）computed style 实测——稿侧三侧取证的实现侧翼（EPC_*，2026-09-28）
+test("measure settings-endpoint-config computed styles", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.reload();
+
+  // 造数（幂等）：按名补缺——测试数据根可能已有此前取证轮留下的端点；首套不存在时先建（自动设为当前使用）
+  const setup = await page.evaluate(async () => {
+    const eps: Array<{ id: string; name: string }> = await (await fetch("/api/endpoints")).json();
+    const names = new Set(eps.map((e) => e.name));
+    const seed: Array<Record<string, string>> = [];
+    if (!names.has("SiliconFlow")) {
+      seed.push({
+        name: "SiliconFlow",
+        base_url: "https://api.siliconflow.cn/v1",
+        model: "Qwen/Qwen3.5-4B",
+        api_key: "sk-probe-noop", // pragma: allowlist secret — 取证造数用假密钥（同 EP 块口径）
+        api_format: "openai-chat-completions",
+      });
+    }
+    if (!names.has("OpenCode Go")) {
+      seed.push({
+        name: "OpenCode Go",
+        base_url: "https://example.invalid/v1",
+        model: "deepseek-v4-flash-vision-exp",
+        api_format: "openai-chat-completions",
+      });
+    }
+    for (const body of seed) {
+      await fetch("/api/endpoints", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    }
+    // SiliconFlow 恒为当前使用（证据态确定性）：后端只在「第一套配置」时自动激活，其余场合显式激活兜底
+    const after = await (await fetch("/api/endpoints")).json();
+    const sf = after.find((e: { name: string }) => e.name === "SiliconFlow");
+    if (sf && !sf.is_active) {
+      await fetch(`/api/endpoints/${encodeURIComponent(sf.id)}/activate`, { method: "POST" });
+    }
+    const final = await (await fetch("/api/endpoints")).json();
+    return {
+      count: final.length,
+      names: final.map((e: { name: string }) => e.name),
+      active: final.find((e: { is_active: boolean }) => e.is_active)?.name,
+    };
+  });
+  console.log("EPC_SETUP:", JSON.stringify(setup));
+  await page.reload();
+  // 导航助手：应用恢复上次所在页面——reload 后可能停在设置页（侧栏为设置模式、无「策略」钮），先退回工作区再进设置
+  const gotoSettings = async (): Promise<void> => {
+    const back = page.getByRole("button", { name: "返回工作区" });
+    if (await back.isVisible().catch(() => false)) {
+      await back.click();
+      await page.waitForTimeout(200);
+    }
+    await page.getByRole("button", { name: "策略", exact: true }).click();
+    await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByTestId("sidebar").getByRole("button", { name: "设置", exact: true }).click();
+  };
+  await gotoSettings();
+  const heading = page.getByRole("heading", { name: "端点配置" }).first();
+  await heading.waitFor({ state: "visible", timeout: 10_000 });
+  await page.waitForTimeout(300);
+
+  // 亮色逐项
+  console.log("EPC_PANEL:", JSON.stringify(await page.evaluate(() => {
+    const panel = document.querySelector('[class*="grid-cols-[340px_1fr]"]');
+    if (!panel) return null;
+    const cs = getComputedStyle(panel);
+    const h2 = document.querySelector('[data-testid="page-settings"] h2');
+    return {
+      cols: cs.gridTemplateColumns, radius: cs.borderRadius, bd: cs.borderTopColor,
+      bg: cs.backgroundColor, shadow: cs.boxShadow.slice(0, 60),
+      pageH2: h2 ? { size: getComputedStyle(h2).fontSize, weight: getComputedStyle(h2).fontWeight, mb: getComputedStyle(h2).marginBottom, color: getComputedStyle(h2).color } : null,
+    };
+  }), null, 2));
+  console.log("EPC_LIST:", JSON.stringify(await page.evaluate(() => {
+    const panel = document.querySelector('[class*="grid-cols-[340px_1fr]"]');
+    const col = panel?.children[0] as HTMLElement | undefined;
+    if (!col) return null;
+    const head = col.children[0] as HTMLElement;
+    const h = head.querySelector("h3");
+    const cnt = head.querySelector("span");
+    const cur = col.querySelector('button[aria-current="true"]');
+    const bar = cur?.querySelector("span[aria-hidden]");
+    const name = cur?.querySelector("span.truncate");
+    const model = cur?.querySelector("span.block");
+    const dot = cur?.querySelector("span.size-2");
+    const add = Array.from(col.querySelectorAll("button")).find((b) => b.textContent?.includes("添加配置"));
+    const g = (el: HTMLElement) => getComputedStyle(el);
+    return {
+      listPad: g(col).padding, headPt: g(head).paddingTop, headPb: g(head).paddingBottom, headPl: g(head).paddingLeft, headGap: g(head).columnGap,
+      title: h ? [g(h).fontSize, g(h).fontWeight, g(h).color] : null,
+      count: cnt ? [g(cnt).fontSize, g(cnt).color] : null,
+      curBg: cur ? g(cur).backgroundColor : null, curRadius: cur ? g(cur).borderRadius : null, curPad: cur ? g(cur).padding : null,
+      bar: bar ? [g(bar).width, g(bar).backgroundColor, g(bar).borderRadius] : null,
+      name: name ? [g(name).fontSize, g(name).fontWeight, g(name).color] : null,
+      model: model ? [g(model).fontSize, g(model).color, g(model).paddingLeft] : null,
+      dot: dot ? [g(dot).width, g(dot).backgroundColor] : null,
+      add: add ? [g(add).borderStyle, g(add).color, g(add).padding] : null,
+    };
+  }), null, 2));
+  const greyRow = page.locator('button:has-text("OpenCode Go")');
+  console.log("EPC_ROW_GREY:", JSON.stringify(await greyRow.evaluate((el) => {
+    const dot = el.querySelector("span.size-2");
+    return { dot: dot ? getComputedStyle(dot).backgroundColor : null };
+  }), null, 2));
+  // 悬停
+  await greyRow.hover();
+  await page.waitForTimeout(350);
+  console.log("EPC_ROW_HOVER:", JSON.stringify(await greyRow.evaluate((el) => getComputedStyle(el).backgroundColor), null, 2));
+  const addBtn = page.getByRole("button", { name: "添加配置" });
+  await addBtn.hover();
+  await page.waitForTimeout(350);
+  console.log("EPC_ADD_HOVER:", JSON.stringify(await addBtn.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { color: cs.color, bd: cs.borderTopColor };
+  }), null, 2));
+  await page.mouse.move(5, 500);
+  await page.waitForTimeout(250);
+
+  console.log("EPC_DETAIL:", JSON.stringify(await page.evaluate(() => {
+    const panel = document.querySelector('[class*="grid-cols-[340px_1fr]"]');
+    const det = panel?.children[1] as HTMLElement | undefined;
+    const inner = det?.children[0] as HTMLElement | undefined;
+    if (!det || !inner) return null;
+    const g = (el: HTMLElement) => getComputedStyle(el);
+    const head = inner.children[0] as HTMLElement;
+    const title = head.querySelector("h3");
+    const st = head.querySelector("span[data-slot]");
+    const del = head.querySelector("button");
+    const field = inner.querySelectorAll(":scope > div")[1] as HTMLElement;
+    const label = field.querySelector("label");
+    const input = field.querySelector("input");
+    return {
+      detPad: g(det).padding, detBl: g(det).borderLeftWidth + " " + g(det).borderLeftColor,
+      innerMaxW: g(inner).maxWidth, innerGap: g(inner).rowGap,
+      headGap: g(head).columnGap,
+      title: title ? [g(title).fontSize, g(title).fontWeight, g(title).color] : null,
+      st: st ? [g(st).height, g(st).borderRadius, g(st).backgroundColor, g(st).color, g(st).fontSize, g(st).fontWeight, g(st).paddingLeft] : null,
+      del: del ? [del.offsetHeight, g(del).fontSize, g(del).color, del.textContent] : null,
+      fieldGap: g(field).rowGap,
+      label: label ? [g(label).fontSize, g(label).fontWeight, g(label).lineHeight, g(label).marginBottom, g(label).color] : null,
+      input: input ? [input.offsetHeight, g(input).borderRadius, g(input).borderTopColor, g(input).backgroundColor, g(input).fontSize] : null,
+    };
+  }), null, 2));
+  console.log("EPC_KEY:", JSON.stringify(await page.evaluate(() => {
+    const key = document.querySelector("input[type=password]");
+    if (!key) return null;
+    const wrap = key.parentElement as HTMLElement;
+    const lines = Array.from(wrap.querySelectorAll("p"));
+    const g = (el: HTMLElement) => getComputedStyle(el);
+    const dot1 = lines[0]?.querySelector("span");
+    const ic2 = lines[1]?.querySelector("svg");
+    return {
+      ph: key.placeholder,
+      line1: lines[0] ? { text: lines[0].textContent, size: g(lines[0]).fontSize, color: g(lines[0]).color, gap: g(lines[0]).columnGap, dot: dot1 ? g(dot1).width + "/" + g(dot1).backgroundColor : null } : null,
+      line2: lines[1] ? { text: lines[1].textContent?.slice(0, 14), ic: ic2 ? g(ic2).width : null } : null,
+    };
+  }), null, 2));
+  console.log("EPC_SELECT:", JSON.stringify(await page.evaluate(() => {
+    const trig = document.querySelector('[data-slot="select-trigger"]');
+    if (!trig) return null;
+    const cs = getComputedStyle(trig);
+    const svg = trig.querySelector("svg");
+    return { h: trig.offsetHeight, radius: cs.borderRadius, bd: cs.borderTopColor, bg: cs.backgroundColor, size: cs.fontSize, chev: svg ? getComputedStyle(svg).width + "/" + getComputedStyle(svg).color : null };
+  }), null, 2));
+  const testBtn = page.getByRole("button", { name: "测试连接" });
+  console.log("EPC_TEST:", JSON.stringify(await testBtn.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { h: el.offsetHeight, bg: cs.backgroundColor, color: cs.color, size: cs.fontSize, radius: cs.borderRadius };
+  }), null, 2));
+  console.log("EPC_ADV:", JSON.stringify(await page.evaluate(() => {
+    const tog = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes("高级参数"));
+    if (!tog) return null;
+    const g = getComputedStyle(tog);
+    const svg = tog.querySelector("svg");
+    const sum = tog.querySelector("span");
+    return { pad: g.padding, weight: g.fontWeight, size: g.fontSize, gap: g.columnGap, radius: g.borderRadius, chev: svg ? getComputedStyle(svg).width + "/" + getComputedStyle(svg).color : null, sum: sum ? [getComputedStyle(sum).fontSize, getComputedStyle(sum).fontWeight, getComputedStyle(sum).color] : null };
+  }), null, 2));
+  console.log("EPC_FOOT:", JSON.stringify(await page.evaluate(() => {
+    const foot = Array.from(document.querySelectorAll("div")).find((d) => d.querySelector("button") && d.textContent?.includes("立即生效于新请求") && d.className.includes("border-t"));
+    if (!foot) return null;
+    const g = getComputedStyle(foot);
+    const note = foot.querySelector("span");
+    const save = Array.from(foot.querySelectorAll("button")).find((b) => b.textContent?.includes("保存"));
+    return { pt: g.paddingTop, bt: g.borderTopWidth + " " + g.borderTopColor, gap: g.columnGap, note: note ? [getComputedStyle(note).fontSize, getComputedStyle(note).color] : null, save: save ? [save.offsetHeight, getComputedStyle(save).backgroundColor, getComputedStyle(save).color, getComputedStyle(save).borderRadius, save.textContent] : null };
+  }), null, 2));
+
+  // 「设为当前使用」钮：激活第二套后 SiliconFlow 变非活跃 → 详情出切换钮
+  await page.evaluate(async () => {
+    const eps = await (await fetch("/api/endpoints")).json();
+    const oc = eps.find((e: { name: string }) => e.name === "OpenCode Go");
+    await fetch(`/api/endpoints/${encodeURIComponent(oc.id)}/activate`, { method: "POST" });
+  });
+  await page.reload();
+  await gotoSettings();
+  await page.getByRole("button", { name: "SiliconFlow" }).click();
+  await page.waitForTimeout(300);
+  const switchBtn = page.getByRole("button", { name: "设为当前使用" });
+  console.log("EPC_SWITCH_BTN:", JSON.stringify(await switchBtn.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { h: el.offsetHeight, bg: cs.backgroundColor, bd: cs.borderTopColor, color: cs.color, size: cs.fontSize };
+  }), null, 2));
+  console.log("EPC_ST_NONACTIVE:", JSON.stringify(await page.evaluate(() => {
+    const head = Array.from(document.querySelectorAll("h3")).find((h) => h.textContent === "SiliconFlow")?.parentElement;
+    return { badgeCount: head ? head.querySelectorAll("span[data-slot]").length : null };
+  }), null, 2));
+  // 恢复 SiliconFlow 为当前使用（保持数据态稳定）
+  await page.evaluate(async () => {
+    const eps = await (await fetch("/api/endpoints")).json();
+    const sf = eps.find((e: { name: string }) => e.name === "SiliconFlow");
+    await fetch(`/api/endpoints/${encodeURIComponent(sf.id)}/activate`, { method: "POST" });
+  });
+  await page.reload();
+  await gotoSettings();
+  await page.waitForTimeout(300);
+
+  // 高级参数展开态
+  await page.getByRole("button", { name: /高级参数/ }).click();
+  await page.waitForTimeout(300);
+  console.log("EPC_ADV_OPEN:", JSON.stringify(await page.evaluate(() => {
+    const scope = document.querySelector('[data-testid="page-settings"]');
+    const json = scope?.querySelector("textarea");
+    const g3 = scope?.querySelector('[class*="grid-cols-3"]');
+    const think = scope?.querySelector("#adv-thinking");
+    const status = scope?.querySelector("p[role=status]");
+    const tog = Array.from(document.querySelectorAll("button")).find((b) => b.getAttribute("aria-expanded") === "true");
+    const body = tog?.parentElement?.querySelector(":scope > div");
+    const thinkLabel = scope?.querySelector('label[for="adv-thinking"]');
+    const g = (el: Element) => getComputedStyle(el as HTMLElement);
+    return {
+      chevRot: tog?.querySelector("svg") ? g(tog.querySelector("svg") as Element).rotate : null,
+      body: body ? [g(body).paddingTop, g(body).borderTopWidth] : null,
+      thinkW: think ? think.getBoundingClientRect().width : null,
+      thinkLabel: thinkLabel ? [g(thinkLabel).fontSize, g(thinkLabel).fontWeight] : null,
+      g3: g3 ? [g(g3).gridTemplateColumns.split(" ").length, g(g3).columnGap] : null,
+      json: json ? [g(json).minHeight, g(json).fontSize, g(json).backgroundColor, json.getBoundingClientRect().height] : null,
+      status: status ? [g(status).fontSize, g(status).color, status.textContent] : null,
+    };
+  }), null, 2));
+  await page.getByRole("button", { name: /高级参数/ }).click();
+
+  // 删除确认弹窗（打开即量、Esc 关）
+  await page.getByRole("button", { name: "删除", exact: true }).click();
+  await page.waitForTimeout(300);
+  console.log("EPC_DLG:", JSON.stringify(await page.evaluate(() => {
+    const dlg = document.querySelector('[data-slot="dialog-content"]');
+    if (!dlg) return null;
+    const g = getComputedStyle(dlg);
+    const title = dlg.querySelector('[data-slot="dialog-title"]');
+    const desc = dlg.querySelector('[data-slot="dialog-description"]');
+    const foot = dlg.querySelector('[data-slot="dialog-footer"]');
+    const cancel = foot?.querySelector("button:first-child");
+    const del = foot?.querySelector("button:last-child");
+    const close = dlg.querySelector("button.absolute");
+    return {
+      w: dlg.getBoundingClientRect().width, radius: g.borderRadius, pad: g.padding, bg: g.backgroundColor, shadow: g.boxShadow.slice(0, 40),
+      title: title ? [getComputedStyle(title).fontSize, getComputedStyle(title).fontWeight] : null,
+      desc: desc ? [getComputedStyle(desc).fontSize, getComputedStyle(desc).color] : null,
+      cancel: cancel ? [cancel.offsetHeight, getComputedStyle(cancel).backgroundColor, getComputedStyle(cancel).borderTopColor, cancel.textContent] : null,
+      del: del ? [del.offsetHeight, getComputedStyle(del).backgroundColor, getComputedStyle(del).color, del.textContent] : null,
+      close: close ? (close as HTMLElement).offsetHeight : null,
+    };
+  }), null, 2));
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+
+  // 暗色子集
+  await page.evaluate(() => localStorage.setItem("dsf-theme", "dark"));
+  await page.reload();
+  await gotoSettings();
+  await page.waitForTimeout(500);
+  console.log("EPC_DARK:", JSON.stringify(await page.evaluate(() => {
+    const panel = document.querySelector('[class*="grid-cols-[340px_1fr]"]');
+    const cur = panel?.querySelector('button[aria-current="true"]');
+    const st = panel?.querySelector("span[data-slot]");
+    const h2 = document.querySelector('[data-testid="page-settings"] h2');
+    const g = (el: Element) => getComputedStyle(el as HTMLElement);
+    return {
+      panelBg: panel ? g(panel).backgroundColor : null,
+      curBg: cur ? g(cur).backgroundColor : null,
+      stBg: st ? g(st).backgroundColor : null, stColor: st ? g(st).color : null,
+      titleColor: h2 ? g(h2).color : null,
+    };
+  }), null, 2));
+});
