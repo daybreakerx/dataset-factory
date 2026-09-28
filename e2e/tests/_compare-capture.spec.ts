@@ -881,3 +881,654 @@ test("measure skill-picker computed styles", async ({ page }) => {
   await page.waitForTimeout(300);
   console.log("SKILL_CHIP_REMOVE:", JSON.stringify({ chipsLeft: await page.getByRole("button", { name: /移除 Skill / }).count() }));
 });
+
+// 页面稿取证 · 策略页整页版面 computed style 实测（同一 CMP_CAPTURE=1 门）。
+// 对象 = 页面级拼装：外壳（侧栏/导航/品牌标）、顶栏、两栏骨架、左栏白框与字段、
+// 右栏对话区（头行/消息流/输入区）、空态。零件级取值由各自零件稿取证块管，这里只量拼装。
+test("measure workbench page layout computed styles", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+
+  // ---- 外壳 ----
+  console.log("WB_SHELL:", JSON.stringify(await page.getByTestId("sidebar").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: el.offsetWidth, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, paddingTop: cs.paddingTop, background: cs.backgroundColor, borderRightWidth: cs.borderRightWidth };
+  }), null, 2));
+  console.log("WB_NAV_ACTIVE:", JSON.stringify(await page.getByRole("button", { name: "策略", exact: true }).evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { height: el.offsetHeight, borderRadius: cs.borderRadius, paddingLeft: cs.paddingLeft, background: cs.backgroundColor, color: cs.color, fontWeight: cs.fontWeight, fontSize: cs.fontSize, gap: cs.gap };
+  }), null, 2));
+  console.log("WB_NAV_IDLE:", JSON.stringify(await page.getByRole("button", { name: "打标", exact: true }).evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { background: cs.backgroundColor, color: cs.color, fontWeight: cs.fontWeight };
+  }), null, 2));
+  console.log("WB_BRAND:", JSON.stringify(await page.getByRole("button", { name: /侧栏/ }).evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const img = el.querySelector("img");
+    return { boxW: el.offsetWidth, boxH: el.offsetHeight, borderRadius: cs.borderRadius, background: cs.backgroundColor, logoW: img ? getComputedStyle(img).width : null };
+  }), null, 2));
+
+  // ---- 顶栏（策略行）----
+  console.log("WB_TOP:", JSON.stringify(await page.locator("header").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, borderBottomWidth: cs.borderBottomWidth, borderBottomColor: cs.borderBottomColor, height: el.offsetHeight };
+  }), null, 2));
+  console.log("WB_TOP_ROW:", JSON.stringify(await page.locator("header > div").first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { gap: cs.gap, flexWrap: cs.flexWrap };
+  }), null, 2));
+  console.log("WB_TOP_DESC:", JSON.stringify(await page.getByLabel("策略描述").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, borderWidth: cs.borderTopWidth };
+  }), null, 2));
+
+  // ---- 两栏骨架 ----
+  const leftSec = page.getByLabel("提示词编辑列");
+  const rightSec = page.getByLabel("调试对话列");
+  console.log("WB_GRID:", JSON.stringify(await page.evaluate(() => {
+    const fieldset = document.querySelector("fieldset");
+    const cs = getComputedStyle(fieldset!);
+    const left = document.querySelector('[aria-label="提示词编辑列"]')!;
+    const right = document.querySelector('[aria-label="调试对话列"]')!;
+    return {
+      gridTemplateColumns: cs.gridTemplateColumns,
+      columnGap: cs.columnGap,
+      leftWidth: left.getBoundingClientRect().width,
+      rightWidth: right.getBoundingClientRect().width,
+      mainPaddingLeft: getComputedStyle(document.querySelector("main")!).paddingLeft,
+    };
+  }), null, 2));
+  console.log("WB_COL_LEFT:", JSON.stringify(await leftSec.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight };
+  }), null, 2));
+  console.log("WB_COL_RIGHT:", JSON.stringify(await rightSec.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, borderLeftWidth: cs.borderLeftWidth, borderLeftColor: cs.borderLeftColor };
+  }), null, 2));
+
+  // ---- 左栏白框与字段 ----
+  console.log("WB_CARD:", JSON.stringify(await leftSec.locator("> div").first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { borderRadius: cs.borderRadius, borderWidth: cs.borderTopWidth, borderColor: cs.borderTopColor, background: cs.backgroundColor, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight };
+  }), null, 2));
+  console.log("WB_TAG:", JSON.stringify(await leftSec.getByText("提示词", { exact: true }).evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color };
+  }), null, 2));
+  console.log("WB_FIELD_LABEL:", JSON.stringify(await page.locator('label[for="prompt-desc"]').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color, marginBottom: cs.marginBottom, height: el.offsetHeight };
+  }), null, 2));
+  // 顶栏高度构成：名字框（派生档 42）与描述框各自高度，核对 88 vs 83 的差从哪来
+  console.log("WB_TOP_NAME:", JSON.stringify(await page.locator('header [aria-label="策略名称"]').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { height: el.offsetHeight, fontSize: cs.fontSize, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom };
+  }), null, 2));
+  console.log("WB_DESC_INPUT:", JSON.stringify(await page.locator("#prompt-desc").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { height: el.offsetHeight, borderRadius: cs.borderRadius, borderWidth: cs.borderTopWidth, borderColor: cs.borderTopColor, background: cs.backgroundColor, fontSize: cs.fontSize };
+  }), null, 2));
+  console.log("WB_BODY_LABEL:", JSON.stringify(await page.getByText("正文", { exact: true }).evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color };
+  }), null, 2));
+  console.log("WB_METER:", JSON.stringify(await page.locator('[aria-label="提示词编辑列"] span.tabular-nums').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: el.textContent, fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color };
+  }), null, 2));
+  console.log("WB_BODY_BOX:", JSON.stringify(await page.locator('[data-slot="prompt-body"]').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const wrap = el.parentElement!;
+    const wcs = getComputedStyle(wrap);
+    return { wrapBorderRadius: wcs.borderRadius, wrapBorderWidth: wcs.borderTopWidth, wrapBorderColor: wcs.borderTopColor, wrapBackground: wcs.backgroundColor, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft, fontSize: cs.fontSize, lineHeight: cs.lineHeight, fontFamilyHint: cs.fontFamily.split(",")[0] };
+  }), null, 2));
+
+  // ---- 右栏对话区 ----
+  console.log("WB_CHATHEAD:", JSON.stringify(await page.locator('[aria-label="调试对话列"] > div').first().evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { gap: cs.gap, paddingBottom: cs.paddingBottom };
+  }), null, 2));
+  console.log("WB_CHAT_TITLE:", JSON.stringify(await page.getByRole("heading", { name: "对话" }).evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color };
+  }), null, 2));
+  const msgs = page.getByRole("log", { name: "消息流" });
+  console.log("WB_MSGS:", JSON.stringify(await msgs.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const first = el.firstElementChild as HTMLElement | null;
+    return { paddingTop: cs.paddingTop, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, firstChildMarginTop: first ? getComputedStyle(first).marginTop : null, childCount: el.children.length };
+  }), null, 2));
+  console.log("WB_EMPTY:", JSON.stringify(await msgs.locator("p").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { text: el.textContent, fontSize: cs.fontSize, color: cs.color, marginTop: cs.marginTop, textAlign: cs.textAlign };
+  }), null, 2));
+
+  // ---- 输入区（composer）----
+  const composerBox = page.locator("textarea[aria-label=\"打标指令\"]").locator("..");
+  console.log("WB_COMPOSER_WRAP:", JSON.stringify(await composerBox.evaluate((el) => {
+    const outer = el.parentElement!; // mt-auto pt-4 层
+    const ocs = getComputedStyle(outer);
+    return { outerPaddingTop: ocs.paddingTop, outerMarginTop: ocs.marginTop };
+  }), null, 2));
+  console.log("WB_COMPOSER_BOX:", JSON.stringify(await composerBox.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { borderRadius: cs.borderRadius, borderWidth: cs.borderTopWidth, borderColor: cs.borderTopColor, background: cs.backgroundColor, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight };
+  }), null, 2));
+  console.log("WB_COMPOSER_TA:", JSON.stringify(await page.locator("textarea[aria-label=\"打标指令\"]").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { minHeight: cs.minHeight, lineHeight: cs.lineHeight, fontSize: cs.fontSize, color: cs.color, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight };
+  }), null, 2));
+  console.log("WB_COMPOSER_FOOT:", JSON.stringify(await page.locator("textarea[aria-label=\"打标指令\"]").evaluate((el) => {
+    const foot = el.nextElementSibling as HTMLElement;
+    const cs = getComputedStyle(foot);
+    return { gap: cs.gap };
+  }), null, 2));
+  console.log("WB_HINT:", JSON.stringify(await page.getByText("Enter 发送 · Shift+Enter 换行").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { fontSize: cs.fontSize, color: cs.color, marginLeft: cs.marginLeft };
+  }), null, 2));
+  // focus-within：聚焦正文输入框，量输入区壳描边
+  await page.locator("textarea[aria-label=\"打标指令\"]").focus();
+  await page.waitForTimeout(200);
+  console.log("WB_COMPOSER_FOCUS:", JSON.stringify(await composerBox.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { borderColor: cs.borderTopColor };
+  }), null, 2));
+});
+
+// 零件取证 · 侧栏品牌标（sidebar-brand）computed style 实测（同一 CMP_CAPTURE=1 门）。
+// 展开态（头行/品牌钮/品牌图/让位图标/名与副题/悬停让位/Tip）→ 折叠态（64 图标条、文字隐藏、
+// aria 随态）→ 暗色（品牌黑底不随主题翻转）→ 设置页（side-head 整体不存在）。
+const BRAND_BOX = (el: HTMLElement): Record<string, string | number> => {
+  const cs = getComputedStyle(el);
+  return {
+    width: el.offsetWidth, height: el.offsetHeight,
+    paddingTop: cs.paddingTop, paddingRight: cs.paddingRight,
+    paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft,
+    gap: cs.gap, borderRadius: cs.borderRadius,
+    backgroundColor: cs.backgroundColor,
+  };
+};
+
+test("measure sidebar-brand computed styles", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+
+  const sidebar = page.getByTestId("sidebar");
+  const head = sidebar.locator("> div").first();
+  const brandBtn = sidebar.getByRole("button", { name: "收起侧栏" });
+  const nameEl = sidebar.getByText("Dataset Factory", { exact: true });
+  const subEl = sidebar.getByText("打标流水线工具", { exact: true });
+
+  // ---- 展开态（静止）----
+  console.log("SB_HEAD:", JSON.stringify(await head.evaluate(BRAND_BOX), null, 2));
+  console.log("SB_BTN:", JSON.stringify(await brandBtn.evaluate(BRAND_BOX), null, 2));
+  console.log("SB_BTN_ICON_REST:", JSON.stringify(await brandBtn.evaluate((el) => {
+    const img = el.querySelector("img");
+    const svg = el.querySelector("svg");
+    return img && svg
+      ? { imgDisplay: getComputedStyle(img).display, imgWidth: getComputedStyle(img).width, imgHeight: getComputedStyle(img).height, imgObjectFit: getComputedStyle(img).objectFit, svgDisplay: getComputedStyle(svg).display }
+      : { missing: true };
+  }), null, 2));
+  console.log("SB_NAME:", JSON.stringify(await nameEl.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { fontSize: cs.fontSize, fontWeight: cs.fontWeight, lineHeight: cs.lineHeight, color: cs.color, whiteSpace: cs.whiteSpace, overflow: cs.overflow, textOverflow: cs.textOverflow };
+  }), null, 2));
+  console.log("SB_SUB:", JSON.stringify(await subEl.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { fontSize: cs.fontSize, fontWeight: cs.fontWeight, lineHeight: cs.lineHeight, color: cs.color, whiteSpace: cs.whiteSpace, overflow: cs.overflow, textOverflow: cs.textOverflow };
+  }), null, 2));
+  console.log("SB_SIDEBAR:", JSON.stringify(await sidebar.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: el.offsetWidth, backgroundColor: cs.backgroundColor };
+  }), null, 2));
+
+  // ---- 悬停让位（等 transition 落定 ≥300ms；Tip 随悬停出现）----
+  await brandBtn.hover();
+  await page.waitForTimeout(350);
+  console.log("SB_BTN_HOVER:", JSON.stringify(await brandBtn.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const img = el.querySelector("img");
+    const svg = el.querySelector("svg");
+    return img && svg
+      ? { backgroundColor: cs.backgroundColor, imgDisplay: getComputedStyle(img).display, svgDisplay: getComputedStyle(svg).display, svgWidth: getComputedStyle(svg).width, svgHeight: getComputedStyle(svg).height, svgColor: getComputedStyle(svg).color }
+      : { missing: true };
+  }), null, 2));
+  const tip = page.locator('[data-slot="tooltip-content"]');
+  await tip.waitFor({ state: "visible", timeout: 5000 });
+  console.log("SB_TIP:", JSON.stringify({ text: (await tip.textContent() ?? "").trim() }));
+  await page.mouse.move(10, 500);
+  await page.waitForTimeout(200);
+
+  // ---- 折叠态：点品牌钮收起（宽度过渡 150ms 后再量；鼠标挪开防悬停污染）----
+  await brandBtn.click();
+  await page.waitForTimeout(400);
+  const brandBtnCollapsed = sidebar.getByRole("button", { name: "展开侧栏" });
+  console.log("SB_COLLAPSED:", JSON.stringify(await sidebar.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const headEl = el.querySelector(":scope > div");
+    const hcs = headEl ? getComputedStyle(headEl) : null;
+    return {
+      width: el.offsetWidth,
+      textCount: el.querySelectorAll(".min-w-0").length,
+      headPadding: hcs ? `${hcs.paddingTop} ${hcs.paddingRight} ${hcs.paddingBottom} ${hcs.paddingLeft}` : null,
+    };
+  }), null, 2));
+  console.log("SB_COLLAPSED_BTN:", JSON.stringify(await brandBtnCollapsed.evaluate(BRAND_BOX), null, 2));
+  await brandBtnCollapsed.hover();
+  await page.waitForTimeout(350);
+  console.log("SB_COLLAPSED_HOVER:", JSON.stringify(await brandBtnCollapsed.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const img = el.querySelector("img");
+    const svg = el.querySelector("svg");
+    return img && svg
+      ? { backgroundColor: cs.backgroundColor, imgDisplay: getComputedStyle(img).display, svgDisplay: getComputedStyle(svg).display }
+      : { missing: true };
+  }), null, 2));
+  const tipC = page.locator('[data-slot="tooltip-content"]');
+  await tipC.waitFor({ state: "visible", timeout: 5000 });
+  console.log("SB_COLLAPSED_TIP:", JSON.stringify({ text: (await tipC.textContent() ?? "").trim() }));
+  await page.mouse.move(10, 500);
+  await brandBtnCollapsed.click();
+  await page.waitForTimeout(400);
+
+  // ---- 暗色（dsf-theme=dark → html.dark）：品牌黑底不随主题翻转、悬停底用暗色 nav-hover ----
+  await page.evaluate(() => localStorage.setItem("dsf-theme", "dark"));
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.waitForTimeout(400);
+  const darkBtn = sidebar.getByRole("button", { name: "收起侧栏" });
+  console.log("SB_DARK:", JSON.stringify(await Promise.all([
+    sidebar.evaluate((el) => ({ sidebarBg: getComputedStyle(el).backgroundColor, width: el.offsetWidth })),
+    darkBtn.evaluate((el) => ({ btnBg: getComputedStyle(el).backgroundColor })),
+    nameEl.evaluate((el) => ({ nameColor: getComputedStyle(el).color })),
+  ]).then(([s, b, n]) => ({ ...s, ...b, ...n })), null, 2));
+  await darkBtn.hover();
+  await page.waitForTimeout(350);
+  console.log("SB_DARK_HOVER:", JSON.stringify(await darkBtn.evaluate((el) => ({ backgroundColor: getComputedStyle(el).backgroundColor })), null, 2));
+  await page.mouse.move(10, 500);
+
+  // ---- 设置页：side-head 整体不存在（实现按页切换侧栏头）----
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.waitForTimeout(300);
+  console.log("SB_SETTINGS:", JSON.stringify(await sidebar.evaluate((el) => {
+    const brandBtns = Array.from(el.querySelectorAll("button")).filter((b) => (b.getAttribute("aria-label") ?? "").includes("侧栏"));
+    return { brandBtnCount: brandBtns.length, hasNameText: el.textContent?.includes("Dataset Factory") ?? false };
+  }), null, 2));
+});
+
+// 零件取证 · 侧栏导航项（sidebar-nav）computed style 实测（同一 CMP_CAPTURE=1 门）。
+// 组标签 / 幽灵项 / 当前项 / 悬停 / 折叠居中与分隔线 / 暗色 / 设置页导航（三项同组——间距决策的可见落点）。
+test("measure sidebar-nav computed styles", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+
+  const sidebar = page.getByTestId("sidebar");
+  const nav = sidebar.locator("nav");
+  const glabel = sidebar.locator("p", { hasText: "工作区" });
+  const activeItem = sidebar.getByRole("button", { name: "策略", exact: true });
+  const ghostItem = sidebar.getByRole("button", { name: "打标", exact: true });
+  const itemBox = (el: HTMLElement) => {
+    const cs = getComputedStyle(el);
+    const svg = el.querySelector("svg");
+    const label = el.querySelector("span");
+    return {
+      width: el.offsetWidth, height: el.offsetHeight,
+      paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight,
+      borderRadius: cs.borderRadius, backgroundColor: cs.backgroundColor, color: cs.color,
+      fontWeight: cs.fontWeight, columnGap: cs.columnGap,
+      iconWidth: svg ? getComputedStyle(svg).width : null,
+      labelOverflow: label ? getComputedStyle(label).overflow : null,
+      labelTextOverflow: label ? getComputedStyle(label).textOverflow : null,
+    };
+  };
+
+  console.log("SN_NAV:", JSON.stringify(await nav.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { width: el.offsetWidth, paddingTop: cs.paddingTop, paddingLeft: cs.paddingLeft, paddingBottom: cs.paddingBottom, paddingRight: cs.paddingRight };
+  }), null, 2));
+  console.log("SN_GLABEL:", JSON.stringify(await glabel.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color, paddingTop: cs.paddingTop, paddingLeft: cs.paddingLeft, paddingBottom: cs.paddingBottom, whiteSpace: cs.whiteSpace };
+  }), null, 2));
+  console.log("SN_ITEM_ACTIVE:", JSON.stringify(await activeItem.evaluate(itemBox), null, 2));
+  console.log("SN_ITEM_GHOST:", JSON.stringify(await ghostItem.evaluate(itemBox), null, 2));
+  await ghostItem.hover();
+  await page.waitForTimeout(350);
+  console.log("SN_ITEM_HOVER:", JSON.stringify(await ghostItem.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { backgroundColor: cs.backgroundColor, color: cs.color };
+  }), null, 2));
+  await page.mouse.move(10, 500);
+  await page.waitForTimeout(200);
+
+  // 折叠态：组标签消失、分隔线现、项居中
+  await sidebar.getByRole("button", { name: "收起侧栏" }).click();
+  await page.waitForTimeout(400);
+  console.log("SN_COLLAPSED:", JSON.stringify(await sidebar.evaluate((el) => {
+    const navEl = el.querySelector("nav");
+    const sep = navEl ? navEl.querySelector("div.h-px") : null;
+    const sepInfo = sep
+      ? (() => {
+          const cs = getComputedStyle(sep);
+          return { height: cs.height, marginTop: cs.marginTop, marginBottom: cs.marginBottom, marginLeft: cs.marginLeft, marginRight: cs.marginRight, backgroundColor: cs.backgroundColor };
+        })()
+      : null;
+    const item = navEl ? navEl.querySelector("button") : null;
+    const ics = item ? getComputedStyle(item) : null;
+    return { navWidth: navEl?.offsetWidth ?? null, groupLabelCount: navEl ? navEl.querySelectorAll("p").length : null, separator: sepInfo, itemJustify: ics?.justifyContent, itemPaddingLeft: ics?.paddingLeft };
+  }), null, 2));
+  await sidebar.getByRole("button", { name: "展开侧栏" }).click();
+  await page.waitForTimeout(400);
+
+  // 暗色：当前胶囊与悬停底随 tokens 翻转
+  await page.evaluate(() => localStorage.setItem("dsf-theme", "dark"));
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.waitForTimeout(400);
+  const darkActive = sidebar.getByRole("button", { name: "策略", exact: true });
+  const darkGhost = sidebar.getByRole("button", { name: "打标", exact: true });
+  console.log("SN_DARK:", JSON.stringify({
+    activeBg: await darkActive.evaluate((el) => getComputedStyle(el).backgroundColor),
+    activeColor: await darkActive.evaluate((el) => getComputedStyle(el).color),
+    ghostColor: await darkGhost.evaluate((el) => getComputedStyle(el).color),
+  }));
+  await darkGhost.hover();
+  await page.waitForTimeout(350);
+  console.log("SN_DARK_HOVER:", JSON.stringify(await darkGhost.evaluate((el) => ({
+    backgroundColor: getComputedStyle(el).backgroundColor,
+  }))));
+  await page.mouse.move(10, 500);
+
+  // 设置页导航：返回工作区＋三项（同组多enabled项、间距可见的落点）
+  await page.evaluate(() => localStorage.removeItem("dsf-theme"));
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.waitForTimeout(300);
+  console.log("SN_SETTINGS_NAV:", JSON.stringify(await sidebar.evaluate((el) => {
+    const navEl = el.querySelector("nav");
+    const btns = navEl ? Array.from(navEl.querySelectorAll("button")) : [];
+    const first = btns[0] ? getComputedStyle(btns[0]) : null;
+    return {
+      itemCount: btns.length,
+      itemLabels: btns.map((b) => b.textContent?.trim() ?? b.getAttribute("aria-label") ?? ""),
+      adjacentGapsPx: btns.map((b, i) => (i === 0 ? 0 : Math.round((b.getBoundingClientRect().top - btns[i - 1].getBoundingClientRect().bottom) * 10) / 10)),
+      firstMarginTop: first?.marginTop,
+      itemHeight: btns[0]?.offsetHeight,
+      itemRadius: first?.borderRadius,
+    };
+  }), null, 2));
+});
+
+// 零件取证 · 侧栏底部钮组（sidebar-foot）computed style 实测（同一 CMP_CAPTURE=1 门）。
+// 三钮静止（关机红图标 / 中性 ghost）→ 真悬停（中性 nav-hover／关机 bad-bg+加深）→ Tip 在场枚举
+// （关机钮当前无 Tooltip、主题钮旧复合文案——均为对齐批在案项，实测留证）→ 折叠纵排与版本隐藏 → 暗色。
+const SF_BOX = (el: HTMLElement): Record<string, string | number> => {
+  const cs = getComputedStyle(el);
+  return {
+    width: el.offsetWidth, height: el.offsetHeight,
+    paddingTop: cs.paddingTop, paddingRight: cs.paddingRight,
+    paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft,
+    columnGap: cs.columnGap, flexDirection: cs.flexDirection, alignItems: cs.alignItems,
+    borderTopWidth: cs.borderTopWidth, borderTopColor: cs.borderTopColor,
+    backgroundColor: cs.backgroundColor, transitionDuration: cs.transitionDuration,
+  };
+};
+const SF_BTN = (el: HTMLElement): Record<string, string | number> => {
+  const cs = getComputedStyle(el);
+  const svg = el.querySelector("svg");
+  return {
+    width: el.offsetWidth, height: el.offsetHeight,
+    borderRadius: cs.borderRadius, backgroundColor: cs.backgroundColor, color: cs.color,
+    transitionDuration: cs.transitionDuration,
+    svgWidth: svg ? getComputedStyle(svg).width : null,
+    svgHeight: svg ? getComputedStyle(svg).height : null,
+    svgColor: svg ? getComputedStyle(svg).color : null,
+  };
+};
+const SF_VER = (el: HTMLElement): Record<string, string | number> => {
+  const cs = getComputedStyle(el);
+  const dot = el.querySelector("span");
+  const dcs = dot ? getComputedStyle(dot) : null;
+  return {
+    columnGap: cs.columnGap, fontSize: cs.fontSize, color: cs.color,
+    fontVariantNumeric: cs.fontVariantNumeric, whiteSpace: cs.whiteSpace,
+    dotWidth: dcs?.width, dotHeight: dcs?.height, dotRadius: dcs?.borderRadius, dotBg: dcs?.backgroundColor,
+  };
+};
+
+test("measure sidebar-foot computed styles", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+
+  const sidebar = page.getByTestId("sidebar");
+  const foot = sidebar.locator("> div").last();
+  const btnSd = sidebar.getByRole("button", { name: "关闭服务", exact: true });
+  const btnTheme = sidebar.locator("button:has(svg.lucide-monitor)");
+  const btnSet = sidebar.getByRole("button", { name: "设置", exact: true });
+  const ver = sidebar.locator("span.ml-auto");
+
+  // ---- 展开态（静止）----
+  console.log("SF_FOOT:", JSON.stringify(await foot.evaluate(SF_BOX), null, 2));
+  console.log("SF_BTN_SD:", JSON.stringify(await btnSd.evaluate(SF_BTN), null, 2));
+  console.log("SF_BTN_THEME:", JSON.stringify(await btnTheme.evaluate(SF_BTN), null, 2));
+  console.log("SF_BTN_SET:", JSON.stringify(await btnSet.evaluate(SF_BTN), null, 2));
+  console.log("SF_VER:", JSON.stringify(await ver.evaluate(SF_VER), null, 2));
+  console.log("SF_ARIA:", JSON.stringify({
+    shutdown: await btnSd.getAttribute("aria-label"),
+    theme: await btnTheme.getAttribute("aria-label"),
+    settings: await btnSet.getAttribute("aria-label"),
+  }));
+
+  // ---- 真悬停（等 transition 落定 ≥300ms）----
+  await btnTheme.hover();
+  await page.waitForTimeout(350);
+  console.log("SF_HOVER_THEME:", JSON.stringify(await btnTheme.evaluate((el) => ({
+    backgroundColor: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color,
+  })), null, 2));
+  const tipTheme = page.locator('[data-slot="tooltip-content"]');
+  await tipTheme.waitFor({ state: "visible", timeout: 5000 });
+  console.log("SF_TIP_THEME:", JSON.stringify({ text: (await tipTheme.textContent() ?? "").trim() }));
+  await page.mouse.move(10, 300);
+  await page.waitForTimeout(250);
+
+  await btnSd.hover();
+  await page.waitForTimeout(350);
+  console.log("SF_HOVER_SD:", JSON.stringify(await btnSd.evaluate((el) => ({
+    backgroundColor: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color,
+  })), null, 2));
+  await page.waitForTimeout(350);
+  console.log("SF_TIP_SD:", JSON.stringify({ tooltipCount: await page.locator('[data-slot="tooltip-content"]').count() }));
+  await page.mouse.move(10, 300);
+  await page.waitForTimeout(250);
+
+  await btnSet.hover();
+  await page.waitForTimeout(350);
+  const tipSet = page.locator('[data-slot="tooltip-content"]');
+  console.log("SF_TIP_SET:", JSON.stringify({ text: (await tipSet.textContent() ?? "").trim() }));
+  await page.mouse.move(10, 300);
+  await page.waitForTimeout(250);
+
+  // ---- 折叠态：纵排、版本行卸载、钮仍 30×30 ----
+  await sidebar.getByRole("button", { name: "收起侧栏" }).click();
+  await page.waitForTimeout(400);
+  console.log("SF_COLLAPSED:", JSON.stringify(await sidebar.evaluate((el) => {
+    const footEl = el.querySelector(":scope > div:last-child");
+    const fcs = footEl ? getComputedStyle(footEl) : null;
+    const verEl = el.querySelector("span.ml-auto");
+    return {
+      footDirection: fcs?.flexDirection,
+      footPadding: fcs ? `${fcs.paddingTop} ${fcs.paddingRight} ${fcs.paddingBottom} ${fcs.paddingLeft}` : null,
+      verMounted: verEl !== null,
+      btnHeight: el.querySelector("button svg.lucide-power")?.parentElement?.offsetHeight ?? null,
+    };
+  }), null, 2));
+  await sidebar.getByRole("button", { name: "展开侧栏" }).click();
+  await page.waitForTimeout(400);
+
+  // ---- 暗色（dsf-theme=dark → html.dark）：侧栏底（对齐批在案：实现 n-75 暗 9% vs 规范 n-50）----
+  // 注意：暗色下主题钮图标随 mode 变为 lucide-moon（亮色场景才是 lucide-monitor）。
+  await page.evaluate(() => localStorage.setItem("dsf-theme", "dark"));
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.waitForTimeout(400);
+  console.log("SF_DARK:", JSON.stringify(await Promise.all([
+    sidebar.evaluate((el) => ({ sidebarBg: getComputedStyle(el).backgroundColor })),
+    foot.evaluate((el) => ({ borderTopColor: getComputedStyle(el).borderTopColor })),
+    btnSd.evaluate((el) => ({ sdColor: getComputedStyle(el).color })),
+    ver.evaluate((el) => ({ verColor: getComputedStyle(el).color, dotBg: getComputedStyle(el.querySelector("span")).backgroundColor })),
+  ]).then(([s, f, d, v]) => ({ ...s, ...f, ...d, ...v })), null, 2));
+  const darkTheme = sidebar.locator("button:has(svg.lucide-moon)");
+  await darkTheme.hover();
+  await page.waitForTimeout(350);
+  console.log("SF_DARK_HOVER_THEME:", JSON.stringify(await darkTheme.evaluate((el) => ({
+    backgroundColor: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color,
+  })), null, 2));
+  const darkTip = page.locator('[data-slot="tooltip-content"]');
+  await darkTip.waitFor({ state: "visible", timeout: 5000 });
+  console.log("SF_DARK_TIP_THEME:", JSON.stringify({ text: (await darkTip.textContent() ?? "").trim() }));
+  await page.mouse.move(10, 300);
+});
+
+// 零件取证 · 侧栏版本行（sidebar-version）computed style 实测（同一 CMP_CAPTURE=1 门）。
+// 四态全实测（E2E 环境裸服务 /api/service=409 → 默认场景即 bad）：bad（绿对红）→ ok（路由闸放 200）
+// → probing（路由闸延迟 3s，挂载初期悬空）→ stopping（dispatch df:service-stopping）→ 暗色（点不翻转）。
+test("measure sidebar-version computed styles", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // 服务状态闸：fail = 放行真 409（bad 态）；ok = 200；slow = 延迟 3s 再 200（probing 态可测窗口）
+  let svcMode: "fail" | "ok" | "slow" = "fail";
+  await page.route("**/api/service", async (route) => {
+    if (svcMode === "slow") {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+      return;
+    }
+    if (svcMode === "ok") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+      return;
+    }
+    await route.continue();
+  });
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.waitForTimeout(600);
+
+  const sidebar = page.getByTestId("sidebar");
+  const ver = sidebar.locator("span.ml-auto");
+  const dot = ver.locator('[role="img"]');
+  const dotState = (el: HTMLElement): Record<string, string | number> => {
+    const cs = getComputedStyle(el);
+    return {
+      width: cs.width, height: cs.height, borderRadius: cs.borderRadius,
+      backgroundColor: cs.backgroundColor, animationName: cs.animationName,
+    };
+  };
+
+  // ---- bad 态（裸服务 409）----
+  console.log("SV_BAD:", JSON.stringify(await dot.evaluate(dotState), null, 2));
+  console.log("SV_BAD_ARIA:", JSON.stringify({ ariaLabel: await dot.getAttribute("aria-label") }));
+  console.log("SV_VER:", JSON.stringify(await ver.evaluate(SF_VER), null, 2));
+  console.log("SV_TEXT:", JSON.stringify({ text: (await ver.textContent() ?? "").trim() }));
+  await dot.hover();
+  await page.waitForTimeout(350);
+  const tipBad = page.locator('[data-slot="tooltip-content"]');
+  await tipBad.waitFor({ state: "visible", timeout: 5000 });
+  console.log("SV_BAD_TIP:", JSON.stringify({ text: (await tipBad.textContent() ?? "").trim() }));
+  await page.mouse.move(10, 300);
+  await page.waitForTimeout(250);
+
+  // ---- ok 态（闸放 200 → 重挂载探测通）----
+  svcMode = "ok";
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.waitForTimeout(800);
+  const okDot = sidebar.locator("span.ml-auto").locator('[role="img"]');
+  console.log("SV_OK:", JSON.stringify(await okDot.evaluate(dotState), null, 2));
+  console.log("SV_OK_ARIA:", JSON.stringify({ ariaLabel: await okDot.getAttribute("aria-label") }));
+  await okDot.hover();
+  await page.waitForTimeout(350);
+  const tipOk = page.locator('[data-slot="tooltip-content"]');
+  await tipOk.waitFor({ state: "visible", timeout: 5000 });
+  console.log("SV_OK_TIP:", JSON.stringify({ text: (await tipOk.textContent() ?? "").trim() }));
+  await page.mouse.move(10, 300);
+  await page.waitForTimeout(250);
+
+  // ---- probing 态（闸延迟 3s：挂载后探测悬空——瞬态窗口实测）----
+  svcMode = "slow";
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.waitForTimeout(500);
+  const probeDot = sidebar.locator("span.ml-auto").locator('[role="img"]');
+  console.log("SV_PROBING:", JSON.stringify(await probeDot.evaluate(dotState), null, 2));
+  console.log("SV_PROBING_ARIA:", JSON.stringify({ ariaLabel: await probeDot.getAttribute("aria-label") }));
+
+  // ---- stopping 态（关机受理事件 → 蓝点呼吸；探测闸改回 ok，重查不放红）----
+  svcMode = "ok";
+  await page.evaluate(() => window.dispatchEvent(new Event("df:service-stopping")));
+  await page.waitForTimeout(300);
+  console.log("SV_STOPPING:", JSON.stringify(await probeDot.evaluate(dotState), null, 2));
+  console.log("SV_STOPPING_ARIA:", JSON.stringify({ ariaLabel: await probeDot.getAttribute("aria-label") }));
+  await page.mouse.move(10, 300);
+  await page.waitForTimeout(250);
+
+  // ---- 折叠态：版本行整行卸载 ----
+  await sidebar.getByRole("button", { name: "收起侧栏" }).click();
+  await page.waitForTimeout(400);
+  console.log("SV_COLLAPSED:", JSON.stringify({ verMounted: (await ver.count()) > 0 }));
+  await sidebar.getByRole("button", { name: "展开侧栏" }).click();
+  await page.waitForTimeout(400);
+
+  // ---- 暗色：点色档不翻转（语义点无暗色变体），文字色随 tokens 翻转 ----
+  await page.evaluate(() => localStorage.setItem("dsf-theme", "dark"));
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.waitForTimeout(600);
+  const darkVer = sidebar.locator("span.ml-auto");
+  console.log("SV_DARK:", JSON.stringify(await darkVer.evaluate((el) => {
+    const dotEl = el.querySelector("span");
+    return {
+      verColor: getComputedStyle(el).color,
+      dotBg: dotEl ? getComputedStyle(dotEl).backgroundColor : null,
+    };
+  }), null, 2));
+});
