@@ -1283,6 +1283,109 @@ test("measure sidebar-nav computed styles", async ({ page }) => {
   }), null, 2));
 });
 
+// 零件取证 · 设置侧栏（sidebar settings 模式）computed style 实测（同一 CMP_CAPTURE=1 门）。
+// 返回工作区钮 / 设置组标签 / 三子页项（当前·幽灵·相邻间距）/ foot 设置钮 aria-current / 暗色。
+// 与 prototype/sidebar/settings.html（SSP_*）、规范侧渲染探针（SSC_*）三方逐项 diff。
+test("measure settings-sidebar computed styles", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+
+  const sidebar = page.getByTestId("sidebar");
+  await sidebar.getByRole("button", { name: "设置", exact: true }).click();
+  await page.waitForTimeout(300);
+
+  console.log("SS_SIDEBAR:", JSON.stringify(await sidebar.evaluate((el) => ({
+    width: el.offsetWidth, bg: getComputedStyle(el).backgroundColor,
+  })), null, 2));
+  console.log("SS_BACK:", JSON.stringify(await sidebar.evaluate((el) => {
+    const back = el.querySelector('button[aria-label="返回工作区"]');
+    if (!back) return null;
+    const cs = getComputedStyle(back);
+    const svg = back.querySelector("svg");
+    const nav = el.querySelector("nav");
+    return {
+      marginTop: cs.marginTop, height: back.offsetHeight, width: back.offsetWidth,
+      paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, borderRadius: cs.borderRadius,
+      bg: cs.backgroundColor, color: cs.color, fontWeight: cs.fontWeight, fontSize: cs.fontSize,
+      columnGap: cs.columnGap,
+      transitionDuration: cs.transitionDuration,
+      iconWidth: svg ? getComputedStyle(svg).width : null,
+      iconFlex: svg ? getComputedStyle(svg).flex : null,
+      topFromNavTop: nav ? Math.round((back.getBoundingClientRect().top - nav.getBoundingClientRect().top) * 10) / 10 : null,
+    };
+  }), null, 2));
+  const backBtn = sidebar.getByRole("button", { name: "返回工作区" });
+  await backBtn.hover();
+  await page.waitForTimeout(350);
+  console.log("SS_BACK_HOVER:", JSON.stringify(await backBtn.evaluate((el) => ({
+    bg: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color,
+  })), null, 2));
+  await page.mouse.move(10, 500);
+  await page.waitForTimeout(200);
+  console.log("SS_GLABEL:", JSON.stringify(await sidebar.evaluate((el) => {
+    const p = el.querySelector("nav p");
+    if (!p) return null;
+    const cs = getComputedStyle(p);
+    return { fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color, paddingTop: cs.paddingTop, paddingLeft: cs.paddingLeft, paddingBottom: cs.paddingBottom };
+  }), null, 2));
+  console.log("SS_ITEMS:", JSON.stringify(await sidebar.evaluate((el) => {
+    const btns = Array.from(el.querySelectorAll("nav button")).filter((b) => b.getAttribute("aria-label") !== "返回工作区");
+    return btns.map((b) => {
+      const cs = getComputedStyle(b);
+      const svg = b.querySelector("svg");
+      return {
+        label: b.textContent?.trim() ?? b.getAttribute("aria-label") ?? "",
+        width: b.offsetWidth, height: b.offsetHeight,
+        borderRadius: cs.borderRadius, bg: cs.backgroundColor, color: cs.color,
+        fontWeight: cs.fontWeight, fontSize: cs.fontSize, columnGap: cs.columnGap,
+        ariaCurrent: b.getAttribute("aria-current"),
+        iconWidth: svg ? getComputedStyle(svg).width : null,
+      };
+    });
+  }), null, 2));
+  console.log("SS_GAPS:", JSON.stringify(await sidebar.evaluate((el) => {
+    const r10 = (x: number) => Math.round(x * 10) / 10;
+    const btns = Array.from(el.querySelectorAll("nav button"));
+    return btns.map((b, i) => (i === 0 ? null : r10(b.getBoundingClientRect().top - btns[i - 1].getBoundingClientRect().bottom)));
+  }), null, 2));
+  console.log("SS_FOOT_SET:", JSON.stringify(await sidebar.locator('button[aria-label="设置"]').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { ariaCurrent: el.getAttribute("aria-current"), bg: cs.backgroundColor, color: cs.color, width: el.offsetWidth, height: el.offsetHeight };
+  }), null, 2));
+
+  // 暗色：tokens .dark 翻转。page 持久化——刷新后可能仍停在设置页，先按「返回工作区」兜底退出再进。
+  await page.evaluate(() => localStorage.setItem("dsf-theme", "dark"));
+  await page.reload();
+  const backAfterReload = page.getByRole("button", { name: "返回工作区" });
+  if (await backAfterReload.isVisible().catch(() => false)) {
+    await backAfterReload.click();
+    await page.waitForTimeout(200);
+  }
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+  await sidebar.getByRole("button", { name: "设置", exact: true }).click();
+  await page.waitForTimeout(300);
+  console.log("SS_DARK:", JSON.stringify(await sidebar.evaluate((el) => {
+    const btns = Array.from(el.querySelectorAll("nav button"));
+    const active = btns.find((b) => b.getAttribute("aria-label") === "端点配置") ?? null;
+    const p = el.querySelector("nav p");
+    return {
+      sidebarBg: getComputedStyle(el).backgroundColor,
+      activeBg: active ? getComputedStyle(active).backgroundColor : null,
+      activeColor: active ? getComputedStyle(active).color : null,
+      backColor: btns[0] ? getComputedStyle(btns[0]).color : null,
+      glabelColor: p ? getComputedStyle(p).color : null,
+    };
+  }), null, 2));
+});
+
 // 零件取证 · 侧栏底部钮组（sidebar-foot）computed style 实测（同一 CMP_CAPTURE=1 门）。
 // 三钮静止（关机红图标 / 中性 ghost）→ 真悬停（中性 nav-hover／关机 bad-bg+加深）→ Tip 在场枚举
 // （关机钮当前无 Tooltip、主题钮旧复合文案——均为对齐批在案项，实测留证）→ 折叠纵排与版本隐藏 → 暗色。
