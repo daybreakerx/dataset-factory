@@ -4,10 +4,10 @@
  * 历史上三个页面是条件渲染，切到打标页会把 PromptWorkbench 整个卸载——会话状态
  * 跟着组件走时，进行中的流式回调把结果写进已卸载组件的 state（静默 no-op），回复
  * 就此在界面上消失（后端其实已落盘，刷新才看得见）。状态住到 App 层后，切页对流式
- * 生成完全无感。三期起页面改 Activity 保活、切页不再卸载，这层上提依然保留：会话
+ * 生成完全无感。页面改 Activity 保活、切页不再卸载后，这层上提依然保留：会话
  * 的生命周期本来就比任何一页长，层级与「哪页在显示」解耦，不依赖保活细节。
  *
- * 会话归属（三期 v3，2026-09-22 用户实测定案）：每个会话在创建时盖 strategy_id 章
+ * 会话归属（v3，2026-09-22 用户实测定案）：每个会话在创建时盖 strategy_id 章
  * （后端 meta.json），「会话属于谁」以归属为准——签名（提示词 + Skill 组合）只是
  * 无归属时代的近似，已退役。本域维护「当前桶」：启动按策略镜像进桶，切策略 / 新建
  * 策略即换桶（拉该桶最近会话，有则接上、无则空白）；发送把桶 id 传给后端盖章。
@@ -105,7 +105,7 @@ interface ChatSessionValue {
   /** 清对话列（切提示词 = 换 system 底座）：保留输入与附件，不重开输入状态。 */
   clearConversation(): void;
   /**
-   * 进入一个会话桶（三期 v3）：切策略 / 新建策略时调用——拉该桶最近会话，
+   * 进入一个会话桶（会话归属 v3）：切策略 / 新建策略时调用——拉该桶最近会话，
    * 有则接上、无则空白；输入草稿随桶切换。桶 id 是策略 id 或 NEW_STRATEGY_ID。
    */
   attachBucket(bucketId: string): void;
@@ -136,7 +136,7 @@ export function ChatSessionProvider({
 }): ReactElement {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  // 输入框草稿跨重启持久化（三期 v3 起按会话桶分键）：没发出去的话重启还在；
+  // 输入框草稿跨重启持久化（会话归属 v3 起按会话桶分键）：没发出去的话重启还在；
   // 发送 / 新会话 / 清空会把它归零，落盘值随之清掉。附件不持久化（体积与隐私
   // 不划算，显式不做）。桶切换时草稿跟着切（attachBucket 内迁移）。
   const [instruction, setInstructionState] = useState("");
@@ -206,7 +206,7 @@ export function ChatSessionProvider({
     setRestoreState("restored");
   }, []);
 
-  // 启动恢复（三期 v3）：按策略镜像进桶——
+  // 启动恢复（会话归属 v3）：按策略镜像进桶——
   //   · 镜像键存在且指向策略 → 拉该桶最近会话接上（镜像指向已删策略时桶为空，
   //     404 即空白，恢复链不猜）；
   //   · 镜像键存在且为 null（用户停在新建策略态）→ 进 __new__ 桶；
@@ -391,7 +391,7 @@ export function ChatSessionProvider({
               video_name: sentMedia?.kind === "video" ? sentMedia.name : "video.mp4",
               video_fps: sentMedia?.kind === "video" ? sentMedia.fps : 2,
               video_max_frames: sentMedia?.kind === "video" ? sentMedia.maxFrames : 16,
-              // 会话归属章（三期 v3）：新建会话时后端按它进桶；续接时后端忽略。
+              // 会话归属章（v3）：新建会话时后端按它进桶；续接时后端忽略。
               strategy_id: bucketRef.current,
             },
             {
@@ -489,7 +489,7 @@ export function ChatSessionProvider({
   }, []);
 
   /**
-   * 进入一个会话桶（三期 v3，替代签名对账）：切策略 / 新建策略统一走这里。
+   * 进入一个会话桶（会话归属 v3，替代签名对账）：切策略 / 新建策略统一走这里。
    * 草稿随桶迁移（当前值落旧桶键、读入新桶键）；该桶最近会话有则接上、无则
    * 空白。快速连续切桶时用序号丢弃迟到响应。
    */

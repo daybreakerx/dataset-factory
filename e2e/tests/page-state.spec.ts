@@ -1,5 +1,5 @@
 /**
- * 页面状态保持 E2E（三期）：切页往返零重置 + reload 模拟重启。
+ * 页面状态保持 E2E：切页往返零重置 + reload 模拟重启。
  *
  * 与组件测试的分工：组件测试在 jsdom 里验证「机制」（Activity 保活、镜像优先级、
  * 失效回退）；这里在真实浏览器里验证「体验」——编辑草稿、对话输入、打标筛选词
@@ -11,7 +11,7 @@ import { isolatedBaseURL } from "./fixtures/isolated-servers";
 // 本文件打真后端，用自己那份服务与数据根（隔离口径与其余 spec 相同）。
 test.use({ baseURL: isolatedBaseURL("page-state.spec.ts") });
 
-test.describe("页面状态保持（三期）", () => {
+test.describe("页面状态保持", () => {
   test("编辑草稿与对话输入跨切页保留，切走的页隐藏常驻 DOM", async ({ page }) => {
     await page.goto("/");
     await page.getByLabel("名称", { exact: true }).fill("跨页草稿");

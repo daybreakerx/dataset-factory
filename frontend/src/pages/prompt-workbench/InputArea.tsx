@@ -58,9 +58,9 @@ export function InputArea({
   canSend: boolean;
   sending: boolean;
   onSend: () => void;
-  /** 停止生成（PRD-0004 交互 5）：生成中发送钮变形为停止钮，点击走这里。 */
+  /** 停止生成：生成中发送钮变形为停止钮，点击走这里。 */
   onStop: () => void;
-  /** 待发附件卡点击开大图预览（PRD-0004 交互 6）。 */
+  /** 待发附件卡点击开大图预览。 */
   onPreview: (target: MediaPreviewTarget) => void;
   actions?: ReactNode;
   selectedSkills?: ReactNode;
@@ -195,7 +195,7 @@ export function InputArea({
           </span>
           <Tooltip>
             <TooltipTrigger asChild>
-              {/* 发送钮即停止钮（PRD-0004 交互 5）：生成中同一颗钮变形为方块停止形态，
+              {/* 发送钮即停止钮：生成中同一颗钮变形为方块停止形态，
                   点击中止本轮；不再有独立的停止按钮与等待计时文字（状态收敛到消息流）。 */}
               <Button
                 type="button"

@@ -38,7 +38,7 @@ const SERVICE_UP = {
 describe("App 外壳", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // 三期起外壳会持久化上次页面 / 侧栏折叠：清档防止用例间的「重启」串状态
+    // 外壳会持久化上次页面 / 侧栏折叠（页面状态保持）：清档防止用例间的「重启」串状态
     // （上一个用例切到设置页，下一个用例就会「重启直达设置页」）。
     localStorage.clear();
     apiMock.listStrategies.mockResolvedValue([]);
@@ -212,7 +212,7 @@ describe("App 外壳", () => {
   });
 });
 
-describe("页面保活与外壳持久化（三期）", () => {
+describe("页面保活与外壳持久化", () => {
   beforeEach(() => {
     // 外壳与页面往 localStorage 写记忆键：先清档防用例间串状态。
     localStorage.clear();

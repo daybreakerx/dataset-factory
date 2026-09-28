@@ -198,7 +198,7 @@ it("下拉行给出注入字数，悬停可见出身三参数", async () => {
   expect(tip).toHaveTextContent("Skill");
 });
 
-describe("策略选中的启动恢复与镜像（三期 v2）", () => {
+describe("策略选中的启动恢复与镜像（v2）", () => {
   beforeEach(() => {
     localStorage.clear();
   });

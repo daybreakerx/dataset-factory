@@ -247,7 +247,7 @@ def update_library_entry(strategy_id: str, body: StrategySaveRequest) -> Strateg
 def delete_library_entry(strategy_id: str) -> Response:
     """删除库策略（已应用的批次不受影响——copy-on-apply 持有内容副本）。
 
-    级联删除（三期 v3 用户定夺）：该策略名下的会话一并删除（滚动保留后至多一份
+    级联删除（会话归属 v3 用户定夺）：该策略名下的会话一并删除（滚动保留后至多一份
     + 可能的失败半截会话）——用户明确不要孤儿会话。删除前检查进行中的打标轮次，
     有则 409 拒绝整次删除（策略与会话同进退，不删一半）。
     """

@@ -593,7 +593,7 @@ def test_parse_settings_requires_settings() -> None:
 
 
 class TestSessionOwnership:
-    """会话归属（meta.json）与桶操作（三期 v3）：盖章、按桶查最近、改挂、滚动保留、删除。"""
+    """会话归属（meta.json）与桶操作（v3）：盖章、按桶查最近、改挂、滚动保留、删除。"""
 
     def test_create_session_stamps_ownership(self, temp_data_root: Path) -> None:
         """新建会话可带归属章：read_strategy_id 读回原值；不传则为无归属。"""

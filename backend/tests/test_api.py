@@ -105,7 +105,7 @@ def test_label_with_data_url_image(
 def test_session_attachment_serves_media_content_type(
     client: TestClient, fake_engine: FakeCompleter
 ) -> None:
-    """会话附件端点按扩展名显式给 Content-Type（PRD-0004）：<img>/<video> 内联渲染靠它。"""
+    """会话附件端点按扩展名显式给 Content-Type：<img>/<video> 内联渲染靠它。"""
     _save_prompt("h3", "你是打标助手。")
     data_url = "data:image/png;base64," + base64.b64encode(_PNG_BYTES).decode("ascii")
     created = client.post(
@@ -1344,7 +1344,7 @@ def test_label_image_and_video_together_is_400(
 
 
 class TestSessionOwnershipApi:
-    """会话归属的 API 面（三期 v3）：盖章、按桶查 latest、改挂、删策略级联、进行中拒绝。"""
+    """会话归属的 API 面（v3）：盖章、按桶查 latest、改挂、删策略级联、进行中拒绝。"""
 
     def test_label_stamps_ownership_and_latest_by_bucket(
         self, client: TestClient, fake_engine: FakeCompleter

@@ -1,4 +1,4 @@
-/** MessageList 渲染规则（PRD-0004）：附件封面降级链、空气泡抑制、AI 整框结构、流式状态收敛。 */
+/** MessageList 渲染规则：附件封面降级链、空气泡抑制、AI 整框结构、流式状态收敛。 */
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -21,7 +21,7 @@ function msg(overrides: Partial<ChatMessage>): ChatMessage {
 
 const noop = vi.fn();
 
-describe("MessageList 附件封面降级链（PRD-0004）", () => {
+describe("MessageList 附件封面降级链", () => {
   it("当轮视频有封面：渲染封面图 + 播放角标，不出 <video>", () => {
     render(
       <MessageList
@@ -219,7 +219,7 @@ describe("MessageList AI 整框结构（原型 v20 .ai-box）", () => {
   });
 });
 
-describe("MessageList 流式状态收敛（PRD-0004）", () => {
+describe("MessageList 流式状态收敛", () => {
   it("首个增量到达前：只有「响应中 · 已用时」，无「生成中」meta 行", () => {
     render(
       <MessageList

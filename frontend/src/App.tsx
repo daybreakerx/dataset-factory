@@ -175,7 +175,7 @@ function ServiceDot(): ReactElement {
 /** 可折叠侧栏、全局操作与独立滚动的工作画布。 */
 export function App(): ReactElement {
   const { mode, setMode } = useTheme();
-  // 外壳三态跨重启持久化（三期「页面状态保持」）：上次页面 / 侧栏折叠 / 设置节——
+  // 外壳三态跨重启持久化（页面状态保持）：上次页面 / 侧栏折叠 / 设置节——
   // 重开应用回到离开时的样子。默认 8000 端口固定，localStorage 按 origin 隔离不影响。
   const [page, setPage] = usePersistedState<PageKey>(
     SHELL_PAGE_KEY,
@@ -408,11 +408,11 @@ export function App(): ReactElement {
         </Dialog>
         <main className="min-h-0 min-w-0 flex-1">
           {/* 对话会话域住在页面边界之外：它是跨页共享的应用级状态（流式生成不随
-              页面显隐起落）。三期起页面用 Activity 保活、切页不再卸载，这层上提
+              页面显隐起落）。页面改用 Activity 保活、切页不再卸载后，这层上提
               依然保留——会话的生命周期本来就比任何一页长，层级与「哪页在显示」
               解耦，不依赖保活细节。 */}
           <ChatSessionProvider>
-            {/* 三页 Activity 保活（三期）：切页 = 隐藏不卸载，状态、DOM、滚动位置
+            {/* 三页 Activity 保活：切页 = 隐藏不卸载，状态、DOM、滚动位置
                 全保留；Effect 隐藏自动卸载、切回重建，「挂载即取数」的刷新节奏与
                 卸载重挂时代一致。首访才挂载：没进过的页不占首屏成本。滚动容器放
                 在每页自己的根上——滚动位置属于页面而非外壳，三页互不干扰。 */}

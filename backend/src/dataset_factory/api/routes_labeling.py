@@ -112,7 +112,7 @@ def label(request: LabelRequest) -> LabelResponse:
         video_max_frames=request.video_max_frames,
         strategy_id=request.strategy_id,
     )
-    # 滚动保留（三期 v3）：新会话首轮成功落盘后，同桶旧会话删除；失败轮在上方抛出、
+    # 滚动保留（会话归属 v3）：新会话首轮成功落盘后，同桶旧会话删除；失败轮在上方抛出、
     # 走不到这里，旧会话保留。
     _retain_bucket(request.strategy_id, keep=result.session_id)
     return LabelResponse(session_id=result.session_id, caption=result.caption)
@@ -164,7 +164,7 @@ def label_stream(request: LabelRequest) -> StreamingResponse:
             yield _sse_event(first)
             for item in generator:
                 yield _sse_event(item)
-                # 滚动保留（三期 v3）：终稿落盘（done 帧）后删同桶旧会话；失败 /
+                # 滚动保留（会话归属 v3）：终稿落盘（done 帧）后删同桶旧会话；失败 /
                 # 中断轮走不到 StreamFinished，旧会话保留。
                 if isinstance(item, StreamFinished):
                     _retain_bucket(request.strategy_id, keep=item.result.session_id)
@@ -208,7 +208,7 @@ def _sse(event: str, data: dict[str, str]) -> str:
 def latest_session(strategy_id: str | None = None) -> SessionSnapshotResponse:
     """最新会话快照（重启恢复入口）；一个会话都没有时 404。
 
-    带 ``strategy_id`` 查询时按归属桶取最新（三期 v3：每策略各自的最近会话），
+    带 ``strategy_id`` 查询时按归属桶取最新（会话归属 v3：每策略各自的最近会话），
     该桶为空同样 404；不带时为全局最新（存量认领垫层用）。
     """
     session_id = (
@@ -232,7 +232,7 @@ def get_session(session_id: str) -> SessionSnapshotResponse:
 
 
 def _retain_bucket(strategy_id: str | None, *, keep: str) -> None:
-    """按桶滚动保留（三期 v3）：桶内只留 ``keep``，其余删除。
+    """按桶滚动保留（会话归属 v3）：桶内只留 ``keep``，其余删除。
 
     策略为 None（无归属轮）不滚动。删除失败静默跳过（retain_latest_for 内部
     已逐目录兜底）——保留失败不回滚本轮成功的打标结果。
@@ -252,7 +252,7 @@ def _retain_bucket(strategy_id: str | None, *, keep: str) -> None:
 def assign_session_strategy(
     session_id: str, body: AssignStrategyRequest
 ) -> SessionSnapshotResponse:
-    """改挂会话归属（三期 v3）：保存新策略时把当前草稿会话从 ``__new__`` 挂到新 id。"""
+    """改挂会话归属（v3）：保存新策略时把当前草稿会话从 ``__new__`` 挂到新 id。"""
     try:
         write_strategy_id(session_id, body.strategy_id)
     except SessionNotFoundError as exc:
@@ -323,7 +323,7 @@ def session_attachment(session_id: str, name: str) -> FileResponse:
     安全口径与素材域的 /asset 同源：附件名经 sessions 域的单段安全名校验（路径穿越
     与非法字符在数据域拦下），只读、越界即 404。
 
-    Content-Type 显式按扩展名给（PRD-0004）：``FileResponse`` 缺省靠 mimetypes 猜，
+    Content-Type 显式按扩展名给：``FileResponse`` 缺省靠 mimetypes 猜，
     猜不中的扩展名回落 octet-stream 会令 ``<video>``（历史封面 / 大图预览）拒播；
     映射与素材域 /asset 同一份（MIME 单一事实源在 llm.messages）。
     """

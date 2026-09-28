@@ -412,7 +412,7 @@ export interface paths {
          * Latest Session
          * @description 最新会话快照（重启恢复入口）；一个会话都没有时 404。
          *
-         *     带 ``strategy_id`` 查询时按归属桶取最新（三期 v3：每策略各自的最近会话），
+         *     带 ``strategy_id`` 查询时按归属桶取最新（会话归属 v3：每策略各自的最近会话），
          *     该桶为空同样 404；不带时为全局最新（存量认领垫层用）。
          */
         get: operations["latest_session_api_sessions_latest_get"];
@@ -462,7 +462,7 @@ export interface paths {
          *     安全口径与素材域的 /asset 同源：附件名经 sessions 域的单段安全名校验（路径穿越
          *     与非法字符在数据域拦下），只读、越界即 404。
          *
-         *     Content-Type 显式按扩展名给（PRD-0004）：``FileResponse`` 缺省靠 mimetypes 猜，
+         *     Content-Type 显式按扩展名给：``FileResponse`` 缺省靠 mimetypes 猜，
          *     猜不中的扩展名回落 octet-stream 会令 ``<video>``（历史封面 / 大图预览）拒播；
          *     映射与素材域 /asset 同一份（MIME 单一事实源在 llm.messages）。
          */
@@ -486,7 +486,7 @@ export interface paths {
         put?: never;
         /**
          * Assign Session Strategy
-         * @description 改挂会话归属（三期 v3）：保存新策略时把当前草稿会话从 ``__new__`` 挂到新 id。
+         * @description 改挂会话归属（v3）：保存新策略时把当前草稿会话从 ``__new__`` 挂到新 id。
          */
         post: operations["assign_session_strategy_api_sessions__session_id__strategy_post"];
         delete?: never;
@@ -729,7 +729,7 @@ export interface paths {
          * Delete Library Entry
          * @description 删除库策略（已应用的批次不受影响——copy-on-apply 持有内容副本）。
          *
-         *     级联删除（三期 v3 用户定夺）：该策略名下的会话一并删除（滚动保留后至多一份
+         *     级联删除（会话归属 v3 用户定夺）：该策略名下的会话一并删除（滚动保留后至多一份
          *     + 可能的失败半截会话）——用户明确不要孤儿会话。删除前检查进行中的打标轮次，
          *     有则 409 拒绝整次删除（策略与会话同进退，不删一半）。
          */

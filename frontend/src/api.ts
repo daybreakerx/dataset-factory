@@ -549,7 +549,7 @@ export const api = {
 
   /**
    * 取最新会话快照（重启后恢复界面的入口）。
-   * 带 strategyId 时按归属桶取最新（三期 v3：每策略各自的最近会话）；
+   * 带 strategyId 时按归属桶取最新（会话归属 v3：每策略各自的最近会话）；
    * 不带为全局最新（存量认领垫层）。
    */
   latestSession: (strategyId?: string) =>

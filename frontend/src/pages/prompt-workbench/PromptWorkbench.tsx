@@ -85,7 +85,7 @@ export function PromptWorkbench({
   const [promptBusy, setPromptBusy] = useState(false);
   const [strategyBusy, setStrategyBusy] = useState(false);
   const [endpointBusy, setEndpointBusy] = useState(false);
-  // 媒体大图预览（PRD-0004 交互 6）：消息流缩略图与待发附件卡的共同出口。
+  // 媒体大图预览：消息流缩略图与待发附件卡的共同出口。
   const [preview, setPreview] = useState<MediaPreviewTarget | null>(null);
 
   // ---------- 对话列（状态与逻辑住在 App 级会话域：切页卸载本组件不打断流式生成） ----------
@@ -132,7 +132,7 @@ export function PromptWorkbench({
   const interactionRef = useRef(0);
   const activatingEndpointRef = useRef(false);
 
-  // 编辑器状态镜像（三期「跨重启」）：选中提示词 + 未保存草稿合一键，恢复即视为
+  // 编辑器状态镜像（跨重启）：选中提示词 + 未保存草稿合一键，恢复即视为
   // 最近一次用户意图。列表装载时按镜像分流（见下方启动分流）；镜像指向已删除的
   // 提示词则整段让位给快照 / 首条的既有链。
   const [editorMirror, setEditorMirror] =
@@ -227,7 +227,7 @@ export function PromptWorkbench({
   ]);
 
   // 进页拉提示词 / skill / 端点配置三份列表；随后按优先级决定编辑器初始内容
-  // （三期恢复优先级：编辑器镜像 > 会话快照 > 首条，ADR 2026-09-22）。
+  // （恢复优先级：编辑器镜像 > 会话快照 > 首条，ADR 2026-09-22）。
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -245,7 +245,7 @@ export function PromptWorkbench({
         setEndpoints(endpointList);
         setActiveModel(endpointList.find((item) => item.is_active)?.model ?? "");
         const mirror = editorMirrorRef.current;
-        // 镜像优先（三期恢复优先级：编辑器镜像 > 会话快照 > 首条）：镜像 = 用户离开
+        // 镜像优先（恢复优先级：编辑器镜像 > 会话快照 > 首条）：镜像 = 用户离开
         // 时刻的编辑器原样（选中 + 未保存草稿），比快照（最后一次发送时的配置）更新。
         // 恢复镜像视为用户动过手（interactionRef 递增），后端快照的提示词应用自此
         // 让位；会话内容的恢复由会话域按镜像与快照是否分叉另行对账（chat-session.tsx）。

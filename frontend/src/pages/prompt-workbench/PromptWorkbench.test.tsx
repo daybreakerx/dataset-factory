@@ -92,7 +92,7 @@ const SKILLS: SkillInfo[] = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // 三期起编辑器状态会镜像落盘、外壳状态会持久化：清档防止用例间的「重启」串状态。
+  // 编辑器状态会镜像落盘、外壳状态会持久化（页面状态保持）：清档防止用例间的「重启」串状态。
   localStorage.clear();
   apiMock.listStrategies.mockResolvedValue([]);
   apiMock.listPrompts.mockResolvedValue(PROMPTS);
@@ -680,7 +680,7 @@ describe("PromptWorkbench", () => {
   });
 });
 
-describe("编辑器镜像与恢复优先级（三期）", () => {
+describe("编辑器镜像与恢复优先级", () => {
   beforeEach(() => {
     // 镜像键被既有用例的编辑器动作写过：每个用例先清档，防串状态。
     localStorage.clear();
@@ -807,7 +807,7 @@ describe("编辑器镜像与恢复优先级（三期）", () => {
   });
 });
 
-describe("策略与会话的一致性（三期 v2）", () => {
+describe("策略与会话的一致性（启动恢复 v2）", () => {
   beforeEach(() => {
     localStorage.clear();
   });
@@ -960,7 +960,7 @@ describe("策略与会话的一致性（三期 v2）", () => {
   });
 });
 
-describe("对话页交互改版（PRD-0004）", () => {
+describe("对话页交互改版与媒体预览", () => {
   beforeEach(() => {
     localStorage.clear();
   });

@@ -689,7 +689,7 @@ describe("切页记忆与状态章", () => {
   });
 });
 
-describe("跨重启恢复（三期）", () => {
+describe("跨重启恢复", () => {
   it("选中的素材跨重启恢复：启动后首次装载按 localStorage 回选", async () => {
     localStorage.setItem(
       "dsf-labeling-selection",

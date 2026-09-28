@@ -100,9 +100,9 @@ export function StrategyToolbar({
   endpoints: EndpointConfigSummary[];
   locked: boolean;
   onSelect: (strategy: Strategy) => Promise<void>;
-  /** 点「新建策略」时回调：换桶语义，工作域据此进 __new__ 桶（三期 v3）。 */
+  /** 点「新建策略」时回调：换桶语义，工作域据此进 __new__ 桶（会话归属 v3）。 */
   onNewStrategy: () => void;
-  /** 新策略落库成功后回调：工作域把当前草稿会话改挂到新策略 id（三期 v3）。 */
+  /** 新策略落库成功后回调：工作域把当前草稿会话改挂到新策略 id（会话归属 v3）。 */
   onStrategySaved: (strategy: Strategy) => void;
 }): ReactElement {
   const [entries, setEntries] = useState<Strategy[]>([]);
@@ -137,7 +137,7 @@ export function StrategyToolbar({
     };
   }, []);
 
-  // 策略库列表：挂载即拉（三期 v2——boot 要恢复「我在哪个策略里」，不能等首次
+  // 策略库列表：挂载即拉（启动恢复 v2——boot 要恢复「我在哪个策略里」，不能等首次
   // 打开下拉），此后每次打开下拉重拉一份；关闭后跳过（保留当前清单），取消链随
   // 依赖变化级联（旧响应迟到不覆盖新清单，见 StrictMode 用例）。
   const firstLoad = useRef(true);
@@ -188,7 +188,7 @@ export function StrategyToolbar({
     );
   }, [selected, name, description]);
 
-  // 策略选中的启动恢复（三期 v3，归属即身份）：镜像键三分支——
+  // 策略选中的启动恢复（会话归属 v3，归属即身份）：镜像键三分支——
   // ① 键存在且指向策略 → 按 id 对号入座（名称/描述用镜像缓冲；认领写回的镜像
   //    名称为空，从库里补全并落回完整镜像）；指向已删除的策略则不认领。
   // ② 键存在且为 null → 用户停在新建策略态（或会话域认领过并定案），不认领。
@@ -309,7 +309,7 @@ export function StrategyToolbar({
       setSelected(entry);
       setName(entry.name);
       setDescription(entry.description);
-      // 新落库的策略：把当前草稿桶的会话改挂到它名下（三期 v3——保存前聊的
+      // 新落库的策略：把当前草稿桶的会话改挂到它名下（会话归属 v3——保存前聊的
       // 就是「这个策略」的对话，落库即认领；改存量策略不动归属）。
       if (selected === null) {
         onStrategySaved(entry);

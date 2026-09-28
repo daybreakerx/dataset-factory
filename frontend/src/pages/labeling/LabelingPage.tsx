@@ -251,7 +251,7 @@ export function LabelingPage({
     id: string;
   } | null>(null);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
-  // 选中素材跨重启恢复（三期）：只在启动后的首次装载生效一次，换批次 / 换条目的
+  // 选中素材跨重启恢复：只在启动后的首次装载生效一次，换批次 / 换条目的
   // 既有清空语义不变。素材 id 批次内有效，恢复时对装载结果校验，对不上就放弃。
   const restoredItemRef = useRef<string | null>(
     readStoredString(LABELING_SELECTED_ITEM_KEY),
@@ -284,7 +284,7 @@ export function LabelingPage({
   const [settingsWid, setSettingsWid] = useState<string | null>(null);
   const [newStrategyWid, setNewStrategyWid] = useState<string | null>(null);
   const [directoriesRevision, setDirectoriesRevision] = useState(0);
-  // 左列筛选词跨重启持久化（三期）：搜索到一半重启，回来还在。
+  // 左列筛选词跨重启持久化：搜索到一半重启，回来还在。
   const [query, setQuery] = usePersistedState<string>(LABELING_QUERY_KEY, "");
   const [collapsed, setCollapsed] = usePersistedState<ReadonlySet<string>>(
     "dsf-labeling-collapsed",
