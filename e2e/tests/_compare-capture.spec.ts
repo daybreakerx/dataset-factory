@@ -1285,7 +1285,7 @@ test("measure sidebar-nav computed styles", async ({ page }) => {
 
 // 零件取证 · 设置侧栏（sidebar settings 模式）computed style 实测（同一 CMP_CAPTURE=1 门）。
 // 返回工作区钮 / 设置组标签 / 三子页项（当前·幽灵·相邻间距）/ foot 设置钮 aria-current / 暗色。
-// 与 prototype/sidebar/settings.html（SSP_*）、规范侧渲染探针（SSC_*）三方逐项 diff。
+// 与 prototype/侧栏/设置模式.html（SSP_*）、规范侧渲染探针（SSC_*）三方逐项 diff。
 test("measure settings-sidebar computed styles", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
