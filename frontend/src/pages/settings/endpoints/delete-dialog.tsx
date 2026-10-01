@@ -1,0 +1,34 @@
+/** 连接 · 端点配置 · 删除确认弹窗（DialogShell 预设层接线；删除命令由面板执行）。 */
+import type { ReactElement } from "react";
+import { DialogShell } from "../../../components/dialog-shell";
+
+type DeleteDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** 待删除的配置名（标题点名用）。 */
+  target: string;
+  onConfirm: () => void;
+};
+
+/** 删除端点配置的确认弹窗：确认后由面板调删除接口，取消仅关弹窗。 */
+export function DeleteDialog({
+  open,
+  onOpenChange,
+  target,
+  onConfirm,
+}: DeleteDialogProps): ReactElement {
+  return (
+    <DialogShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title={<>删除端点配置「{target}」？</>}
+      description="将连同该配置的密钥文件一起移除；当前使用中的配置需先切换才能删。此操作不可撤销。"
+      cancel={{ label: "取消", onClick: () => onOpenChange(false) }}
+      confirm={{
+        label: "删除",
+        variant: "destructive-fill",
+        onClick: onConfirm,
+      }}
+    />
+  );
+}

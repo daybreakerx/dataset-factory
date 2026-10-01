@@ -1,26 +1,15 @@
-/** 连接 · 端点配置（列表 + 详情双栏，含高级参数折叠区）。 */
-import { ChevronDownIcon, LockIcon, PlusIcon } from "lucide-react";
+/**
+ * 连接 · 端点配置（列表 + 详情双栏）——面板编排层。
+ * 草稿与反馈状态、命令回调（保存 / 创建 / 删除 / 激活 / 测试连接）住这里；
+ * 展示块拆在同目录：config-list / config-form（内嵌 test-connection 与高级参数
+ * 折叠区）/ delete-dialog；列表查询收拢在 use-endpoint-configs（命令类留调用点）。
+ */
+
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useState } from "react";
-import type { EndpointConfigSummary, EndpointTestResult } from "../../../api";
+import type { EndpointTestResult } from "../../../api";
 import { api, errorMessage } from "../../../api";
-import { DialogShell } from "../../../components/dialog-shell";
-import { Alert, AlertDescription } from "../../../components/ui/alert";
-import { Badge } from "../../../components/ui/badge";
-import { Button } from "../../../components/ui/button";
-import { Input } from "../../../components/ui/input";
-import { Label } from "../../../components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../../components/ui/select";
-import { Textarea } from "../../../components/ui/textarea";
-import { Tip } from "../../../components/ui/tooltip";
 import { type Feedback, reportError } from "../../../lib/feedback";
-import { cn } from "../../../lib/utils";
 import {
   type AdvJsonState,
   collectAdvParams,
@@ -31,29 +20,12 @@ import {
   type ThinkingMode,
   thinkingOfJson,
 } from "./adv-params";
-
-/** 思考模式三态的界面文案与说明（A1：一个开关，对话与跑批共用同一个值）。 */
-const THINKING_OPTIONS: ReadonlyArray<{ value: ThinkingMode; label: string }> = [
-  { value: "default", label: "跟随模型默认" },
-  { value: "on", label: "开启思考" },
-  { value: "off", label: "关闭思考" },
-];
-
-/** 一期唯一支持的调用格式；其余选项灰显「暂未支持」，未来补适配器即启用。 */
-const SUPPORTED_API_FORMAT = "openai-chat-completions";
-
-const API_FORMATS: ReadonlyArray<{ value: string; label: string; enabled: boolean }> = [
-  { value: SUPPORTED_API_FORMAT, label: "OpenAI Chat Completions", enabled: true },
-  { value: "openai-responses", label: "OpenAI Responses（暂未支持）", enabled: false },
-  {
-    value: "anthropic-messages",
-    label: "Anthropic Messages（暂未支持）",
-    enabled: false,
-  },
-];
+import { ConfigForm, SUPPORTED_API_FORMAT } from "./config-form";
+import { ConfigList } from "./config-list";
+import { DeleteDialog } from "./delete-dialog";
+import { useEndpointConfigs } from "./use-endpoint-configs";
 
 export function EndpointConfigPanel(): ReactElement {
-  const [endpoints, setEndpoints] = useState<EndpointConfigSummary[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [creating, setCreating] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -92,16 +64,7 @@ export function EndpointConfigPanel(): ReactElement {
     if (text !== null) setFeedback({ kind: "error", text });
   }, []);
 
-  const reload = useCallback(async (): Promise<EndpointConfigSummary[]> => {
-    try {
-      const list = await api.listEndpoints();
-      setEndpoints(list);
-      return list;
-    } catch (err) {
-      failFeedback(err);
-      return [];
-    }
-  }, [failFeedback]);
+  const { endpoints, reload } = useEndpointConfigs(failFeedback);
 
   useEffect(() => {
     void reload().then((list) => {
@@ -331,402 +294,49 @@ export function EndpointConfigPanel(): ReactElement {
 
   return (
     <div className="grid h-full min-h-0 grid-cols-[340px_1fr] overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-      {/* 左：配置列表 */}
-      <div className="flex min-h-0 flex-col p-2">
-        <div className="flex items-baseline gap-2 px-3 pt-2.5 pb-1.5">
-          <h3 className="text-t-md font-semibold">端点配置</h3>
-          <span className="text-t-xs text-muted-foreground">{endpoints.length} 套</span>
-        </div>
-        <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1">
-          {endpoints.map((item) => {
-            const active = item.name === selected;
-            return (
-              <button
-                key={item.name}
-                type="button"
-                onClick={() => pick(item.name)}
-                aria-current={active ? "true" : undefined}
-                className={
-                  "relative block w-full rounded-md px-3 py-2.5 text-left transition-colors " +
-                  // 激活行 hover 保持蓝系（与导航同口径，2026-09-13 用户反馈）。
-                  (active ? "bg-primary/10 hover:bg-primary/15" : "hover:bg-accent")
-                }
-              >
-                {active && (
-                  <span
-                    className="absolute top-1 bottom-1 left-0 w-0.5 rounded-full bg-primary"
-                    aria-hidden
-                  />
-                )}
-                <span className="flex items-center gap-2">
-                  <Tip label={item.is_active ? "当前使用" : ""}>
-                    <span
-                      className={
-                        "size-2 rounded-full " +
-                        (item.is_active ? "bg-success" : "bg-muted-foreground/30")
-                      }
-                    />
-                  </Tip>
-                  <span
-                    className={`truncate text-t-md font-medium${active ? " text-primary" : ""}`}
-                  >
-                    {item.name}
-                  </span>
-                </span>
-                <span className="mt-0.5 block truncate pl-4 text-t-sm text-muted-foreground">
-                  {item.model}
-                </span>
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            onClick={startCreate}
-            className="mt-1 flex w-full items-center gap-2 rounded-md border border-dashed border-border px-3 py-2.5 text-t-md text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
-          >
-            <PlusIcon className="size-4" /> 添加配置
-          </button>
-        </div>
-      </div>
+      <ConfigList
+        endpoints={endpoints}
+        selected={selected}
+        onPick={pick}
+        onStartCreate={startCreate}
+      />
 
       {/* 右：详情 */}
       <div className="flex min-w-0 flex-1 flex-col overflow-y-auto border-l border-border p-5">
         {creating || current !== undefined ? (
-          <div className="mx-auto w-full max-w-xl space-y-4">
-            <div className="flex items-center gap-2">
-              <h3 className="text-t-lg font-semibold">
-                {creating ? "添加配置" : current?.name}
-              </h3>
-              {!creating && current?.is_active && (
-                <Badge variant="info">当前使用</Badge>
-              )}
-              {!creating && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  className="ml-auto"
-                  onClick={() => setDeleteDialogOpen(true)}
-                >
-                  删除
-                </Button>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="endpoint-name">名称</Label>
-              <Input
-                id="endpoint-name"
-                value={draftName}
-                placeholder="如 siliconflow"
-                onInput={(event) => setDraftName(event.currentTarget.value)}
-              />
-              <p className="text-t-sm text-muted-foreground">
-                {creating
-                  ? "即数据目录名，创建后也可再改。"
-                  : "名称可改（数据目录随之改名）；历史跑批里记录的仍是当时的名称。"}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="endpoint-base-url">Base URL</Label>
-              <Input
-                id="endpoint-base-url"
-                value={draftBaseUrl}
-                placeholder="如 https://api.siliconflow.cn/v1"
-                onInput={(event) => setDraftBaseUrl(event.currentTarget.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="endpoint-format">API 格式</Label>
-              <Select
-                value={draftFormat}
-                onValueChange={setDraftFormat}
-                disabled={!creating && current === undefined}
-              >
-                <SelectTrigger id="endpoint-format">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {API_FORMATS.map((format) => (
-                    <SelectItem
-                      key={format.value}
-                      value={format.value}
-                      disabled={!format.enabled}
-                    >
-                      {format.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="endpoint-model">模型名称</Label>
-              <Input
-                id="endpoint-model"
-                value={draftModel}
-                placeholder="如 Qwen/Qwen3.5-4B"
-                onInput={(event) => setDraftModel(event.currentTarget.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="endpoint-api-key">API 密钥</Label>
-              <Input
-                id="endpoint-api-key"
-                type="password"
-                value={draftKey}
-                placeholder={
-                  !creating && (current?.has_api_key ?? false)
-                    ? "留空 = 沿用已配置密钥"
-                    : "请输入密钥"
-                }
-                onInput={(event) => setDraftKey(event.currentTarget.value)}
-              />
-              <p className="flex items-center gap-1.5 text-t-sm text-muted-foreground">
-                {(current?.has_api_key ?? draftKey.trim() !== "") && (
-                  <span className="size-2 rounded-full bg-success" aria-hidden />
-                )}
-                {(current?.has_api_key ?? false)
-                  ? `已配置${current?.is_active ? " · 来源：credentials 文件" : ""}`
-                  : "未配置——可之后补配，或用环境变量 DSF_API_KEY 兜底"}
-              </p>
-              <p className="flex items-center gap-1.5 text-t-sm text-muted-foreground">
-                <LockIcon className="size-3" /> 密钥写入该配置的 credentials
-                文件，界面不回显、接口不返回内容。
-              </p>
-            </div>
-
-            {feedback !== null && (
-              <Alert variant={feedback.kind === "error" ? "destructive" : "success"}>
-                <AlertDescription>{feedback.text}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="flex items-center gap-2.5">
-              <Button
-                type="button"
-                variant="accent"
-                size="sm"
-                disabled={
-                  testing || draftBaseUrl.trim() === "" || draftModel.trim() === ""
-                }
-                onClick={() => void testConnection()}
-              >
-                {testing ? "测试中…" : "测试连接"}
-              </Button>
-              {testResult !== null && (
-                <span
-                  className={`text-t-sm ${testResult.ok ? "text-success" : "text-destructive"}`}
-                  role="status"
-                >
-                  {testResult.message}
-                  {testResult.ok ? ` · ${Math.round(testResult.latency_ms)} ms` : ""}
-                </span>
-              )}
-            </div>
-            {testResult?.ok && testResult.effective_params != null && (
-              <p className="text-t-xs text-muted-foreground">
-                本次实际发送：
-                {Object.entries(testResult.effective_params)
-                  .map(([key, value]) =>
-                    value !== null && typeof value === "object"
-                      ? `${key}=${JSON.stringify(value)}`
-                      : `${key}=${String(value)}`,
-                  )
-                  .join(" · ")}
-              </p>
-            )}
-
-            {/* 高级参数（可选）：默认折叠；原型稿 ui-draft-05 为视觉事实源。 */}
-            <div className="rounded-lg border border-border">
-              <button
-                type="button"
-                aria-expanded={advOpen}
-                onClick={() => setAdvOpen((open) => !open)}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-t-md font-medium transition-colors hover:bg-accent"
-              >
-                <ChevronDownIcon
-                  className={cn(
-                    "size-4 shrink-0 text-muted-foreground transition-transform",
-                    advOpen && "rotate-180",
-                  )}
-                  aria-hidden
-                />
-                高级参数（可选）
-                <span className="text-t-xs font-normal text-muted-foreground">
-                  思考模式 / temperature / top_p / max_tokens / 超时 / 重试 /
-                  extra_body——留空 = 端点默认值
-                </span>
-              </button>
-              {advOpen && (
-                <div className="space-y-4 border-t border-border px-3 py-3">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <Label
-                        htmlFor="adv-thinking"
-                        className="shrink-0 text-t-sm font-medium"
-                      >
-                        思考模式
-                      </Label>
-                      <Select
-                        value={thinking}
-                        onValueChange={(value) =>
-                          onThinkingChange(value as ThinkingMode)
-                        }
-                      >
-                        <SelectTrigger id="adv-thinking" className="w-44">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {THINKING_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <p className="text-t-xs text-muted-foreground">
-                      关闭思考可显著加快推理型模型的响应。对话试标与跑批共用这一个值——
-                      只影响新请求与**新建**的批次；已有批次想换参数，请新建一个批次
-                      （快照冻结在应用时刻）。开关走 SiliconFlow / DashScope 官方的顶层
-                      enable_thinking 参数，仅部分模型支持（Qwen3.x、DeepSeek-V3.2+、
-                      GLM、Kimi 等）；不支持的模型会收到端点 400 报错，拨回「跟随模型
-                      默认」即可恢复。其他厂商字段（如 reasoning_effort）可直接手写进
-                      下方 JSON 的 extra_body。
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-t-sm font-medium">
-                      模型通用参数（JSON，与表单双向同步——可直接从厂商文档粘贴）
-                    </p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(["temperature", "top_p", "max_tokens"] as const).map((key) => (
-                        <div key={key} className="space-y-1">
-                          <Label
-                            htmlFor={`adv-${key}`}
-                            className="text-t-xs font-normal text-muted-foreground"
-                          >
-                            {key}
-                          </Label>
-                          <Input
-                            id={`adv-${key}`}
-                            type="number"
-                            step={key === "max_tokens" ? "1" : "any"}
-                            inputMode={key === "max_tokens" ? "numeric" : "decimal"}
-                            value={advForm[key]}
-                            placeholder={
-                              key === "max_tokens"
-                                ? "留空使用端点默认，或输入正整数（如 1024）"
-                                : "留空使用端点默认，或输入 0 以上的数值"
-                            }
-                            onInput={(event) =>
-                              onAdvFormField(key, event.currentTarget.value)
-                            }
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <Textarea
-                      aria-label="模型通用参数 JSON"
-                      spellCheck={false}
-                      className="min-h-[110px] text-t-sm"
-                      value={advJson}
-                      placeholder={`{
-  "temperature": 0.7,
-  "top_p": 0.9,
-  "max_tokens": 1024,
-  "extra_body": { "top_k": 50 }
-}`}
-                      onInput={(event) => onAdvJsonInput(event.currentTarget.value)}
-                    />
-                    <p
-                      role="status"
-                      className={cn(
-                        "text-t-sm",
-                        advState.kind === "invalid" && "text-destructive",
-                        advState.kind === "ignored" &&
-                          "text-amber-600 dark:text-amber-500",
-                        advState.kind === "ok" && "text-muted-foreground",
-                      )}
-                    >
-                      {advState.text}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-t-sm font-medium">
-                      本项目传输参数（仅表单，不提供 JSON）
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label
-                          htmlFor="adv-timeout"
-                          className="text-t-xs font-normal text-muted-foreground"
-                        >
-                          timeout_seconds · 单次请求超时秒数
-                        </Label>
-                        <Input
-                          id="adv-timeout"
-                          type="number"
-                          step="any"
-                          inputMode="decimal"
-                          value={advTransport.timeout_seconds}
-                          placeholder="留空 = 120 秒（内置默认）"
-                          onInput={(event) => {
-                            // 先取值再进更新函数：React 的事件对象在更新器执行时已失效。
-                            const value = event.currentTarget.value;
-                            setAdvTransport((current) => ({
-                              ...current,
-                              timeout_seconds: value,
-                            }));
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label
-                          htmlFor="adv-retries"
-                          className="text-t-xs font-normal text-muted-foreground"
-                        >
-                          max_retries · 失败自动重试次数
-                        </Label>
-                        <Input
-                          id="adv-retries"
-                          type="number"
-                          step="1"
-                          inputMode="numeric"
-                          value={advTransport.max_retries}
-                          placeholder="留空 = 2 次（内置默认）"
-                          onInput={(event) => {
-                            const value = event.currentTarget.value;
-                            setAdvTransport((current) => ({
-                              ...current,
-                              max_retries: value,
-                            }));
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 border-t border-border pt-4">
-              {!creating && (
-                <span className="text-t-sm text-muted-foreground">
-                  切换「设为当前使用」立即生效于新请求
-                </span>
-              )}
-              <span className="flex-1" />
-              <Button type="button" disabled={!canSave} onClick={() => void save()}>
-                {creating ? "创建配置" : "保存更改"}
-              </Button>
-              {!creating && current !== undefined && !current.is_active && (
-                <Button type="button" variant="outline" onClick={() => void activate()}>
-                  设为当前使用
-                </Button>
-              )}
-            </div>
-          </div>
+          <ConfigForm
+            creating={creating}
+            current={current}
+            draftName={draftName}
+            onNameInput={setDraftName}
+            draftBaseUrl={draftBaseUrl}
+            onBaseUrlInput={setDraftBaseUrl}
+            draftFormat={draftFormat}
+            onFormatChange={setDraftFormat}
+            draftModel={draftModel}
+            onModelInput={setDraftModel}
+            draftKey={draftKey}
+            onKeyInput={setDraftKey}
+            feedback={feedback}
+            canSave={canSave}
+            onSave={() => void save()}
+            onActivate={() => void activate()}
+            onDelete={() => setDeleteDialogOpen(true)}
+            testing={testing}
+            testResult={testResult}
+            onTest={() => void testConnection()}
+            advOpen={advOpen}
+            onAdvToggle={() => setAdvOpen((open) => !open)}
+            advForm={advForm}
+            onAdvFormField={onAdvFormField}
+            advTransport={advTransport}
+            setAdvTransport={setAdvTransport}
+            advJson={advJson}
+            onAdvJsonInput={onAdvJsonInput}
+            advState={advState}
+            thinking={thinking}
+            onThinkingChange={onThinkingChange}
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-t-md text-muted-foreground">
             左侧选择一套配置，或「添加配置」新建。
@@ -734,17 +344,11 @@ export function EndpointConfigPanel(): ReactElement {
         )}
       </div>
 
-      <DialogShell
+      <DeleteDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title={<>删除端点配置「{selected}」？</>}
-        description="将连同该配置的密钥文件一起移除；当前使用中的配置需先切换才能删。此操作不可撤销。"
-        cancel={{ label: "取消", onClick: () => setDeleteDialogOpen(false) }}
-        confirm={{
-          label: "删除",
-          variant: "destructive-fill",
-          onClick: () => void remove(),
-        }}
+        target={selected}
+        onConfirm={() => void remove()}
       />
     </div>
   );
