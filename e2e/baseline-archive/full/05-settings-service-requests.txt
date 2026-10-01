@@ -1,0 +1,10 @@
+GET /api/service
+GET /api/strategies
+GET /api/prompts
+GET /api/skills
+GET /api/endpoints
+GET /api/sessions/latest
+GET /api/prompts/p-1
+GET /api/endpoints
+GET /api/service
+GET /api/service/logs

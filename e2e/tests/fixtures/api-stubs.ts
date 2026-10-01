@@ -210,19 +210,34 @@ export const API_STUBS: Record<string, unknown> = {
  * 装上路由桩：键 = `方法 路径`（不含 query），值为 null 表示回 404；
  * overrides 用来按用例替换个别端点（如喂一份 3000 条的清单）。
  * 每一屏实际请求到的路径记进 sink（供快照比对）。
+ *
+ * `passthrough` 可选：返回 true 的请求不走桩、放行给真后端（route.fallback）——
+ * 「流式中」屏唯一用：SSE 一次性 fulfill 桩不出「响应中」瞬态（body 定长，前端一轮
+ * 微任务就收完），必须让真后端经闸门挂住模型调用（见 fixtures/label-stream.ts）。
+ * 放行的请求同样记进 sink，请求清单快照口径不变。
  */
 export async function stubApi(
   page: Page,
   sink: string[] = [],
   overrides: Record<string, unknown> = {},
+  passthrough?: (method: string, pathname: string) => boolean,
 ): Promise<void> {
   await page.route("**/api/**", (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const pathname = decodeURIComponent(url.pathname);
     const key = `${request.method()} ${pathname}`;
-    sink.push(`${request.method()} ${pathname}`);
+    sink.push(key);
+    if (passthrough !== undefined && passthrough(request.method(), pathname)) {
+      void route.fallback();
+      return;
+    }
     if (pathname.endsWith("/asset")) {
+      route.fulfill({ contentType: "image/png", body: Buffer.from(PNG_1PX, "base64") });
+      return;
+    }
+    if (/^\/api\/sessions\/[^/]+\/attachments\//.test(pathname)) {
+      // 历史会话附件缩略图：桩一张固定图，让缩略图渲染真图而非 404 后的图标回退伪态。
       route.fulfill({ contentType: "image/png", body: Buffer.from(PNG_1PX, "base64") });
       return;
     }

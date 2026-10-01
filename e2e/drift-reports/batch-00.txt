@@ -1,0 +1,196 @@
+# 批次漂移报告 batch-00
+- 生成时间：2026-10-01T06:00:59.416Z
+- 口径：全档 dump（.verify/baseline-dump/）vs 批0 全档存档（baseline-archive/full/）
+- 判读：key 同列变 / 行消失 = 回归（当批查明）；key 变列同 = 结构性（可解释即可）
+
+## 01-workbench（差异 81 条）
+- ⚠ 回归：[key 同列变] 01-workbench :: div#0/div#0/main#2/div#0/div#0
+    存档: div#0/div#0/main#2/div#0/div#0 |  |  |  |  | flex h-full min-h-0 flex-col |  | 250,0 1190x900 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+    当批: div#0/div#0/main#2/div#0/div#0 |  |  | 演练包装层 | region |  |  | 250,0 1190x368 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | block | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/header#0 → div#0/div#0/main#2/div#0/div#0/div#0/header#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/header#0/div#0 → div#0/div#0/main#2/div#0/div#0/div#0/header#0/div#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/header#0/div#0/div#0 → div#0/div#0/main#2/div#0/div#0/div#0/header#0/div#0/div#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/header#0/div#0/div#0/input#0 → div#0/div#0/main#2/div#0/div#0/div#0/header#0/div#0/div#0/input#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/header#0/div#0/div#0/button#1 → div#0/div#0/main#2/div#0/div#0/div#0/header#0/div#0/div#0/button#1
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/header#0/div#0/div#0/button#1/svg#0 → div#0/div#0/main#2/div#0/div#0/div#0/header#0/div#0/div#0/button#1/svg#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/header#0/div#0/div#0/button#1/svg#0/path#0 → div#0/div#0/main#2/div#0/div#0/div#0/header#0/div#0/div#0/button#1/svg#0/path#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/header#0/div#0/input#1 → div#0/div#0/main#2/div#0/div#0/div#0/header#0/div#0/input#1
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/header#0/div#0/button#3 → div#0/div#0/main#2/div#0/div#0/div#0/header#0/div#0/button#3
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#0/span#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#0/span#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#0/div#1 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#0/div#1
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#0/div#1/input#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#0/div#1/input#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#0/div#1/button#1 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#0/div#1/button#1
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#0/div#1/button#1/svg#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#0/div#1/button#1/svg#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#0/div#1/button#1/svg#0/path#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#0/div#1/button#1/svg#0/path#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#0/button#3 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#0/button#3
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#1 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#1
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#1/label#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#1/label#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#1/input#1 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#1/input#1
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#2/div#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#2/div#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#2/div#0/span#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#2/div#0/span#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#2/div#0/span#1 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#2/div#0/span#1
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#0/h2#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#0/h2#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#0/button#1 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#0/button#1
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#0/button#1/span#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#0/button#1/span#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#0/button#1/span#1 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#0/button#1/span#1
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#0/button#1/svg#2 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#0/button#1/svg#2
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#0/button#1/svg#2/path#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#0/button#1/svg#2/path#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#0/button#2 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#0/button#2
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#0/button#2/svg#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#0/button#2/svg#0
+- ○ 结构性：[key 变列同] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#1/p#0 → div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#1/p#0
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0 |  |  |  |  | flex h-full min-h-0 flex-col |  | 250,0 1190x368 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1 |  |  |  |  | grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-auto lg:grid-cols-2 lg:overflow-hidden |  | 250,83 1190x284 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | grid | none | auto | hidden | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0 |  |  | 提示词编辑列 |  | flex min-h-80 min-w-0 flex-col px-6 py-4 lg:min-h-0 |  | 250,83 595x284 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 16px 24px 16px 24px | normal | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0 |  |  |  |  | flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-card px-6 py-4 |  | 274,99 547x252 | 13px | 400 | rgb(17, 24, 39) | rgb(255, 255, 255) | 1px/1px/1px/1px | rgb(228, 231, 236) | 12px | 16px 24px 16px 24px | normal | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#2 |  |  |  |  | mt-4 flex min-h-0 flex-1 flex-col |  | 299,235 497x100 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#2/div#1 |  |  |  |  | flex min-h-0 flex-1 overflow-hidden rounded-md border border-input bg-card |  | 299,263 497x72 | 13px | 400 | rgb(17, 24, 39) | rgb(255, 255, 255) | 1px/1px/1px/1px | rgb(214, 218, 225) | 8px | 0px 0px 0px 0px | normal | flex | none | auto | hidden | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#0/div#0/div#2/div#1/textarea#0 | prompt-body |  | 正文（Markdown） |  | min-h-0 w-full resize-none bg-transparent p-3 font-sans text-t-md leading-(--lh-loose) focus-visible:outline-none | 请用中文详细描述这张图的主体、姿态、背景与光线。 | 300,264 495x70 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 12px 12px 12px 12px | normal | block | none | auto | auto | 22.75px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1 |  |  | 调试对话列 |  | flex min-h-80 min-w-0 flex-col border-t border-border px-6 py-4 lg:min-h-0 lg:border-t-0 lg:border-l |  | 845,83 595x284 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/1px | rgb(228, 231, 236) | 0px | 16px 24px 16px 24px | normal | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#1 |  |  | 消息流 | log | min-h-0 flex-1 space-y-4 overflow-y-auto py-1 |  | 870,137 546x94 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 4px 0px 4px 0px | normal | block | none | auto | auto | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2 |  |  |  |  | mt-auto pt-4 |  | 870,232 546x120 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 16px 0px 0px 0px | normal | block | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0 |  |  |  |  | rounded-xl border border-input bg-card p-2 focus-within:border-n-400 |  | 870,248 546x104 | 13px | 400 | rgb(17, 24, 39) | rgb(255, 255, 255) | 1px/1px/1px/1px | rgb(214, 218, 225) | 14px | 8px 8px 8px 8px | normal | block | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/textarea#0 |  |  | 打标指令 |  | block min-h-14 w-full resize-none border-0 bg-transparent px-1 pt-2 pb-1 text-t-md text-text-2 outline-none |  | 879,257 528x56 | 13px | 400 | rgb(24, 35, 47) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 8px 4px 4px 4px | normal | block | none | auto | auto | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1 |  |  |  |  | flex min-w-0 items-center gap-3 |  | 879,313 528x30 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | 12px | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0 |  |  |  |  | flex items-center gap-1 |  | 879,313 64x30 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | 4px | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0/button#0 | button |  | 附图片或视频（最多 1 个） |  | inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-t-md font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-text-3 hover:bg-accent hover:text-text-1 active:bg-muted size-(--h-md) p-0 |  | 879,313 30x30 | 13px | 500 | rgb(53, 66, 85) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 8px | 0px 0px 0px 0px | 8px | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0/button#0/svg#0 |  |  |  |  | lucide lucide-paperclip |  | 886,320 16x16 | 13px | 500 | rgb(53, 66, 85) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | block | none | auto | hidden | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0/button#0/svg#0/path#0 |  |  |  |  |  |  | 888,321 12x13 | 13px | 500 | rgb(53, 66, 85) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | inline | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0/input#1 |  |  | 附图或视频（最多 1 个） |  | sr-only |  | 878,327 1x1 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | block | none | auto | clip | 20.15px | normal | none | absolute | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0/button#2 | button |  | 添加 Skill |  | inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-t-md font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-text-3 hover:bg-accent hover:text-text-1 active:bg-muted size-(--h-md) p-0 |  | 913,313 30x30 | 13px | 500 | rgb(53, 66, 85) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 8px | 0px 0px 0px 0px | 8px | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0/button#2/svg#0 |  |  |  |  | lucide lucide-plus |  | 920,320 16x16 | 13px | 500 | rgb(53, 66, 85) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | block | none | auto | hidden | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/span#2 |  |  |  |  | ml-auto shrink-0 text-t-sm text-muted-foreground | Enter 发送 · Shift+Enter 换行 | 1207,318 158x19 | 12px | 400 | rgb(53, 66, 85) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | block | none | auto | visible | 18.6px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/button#3 | button |  | 发送 |  | inline-flex items-center justify-center gap-2 whitespace-nowrap text-t-md font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-press size-(--h-md) p-0 shrink-0 rounded-full |  | 1377,313 30x30 | 13px | 500 | rgb(155, 163, 176) | rgb(242, 244, 247) | 0px/0px/0px/0px | rgb(228, 231, 236) | 3.35544e+07px | 0px 0px 0px 0px | 8px | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/button#3/svg#0 |  |  |  |  | lucide lucide-arrow-up |  | 1384,320 16x16 | 13px | 500 | rgb(155, 163, 176) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | block | none | auto | hidden | 20.15px | normal | none | static | none | 1
+- ＋ 新增：[新增行] 01-workbench :: div#0/div#0/main#2/div#0/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/button#3/svg#0/path#0 |  |  |  |  |  |  | 1387,323 9x5 | 13px | 500 | rgb(155, 163, 176) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | inline | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1 |  |  |  |  | grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-auto lg:grid-cols-2 lg:overflow-hidden |  | 250,83 1190x817 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | grid | none | auto | hidden | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0 |  |  | 提示词编辑列 |  | flex min-h-80 min-w-0 flex-col px-6 py-4 lg:min-h-0 |  | 250,83 595x817 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 16px 24px 16px 24px | normal | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0 |  |  |  |  | flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-card px-6 py-4 |  | 274,99 547x785 | 13px | 400 | rgb(17, 24, 39) | rgb(255, 255, 255) | 1px/1px/1px/1px | rgb(228, 231, 236) | 12px | 16px 24px 16px 24px | normal | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#2 |  |  |  |  | mt-4 flex min-h-0 flex-1 flex-col |  | 299,235 497x632 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#2/div#1 |  |  |  |  | flex min-h-0 flex-1 overflow-hidden rounded-md border border-input bg-card |  | 299,263 497x604 | 13px | 400 | rgb(17, 24, 39) | rgb(255, 255, 255) | 1px/1px/1px/1px | rgb(214, 218, 225) | 8px | 0px 0px 0px 0px | normal | flex | none | auto | hidden | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#0/div#0/div#2/div#1/textarea#0 | prompt-body |  | 正文（Markdown） |  | min-h-0 w-full resize-none bg-transparent p-3 font-sans text-t-md leading-(--lh-loose) focus-visible:outline-none | 请用中文详细描述这张图的主体、姿态、背景与光线。 | 300,264 495x602 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 12px 12px 12px 12px | normal | block | none | auto | auto | 22.75px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1 |  |  | 调试对话列 |  | flex min-h-80 min-w-0 flex-col border-t border-border px-6 py-4 lg:min-h-0 lg:border-t-0 lg:border-l |  | 845,83 595x817 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/1px | rgb(228, 231, 236) | 0px | 16px 24px 16px 24px | normal | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#1 |  |  | 消息流 | log | min-h-0 flex-1 space-y-4 overflow-y-auto py-1 |  | 870,137 546x627 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 4px 0px 4px 0px | normal | block | none | auto | auto | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2 |  |  |  |  | mt-auto pt-4 |  | 870,764 546x120 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 16px 0px 0px 0px | normal | block | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0 |  |  |  |  | rounded-xl border border-input bg-card p-2 focus-within:border-n-400 |  | 870,780 546x104 | 13px | 400 | rgb(17, 24, 39) | rgb(255, 255, 255) | 1px/1px/1px/1px | rgb(214, 218, 225) | 14px | 8px 8px 8px 8px | normal | block | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/textarea#0 |  |  | 打标指令 |  | block min-h-14 w-full resize-none border-0 bg-transparent px-1 pt-2 pb-1 text-t-md text-text-2 outline-none |  | 879,789 528x56 | 13px | 400 | rgb(24, 35, 47) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 8px 4px 4px 4px | normal | block | none | auto | auto | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1 |  |  |  |  | flex min-w-0 items-center gap-3 |  | 879,845 528x30 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | 12px | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0 |  |  |  |  | flex items-center gap-1 |  | 879,845 64x30 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | 4px | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0/button#0 | button |  | 附图片或视频（最多 1 个） |  | inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-t-md font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-text-3 hover:bg-accent hover:text-text-1 active:bg-muted size-(--h-md) p-0 |  | 879,845 30x30 | 13px | 500 | rgb(53, 66, 85) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 8px | 0px 0px 0px 0px | 8px | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0/button#0/svg#0 |  |  |  |  | lucide lucide-paperclip |  | 886,852 16x16 | 13px | 500 | rgb(53, 66, 85) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | block | none | auto | hidden | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0/button#0/svg#0/path#0 |  |  |  |  |  |  | 888,853 12x13 | 13px | 500 | rgb(53, 66, 85) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | inline | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0/input#1 |  |  | 附图或视频（最多 1 个） |  | sr-only |  | 878,860 1x1 | 13px | 400 | rgb(17, 24, 39) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | block | none | auto | clip | 20.15px | normal | none | absolute | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0/button#2 | button |  | 添加 Skill |  | inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-t-md font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-text-3 hover:bg-accent hover:text-text-1 active:bg-muted size-(--h-md) p-0 |  | 913,845 30x30 | 13px | 500 | rgb(53, 66, 85) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 8px | 0px 0px 0px 0px | 8px | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/div#0/button#2/svg#0 |  |  |  |  | lucide lucide-plus |  | 920,852 16x16 | 13px | 500 | rgb(53, 66, 85) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | block | none | auto | hidden | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/span#2 |  |  |  |  | ml-auto shrink-0 text-t-sm text-muted-foreground | Enter 发送 · Shift+Enter 换行 | 1207,851 158x19 | 12px | 400 | rgb(53, 66, 85) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | block | none | auto | visible | 18.6px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/button#3 | button |  | 发送 |  | inline-flex items-center justify-center gap-2 whitespace-nowrap text-t-md font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-press size-(--h-md) p-0 shrink-0 rounded-full |  | 1377,845 30x30 | 13px | 500 | rgb(155, 163, 176) | rgb(242, 244, 247) | 0px/0px/0px/0px | rgb(228, 231, 236) | 3.35544e+07px | 0px 0px 0px 0px | 8px | flex | none | auto | visible | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/button#3/svg#0 |  |  |  |  | lucide lucide-arrow-up |  | 1384,852 16x16 | 13px | 500 | rgb(155, 163, 176) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | block | none | auto | hidden | 20.15px | normal | none | static | none | 1
+- − 消失/缺屏：[行消失] 01-workbench :: div#0/div#0/main#2/div#0/div#0/fieldset#1/section#1/div#2/div#0/div#1/button#3/svg#0/path#0 |  |  |  |  |  |  | 1387,855 9x5 | 13px | 500 | rgb(155, 163, 176) | rgba(0, 0, 0, 0) | 0px/0px/0px/0px | rgb(228, 231, 236) | 0px | 0px 0px 0px 0px | normal | inline | none | auto | visible | 20.15px | normal | none | static | none | 1
+
+## 02-workbench-prompt-menu（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：02-workbench-prompt-menu
+- （零差异）
+
+## 03-workbench-endpoint-menu（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：03-workbench-endpoint-menu
+- （零差异）
+
+## 04-settings-endpoint（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：04-settings-endpoint
+- （零差异）
+
+## 05-settings-service（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：05-settings-service
+- （零差异）
+
+## 06-settings-skill（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：06-settings-skill
+- （零差异）
+
+## 07-labeling-overview（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：07-labeling-overview
+- （零差异）
+
+## 08-labeling-preview（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：08-labeling-preview
+- （零差异）
+
+## 09-labeling-dark（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：09-labeling-dark
+- （零差异）
+
+## 10-labeling-new-batch（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：10-labeling-new-batch
+- （零差异）
+
+## 11-labeling-workdir-settings（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：11-labeling-workdir-settings
+- （零差异）
+
+## 12-labeling-snapshot（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：12-labeling-snapshot
+- （零差异）
+
+## 13-labeling-tile-folded（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：13-labeling-tile-folded
+- （零差异）
+
+## 14-settings-skill-corrupt（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：14-settings-skill-corrupt
+- （零差异）
+
+## 15-workbench-strategy-menu（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：15-workbench-strategy-menu
+- （零差异）
+
+## 16-settings-endpoint-delete（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：16-settings-endpoint-delete
+- （零差异）
+
+## 17-settings-skill-import（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：17-settings-skill-import
+- （零差异）
+
+## 18-settings-skill-delete（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：18-settings-skill-delete
+- （零差异）
+
+## 19-workbench-session（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：19-workbench-session
+- （零差异）
+
+## 20-workbench-partial（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：20-workbench-partial
+- （零差异）
+
+## 21-workbench-streaming（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：21-workbench-streaming
+- （零差异）
+
+## 22-narrow-workbench（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：22-narrow-workbench
+- （零差异）
+
+## 23-narrow-settings-endpoint（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：23-narrow-settings-endpoint
+- （零差异）
+
+## 24-narrow-settings-skill（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：24-narrow-settings-skill
+- （零差异）
+
+## 25-mid-workbench（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：25-mid-workbench
+- （零差异）
+
+## 26-mid-settings-endpoint（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：26-mid-settings-endpoint
+- （零差异）
+
+## 27-mid-settings-skill（差异 0 条）
+- − 消失/缺屏：当批 dump 缺屏：27-mid-settings-skill
+- （零差异）
+
+## 汇总：27 屏，回归 1 条，结构性 33 条
+- 回归条目当批归因：预期内注明，不可解释的查明修正，不攒到批17。

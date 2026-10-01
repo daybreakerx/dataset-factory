@@ -338,6 +338,21 @@ def main() -> None:
         model="fake-e2e-model",
         api_key=SecretValue("sk-e2e-not-a-real-key"),
     )
+    # 预写一条**固定 ID** 的提示词（视觉基线「流式中」屏的策略引用它）：该屏的请求清单
+    # 快照含 GET /api/prompts/<id>，id 随机则快照必漂。id 必须合 PROMPT_ID_RE（p + 10
+    # 位，共 11）——不合形状的文件会被读侧惰性迁移改名。
+    prompts_dir = data_home / "prompts"
+    prompts_dir.mkdir(exist_ok=True)
+    prompt_file = prompts_dir / "pbaseline01.md"
+    if not prompt_file.exists():
+        prompt_file.write_text(
+            "---\n"
+            "name: 详细描述\n"
+            "description: 通用详细描述提示词\n"
+            "---\n"
+            "请用中文详细描述这张图的主体、姿态、背景与光线。",
+            encoding="utf-8",
+        )
     # 假端点必须**插在路由表最前**：system_app 已经有一个 mount("/", StaticFiles)
     # （前端托管），Starlette 按注册顺序匹配，/ 前缀会吞掉后面所有路径——
     # 后置的 mount("/fake-llm") 永远轮不到，POST 还会被 StaticFiles 回 405。

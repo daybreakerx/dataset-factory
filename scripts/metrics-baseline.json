@@ -1,0 +1,621 @@
+{
+  "后端源文件数": 88,
+  "后端源码行": 20581,
+  "后端测试文件数": 56,
+  "后端测试函数数": 889,
+  "后端超 700 行文件数": 5,
+  "后端最大文件": [
+    "backend/src/dataset_factory/labeling/engine.py (1159 行)",
+    "backend/src/dataset_factory/runs/runner.py (1102 行)",
+    "backend/src/dataset_factory/api/schemas.py (980 行)",
+    "backend/src/dataset_factory/skills/store.py (844 行)",
+    "backend/src/dataset_factory/llm/endpoints.py (736 行)"
+  ],
+  "前端源文件数": 63,
+  "前端测试文件数": 32,
+  "前端手写源码行": 15842,
+  "前端生成类型行": 8181,
+  "前端测试用例数": 282,
+  "dist": {
+    "dist 文件数": 6,
+    "dist 总字节": 678943,
+    "dist JS gzip 字节": 195976,
+    "dist 明细": [
+      "assets/DirectoryPicker-CTCKjIKc.js 14048 B / gz 5462 B",
+      "assets/index-jk8x_5-9.js 455156 B / gz 146454 B",
+      "assets/index-y8V_86S9.css 50739 B / gz 10398 B",
+      "assets/LabelingPage-BqwxB_fz.js 121782 B / gz 32829 B",
+      "assets/SettingsPage-B10ruRgA.js 36816 B / gz 11231 B",
+      "index.html 402 B / gz 274 B"
+    ]
+  },
+  "ui_surface": {
+    "ui 目录": 13,
+    "ui 导出名": [
+      "Alert",
+      "AlertDescription",
+      "Badge",
+      "Button",
+      "Dialog",
+      "DialogContent",
+      "DialogDescription",
+      "DialogFooter",
+      "DialogHeader",
+      "DialogTitle",
+      "DropdownMenu",
+      "DropdownMenuCheckboxItem",
+      "DropdownMenuContent",
+      "DropdownMenuItem",
+      "DropdownMenuLabel",
+      "DropdownMenuSeparator",
+      "DropdownMenuTrigger",
+      "Input",
+      "Label",
+      "Select",
+      "SelectContent",
+      "SelectItem",
+      "SelectTrigger",
+      "SelectValue",
+      "Switch",
+      "Textarea",
+      "Tip",
+      "ToastViewport",
+      "Tooltip",
+      "TooltipContent",
+      "TooltipProvider",
+      "TooltipTrigger",
+      "buttonVariants"
+    ]
+  },
+  "重复与死代码计数": {
+    "api 手写异常处理器闭包": {
+      "数量": 2,
+      "位置": [
+        "backend/src/dataset_factory/api/app.py:300",
+        "backend/src/dataset_factory/api/app.py:314"
+      ]
+    },
+    "problem+json 响应脚手架": {
+      "数量": 7,
+      "位置": [
+        "backend/src/dataset_factory/api/problems.py:26",
+        "backend/src/dataset_factory/api/routes_items.py:45",
+        "backend/src/dataset_factory/api/routes_items.py:86",
+        "backend/src/dataset_factory/api/routes_runs.py:177",
+        "backend/src/dataset_factory/api/routes_runs.py:367",
+        "backend/src/dataset_factory/api/routes_strategies.py:381",
+        "backend/src/dataset_factory/api/routes_workdir.py:616"
+      ]
+    },
+    "wid→路径解析函数定义": {
+      "数量": 0,
+      "位置": []
+    },
+    "wid→路径解析内联抄本": {
+      "数量": 4,
+      "位置": [
+        "backend/src/dataset_factory/api/deps.py:3",
+        "backend/src/dataset_factory/api/deps.py:31",
+        "backend/src/dataset_factory/cli/operations.py:31",
+        "backend/src/dataset_factory/workdir/store.py:247"
+      ]
+    },
+    "wid→路径内联展开（粗筛对照）": {
+      "数量": 15,
+      "位置": [
+        "backend/src/dataset_factory/api/deps.py:3",
+        "backend/src/dataset_factory/api/deps.py:31",
+        "backend/src/dataset_factory/api/routes_filesystem.py:103",
+        "backend/src/dataset_factory/api/routes_filesystem.py:106",
+        "backend/src/dataset_factory/api/routes_filesystem.py:300",
+        "backend/src/dataset_factory/api/routes_filesystem.py:302",
+        "backend/src/dataset_factory/api/routes_filesystem.py:313",
+        "backend/src/dataset_factory/api/routes_skills.py:100",
+        "backend/src/dataset_factory/api/routes_workdir.py:207",
+        "backend/src/dataset_factory/api/routes_workdir.py:208",
+        "backend/src/dataset_factory/api/routes_workdir.py:466",
+        "backend/src/dataset_factory/api/routes_workdir.py:503",
+        "backend/src/dataset_factory/api/routes_workdir.py:541",
+        "backend/src/dataset_factory/api/routes_workdir.py:637",
+        "backend/src/dataset_factory/api/routes_workdir.py:650"
+      ]
+    },
+    "手写分块 sha256": {
+      "数量": 1,
+      "位置": [
+        "backend/src/dataset_factory/_fs.py:166"
+      ]
+    },
+    "规范 JSON 内容哈希实现": {
+      "数量": 1,
+      "位置": [
+        "backend/src/dataset_factory/strategies/store.py:442"
+      ]
+    },
+    "时间戳助手定义": {
+      "数量": 2,
+      "位置": [
+        "backend/src/dataset_factory/_clock.py:18",
+        "backend/src/dataset_factory/_clock.py:23"
+      ]
+    },
+    "内联取当前 UTC 时间": {
+      "数量": 2,
+      "位置": [
+        "backend/src/dataset_factory/_clock.py:20",
+        "backend/src/dataset_factory/_clock.py:28"
+      ]
+    },
+    "安全路径段校验实现": {
+      "数量": 1,
+      "位置": [
+        "backend/src/dataset_factory/_fs.py:211"
+      ]
+    },
+    "安全路径段候选行（粗筛对照）": {
+      "数量": 4,
+      "位置": [
+        "backend/src/dataset_factory/llm/endpoints.py:280",
+        "backend/src/dataset_factory/workdir/assets.py:181",
+        "backend/src/dataset_factory/workdir/importer.py:99"
+      ]
+    },
+    "CLI 绕过公共输出助手": {
+      "数量": 46,
+      "位置": [
+        "backend/src/dataset_factory/cli/batch.py:55",
+        "backend/src/dataset_factory/cli/config.py:122",
+        "backend/src/dataset_factory/cli/config.py:123",
+        "backend/src/dataset_factory/cli/config.py:124",
+        "backend/src/dataset_factory/cli/config.py:127",
+        "backend/src/dataset_factory/cli/config.py:134",
+        "backend/src/dataset_factory/cli/config.py:147",
+        "backend/src/dataset_factory/cli/config.py:152",
+        "backend/src/dataset_factory/cli/config.py:311",
+        "backend/src/dataset_factory/cli/config.py:323",
+        "backend/src/dataset_factory/cli/config.py:328",
+        "backend/src/dataset_factory/cli/config.py:329",
+        "backend/src/dataset_factory/cli/errors.py:55",
+        "backend/src/dataset_factory/cli/errors.py:58",
+        "backend/src/dataset_factory/cli/export.py:86",
+        "backend/src/dataset_factory/cli/label.py:162",
+        "backend/src/dataset_factory/cli/label.py:169",
+        "backend/src/dataset_factory/cli/label.py:227",
+        "backend/src/dataset_factory/cli/label.py:232",
+        "backend/src/dataset_factory/cli/label.py:270",
+        "backend/src/dataset_factory/cli/operations.py:39",
+        "backend/src/dataset_factory/cli/operations.py:57",
+        "backend/src/dataset_factory/cli/operations.py:65",
+        "backend/src/dataset_factory/cli/operations.py:77",
+        "backend/src/dataset_factory/cli/operations.py:91",
+        "backend/src/dataset_factory/cli/prompt.py:66",
+        "backend/src/dataset_factory/cli/prompt.py:70",
+        "backend/src/dataset_factory/cli/prompt.py:79",
+        "backend/src/dataset_factory/cli/prompt.py:120",
+        "backend/src/dataset_factory/cli/run.py:46",
+        "backend/src/dataset_factory/cli/run.py:48",
+        "backend/src/dataset_factory/cli/run.py:62",
+        "backend/src/dataset_factory/cli/session.py:22",
+        "backend/src/dataset_factory/cli/session.py:25",
+        "backend/src/dataset_factory/cli/session.py:41",
+        "backend/src/dataset_factory/cli/session.py:45",
+        "backend/src/dataset_factory/cli/skill.py:72",
+        "backend/src/dataset_factory/cli/skill.py:77",
+        "backend/src/dataset_factory/cli/skill.py:101",
+        "backend/src/dataset_factory/cli/skill.py:114"
+      ]
+    },
+    "api key 解析实现": {
+      "数量": 12,
+      "位置": [
+        "backend/src/dataset_factory/api/routes_endpoints.py:140",
+        "backend/src/dataset_factory/api/schemas.py:323",
+        "backend/src/dataset_factory/cli/config.py:57",
+        "backend/src/dataset_factory/cli/config.py:132",
+        "backend/src/dataset_factory/cli/config.py:181",
+        "backend/src/dataset_factory/llm/config.py:10",
+        "backend/src/dataset_factory/llm/config.py:33",
+        "backend/src/dataset_factory/llm/config.py:102",
+        "backend/src/dataset_factory/llm/config.py:243",
+        "backend/src/dataset_factory/llm/config.py:265",
+        "backend/src/dataset_factory/llm/config.py:266",
+        "backend/src/dataset_factory/llm/endpoints.py:456"
+      ]
+    },
+    "前端长任务轮询循环": {
+      "数量": 19,
+      "位置": [
+        "frontend/src/api.ts:156",
+        "frontend/src/App.tsx:116",
+        "frontend/src/App.tsx:135",
+        "frontend/src/components/DirectoryPicker.tsx:103",
+        "frontend/src/lib/toast.ts:31",
+        "frontend/src/pages/labeling/ExportPanel.tsx:279",
+        "frontend/src/pages/labeling/ImportMaterialsDialog.tsx:114",
+        "frontend/src/pages/labeling/RebuildImportsDialog.tsx:56",
+        "frontend/src/pages/labeling/RelocateWorkdirDialog.tsx:94",
+        "frontend/src/pages/labeling/RunControl.tsx:120",
+        "frontend/src/pages/labeling/RunControl.tsx:123",
+        "frontend/src/pages/labeling/RunControl.tsx:137",
+        "frontend/src/pages/labeling/RunOverview.tsx:148",
+        "frontend/src/pages/labeling/RunOverview.tsx:311",
+        "frontend/src/pages/labeling/RunOverview.tsx:321",
+        "frontend/src/pages/labeling/WorkdirSettings.tsx:136",
+        "frontend/src/pages/prompt-workbench/chat-session.tsx:54",
+        "frontend/src/pages/prompt-workbench/chat-session.tsx:300",
+        "frontend/src/pages/prompt-workbench/chat-session.tsx:619"
+      ]
+    },
+    "「上次任务已丢失」文案份数": {
+      "数量": 17,
+      "位置": [
+        "frontend/src/components/DirectoryPicker.test.tsx:126",
+        "frontend/src/components/DirectoryPicker.test.tsx:138",
+        "frontend/src/components/DirectoryPicker.tsx:133",
+        "frontend/src/pages/labeling/ExportPanel.test.tsx:317",
+        "frontend/src/pages/labeling/ExportPanel.test.tsx:325",
+        "frontend/src/pages/labeling/ExportPanel.test.tsx:329",
+        "frontend/src/pages/labeling/ExportPanel.tsx:311",
+        "frontend/src/pages/labeling/ImportMaterialsDialog.test.tsx:196",
+        "frontend/src/pages/labeling/ImportMaterialsDialog.test.tsx:204",
+        "frontend/src/pages/labeling/ImportMaterialsDialog.tsx:156",
+        "frontend/src/pages/labeling/items-state.test.ts:78",
+        "frontend/src/pages/labeling/NewBatchForm.tsx:192",
+        "frontend/src/pages/labeling/RebuildImportsDialog.tsx:79",
+        "frontend/src/pages/labeling/RelocateWorkdirDialog.test.tsx:58",
+        "frontend/src/pages/labeling/RelocateWorkdirDialog.test.tsx:77",
+        "frontend/src/pages/labeling/RelocateWorkdirDialog.tsx:108",
+        "frontend/src/pages/prompt-workbench/PromptWorkbench.test.tsx:906"
+      ]
+    },
+    "api 层逐字段搬运响应模型": {
+      "数量": 115,
+      "位置": [
+        "backend/src/dataset_factory/api/routes_config.py:34",
+        "backend/src/dataset_factory/api/routes_config.py:35",
+        "backend/src/dataset_factory/api/routes_config.py:36",
+        "backend/src/dataset_factory/api/routes_config.py:37",
+        "backend/src/dataset_factory/api/routes_config.py:39",
+        "backend/src/dataset_factory/api/routes_config.py:78",
+        "backend/src/dataset_factory/api/routes_config.py:79",
+        "backend/src/dataset_factory/api/routes_endpoints.py:53",
+        "backend/src/dataset_factory/api/routes_endpoints.py:66",
+        "backend/src/dataset_factory/api/routes_endpoints.py:67",
+        "backend/src/dataset_factory/api/routes_endpoints.py:68",
+        "backend/src/dataset_factory/api/routes_endpoints.py:70",
+        "backend/src/dataset_factory/api/routes_endpoints.py:96",
+        "backend/src/dataset_factory/api/routes_endpoints.py:97",
+        "backend/src/dataset_factory/api/routes_endpoints.py:99",
+        "backend/src/dataset_factory/api/routes_endpoints.py:109",
+        "backend/src/dataset_factory/api/routes_endpoints.py:126",
+        "backend/src/dataset_factory/api/routes_endpoints.py:151",
+        "backend/src/dataset_factory/api/routes_endpoints.py:162",
+        "backend/src/dataset_factory/api/routes_endpoints.py:167",
+        "backend/src/dataset_factory/api/routes_endpoints.py:168",
+        "backend/src/dataset_factory/api/routes_endpoints.py:174",
+        "backend/src/dataset_factory/api/routes_endpoints.py:175",
+        "backend/src/dataset_factory/api/routes_endpoints.py:176",
+        "backend/src/dataset_factory/api/routes_filesystem.py:111",
+        "backend/src/dataset_factory/api/routes_filesystem.py:112",
+        "backend/src/dataset_factory/api/routes_filesystem.py:113",
+        "backend/src/dataset_factory/api/routes_filesystem.py:195",
+        "backend/src/dataset_factory/api/routes_items.py:67",
+        "backend/src/dataset_factory/api/routes_items.py:68",
+        "backend/src/dataset_factory/api/routes_labeling.py:100",
+        "backend/src/dataset_factory/api/routes_labeling.py:101",
+        "backend/src/dataset_factory/api/routes_labeling.py:102",
+        "backend/src/dataset_factory/api/routes_labeling.py:103",
+        "backend/src/dataset_factory/api/routes_labeling.py:105",
+        "backend/src/dataset_factory/api/routes_labeling.py:107",
+        "backend/src/dataset_factory/api/routes_labeling.py:112",
+        "backend/src/dataset_factory/api/routes_labeling.py:113",
+        "backend/src/dataset_factory/api/routes_labeling.py:145",
+        "backend/src/dataset_factory/api/routes_labeling.py:146"
+      ]
+    },
+    "前端 view model mapper 函数": {
+      "数量": 6,
+      "位置": [
+        "frontend/src/api.ts:44",
+        "frontend/src/pages/labeling/LabelingPage.tsx:66",
+        "frontend/src/pages/settings/SettingsPage.test.tsx:314",
+        "frontend/src/pages/settings/SettingsPage.test.tsx:415",
+        "frontend/src/pages/settings/skill-drop.ts:2",
+        "frontend/src/pages/settings/skill-drop.ts:23"
+      ]
+    },
+    "裸 role=alert 行内错误": {
+      "数量": 4,
+      "位置": [
+        "frontend/src/components/form-error.tsx:11",
+        "frontend/src/components/form-error.tsx:17",
+        "frontend/src/components/ui/alert.tsx:34",
+        "frontend/src/pages/labeling/SnapshotDialog.tsx:109"
+      ]
+    },
+    "Feedback 类型副本": {
+      "数量": 3,
+      "位置": [
+        "frontend/src/lib/feedback.ts:12",
+        "frontend/src/pages/settings/EndpointConfigPanel.tsx:29",
+        "frontend/src/pages/settings/SkillsPanel.tsx:37"
+      ]
+    },
+    "dialog 宽度写法": {
+      "数量": 39,
+      "位置": [
+        "frontend/src/App.tsx:403",
+        "frontend/src/components/DirectoryPicker.tsx:192",
+        "frontend/src/components/media-lightbox.tsx:54",
+        "frontend/src/components/media-lightbox.tsx:64",
+        "frontend/src/components/media-lightbox.tsx:67",
+        "frontend/src/components/media-lightbox.tsx:77",
+        "frontend/src/components/ui/dialog.tsx:36",
+        "frontend/src/components/ui/toast.tsx:29",
+        "frontend/src/components/ui/tooltip.tsx:28",
+        "frontend/src/pages/labeling/BatchConfiguration.tsx:206",
+        "frontend/src/pages/labeling/BatchConfiguration.tsx:241",
+        "frontend/src/pages/labeling/CaptionPreview.tsx:147",
+        "frontend/src/pages/labeling/CleanupDialog.tsx:117",
+        "frontend/src/pages/labeling/ImportMaterialsDialog.tsx:48",
+        "frontend/src/pages/labeling/ImportMaterialsDialog.tsx:238",
+        "frontend/src/pages/labeling/NewStrategyDialog.tsx:184",
+        "frontend/src/pages/labeling/NewStrategyDialog.tsx:267",
+        "frontend/src/pages/labeling/RebuildImportsDialog.tsx:125",
+        "frontend/src/pages/labeling/RelocateWorkdirDialog.tsx:182",
+        "frontend/src/pages/labeling/RunOverview.tsx:157",
+        "frontend/src/pages/labeling/RunOverview.tsx:232",
+        "frontend/src/pages/labeling/RunOverview.tsx:383",
+        "frontend/src/pages/labeling/SnapshotDialog.tsx:91",
+        "frontend/src/pages/labeling/WorkdirSettings.tsx:526",
+        "frontend/src/pages/prompt-workbench/EndpointSwitcher.tsx:34",
+        "frontend/src/pages/prompt-workbench/InputArea.tsx:73",
+        "frontend/src/pages/prompt-workbench/MessageList.tsx:38",
+        "frontend/src/pages/prompt-workbench/MessageList.tsx:199",
+        "frontend/src/pages/prompt-workbench/PromptWorkbench.tsx:532",
+        "frontend/src/pages/prompt-workbench/PromptWorkbench.tsx:538",
+        "frontend/src/pages/prompt-workbench/PromptWorkbench.tsx:558",
+        "frontend/src/pages/prompt-workbench/StrategyToolbar.tsx:323",
+        "frontend/src/pages/prompt-workbench/StrategyToolbar.tsx:333",
+        "frontend/src/pages/prompt-workbench/StrategyToolbar.tsx:355",
+        "frontend/src/pages/prompt-workbench/StrategyToolbar.tsx:493",
+        "frontend/src/pages/settings/EndpointConfigPanel.tsx:402",
+        "frontend/src/pages/settings/SkillsPanel.tsx:59",
+        "frontend/src/pages/settings/SkillsPanel.tsx:466",
+        "frontend/src/pages/settings/SkillsPanel.tsx:616"
+      ]
+    },
+    "前端 useExhaustiveDependencies 豁免": {
+      "数量": 25,
+      "位置": [
+        "frontend/src/components/DirectoryPicker.tsx:90",
+        "frontend/src/components/DirectoryPicker.tsx:148",
+        "frontend/src/pages/labeling/BatchConfiguration.tsx:66",
+        "frontend/src/pages/labeling/BatchConfiguration.tsx:152",
+        "frontend/src/pages/labeling/BatchOverview.tsx:156",
+        "frontend/src/pages/labeling/CleanupDialog.tsx:44",
+        "frontend/src/pages/labeling/DeleteWorkdirDialog.tsx:35",
+        "frontend/src/pages/labeling/ExportPanel.tsx:224",
+        "frontend/src/pages/labeling/ExportPanel.tsx:245",
+        "frontend/src/pages/labeling/ExportPanel.tsx:267",
+        "frontend/src/pages/labeling/ImportMaterialsDialog.tsx:94",
+        "frontend/src/pages/labeling/LabelingPage.tsx:321",
+        "frontend/src/pages/labeling/LabelingPage.tsx:326",
+        "frontend/src/pages/labeling/LabelingPage.tsx:418",
+        "frontend/src/pages/labeling/NewStrategyDialog.tsx:67",
+        "frontend/src/pages/labeling/RebuildImportsDialog.tsx:42",
+        "frontend/src/pages/labeling/RelocateWorkdirDialog.tsx:80",
+        "frontend/src/pages/labeling/RunOverview.tsx:96",
+        "frontend/src/pages/labeling/RunOverview.tsx:293",
+        "frontend/src/pages/labeling/RunOverview.tsx:298",
+        "frontend/src/pages/labeling/SnapshotDialog.tsx:53",
+        "frontend/src/pages/labeling/WorkdirSettings.tsx:145",
+        "frontend/src/pages/labeling/WorkdirSettings.tsx:163",
+        "frontend/src/pages/labeling/WorkdirSettings.tsx:187",
+        "frontend/src/pages/labeling/WorkdirSettings.tsx:223"
+      ]
+    },
+    "前端 biome-ignore 总数": {
+      "数量": 26,
+      "位置": [
+        "frontend/src/components/DirectoryPicker.tsx:90",
+        "frontend/src/components/DirectoryPicker.tsx:148",
+        "frontend/src/components/media-lightbox.tsx:57",
+        "frontend/src/pages/labeling/BatchConfiguration.tsx:66",
+        "frontend/src/pages/labeling/BatchConfiguration.tsx:152",
+        "frontend/src/pages/labeling/BatchOverview.tsx:156",
+        "frontend/src/pages/labeling/CleanupDialog.tsx:44",
+        "frontend/src/pages/labeling/DeleteWorkdirDialog.tsx:35",
+        "frontend/src/pages/labeling/ExportPanel.tsx:224",
+        "frontend/src/pages/labeling/ExportPanel.tsx:245",
+        "frontend/src/pages/labeling/ExportPanel.tsx:267",
+        "frontend/src/pages/labeling/ImportMaterialsDialog.tsx:94",
+        "frontend/src/pages/labeling/LabelingPage.tsx:321",
+        "frontend/src/pages/labeling/LabelingPage.tsx:326",
+        "frontend/src/pages/labeling/LabelingPage.tsx:418",
+        "frontend/src/pages/labeling/NewStrategyDialog.tsx:67",
+        "frontend/src/pages/labeling/RebuildImportsDialog.tsx:42",
+        "frontend/src/pages/labeling/RelocateWorkdirDialog.tsx:80",
+        "frontend/src/pages/labeling/RunOverview.tsx:96",
+        "frontend/src/pages/labeling/RunOverview.tsx:293",
+        "frontend/src/pages/labeling/RunOverview.tsx:298",
+        "frontend/src/pages/labeling/SnapshotDialog.tsx:53",
+        "frontend/src/pages/labeling/WorkdirSettings.tsx:145",
+        "frontend/src/pages/labeling/WorkdirSettings.tsx:163",
+        "frontend/src/pages/labeling/WorkdirSettings.tsx:187",
+        "frontend/src/pages/labeling/WorkdirSettings.tsx:223"
+      ]
+    },
+    "后端 pyright 抑制": {
+      "数量": 2,
+      "位置": [
+        "backend/src/dataset_factory/skills/store.py:611",
+        "backend/src/dataset_factory/skills/store.py:808"
+      ]
+    },
+    "后端 noqa": {
+      "数量": 6,
+      "位置": [
+        "backend/src/dataset_factory/api/routes_filesystem.py:109",
+        "backend/src/dataset_factory/runs/runner.py:698",
+        "backend/src/dataset_factory/runs/runner.py:719",
+        "backend/src/dataset_factory/runs/runner.py:911",
+        "backend/src/dataset_factory/strategies/snapshot.py:82",
+        "backend/src/dataset_factory/tasks/__init__.py:179"
+      ]
+    },
+    "后端测试 import 私名": {
+      "数量": 1,
+      "位置": [
+        "backend/tests/test_cli.py:471"
+      ]
+    },
+    "前端手工字节格式化": {
+      "数量": 0,
+      "位置": []
+    },
+    "后端 patch 打在模块全局名": {
+      "数量": 109,
+      "位置": [
+        "backend/tests/test_api.py:55",
+        "backend/tests/test_api.py:958",
+        "backend/tests/test_api.py:986",
+        "backend/tests/test_api.py:1011",
+        "backend/tests/test_api.py:1044",
+        "backend/tests/test_api.py:1227",
+        "backend/tests/test_api.py:1256",
+        "backend/tests/test_api.py:1475",
+        "backend/tests/test_api.py:1480",
+        "backend/tests/test_api_cleanup.py:212",
+        "backend/tests/test_api_cleanup.py:447",
+        "backend/tests/test_api_cleanup.py:486",
+        "backend/tests/test_api_export.py:154",
+        "backend/tests/test_api_filesystem.py:33",
+        "backend/tests/test_api_filesystem.py:59",
+        "backend/tests/test_api_filesystem.py:179",
+        "backend/tests/test_api_filesystem.py:315",
+        "backend/tests/test_api_filesystem.py:387",
+        "backend/tests/test_api_filesystem.py:390",
+        "backend/tests/test_api_filesystem.py:409",
+        "backend/tests/test_api_filesystem.py:410",
+        "backend/tests/test_api_runs.py:98",
+        "backend/tests/test_api_runs.py:552",
+        "backend/tests/test_api_runs.py:650",
+        "backend/tests/test_api_strategies.py:367",
+        "backend/tests/test_api_strategies.py:448",
+        "backend/tests/test_api_strategies.py:467",
+        "backend/tests/test_api_workdir.py:198",
+        "backend/tests/test_api_workdir.py:201",
+        "backend/tests/test_api_workdir.py:507",
+        "backend/tests/test_assets.py:286",
+        "backend/tests/test_cli.py:62",
+        "backend/tests/test_cli.py:131",
+        "backend/tests/test_cli.py:605",
+        "backend/tests/test_cli.py:615",
+        "backend/tests/test_cli.py:627",
+        "backend/tests/test_cli.py:693",
+        "backend/tests/test_cli.py:705",
+        "backend/tests/test_cli.py:1012",
+        "backend/tests/test_cli.py:1036"
+      ]
+    },
+    "后端私名 patch 位点": {
+      "数量": 9,
+      "位置": [
+        "backend/tests/test_api.py:1475",
+        "backend/tests/test_api.py:1480",
+        "backend/tests/test_api_filesystem.py:409",
+        "backend/tests/test_cli_batch.py:352",
+        "backend/tests/test_llm_client.py:502",
+        "backend/tests/test_llm_client.py:547",
+        "backend/tests/test_llm_client.py:592",
+        "backend/tests/test_skills.py:94",
+        "backend/tests/test_skills.py:95"
+      ]
+    },
+    "环境密钥通道各自读取": {
+      "数量": 1,
+      "位置": [
+        "backend/src/dataset_factory/llm/config.py:248"
+      ]
+    },
+    "前端 vi.mock api 重抄": {
+      "数量": 21,
+      "位置": [
+        "frontend/src/App.test.tsx:24",
+        "frontend/src/components/DirectoryPicker.test.tsx:8",
+        "frontend/src/pages/labeling/BatchOverview.test.tsx:9",
+        "frontend/src/pages/labeling/CaptionPreview.test.tsx:8",
+        "frontend/src/pages/labeling/CleanupDialog.test.tsx:7",
+        "frontend/src/pages/labeling/DeleteWorkdirDialog.test.tsx:7",
+        "frontend/src/pages/labeling/ExportPanel.test.tsx:8",
+        "frontend/src/pages/labeling/ImportMaterialsDialog.test.tsx:7",
+        "frontend/src/pages/labeling/LabelingPage.test.tsx:8",
+        "frontend/src/pages/labeling/NewBatchForm.test.tsx:9",
+        "frontend/src/pages/labeling/NewStrategyDialog.test.tsx:7",
+        "frontend/src/pages/labeling/RebuildImportsDialog.test.tsx:7",
+        "frontend/src/pages/labeling/RelocateWorkdirDialog.test.tsx:7",
+        "frontend/src/pages/labeling/RemoveUnimportedDialog.test.tsx:7",
+        "frontend/src/pages/labeling/RunControl.test.tsx:7",
+        "frontend/src/pages/labeling/RunOverview.test.tsx:8",
+        "frontend/src/pages/labeling/SnapshotDialog.test.tsx:8",
+        "frontend/src/pages/labeling/WorkdirSettings.test.tsx:7",
+        "frontend/src/pages/prompt-workbench/PromptWorkbench.test.tsx:43",
+        "frontend/src/pages/prompt-workbench/StrategyToolbar.test.tsx:26",
+        "frontend/src/pages/settings/SettingsPage.test.tsx:30"
+      ]
+    },
+    "跑批终态判定手写集合": {
+      "数量": 0,
+      "位置": []
+    },
+    "跑批计数键名手写枚举": {
+      "数量": 0,
+      "位置": []
+    },
+    "前端 resetAllMocks": {
+      "数量": 15,
+      "位置": [
+        "frontend/src/components/DirectoryPicker.test.tsx:46",
+        "frontend/src/pages/labeling/BatchOverview.test.tsx:81",
+        "frontend/src/pages/labeling/CaptionPreview.test.tsx:36",
+        "frontend/src/pages/labeling/CleanupDialog.test.tsx:17",
+        "frontend/src/pages/labeling/DeleteWorkdirDialog.test.tsx:13",
+        "frontend/src/pages/labeling/ExportPanel.test.tsx:37",
+        "frontend/src/pages/labeling/ImportMaterialsDialog.test.tsx:34",
+        "frontend/src/pages/labeling/NewBatchForm.test.tsx:42",
+        "frontend/src/pages/labeling/NewStrategyDialog.test.tsx:20",
+        "frontend/src/pages/labeling/RebuildImportsDialog.test.tsx:21",
+        "frontend/src/pages/labeling/RelocateWorkdirDialog.test.tsx:26",
+        "frontend/src/pages/labeling/RunControl.test.tsx:35",
+        "frontend/src/pages/labeling/RunOverview.test.tsx:32",
+        "frontend/src/pages/labeling/SnapshotDialog.test.tsx:32",
+        "frontend/src/pages/prompt-workbench/StrategyToolbar.test.tsx:66"
+      ]
+    },
+    "前端实现耦合断言": {
+      "数量": 11,
+      "位置": [
+        "frontend/src/pages/labeling/LabelingPage.test.tsx:576",
+        "frontend/src/pages/prompt-workbench/MessageList.test.tsx:47",
+        "frontend/src/pages/prompt-workbench/MessageList.test.tsx:69",
+        "frontend/src/pages/prompt-workbench/MessageList.test.tsx:72",
+        "frontend/src/pages/prompt-workbench/MessageList.test.tsx:93",
+        "frontend/src/pages/prompt-workbench/MessageList.test.tsx:94",
+        "frontend/src/pages/prompt-workbench/MessageList.test.tsx:95",
+        "frontend/src/pages/prompt-workbench/MessageList.test.tsx:116",
+        "frontend/src/pages/prompt-workbench/MessageList.test.tsx:117",
+        "frontend/src/pages/prompt-workbench/MessageList.test.tsx:195",
+        "frontend/src/pages/prompt-workbench/MessageList.test.tsx:218"
+      ]
+    },
+    "后端 pytest skip 标记": {
+      "数量": 3,
+      "位置": [
+        "backend/tests/test_assets.py:175",
+        "backend/tests/test_fs.py:108",
+        "backend/tests/test_live_endpoint.py:46"
+      ]
+    }
+  }
+}

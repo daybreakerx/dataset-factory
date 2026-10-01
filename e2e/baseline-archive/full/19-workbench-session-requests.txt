@@ -1,0 +1,9 @@
+GET /api/service
+GET /api/strategies
+GET /api/prompts
+GET /api/skills
+GET /api/endpoints
+GET /api/sessions/latest
+GET /api/prompts/p-1
+GET /api/prompts/p-1
+GET /api/sessions/s-hist/attachments/alpha.png

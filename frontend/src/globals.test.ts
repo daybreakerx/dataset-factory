@@ -7,9 +7,10 @@ import { cn } from "./lib/utils";
 
 /** 令牌拆分（2026-09-24）后设计值住在根目录 tokens.css（唯一取值源）、globals.css 只装
  *  接线与实现侧特例——两个文件合并解析，令牌断言照旧全覆盖。 */
-const css = [readFileSync("tokens.css", "utf8"), readFileSync("src/globals.css", "utf8")].join(
-  "\n",
-);
+const css = [
+  readFileSync("tokens.css", "utf8"),
+  readFileSync("src/globals.css", "utf8"),
+].join("\n");
 
 function declarations(selector: string): Map<string, string> {
   const result = new Map<string, string>();

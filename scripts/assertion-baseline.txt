@@ -1,0 +1,11 @@
+﻿## 口径自证：扫描 32 个测试文件，抓到 809 处按名查询
+
+## 永真嫌疑：缺席断言的目标源码造不出来：0 处
+
+## 永真嫌疑：形状恒真的断言：0 处
+
+## 实现细节耦合断言：2 处
+- frontend/src/components/form-error.test.tsx:11 断标签名 tagName
+- frontend/src/components/form-error.test.tsx:12 断 className 字符串
+
+## mock 面大于真实 api 面：0 处

@@ -31,6 +31,7 @@ frontend | Vitest | fast | npm run test
 frontend | Vite build | fast | npm run build
 
 repo | 度量：重复实现与规模 | fast | python scripts/measure_metrics.py --json .verify/metrics.json
+repo | 度量：棘轮比对（biome-ignore/依赖豁免不得上升） | fast | python scripts/metrics_ratchet.py .verify/metrics.json scripts/metrics-baseline.json
 repo | 度量：入站引用死代码报告 | fast | python scripts/deadcode_report.py
 frontend | 度量：knip + depcheck（只报不卡） | slow | npx knip --no-progress || true
 backend | 度量：vulture + deptry（只报不卡） | slow | uv run vulture src --min-confidence 80 || true

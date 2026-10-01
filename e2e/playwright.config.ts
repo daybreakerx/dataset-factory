@@ -42,12 +42,15 @@ export default defineConfig({
     {
       // 共用服务：打桩套件只借它托管前端静态文件。
       //
-      // 本地保留这里的 npm run build：serving.py 托管的是 frontend/dist 构建产物，
-      // 改完源码忘了构建就会「测的是上次构建的旧界面」（本机实锤过）。CI 上 dist 已由
-      // 「Build frontend」步骤产出入 artifact，再构建一遍纯属重复。
+      // 本地保留这里的 build：serving.py 托管的是 frontend/dist 构建产物，改完源码忘了
+      // 构建就会「测的是上次构建的旧界面」（本机实锤过）。CI 上 dist 已由「Build frontend」
+      // 步骤产出入 artifact，再构建一遍纯属重复。
+      // 写法注意：--prefix 必须放在 run **之前**（npm 自己的全局选项）。老写法
+      // `npm run build --prefix ../frontend` 在本机 npm 下会被原样传给 build script 或
+      // 静默跑错目录——dist 不更新、测试全绿地跑在旧界面上（批0 仪器验收实锤）。
       command: process.env.CI
         ? serve(PORT)
-        : `npm run build --prefix ../frontend && ${serve(PORT)}`,
+        : `npm run build:frontend && ${serve(PORT)}`,
       url: `http://127.0.0.1:${PORT}/api/prompts`,
       name: "shared",
       stdout: "pipe",

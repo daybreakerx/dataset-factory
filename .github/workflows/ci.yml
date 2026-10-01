@@ -233,7 +233,7 @@ jobs:
         working-directory: e2e
 
       - name: Run E2E
-        # 视觉与请求基线（visual-baseline）在 CI 上跳过：那 12 屏快照的盒尺寸依赖本机字体
+        # 视觉与请求基线（visual-baseline）在 CI 上跳过：快照的盒尺寸依赖本机字体
         # 度量（本仓基线在 Windows 上采集），Linux runner 上没有对应字体必然报差。
         # 它由本地 scripts/verify.sh --all 每次都跑，是「改前/改后逐屏 0 差异」的那道门；
         # CI 侧的界面断言仍由功能 E2E（含精确 px 与计算色值断言）在双系统上承担。
