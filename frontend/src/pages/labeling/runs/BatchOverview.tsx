@@ -1,5 +1,5 @@
 import { BookOpenIcon, ChevronDownIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { DialogShell } from "../../../components/dialog-shell";
@@ -9,7 +9,9 @@ import { SnapshotDialog } from "../batching/SnapshotDialog";
 import { RebuildImportsDialog } from "../workdir/RebuildImportsDialog";
 import { ExportPanel } from "./ExportPanel";
 import type { ItemMap } from "./items-state";
+import { LiveOutput } from "./live-output";
 import { RunOverview } from "./RunOverview";
+import { useIntegrityScan } from "./use-integrity-scan";
 
 interface Props {
   wid: string;
@@ -47,11 +49,6 @@ export function BatchOverview({
 }: Props) {
   const [rebuildOpen, setRebuildOpen] = useState(false);
   const [snapshotIdentity, setSnapshotIdentity] = useState<string | null>(null);
-  const [report, setReport] = useState<components["schemas"]["IntegrityReport"] | null>(
-    null,
-  );
-  const [checking, setChecking] = useState(false);
-  const [error, setError] = useState("");
   const [expanded, setExpanded] = useState(true);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -63,15 +60,9 @@ export function BatchOverview({
   const [redoError, setRedoError] = useState("");
   const mutationPending = useRef(false);
   const generation = useRef(0);
-  const active = useRef(false);
-  const requestId = useRef(0);
-  const busy = useRef(false);
-  const identity = useRef({ wid, batch });
-  useEffect(() => {
-    identity.current = { wid, batch };
-    active.current = true;
-    requestId.current += 1;
-    busy.current = false;
+  // 换批次时命令域的随行复位：由 useIntegrityScan 的身份复位 effect 统一联动
+  // （先于任何取数，次序同拆分前）；卸载时的代次失效由下方独立清理承担。
+  const onIdentityReset = useCallback(() => {
     generation.current += 1;
     mutationPending.current = false;
     setSelecting(false);
@@ -81,41 +72,21 @@ export function BatchOverview({
     setRedo(null);
     setRedoing(false);
     setRedoError("");
-    setReport(null);
     setRebuildOpen(false);
-    setChecking(false);
-    setError("");
-    return () => {
-      active.current = false;
+  }, []);
+  const { report, checking, error, scan } = useIntegrityScan(
+    wid,
+    batch,
+    exportRevision,
+    onIdentityReset,
+  );
+  // 卸载时使在途命令的代次护栏失效（身份变更路径的失效在 onIdentityReset 内）。
+  useEffect(
+    () => () => {
       generation.current += 1;
-      requestId.current += 1;
-    };
-  }, [wid, batch]);
-
-  async function scan() {
-    if (
-      busy.current ||
-      identity.current.wid !== wid ||
-      identity.current.batch !== batch
-    )
-      return;
-    busy.current = true;
-    const version = ++requestId.current;
-    setChecking(true);
-    setError("");
-    try {
-      const result = await api.scanIntegrity(wid, batch);
-      if (active.current && version === requestId.current) setReport(result);
-    } catch (reason) {
-      if (active.current && version === requestId.current)
-        setError(errorMessage(reason));
-    } finally {
-      if (active.current && version === requestId.current) {
-        busy.current = false;
-        setChecking(false);
-      }
-    }
-  }
+    },
+    [],
+  );
 
   const members = [...items.values()].filter((row) => row.status !== "unimported");
   const failed = members.filter((row) => row.status === "failed");
@@ -145,11 +116,6 @@ export function BatchOverview({
       }
     }
   }
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: full synchronization refreshes an existing integrity report, never per-item SSE events.
-  useEffect(() => {
-    if (report) void scan();
-  }, [exportRevision]);
 
   async function startRedo() {
     if (mutationPending.current || !redo?.length) return;
@@ -254,43 +220,7 @@ export function BatchOverview({
       {running && liveOutput !== null && (
         // A2（2026-09-21 审计定案）：跑批中的「当前产出」——逐字正文 + 思考折叠区。
         // 思考只展示不落盘：这里的内容全部来自 SSE 内存态，关掉页面再打开就没有。
-        <section
-          className="mt-4 rounded-xl border border-border bg-card p-4"
-          aria-label="当前产出"
-        >
-          <div className="mb-2 flex items-center gap-2">
-            <h3 className="text-t-md font-medium">当前产出</h3>
-            <span className="min-w-0 truncate text-t-sm text-text-3">
-              {liveOutput.item}
-            </span>
-            <img
-              src={`/api/workdirs/${encodeURIComponent(wid)}/items/${encodeURIComponent(liveOutput.item)}/asset`}
-              alt=""
-              className="ml-auto h-12 w-16 rounded-md object-cover"
-            />
-          </div>
-          {liveOutput.reasoning !== "" && (
-            <details open className="mb-2 rounded-lg border border-border bg-muted/40">
-              <summary className="cursor-pointer px-3 py-2 text-t-sm text-text-3">
-                思考过程（生成中展开 · 不保存）
-              </summary>
-              <p className="px-3 pb-3 text-t-md leading-(--lh-loose) text-text-3 whitespace-pre-wrap">
-                {liveOutput.reasoning}
-              </p>
-            </details>
-          )}
-          {liveOutput.content === "" ? (
-            <p className="text-t-sm text-text-4">正在组装请求…</p>
-          ) : (
-            <p className="text-t-md leading-(--lh-loose) whitespace-pre-wrap">
-              {liveOutput.content}
-              <span
-                className="ml-0.5 inline-block h-[14px] w-[7px] bg-primary align-[-2px]"
-                aria-hidden
-              />
-            </p>
-          )}
-        </section>
+        <LiveOutput wid={wid} liveOutput={liveOutput} />
       )}
       <section className="mt-4 border-t border-border pt-4" aria-label="素材完整性">
         <div className="mb-3 flex min-w-0 items-center gap-3">

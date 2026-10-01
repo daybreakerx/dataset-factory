@@ -4,6 +4,7 @@ import type { components } from "../../../api-types.gen";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
+import { ComparePicker } from "./compare-picker";
 
 interface Props {
   wid: string;
@@ -143,49 +144,19 @@ export function CaptionPreview({
         </Tip>
       </div>
       {!!available.length && (
-        <section
-          className="mb-2 ml-auto flex max-w-[304px] justify-end gap-2 overflow-x-auto pb-2 [scrollbar-width:thin]"
-          aria-label="策略对比"
-        >
-          {[
-            {
-              id: batch,
-              name: batches.find((entry) => entry.id === batch)?.name ?? batch,
-            },
-            ...available,
-          ].map((entry) => {
-            const primary = entry.id === batch;
-            const selected = primary || compared.includes(entry.id);
-            return (
-              <Tip
-                key={entry.id}
-                label={
-                  primary
-                    ? "当前策略固定为第一栏"
-                    : !selected && compared.length >= 2
-                      ? "同时最多对比三套策略"
-                      : entry.name
-                }
-              >
-                <button
-                  type="button"
-                  aria-pressed={selected}
-                  disabled={primary || (!selected && compared.length >= 2)}
-                  onClick={() =>
-                    setComparison((previous) =>
-                      previous.includes(entry.id)
-                        ? previous.filter((id) => id !== entry.id)
-                        : [...previous, entry.id],
-                    )
-                  }
-                  className={`h-(--h-xs) min-w-[88px] shrink-0 rounded-full border px-4 text-t-sm ${primary ? "border-primary/45 bg-primary/10 font-medium text-primary" : selected ? "border-border bg-card text-foreground" : "border-border bg-secondary text-text-3"}`}
-                >
-                  {entry.name} · {entry.id}
-                </button>
-              </Tip>
-            );
-          })}
-        </section>
+        <ComparePicker
+          batch={batch}
+          batches={batches}
+          available={available}
+          compared={compared}
+          onToggle={(id) =>
+            setComparison((previous) =>
+              previous.includes(id)
+                ? previous.filter((existing) => existing !== id)
+                : [...previous, id],
+            )
+          }
+        />
       )}
       {error && <FormError className="mb-3 text-t-sm text-bad-ink">{error}</FormError>}
       <div

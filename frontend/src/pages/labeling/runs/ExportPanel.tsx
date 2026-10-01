@@ -5,15 +5,15 @@ import {
   PackageIcon,
   SquareIcon,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
-import { ApiError, api, errorMessage, type TaskView } from "../../../api";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
 import { Switch } from "../../../components/ui/switch";
 import { formatBytes } from "../../../lib/format";
+import { useExportFlow } from "./use-export-flow";
 
-type Plan = components["schemas"]["ExportPlanView"];
 type Row = components["schemas"]["ExportPlanRow"];
 
 interface Props {
@@ -197,131 +197,54 @@ function ExportList({
 
 export function ExportPanel({ wid, batch, refreshKey, onImport, mediaSummary }: Props) {
   const sequentialId = useId();
-  const [sequential, setSequential] = useState(true);
   const [expanded, setExpanded] = useState(true);
-  const [plan, setPlan] = useState<Plan | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [revision, setRevision] = useState(0);
-  const [error, setError] = useState("");
-  const [planError, setPlanError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [task, setTask] = useState<TaskView | null>(null);
-  const [pollFailed, setPollFailed] = useState(false);
-  const [pollRevision, setPollRevision] = useState(0);
   const [cancelling, setCancelling] = useState(false);
   const [cancelRequested, setCancelRequested] = useState(false);
   const [cancelError, setCancelError] = useState("");
   const cancelPending = useRef(false);
-  const [download, setDownload] = useState<{ url: string; path: string } | null>(null);
   const generation = useRef(0);
   const pending = useRef(false);
+  // 换批次时命令域的随行复位：由 useExportFlow 的身份复位 effect 统一联动
+  // （先于计划重取，次序同拆分前）；卸载时的代次失效由下方独立清理承担。
+  const onIdentityReset = useCallback(() => {
+    generation.current += 1;
+    pending.current = false;
+    setBusy(false);
+    setCancelling(false);
+    setCancelRequested(false);
+    setCancelError("");
+    cancelPending.current = false;
+  }, []);
+  const {
+    plan,
+    loading,
+    planError,
+    sequential,
+    setSequential,
+    setRevision,
+    task,
+    setTask,
+    download,
+    setDownload,
+    pollFailed,
+    setPollRevision,
+    error,
+    setError,
+  } = useExportFlow(wid, batch, refreshKey, onIdentityReset);
   const taskId = task?.id;
   const taskStatus = task?.status;
   const currentTask = useRef(task);
   currentTask.current = task;
   const locked = busy || taskStatus === "running";
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: identity changes reset task ownership and invalidate pending responses.
-  useEffect(() => {
-    generation.current += 1;
-    pending.current = false;
-    setPlan(null);
-    setSequential(true);
-    setTask(null);
-    setDownload(null);
-    setBusy(false);
-    setError("");
-    setPlanError("");
-    setPollFailed(false);
-    setCancelling(false);
-    setCancelRequested(false);
-    setCancelError("");
-    cancelPending.current = false;
-    return () => {
+  // 卸载时使在途命令的代次护栏失效（身份变更路径的失效在 onIdentityReset 内）。
+  useEffect(
+    () => () => {
       generation.current += 1;
-    };
-  }, [wid, batch]);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: completed full synchronization and explicit refresh invalidate the export plan.
-  useEffect(() => {
-    let current = true;
-    setLoading(true);
-    setPlan(null);
-    setPlanError("");
-    api
-      .exportPlan(wid, batch, sequential)
-      .then((value) => {
-        if (current) setPlan(value);
-      })
-      .catch((reason) => {
-        if (current) setPlanError(errorMessage(reason));
-      })
-      .finally(() => {
-        if (current) setLoading(false);
-      });
-    return () => {
-      current = false;
-    };
-  }, [wid, batch, sequential, refreshKey, revision]);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: requery observes the accepted task without submitting another export.
-  useEffect(() => {
-    if (!taskId || taskStatus !== "running") return;
-    let current = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const id = taskId;
-    setPollFailed(false);
-    async function poll() {
-      try {
-        const view = await api.getTask(id);
-        if (!current) return;
-        if (view.id !== id) throw new Error("任务响应与当前导出不一致");
-        if (view.status === "running") timer = setTimeout(() => void poll(), 2000);
-        else if (view.status === "succeeded") {
-          const result = view.result;
-          if (
-            !result ||
-            typeof result !== "object" ||
-            !("download_url" in result) ||
-            typeof result.download_url !== "string" ||
-            !("path" in result) ||
-            typeof result.path !== "string"
-          )
-            throw new Error("导出结果格式无效");
-          const prefix = `/api/workdirs/${encodeURIComponent(wid)}/export/files/`;
-          if (
-            !result.download_url.startsWith(prefix) ||
-            !/^s[1-9][0-9]*-[0-9a-f]{24}\.zip$/.test(
-              result.download_url.slice(prefix.length),
-            )
-          )
-            throw new Error("导出下载地址无效");
-          setDownload({ url: result.download_url, path: result.path });
-          setRevision((value) => value + 1);
-        } else
-          setError(
-            view.error || (view.status === "cancelled" ? "导出已取消" : "导出失败"),
-          );
-        setTask(view);
-      } catch (reason) {
-        if (current) {
-          if (reason instanceof ApiError && reason.status === 404) {
-            setTask(null);
-            setPollFailed(false);
-            setError("导出任务已丢失，请重新查询导出计划后重试");
-            return;
-          }
-          setError(errorMessage(reason));
-          setPollFailed(true);
-        }
-      }
-    }
-    void poll();
-    return () => {
-      current = false;
-      clearTimeout(timer);
-    };
-  }, [taskId, taskStatus, wid, pollRevision]);
+    },
+    [],
+  );
 
   async function exclusions(items: string[], excluded: boolean) {
     if (pending.current || locked) return false;

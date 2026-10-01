@@ -1,6 +1,6 @@
 import { CopyIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { ApiError, api, errorMessage } from "../../../api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
@@ -13,8 +13,8 @@ import {
 } from "../../../components/ui/dialog";
 import { Tip } from "../../../components/ui/tooltip";
 import { formatDuration } from "../../../lib/format";
+import { useLatestRun } from "./use-latest-run";
 
-type History = components["schemas"]["RunHistoryView"];
 type RunLogTab = "run.log" | "items.jsonl";
 
 interface Props {
@@ -286,49 +286,15 @@ function RunLogDialog({
 }
 
 export function RunOverview({ wid, batch, refreshKey, fallback }: Props) {
-  const [history, setHistory] = useState<History | null>(null);
-  const [error, setError] = useState("");
   const [log, setLog] = useState<{ runId: string } | null>(null);
-  const [revision, setRevision] = useState(0);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: changing batch identity clears the previous summary and selected log.
-  useEffect(() => {
-    setHistory(null);
-    setLog(null);
-  }, [wid, batch]);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: item refresh and manual revision refresh the disk summary.
-  useEffect(() => {
-    let current = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let retryDelay = 500;
-    async function load() {
-      try {
-        const value = await api.latestRun(wid, batch);
-        if (!current) return;
-        setHistory(value);
-        setError("");
-        retryDelay = 500;
-        if (value.record?.status === "running")
-          timer = setTimeout(() => void load(), 2000);
-      } catch (reason) {
-        if (!current) return;
-        setError(errorMessage(reason));
-        if (
-          reason instanceof ApiError &&
-          (reason.status === 409 ||
-            reason.kind === "network" ||
-            reason.kind === "timeout")
-        ) {
-          timer = setTimeout(() => void load(), retryDelay);
-          retryDelay = Math.min(retryDelay * 2, 5000);
-        }
-      }
-    }
-    void load();
-    return () => {
-      current = false;
-      clearTimeout(timer);
-    };
-  }, [wid, batch, refreshKey, revision]);
+  // 换批次清空磁盘摘要时联动清掉上一批选中的日志弹窗（联动口在 use-latest-run）。
+  const clearLog = useCallback(() => setLog(null), []);
+  const { history, error, setRevision } = useLatestRun(
+    wid,
+    batch,
+    refreshKey,
+    clearLog,
+  );
   const record = history?.record;
   const counts = record
     ? {
