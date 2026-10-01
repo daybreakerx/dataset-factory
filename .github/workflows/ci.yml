@@ -139,6 +139,12 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: npm run typecheck                    # 类型检查独立成步：Vite 构建只转译、不做类型检查
 
+      # 分层契约（依赖方向）与类型检查同属「结构门禁」：层级引用违规即红。
+      # 规则全文与逐条理由见 frontend/.dependency-cruiser.cjs；本地同速跑（verify fast 同步含此步）。
+      - name: Dependency rules (dependency-cruiser)
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run depcruise
+
       - name: Test (Vitest)
         run: npm run test
 

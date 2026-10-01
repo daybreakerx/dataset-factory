@@ -1,4 +1,4 @@
-{
+﻿{
   "files": {
     "includes": ["src/**", "*.ts", "*.json", "index.html", "!src/api-types.gen.ts"]
   },
@@ -19,5 +19,72 @@
     "formatter": {
       "quoteStyle": "double"
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["src/components/**", "src/lib/**", "src/hooks/**", "src/session/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/pages/**"],
+                    "message": "分层契约：components/lib/hooks/session 禁 import pages（页面依赖下层、下层不得反向依赖页面；契约全文见 .dependency-cruiser.cjs）"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/api/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "**/pages/**",
+                      "**/components/**",
+                      "**/hooks/**",
+                      "**/session/**"
+                    ],
+                    "message": "分层契约：api 层禁 import 一切 UI 层（契约全文见 .dependency-cruiser.cjs）"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/App.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/pages/*/*/**"],
+                    "message": "壳层条：App.tsx 只许 import 页面入口文件（pages/<页>/<入口>.tsx），禁引页面目录内更深层文件（契约全文见 .dependency-cruiser.cjs）"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

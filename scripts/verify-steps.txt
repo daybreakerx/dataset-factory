@@ -27,6 +27,7 @@ frontend | 生成类型漂移检查 | fast | npm run gen:api
 frontend | 生成类型比对 | fast | git diff --exit-code -- src/api-types.gen.ts
 frontend | Biome | fast | npm run lint
 frontend | tsc | fast | npm run typecheck
+frontend | 依赖契约 dependency-cruiser | fast | npm run depcruise
 frontend | Vitest | fast | npm run test
 frontend | Vite build | fast | npm run build
 
