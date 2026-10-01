@@ -27,15 +27,16 @@ import {
   readStoredString,
   writeStoredJson,
 } from "../../lib/ui-storage";
-import { BatchConfiguration } from "./BatchConfiguration";
-import { BatchOverview } from "./BatchOverview";
+import { BatchConfiguration } from "./batching/BatchConfiguration";
 import {
   type BatchSelection,
   BatchSelector,
   type WorkdirBatches,
-} from "./BatchSelector";
-import { CaptionPreview } from "./CaptionPreview";
-import { ImportMaterialsDialog } from "./ImportMaterialsDialog";
+} from "./batching/BatchSelector";
+import { NewBatchForm } from "./batching/NewBatchForm";
+import { NewStrategyDialog } from "./batching/NewStrategyDialog";
+import { BatchOverview } from "./runs/BatchOverview";
+import { CaptionPreview } from "./runs/CaptionPreview";
 import {
   groupedItems,
   ITEM_GROUPS,
@@ -44,12 +45,11 @@ import {
   itemsFromGroups,
   withItemUpdate,
   withRetryItems,
-} from "./items-state";
-import { NewBatchForm } from "./NewBatchForm";
-import { NewStrategyDialog } from "./NewStrategyDialog";
-import { RemoveUnimportedDialog } from "./RemoveUnimportedDialog";
-import { RunControl } from "./RunControl";
-import { WorkdirSettings } from "./WorkdirSettings";
+} from "./runs/items-state";
+import { RunControl } from "./runs/RunControl";
+import { ImportMaterialsDialog } from "./workdir/ImportMaterialsDialog";
+import { RemoveUnimportedDialog } from "./workdir/RemoveUnimportedDialog";
+import { WorkdirSettings } from "./workdir/WorkdirSettings";
 
 type ItemRow = components["schemas"]["ItemRowView"];
 

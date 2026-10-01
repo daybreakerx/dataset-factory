@@ -49,12 +49,12 @@ import {
   WORKBENCH_EDITOR_KEY,
   type WorkbenchEditorMirror,
 } from "../../lib/ui-storage";
-import { BodyEditor } from "./BodyEditor";
-import { useChatSession } from "./chat-session";
-import { EndpointSwitcher } from "./EndpointSwitcher";
-import { InputArea } from "./InputArea";
-import { MessageList } from "./MessageList";
-import { StrategyToolbar } from "./StrategyToolbar";
+import { useChatSession } from "../../session/chat-session";
+import { MessageList } from "./chat/MessageList";
+import { BodyEditor } from "./editor/BodyEditor";
+import { InputArea } from "./editor/InputArea";
+import { EndpointSwitcher } from "./strategy/EndpointSwitcher";
+import { StrategyToolbar } from "./strategy/StrategyToolbar";
 
 /** 基础提示词的字节护栏（对齐 Codex project_doc_max_bytes，后端同值校验）。 */
 const PROMPT_BYTE_BUDGET = 32 * 1024;

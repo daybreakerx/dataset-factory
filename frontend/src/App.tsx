@@ -26,6 +26,7 @@ import { usePersistedState } from "./hooks/use-persisted-state";
 import { useTheme } from "./hooks/use-theme";
 import {
   isShellPage,
+  type SettingsSection,
   SHELL_PAGE_KEY,
   SHELL_SETTINGS_SECTION_KEY,
   SHELL_SIDEBAR_COLLAPSED_KEY,
@@ -33,9 +34,8 @@ import {
 } from "./lib/ui-storage";
 import { cn } from "./lib/utils";
 import logo from "./logo-speed-d.png";
-import { ChatSessionProvider } from "./pages/prompt-workbench/chat-session";
 import { PromptWorkbench } from "./pages/prompt-workbench/PromptWorkbench";
-import type { SettingsSection } from "./pages/settings/SettingsPage";
+import { ChatSessionProvider } from "./session/chat-session";
 
 /**
  * 打标页与设置容器切成分包、进页面时才载（G4「减少无谓开销」）。

@@ -20,7 +20,7 @@ import {
   readStoredJson,
   WORKBENCH_STRATEGY_KEY,
 } from "../../lib/ui-storage";
-import { ChatSessionProvider } from "./chat-session";
+import { ChatSessionProvider } from "../../session/chat-session";
 import { PromptWorkbench } from "./PromptWorkbench";
 
 // 工作台测试只关心「交互 → 调了哪个 API → 界面状态对不对」，api 层整体 mock 掉。

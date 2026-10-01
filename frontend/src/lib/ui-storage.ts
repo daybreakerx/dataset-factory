@@ -19,6 +19,7 @@ export const SHELL_SIDEBAR_COLLAPSED_KEY = "dsf-shell-sidebar-collapsed";
 
 /** 外壳：设置页当前节（endpoints / skills / service）。 */
 export const SHELL_SETTINGS_SECTION_KEY = "dsf-settings-section";
+export type SettingsSection = "endpoints" | "skills" | "service";
 
 /**
  * 策略页：编辑器状态镜像——选中提示词 + 名称 / 描述 / 正文草稿 + 干净基线 +

@@ -5,12 +5,11 @@
  */
 import type { ReactElement } from "react";
 import { TooltipProvider } from "../../components/ui/tooltip";
+import type { SettingsSection } from "../../lib/ui-storage";
 import { cn } from "../../lib/utils";
-import { EndpointConfigPanel } from "./EndpointConfigPanel";
-import { ServicePanel } from "./ServicePanel";
-import { SkillsPanel } from "./SkillsPanel";
-
-export type SettingsSection = "endpoints" | "skills" | "service";
+import { EndpointConfigPanel } from "./endpoints/EndpointConfigPanel";
+import { ServicePanel } from "./service/ServicePanel";
+import { SkillsPanel } from "./skills/SkillsPanel";
 
 export function SettingsPage({
   section = "endpoints",
