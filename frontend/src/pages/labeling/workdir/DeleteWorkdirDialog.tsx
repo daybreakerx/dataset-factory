@@ -1,16 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
+import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../../components/ui/dialog";
 import { formatBytes } from "../../../lib/format";
 
 export function DeleteWorkdirDialog({
@@ -79,35 +72,16 @@ export function DeleteWorkdirDialog({
   }
 
   return (
-    <Dialog
+    <DialogShell
       open
       onOpenChange={(open) => {
         if (!open && !pending.current) onClose();
       }}
-    >
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>删除工作目录？</DialogTitle>
-          <DialogDescription>删除全部素材、产物与记录</DialogDescription>
-        </DialogHeader>
-        {loading && <p role="status">正在读取删除范围</p>}
-        {preview && (
-          <div className="space-y-2 text-t-sm">
-            <p className="break-all">{preview.path}</p>
-            <p>
-              {preview.file_count} 个文件 · {formatBytes(preview.total_bytes, "MiB", 2)}
-            </p>
-            <p
-              className={preview.original_materials ? "text-bad-ink" : "text-warn-ink"}
-            >
-              {preview.confirmation}
-            </p>
-          </div>
-        )}
-        {error && (
-          <FormError className="break-all text-t-sm text-bad-ink">{error}</FormError>
-        )}
-        <DialogFooter>
+      className="max-h-[90dvh] overflow-y-auto"
+      title="删除工作目录？"
+      description="删除全部素材、产物与记录"
+      footer={
+        <>
           <Button variant="ghost" disabled={busy} onClick={onClose}>
             取消
           </Button>
@@ -127,8 +101,24 @@ export function DeleteWorkdirDialog({
           >
             {busy ? "正在删除" : "确认删除"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      {loading && <p role="status">正在读取删除范围</p>}
+      {preview && (
+        <div className="space-y-2 text-t-sm">
+          <p className="break-all">{preview.path}</p>
+          <p>
+            {preview.file_count} 个文件 · {formatBytes(preview.total_bytes, "MiB", 2)}
+          </p>
+          <p className={preview.original_materials ? "text-bad-ink" : "text-warn-ink"}>
+            {preview.confirmation}
+          </p>
+        </div>
+      )}
+      {error && (
+        <FormError className="break-all text-t-sm text-bad-ink">{error}</FormError>
+      )}
+    </DialogShell>
   );
 }

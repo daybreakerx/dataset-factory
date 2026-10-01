@@ -2,16 +2,9 @@ import { BookOpenIcon, ChevronDownIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
+import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../../components/ui/dialog";
 import { SnapshotDialog } from "../batching/SnapshotDialog";
 import { RebuildImportsDialog } from "../workdir/RebuildImportsDialog";
 import { ExportPanel } from "./ExportPanel";
@@ -186,39 +179,37 @@ export function BatchOverview({
   return (
     <section aria-label="批次概览" className="min-w-0 px-6 py-4">
       {redo && (
-        <Dialog
+        <DialogShell
           open
           onOpenChange={(open) => {
             if (!open && !redoing) setRedo(null);
           }}
+          title={<>重打选中的 {redo.length} 条</>}
+          description="用当前素材重新打标，覆盖现有的 txt。"
+          cancel={{
+            label: "取消",
+            variant: "ghost",
+            disabled: redoing,
+            onClick: () => setRedo(null),
+          }}
+          confirm={{
+            label: redoing ? "正在启动" : `重打这 ${redo.length} 条`,
+            variant: "default",
+            disabled: redoing,
+            onClick: () => void startRedo(),
+          }}
         >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>重打选中的 {redo.length} 条</DialogTitle>
-              <DialogDescription>
-                用当前素材重新打标，覆盖现有的 txt。
-              </DialogDescription>
-            </DialogHeader>
-            <ul className="max-h-64 overflow-auto text-t-sm">
-              {redo.map((item) => (
-                <li key={item} className="break-all py-1">
-                  {items.get(item)?.name ?? item}
-                </li>
-              ))}
-            </ul>
-            {redoError && (
-              <FormError className="text-t-sm text-bad-ink">{redoError}</FormError>
-            )}
-            <DialogFooter>
-              <Button variant="ghost" disabled={redoing} onClick={() => setRedo(null)}>
-                取消
-              </Button>
-              <Button disabled={redoing} onClick={() => void startRedo()}>
-                {redoing ? "正在启动" : `重打这 ${redo.length} 条`}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          <ul className="max-h-64 overflow-auto text-t-sm">
+            {redo.map((item) => (
+              <li key={item} className="break-all py-1">
+                {items.get(item)?.name ?? item}
+              </li>
+            ))}
+          </ul>
+          {redoError && (
+            <FormError className="text-t-sm text-bad-ink">{redoError}</FormError>
+          )}
+        </DialogShell>
       )}
       {rebuildOpen && (
         <RebuildImportsDialog

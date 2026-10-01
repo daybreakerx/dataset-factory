@@ -11,16 +11,9 @@ import { useEffect, useRef, useState } from "react";
 import { ApiError, api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
+import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../../components/ui/dialog";
 import { Input } from "../../../components/ui/input";
 import { Tip } from "../../../components/ui/tooltip";
 import { formatBytes } from "../../../lib/format";
@@ -700,49 +693,41 @@ export function WorkdirSettings({
         <SnapshotDialog wid={wid} batch={snapshot} onClose={() => setSnapshot(null)} />
       )}
       {action && action.kind !== "rename" && (
-        <Dialog
+        <DialogShell
           open
           onOpenChange={(open) => {
             if (!open && !busy) setAction(null);
           }}
+          title={
+            action.kind === "delete"
+              ? "删除策略？"
+              : action.batch.active
+                ? "停用策略？"
+                : "启用策略？"
+          }
+          description={`${action.batch.name} · ${action.batch.id}`}
+          cancel={{
+            label: "取消",
+            variant: "outline",
+            disabled: busy,
+            onClick: () => setAction(null),
+          }}
+          confirm={{
+            label: busy ? "正在保存" : "确认",
+            variant: action.kind === "delete" ? "destructive-fill" : "default",
+            disabled: busy,
+            onClick: () => void apply(),
+          }}
         >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {action.kind === "delete"
-                  ? "删除策略？"
-                  : action.batch.active
-                    ? "停用策略？"
-                    : "启用策略？"}
-              </DialogTitle>
-              <DialogDescription>
-                {action.batch.name} · {action.batch.id}
-              </DialogDescription>
-            </DialogHeader>
-            <p className="text-t-sm text-text-3">
-              {action.kind === "delete"
-                ? `将删除本策略的 ${action.batch.product_count} 个产物、快照和重试记录，素材保留。`
-                : action.batch.active
-                  ? "若此策略正在运行，确认后将停止本次运行；已完成条目与产物保留。停用后可在此处重新启用。"
-                  : "重新启用后可在打标页选择此策略。"}
-            </p>
-            {actionError && (
-              <FormError className="text-bad-ink">{actionError}</FormError>
-            )}
-            <DialogFooter>
-              <Button variant="outline" disabled={busy} onClick={() => setAction(null)}>
-                取消
-              </Button>
-              <Button
-                variant={action.kind === "delete" ? "destructive-fill" : "default"}
-                disabled={busy}
-                onClick={() => void apply()}
-              >
-                {busy ? "正在保存" : "确认"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          <p className="text-t-sm text-text-3">
+            {action.kind === "delete"
+              ? `将删除本策略的 ${action.batch.product_count} 个产物、快照和重试记录，素材保留。`
+              : action.batch.active
+                ? "若此策略正在运行，确认后将停止本次运行；已完成条目与产物保留。停用后可在此处重新启用。"
+                : "重新启用后可在打标页选择此策略。"}
+          </p>
+          {actionError && <FormError className="text-bad-ink">{actionError}</FormError>}
+        </DialogShell>
       )}
     </section>
   );

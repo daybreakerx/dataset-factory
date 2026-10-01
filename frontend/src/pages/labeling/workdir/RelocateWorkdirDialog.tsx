@@ -2,11 +2,10 @@ import { FolderIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, api, errorMessage, type TaskView } from "../../../api";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
+import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -173,131 +172,128 @@ export function RelocateWorkdirDialog({
   }
 
   return (
-    <Dialog
+    <DialogShell
       open
       onOpenChange={(open) => {
         if (!open && !active && !pending.current) onClose();
       }}
+      className="max-h-[90dvh] max-w-xl overflow-y-auto"
     >
-      <DialogContent className="max-h-[90dvh] max-w-xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>修改路径</DialogTitle>
-          <DialogDescription className="break-all">{source}</DialogDescription>
-        </DialogHeader>
-        {!result && (
-          <div className="space-y-2">
-            <label htmlFor="relocation-target" className="text-t-sm">
-              目标目录
-            </label>
-            <div className="flex gap-2">
-              <Input
-                id="relocation-target"
-                value={target}
-                disabled={active || confirmed}
-                onChange={(event) => setTarget(event.currentTarget.value)}
-              />
-              <Button
-                variant="ghost"
-                size="icon-lg"
-                aria-label="选择目标父目录"
-                disabled={active || confirmed}
-                onClick={() => setPicker(true)}
-              >
-                <FolderIcon />
-              </Button>
-            </div>
-            {confirmed && (
-              <p className="text-t-sm text-warn-ink">
-                将全部内容复制到目标目录，校验通过后删除旧位置。目标目录必须尚不存在；中断搬迁时保留原位置。
-              </p>
-            )}
+      <DialogHeader>
+        <DialogTitle>修改路径</DialogTitle>
+        <DialogDescription className="break-all">{source}</DialogDescription>
+      </DialogHeader>
+      {!result && (
+        <div className="space-y-2">
+          <label htmlFor="relocation-target" className="text-t-sm">
+            目标目录
+          </label>
+          <div className="flex gap-2">
+            <Input
+              id="relocation-target"
+              value={target}
+              disabled={active || confirmed}
+              onChange={(event) => setTarget(event.currentTarget.value)}
+            />
+            <Button
+              variant="ghost"
+              size="icon-lg"
+              aria-label="选择目标父目录"
+              disabled={active || confirmed}
+              onClick={() => setPicker(true)}
+            >
+              <FolderIcon />
+            </Button>
           </div>
-        )}
-        {error && (
-          <FormError className="break-all text-t-sm text-bad-ink">{error}</FormError>
+          {confirmed && (
+            <p className="text-t-sm text-warn-ink">
+              将全部内容复制到目标目录，校验通过后删除旧位置。目标目录必须尚不存在；中断搬迁时保留原位置。
+            </p>
+          )}
+        </div>
+      )}
+      {error && (
+        <FormError className="break-all text-t-sm text-bad-ink">{error}</FormError>
+      )}
+      {status === "running" && (
+        <div role="status" className="space-y-2">
+          <p>
+            {cancelRequested ? "正在取消" : "正在搬迁"} ·{" "}
+            {Math.round((task?.progress ?? 0) * 100)}%
+          </p>
+          <progress
+            className="w-full"
+            value={task?.progress ?? 0}
+            max={1}
+            aria-label="搬迁进度"
+          />
+        </div>
+      )}
+      {result && (
+        <div role="status" className="space-y-2 text-t-sm">
+          <p className="break-all">已搬迁到 {result.path}</p>
+          {result.cleanup_pending && (
+            <p className="break-all text-warn-ink">旧位置尚未清理：{result.old_path}</p>
+          )}
+        </div>
+      )}
+      <DialogFooter>
+        <Button variant="ghost" disabled={active} onClick={onClose}>
+          关闭
+        </Button>
+        {pollFailed && status === "running" && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              setError("");
+              setRevision((value) => value + 1);
+            }}
+          >
+            重新查询
+          </Button>
         )}
         {status === "running" && (
-          <div role="status" className="space-y-2">
-            <p>
-              {cancelRequested ? "正在取消" : "正在搬迁"} ·{" "}
-              {Math.round((task?.progress ?? 0) * 100)}%
-            </p>
-            <progress
-              className="w-full"
-              value={task?.progress ?? 0}
-              max={1}
-              aria-label="搬迁进度"
-            />
-          </div>
-        )}
-        {result && (
-          <div role="status" className="space-y-2 text-t-sm">
-            <p className="break-all">已搬迁到 {result.path}</p>
-            {result.cleanup_pending && (
-              <p className="break-all text-warn-ink">
-                旧位置尚未清理：{result.old_path}
-              </p>
-            )}
-          </div>
-        )}
-        <DialogFooter>
-          <Button variant="ghost" disabled={active} onClick={onClose}>
-            关闭
+          <Button
+            variant="outline"
+            disabled={cancelling || cancelRequested}
+            onClick={() => void cancel()}
+          >
+            取消搬迁
           </Button>
-          {pollFailed && status === "running" && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setError("");
-                setRevision((value) => value + 1);
-              }}
-            >
-              重新查询
-            </Button>
-          )}
-          {status === "running" && (
-            <Button
-              variant="outline"
-              disabled={cancelling || cancelRequested}
-              onClick={() => void cancel()}
-            >
-              取消搬迁
-            </Button>
-          )}
-          {!active && !result && confirmed && (
-            <Button variant="outline" onClick={() => setConfirmed(false)}>
-              返回修改
-            </Button>
-          )}
-          {!active && !result && (
-            <Button
-              disabled={!target.trim()}
-              onClick={() => (confirmed ? void start() : setConfirmed(true))}
-            >
-              {confirmed ? "确认搬迁" : "修改路径"}
-            </Button>
-          )}
-        </DialogFooter>
-        {picker && (
-          <DirectoryPicker
-            allowCreate
-            allowRename
-            onClose={() => setPicker(false)}
-            onSelect={(parent, listing) => {
-              const windows = listing.system === "Windows";
-              const separator = windows ? "\\" : "/";
-              const normalizedSource = windows ? source.replaceAll("/", "\\") : source;
-              const name =
-                normalizedSource.split(separator).filter(Boolean).at(-1) ?? "dataset";
-              const base = windows
-                ? parent.replace(/[\\/]$/, "")
-                : parent.replace(/\/$/, "");
-              setTarget(`${base}${separator}${name}`);
-              setPicker(false);
-            }}
-          />
         )}
-      </DialogContent>
-    </Dialog>
+        {!active && !result && confirmed && (
+          <Button variant="outline" onClick={() => setConfirmed(false)}>
+            返回修改
+          </Button>
+        )}
+        {!active && !result && (
+          <Button
+            disabled={!target.trim()}
+            onClick={() => (confirmed ? void start() : setConfirmed(true))}
+          >
+            {confirmed ? "确认搬迁" : "修改路径"}
+          </Button>
+        )}
+      </DialogFooter>
+      {picker && (
+        <DirectoryPicker
+          allowCreate
+          allowRename
+          onClose={() => setPicker(false)}
+          onSelect={(parent, listing) => {
+            const windows = listing.system === "Windows";
+            const separator = windows ? "\\" : "/";
+            const normalizedSource = windows ? source.replaceAll("/", "\\") : source;
+            const name =
+              normalizedSource.split(separator).filter(Boolean).at(-1) ?? "dataset";
+            const base = windows
+              ? parent.replace(/[\\/]$/, "")
+              : parent.replace(/\/$/, "");
+            setTarget(`${base}${separator}${name}`);
+            setPicker(false);
+          }}
+        />
+      )}
+    </DialogShell>
   );
 }

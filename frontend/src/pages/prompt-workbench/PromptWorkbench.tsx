@@ -11,18 +11,11 @@ import {
 } from "react";
 import type { EndpointConfigSummary, PromptInfo, SkillInfo } from "../../api";
 import { api } from "../../api";
+import { DialogShell } from "../../components/dialog-shell";
 import type { MediaPreviewTarget } from "../../components/media-lightbox";
 import { MediaLightbox } from "../../components/media-lightbox";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -674,32 +667,18 @@ export function PromptWorkbench({
               </Alert>
             )}
 
-            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>删除提示词「{deleteName}」？</DialogTitle>
-                  <DialogDescription>
-                    将连同其历史备份一起移除。此操作不可撤销。
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setDeleteDialogOpen(false)}
-                  >
-                    取消
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive-fill"
-                    onClick={() => void deleteSelected()}
-                  >
-                    删除
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <DialogShell
+              open={deleteDialogOpen}
+              onOpenChange={setDeleteDialogOpen}
+              title={<>删除提示词「{deleteName}」？</>}
+              description="将连同其历史备份一起移除。此操作不可撤销。"
+              cancel={{ label: "取消", onClick: () => setDeleteDialogOpen(false) }}
+              confirm={{
+                label: "删除",
+                variant: "destructive-fill",
+                onClick: () => void deleteSelected(),
+              }}
+            />
           </section>
 
           <section

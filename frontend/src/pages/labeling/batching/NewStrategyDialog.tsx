@@ -2,13 +2,11 @@ import { ChevronDownIcon, RefreshCwIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
+import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
@@ -175,147 +173,142 @@ export function NewStrategyDialog({
   }
 
   return (
-    <Dialog
+    <DialogShell
       open
       onOpenChange={(open) => {
         if (!open && !pending.current) onClose();
       }}
+      className="max-h-[90vh] max-w-[600px] overflow-y-auto p-4"
+      note={`新策略为 s${nextSeq}，与既有 ${existingCount} 套并存`}
+      footerExtra={
+        !catalog && error ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="重试读取配置"
+            onClick={() => setRevision((value) => value + 1)}
+          >
+            <RefreshCwIcon />
+          </Button>
+        ) : undefined
+      }
+      cancel={{ label: "取消", variant: "ghost", disabled: busy, onClick: onClose }}
+      confirm={{
+        label: busy ? "正在创建" : "创建策略",
+        variant: "default",
+        disabled: !valid || busy,
+        onClick: () => void create(),
+      }}
     >
-      <DialogContent className="max-h-[90vh] max-w-[600px] overflow-y-auto p-4">
-        <DialogHeader className="flex-row flex-wrap items-baseline gap-3 pr-8">
-          <DialogTitle>新增策略</DialogTitle>
-          <DialogDescription className="min-w-0 break-all">
-            工作目录：{title}
-          </DialogDescription>
-        </DialogHeader>
-        {picker(
-          "策略来源",
-          library,
-          (value) => {
-            setLibrary(value);
-            setName(
-              catalog?.strategies.find((entry) => entry.id === value)?.name ?? "",
-            );
-          },
-          [
-            { value: "scratch", label: "从零配置" },
-            ...(catalog?.strategies ?? []).map((entry) => ({
-              value: entry.id,
-              label: `${entry.name}${entry.available ? "" : " · 引用缺失"}`,
-              disabled: !entry.available,
-            })),
-          ],
-        )}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label htmlFor={`${id}-name`} className="text-t-sm text-text-4">
-              策略名
-            </label>
-            <span className="text-t-xs text-text-3">{`将分配序号 s${nextSeq}`}</span>
-          </div>
-          <Input
-            id={`${id}-name`}
-            value={name}
-            disabled={busy}
-            onChange={(event) => setName(event.currentTarget.value)}
-          />
+      <DialogHeader className="flex-row flex-wrap items-baseline gap-3 pr-8">
+        <DialogTitle>新增策略</DialogTitle>
+        <DialogDescription className="min-w-0 break-all">
+          工作目录：{title}
+        </DialogDescription>
+      </DialogHeader>
+      {picker(
+        "策略来源",
+        library,
+        (value) => {
+          setLibrary(value);
+          setName(catalog?.strategies.find((entry) => entry.id === value)?.name ?? "");
+        },
+        [
+          { value: "scratch", label: "从零配置" },
+          ...(catalog?.strategies ?? []).map((entry) => ({
+            value: entry.id,
+            label: `${entry.name}${entry.available ? "" : " · 引用缺失"}`,
+            disabled: !entry.available,
+          })),
+        ],
+      )}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label htmlFor={`${id}-name`} className="text-t-sm text-text-4">
+            策略名
+          </label>
+          <span className="text-t-xs text-text-3">{`将分配序号 s${nextSeq}`}</span>
         </div>
-        <fieldset className="min-w-0 space-y-2" disabled={busy}>
-          <legend className="mb-2 text-t-sm text-text-4">策略内容</legend>
-          {picker(
-            "端点配置",
-            source?.endpoint_id ?? endpoint,
-            setEndpoint,
-            (catalog?.endpoints ?? []).map((entry) => ({
-              value: entry.id,
-              label: `${entry.name} · ${entry.model}`,
-            })),
-            library !== "scratch",
-          )}
-          {picker(
-            "基础提示词",
-            source?.prompt_id ?? prompt,
-            setPrompt,
-            (catalog?.prompts ?? []).map((entry) => ({
-              value: entry.id,
-              label: entry.name,
-            })),
-            library !== "scratch",
-          )}
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="w-20 shrink-0 text-t-sm text-text-4">Skill</span>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="h-(--h-lg) min-w-0 flex-1 justify-between"
-                  aria-label="选择 Skill"
-                  disabled={busy || !catalog || library !== "scratch"}
-                >
-                  <span className="truncate">
-                    {(source?.skill_ids ?? skills)
-                      .map(
-                        (sid) =>
-                          catalog?.skills.find((entry) => entry.id === sid)?.name ??
-                          sid,
-                      )
-                      .join(" · ") || "无"}
-                  </span>
-                  <ChevronDownIcon />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="max-h-64 max-w-80 overflow-auto">
-                {catalog?.skills.map((entry) => (
-                  <DropdownMenuCheckboxItem
-                    key={entry.name}
-                    checked={skills.includes(entry.name)}
-                    onSelect={(event) => event.preventDefault()}
-                    onCheckedChange={(checked) =>
-                      setSkills((previous) =>
-                        checked
-                          ? [...previous, entry.name]
-                          : previous.filter((name) => name !== entry.name),
-                      )
-                    }
-                  >
-                    {entry.name}
-                  </DropdownMenuCheckboxItem>
-                ))}
-                {catalog?.skills.length === 0 && (
-                  <p className="p-2 text-t-sm text-text-3">没有可用 Skill</p>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </fieldset>
-        {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
-        {!catalog && !error && (
-          <p role="status" className="text-t-sm text-text-3">
-            正在读取策略配置
-          </p>
+        <Input
+          id={`${id}-name`}
+          value={name}
+          disabled={busy}
+          onChange={(event) => setName(event.currentTarget.value)}
+        />
+      </div>
+      <fieldset className="min-w-0 space-y-2" disabled={busy}>
+        <legend className="mb-2 text-t-sm text-text-4">策略内容</legend>
+        {picker(
+          "端点配置",
+          source?.endpoint_id ?? endpoint,
+          setEndpoint,
+          (catalog?.endpoints ?? []).map((entry) => ({
+            value: entry.id,
+            label: `${entry.name} · ${entry.model}`,
+          })),
+          library !== "scratch",
         )}
-        <DialogFooter>
-          <span className="mr-auto self-center text-t-sm text-text-1">
-            {`新策略为 s${nextSeq}，与既有 ${existingCount} 套并存`}
-          </span>
-          {!catalog && error && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="重试读取配置"
-              onClick={() => setRevision((value) => value + 1)}
-            >
-              <RefreshCwIcon />
-            </Button>
-          )}
-          <Button variant="ghost" disabled={busy} onClick={onClose}>
-            取消
-          </Button>
-          <Button disabled={!valid || busy} onClick={() => void create()}>
-            {busy ? "正在创建" : "创建策略"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        {picker(
+          "基础提示词",
+          source?.prompt_id ?? prompt,
+          setPrompt,
+          (catalog?.prompts ?? []).map((entry) => ({
+            value: entry.id,
+            label: entry.name,
+          })),
+          library !== "scratch",
+        )}
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="w-20 shrink-0 text-t-sm text-text-4">Skill</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-(--h-lg) min-w-0 flex-1 justify-between"
+                aria-label="选择 Skill"
+                disabled={busy || !catalog || library !== "scratch"}
+              >
+                <span className="truncate">
+                  {(source?.skill_ids ?? skills)
+                    .map(
+                      (sid) =>
+                        catalog?.skills.find((entry) => entry.id === sid)?.name ?? sid,
+                    )
+                    .join(" · ") || "无"}
+                </span>
+                <ChevronDownIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="max-h-64 max-w-80 overflow-auto">
+              {catalog?.skills.map((entry) => (
+                <DropdownMenuCheckboxItem
+                  key={entry.name}
+                  checked={skills.includes(entry.name)}
+                  onSelect={(event) => event.preventDefault()}
+                  onCheckedChange={(checked) =>
+                    setSkills((previous) =>
+                      checked
+                        ? [...previous, entry.name]
+                        : previous.filter((name) => name !== entry.name),
+                    )
+                  }
+                >
+                  {entry.name}
+                </DropdownMenuCheckboxItem>
+              ))}
+              {catalog?.skills.length === 0 && (
+                <p className="p-2 text-t-sm text-text-3">没有可用 Skill</p>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </fieldset>
+      {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
+      {!catalog && !error && (
+        <p role="status" className="text-t-sm text-text-3">
+          正在读取策略配置
+        </p>
+      )}
+    </DialogShell>
   );
 }

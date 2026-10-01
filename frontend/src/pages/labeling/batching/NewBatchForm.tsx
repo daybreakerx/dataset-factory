@@ -11,16 +11,9 @@ import {
 } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
+import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../../components/ui/dialog";
 import { Input } from "../../../components/ui/input";
 import {
   Select,
@@ -580,46 +573,39 @@ export function NewBatchForm({
             {progress}
           </p>
         )}
-        <Dialog
+        <DialogShell
           open={!!unimported && !importOpen}
           onOpenChange={(open) => !open && !busy && setUnimported(null)}
+          title="开始打标前确认"
+          description={<>有 {unimported?.length ?? 0} 个素材未登记，本次不会打标。</>}
+          cancel={{
+            label: "先去导入",
+            variant: "ghost",
+            size: "sm",
+            disabled: busy,
+            onClick: () => setImportOpen(true),
+          }}
+          confirm={{
+            label: "仍要开始",
+            variant: "default",
+            size: "sm",
+            disabled: busy,
+            onClick: () => void run(true),
+          }}
         >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>开始打标前确认</DialogTitle>
-              <DialogDescription>
-                有 {unimported?.length ?? 0} 个素材未登记，本次不会打标。
-              </DialogDescription>
-            </DialogHeader>
-            <ul className="max-h-48 overflow-auto text-t-sm" aria-label="未导入素材">
-              {unimported?.map((row) => (
-                <li
-                  key={row.name}
-                  className="flex flex-wrap gap-2 border-b border-border/60 py-2 last:border-0"
-                >
-                  <span className="break-all font-medium">{row.name}</span>
-                  <span className="break-words text-muted-foreground">
-                    {row.reason}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
-            <DialogFooter>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={busy}
-                onClick={() => setImportOpen(true)}
+          <ul className="max-h-48 overflow-auto text-t-sm" aria-label="未导入素材">
+            {unimported?.map((row) => (
+              <li
+                key={row.name}
+                className="flex flex-wrap gap-2 border-b border-border/60 py-2 last:border-0"
               >
-                先去导入
-              </Button>
-              <Button size="sm" disabled={busy} onClick={() => void run(true)}>
-                仍要开始
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+                <span className="break-all font-medium">{row.name}</span>
+                <span className="break-words text-muted-foreground">{row.reason}</span>
+              </li>
+            ))}
+          </ul>
+          {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
+        </DialogShell>
         {!unimported && (
           <div className="space-y-3 border-t border-border pt-4">
             <div className="flex flex-wrap items-center gap-3">

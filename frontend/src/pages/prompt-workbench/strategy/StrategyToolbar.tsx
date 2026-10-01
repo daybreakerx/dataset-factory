@@ -7,16 +7,9 @@ import {
   type SkillInfo,
 } from "../../../api";
 import type { components } from "../../../api-types.gen";
+import { DialogShell } from "../../../components/dialog-shell";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../../components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -529,172 +522,158 @@ export function StrategyToolbar({
           </Button>
         </Alert>
       )}
-      <Dialog
+      <DialogShell
         open={remove !== null}
         onOpenChange={(value) => {
           if (!value && !busy) setRemove(null);
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>删除策略「{remove?.name}」？</DialogTitle>
-            <DialogDescription>
-              删除库中的组合清单，已应用到工作目录的批次与产物保持不变。
-            </DialogDescription>
-          </DialogHeader>
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          <DialogFooter>
-            <Button variant="outline" disabled={busy} onClick={() => setRemove(null)}>
-              取消
-            </Button>
-            <Button
-              variant="destructive-fill"
-              disabled={busy}
-              onClick={() =>
-                void operate(async () => {
-                  if (!remove) return;
-                  await api.deleteStrategy(remove.id);
-                  if (!mounted.current) return;
-                  setEntries((current) =>
-                    current.filter((entry) => entry.id !== remove.id),
-                  );
-                  if (selected?.id === remove.id) {
-                    setSelected(null);
-                    setName("");
-                    setDescription("");
-                  }
-                  setRemove(null);
-                })
+        title={<>删除策略「{remove?.name}」？</>}
+        description="删除库中的组合清单，已应用到工作目录的批次与产物保持不变。"
+        cancel={{
+          label: "取消",
+          variant: "outline",
+          disabled: busy,
+          onClick: () => setRemove(null),
+        }}
+        confirm={{
+          label: "删除",
+          variant: "destructive-fill",
+          disabled: busy,
+          onClick: () =>
+            void operate(async () => {
+              if (!remove) return;
+              await api.deleteStrategy(remove.id);
+              if (!mounted.current) return;
+              setEntries((current) =>
+                current.filter((entry) => entry.id !== remove.id),
+              );
+              if (selected?.id === remove.id) {
+                setSelected(null);
+                setName("");
+                setDescription("");
               }
-            >
-              删除
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog
+              setRemove(null);
+            }),
+        }}
+      >
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+      </DialogShell>
+      <DialogShell
         open={repair !== null}
         onOpenChange={(value) => {
           if (!value && !busy) setRepair(null);
         }}
+        title={<>重新指定「{repair?.name}」</>}
+        description={repair?.missing_refs.join("；")}
+        cancel={{
+          label: "取消",
+          variant: "outline",
+          disabled: busy,
+          onClick: () => setRepair(null),
+        }}
+        confirm={{
+          label: "重新指定",
+          disabled: busy || !bindings.endpoint_id || !bindings.prompt_id,
+          onClick: () =>
+            void operate(async () => {
+              if (!repair) return;
+              const entry = await api.rebindStrategy(repair.id, bindings);
+              if (!mounted.current) return;
+              remember(entry);
+              setRepair(null);
+            }),
+        }}
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>重新指定「{repair?.name}」</DialogTitle>
-            <DialogDescription>{repair?.missing_refs.join("；")}</DialogDescription>
-          </DialogHeader>
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          <div className="grid gap-2 text-t-sm">
-            端点
-            {/* L12（2026-09-21 审计）：全站唯一的原生 select 破口 → Radix Select。 */}
-            <Select
-              value={bindings.endpoint_id}
-              disabled={busy}
-              onValueChange={(value) =>
-                setBindings({ ...bindings, endpoint_id: value })
-              }
-            >
-              <SelectTrigger aria-label="重新指定端点" className="h-(--h-lg)">
-                <SelectValue placeholder="选择端点" />
-              </SelectTrigger>
-              <SelectContent>
-                {!endpoints.some((entry) => entry.id === bindings.endpoint_id) &&
-                  bindings.endpoint_id !== "" && (
-                    <SelectItem value={bindings.endpoint_id} disabled>
-                      {bindings.endpoint_id}（缺失）
-                    </SelectItem>
-                  )}
-                {endpoints.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    {entry.name}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        <div className="grid gap-2 text-t-sm">
+          端点
+          {/* L12（2026-09-21 审计）：全站唯一的原生 select 破口 → Radix Select。 */}
+          <Select
+            value={bindings.endpoint_id}
+            disabled={busy}
+            onValueChange={(value) => setBindings({ ...bindings, endpoint_id: value })}
+          >
+            <SelectTrigger aria-label="重新指定端点" className="h-(--h-lg)">
+              <SelectValue placeholder="选择端点" />
+            </SelectTrigger>
+            <SelectContent>
+              {!endpoints.some((entry) => entry.id === bindings.endpoint_id) &&
+                bindings.endpoint_id !== "" && (
+                  <SelectItem value={bindings.endpoint_id} disabled>
+                    {bindings.endpoint_id}（缺失）
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2 text-t-sm">
-            提示词
-            <Select
-              value={bindings.prompt_id}
-              disabled={busy}
-              onValueChange={(value) => setBindings({ ...bindings, prompt_id: value })}
-            >
-              <SelectTrigger aria-label="重新指定提示词" className="h-(--h-lg)">
-                <SelectValue placeholder="选择提示词" />
-              </SelectTrigger>
-              <SelectContent>
-                {!prompts.some((entry) => entry.id === bindings.prompt_id) &&
-                  bindings.prompt_id !== "" && (
-                    <SelectItem value={bindings.prompt_id} disabled>
-                      {bindings.prompt_id}（缺失）
-                    </SelectItem>
-                  )}
-                {prompts.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    {entry.name}
+                )}
+              {endpoints.map((entry) => (
+                <SelectItem key={entry.id} value={entry.id}>
+                  {entry.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2 text-t-sm">
+          提示词
+          <Select
+            value={bindings.prompt_id}
+            disabled={busy}
+            onValueChange={(value) => setBindings({ ...bindings, prompt_id: value })}
+          >
+            <SelectTrigger aria-label="重新指定提示词" className="h-(--h-lg)">
+              <SelectValue placeholder="选择提示词" />
+            </SelectTrigger>
+            <SelectContent>
+              {!prompts.some((entry) => entry.id === bindings.prompt_id) &&
+                bindings.prompt_id !== "" && (
+                  <SelectItem value={bindings.prompt_id} disabled>
+                    {bindings.prompt_id}（缺失）
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <fieldset disabled={busy} className="grid gap-2">
-            <legend className="mb-2 text-t-sm">Skill</legend>
-            {Array.from(
-              new Set([
-                ...bindings.skill_ids,
-                ...skills.filter((entry) => entry.enabled).map((entry) => entry.id),
-              ]),
-            ).map((sid) => (
-              <label key={sid} className="flex items-center gap-2 text-t-sm">
-                <input
-                  type="checkbox"
-                  className="cb"
-                  checked={bindings.skill_ids.includes(sid)}
-                  onChange={(event) =>
-                    setBindings({
-                      ...bindings,
-                      skill_ids: event.currentTarget.checked
-                        ? [...bindings.skill_ids, sid]
-                        : bindings.skill_ids.filter((item) => item !== sid),
-                    })
-                  }
-                />
-                {skills.find((entry) => entry.id === sid)?.name ?? sid}
-                {skills.some((entry) => entry.id === sid && entry.enabled)
-                  ? ""
-                  : "（缺失或停用）"}
-              </label>
-            ))}
-          </fieldset>
-          <DialogFooter>
-            <Button variant="outline" disabled={busy} onClick={() => setRepair(null)}>
-              取消
-            </Button>
-            <Button
-              disabled={busy || !bindings.endpoint_id || !bindings.prompt_id}
-              onClick={() =>
-                void operate(async () => {
-                  if (!repair) return;
-                  const entry = await api.rebindStrategy(repair.id, bindings);
-                  if (!mounted.current) return;
-                  remember(entry);
-                  setRepair(null);
-                })
-              }
-            >
-              重新指定
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                )}
+              {prompts.map((entry) => (
+                <SelectItem key={entry.id} value={entry.id}>
+                  {entry.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <fieldset disabled={busy} className="grid gap-2">
+          <legend className="mb-2 text-t-sm">Skill</legend>
+          {Array.from(
+            new Set([
+              ...bindings.skill_ids,
+              ...skills.filter((entry) => entry.enabled).map((entry) => entry.id),
+            ]),
+          ).map((sid) => (
+            <label key={sid} className="flex items-center gap-2 text-t-sm">
+              <input
+                type="checkbox"
+                className="cb"
+                checked={bindings.skill_ids.includes(sid)}
+                onChange={(event) =>
+                  setBindings({
+                    ...bindings,
+                    skill_ids: event.currentTarget.checked
+                      ? [...bindings.skill_ids, sid]
+                      : bindings.skill_ids.filter((item) => item !== sid),
+                  })
+                }
+              />
+              {skills.find((entry) => entry.id === sid)?.name ?? sid}
+              {skills.some((entry) => entry.id === sid && entry.enabled)
+                ? ""
+                : "（缺失或停用）"}
+            </label>
+          ))}
+        </fieldset>
+      </DialogShell>
     </header>
   );
 }

@@ -2,16 +2,9 @@ import { Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
+import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../../components/ui/dialog";
 import { Tip } from "../../../components/ui/tooltip";
 import {
   type ItemDelta,
@@ -507,68 +500,67 @@ export function RunControl({
         </>
       )}
       {/* Q1（2026-09-21 复核定案）：名单发车不可撤销，顶栏「开始重试」必须过确认。 */}
-      <Dialog open={retryConfirming} onOpenChange={setRetryConfirming}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>开始重试？</DialogTitle>
-            <DialogDescription>
-              将按重试列表的当前名单逐条重新打标（名单在发车瞬间拍快照）。发车后不可撤销，
-              等它跑完或点「停止」前不能再发车。
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRetryConfirming(false)}>
-              取消
-            </Button>
-            <Button
-              disabled={busy}
-              onClick={() => {
-                setRetryConfirming(false);
-                void start("retry");
-              }}
-            >
-              开始重试
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={confirming} onOpenChange={setConfirming}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>未导入素材确认</DialogTitle>
-            <DialogDescription>
-              有 {unimported.length} 个工作目录文件未登记，不会进入本次跑批。
-            </DialogDescription>
-          </DialogHeader>
-          <ul
-            className="max-h-48 overflow-auto rounded-md border border-border p-3 text-t-sm"
-            aria-label="未导入素材"
-          >
-            {unimported.map((row) => (
-              <li key={row.name}>
-                {row.name}
-                {row.reason && (
-                  <span className="text-muted-foreground"> · {row.reason}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setConfirming(false);
-                onImport?.();
-              }}
-            >
-              先去导入
-            </Button>
-            <Button disabled={busy} onClick={() => void start("full")}>
-              仍要开始
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DialogShell
+        open={retryConfirming}
+        onOpenChange={setRetryConfirming}
+        title="开始重试？"
+        description={
+          <>
+            将按重试列表的当前名单逐条重新打标（名单在发车瞬间拍快照）。发车后不可撤销，
+            等它跑完或点「停止」前不能再发车。
+          </>
+        }
+        cancel={{
+          label: "取消",
+          variant: "outline",
+          onClick: () => setRetryConfirming(false),
+        }}
+        confirm={{
+          label: "开始重试",
+          variant: "default",
+          disabled: busy,
+          onClick: () => {
+            setRetryConfirming(false);
+            void start("retry");
+          },
+        }}
+      />
+      <DialogShell
+        open={confirming}
+        onOpenChange={setConfirming}
+        title="未导入素材确认"
+        description={
+          <>有 {unimported.length} 个工作目录文件未登记，不会进入本次跑批。</>
+        }
+        cancel={{
+          label: "先去导入",
+          variant: "outline",
+          onClick: () => {
+            setConfirming(false);
+            onImport?.();
+          },
+        }}
+        confirm={{
+          label: "仍要开始",
+          variant: "default",
+          disabled: busy,
+          onClick: () => void start("full"),
+        }}
+      >
+        <ul
+          className="max-h-48 overflow-auto rounded-md border border-border p-3 text-t-sm"
+          aria-label="未导入素材"
+        >
+          {unimported.map((row) => (
+            <li key={row.name}>
+              {row.name}
+              {row.reason && (
+                <span className="text-muted-foreground"> · {row.reason}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </DialogShell>
     </section>
   );
 }

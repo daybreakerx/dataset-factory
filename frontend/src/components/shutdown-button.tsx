@@ -10,16 +10,9 @@ import { useState } from "react";
 
 import { api } from "../api";
 import { reportError } from "../lib/feedback";
+import { DialogShell } from "./dialog-shell";
 import { FormError } from "./form-error";
 import { Button } from "./ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "./ui/dialog";
 
 export function ShutdownButton({
   expanded = false,
@@ -78,7 +71,7 @@ export function ShutdownButton({
           <PowerIcon className="size-4" />
         </Button>
       )}
-      <Dialog
+      <DialogShell
         open={open}
         onOpenChange={(value) => {
           setOpen(value);
@@ -86,32 +79,20 @@ export function ShutdownButton({
             setError(null);
           }
         }}
+        title="关闭服务？"
+        description="关闭前会等正在进行的请求跑完，不会中断生成；会话数据已实时保存、不受影响。"
+        cancel={{ label: "取消", onClick: () => setOpen(false) }}
+        confirm={{
+          label: "关闭服务",
+          variant: "destructive-fill",
+          disabled: busy,
+          onClick: () => void shutdown(),
+        }}
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>关闭服务？</DialogTitle>
-            <DialogDescription>
-              关闭前会等正在进行的请求跑完，不会中断生成；会话数据已实时保存、不受影响。
-            </DialogDescription>
-          </DialogHeader>
-          {error !== null && (
-            <FormError className="text-t-sm text-destructive">{error}</FormError>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              取消
-            </Button>
-            <Button
-              type="button"
-              variant="destructive-fill"
-              disabled={busy}
-              onClick={() => void shutdown()}
-            >
-              关闭服务
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {error !== null && (
+          <FormError className="text-t-sm text-destructive">{error}</FormError>
+        )}
+      </DialogShell>
     </>
   );
 }

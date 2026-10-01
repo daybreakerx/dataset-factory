@@ -2,11 +2,10 @@ import { FolderIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { ApiError, api, errorMessage, type TaskView } from "../../../api";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
+import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -229,212 +228,210 @@ export function ImportMaterialsDialog({
   }
 
   return (
-    <Dialog
+    <DialogShell
       open
       onOpenChange={(open) => {
         if (!open && !active) onClose();
       }}
+      className="max-h-[90dvh] max-w-xl overflow-y-auto"
     >
-      <DialogContent className="max-h-[90dvh] max-w-xl overflow-y-auto">
-        {pickerOpen && (
-          <DirectoryPicker
-            initialPath={source}
-            onClose={() => setPickerOpen(false)}
-            onSelect={(value) => {
-              setSource(value);
-              setPickerOpen(false);
-            }}
-          />
-        )}
-        <DialogHeader>
-          <DialogTitle>
-            {mode === "restore" ? "重新导入缺失素材" : "导入素材"}
-          </DialogTitle>
-          <DialogDescription>当前工作目录</DialogDescription>
-        </DialogHeader>
-        {names && (
-          <ul className="max-h-64 overflow-auto text-t-sm">
-            {names.map((name) => (
-              <li key={name} className="break-all">
-                {name}
-              </li>
-            ))}
-          </ul>
-        )}
-        {initialMode !== "restore" && (
-          <fieldset className="flex gap-4" disabled={active}>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="import-mode"
-                checked={mode === "inplace"}
-                onChange={() => setMode("inplace")}
-              />
-              就地补登记
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="import-mode"
-                checked={mode === "copy"}
-                onChange={() => setMode("copy")}
-              />
-              复制导入
-            </label>
-          </fieldset>
-        )}
-        {mode === "copy" && (
-          <div className="space-y-2">
-            <label htmlFor={sourceId}>来源目录</label>
-            <div className="flex items-center gap-2">
-              <Input
-                id={sourceId}
-                value={source}
-                disabled={active}
-                onChange={(event) => setSource(event.currentTarget.value)}
-              />
-              <Tip label="选择来源目录">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-lg"
-                  disabled={active}
-                  aria-label="选择来源目录"
-                  onClick={() => setPickerOpen(true)}
-                >
-                  <FolderIcon />
-                </Button>
-              </Tip>
-            </div>
-          </div>
-        )}
-        {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
-        {task?.status === "running" && (
-          <div role="status" className="space-y-2">
-            <span>
-              {cancelling ? "正在取消" : "正在导入"} · {Math.round(task.progress * 100)}
-              %
-            </span>
-            <progress
-              className="w-full"
-              value={task.progress}
-              max={1}
-              aria-label="导入进度"
+      {pickerOpen && (
+        <DirectoryPicker
+          initialPath={source}
+          onClose={() => setPickerOpen(false)}
+          onSelect={(value) => {
+            setSource(value);
+            setPickerOpen(false);
+          }}
+        />
+      )}
+      <DialogHeader>
+        <DialogTitle>
+          {mode === "restore" ? "重新导入缺失素材" : "导入素材"}
+        </DialogTitle>
+        <DialogDescription>当前工作目录</DialogDescription>
+      </DialogHeader>
+      {names && (
+        <ul className="max-h-64 overflow-auto text-t-sm">
+          {names.map((name) => (
+            <li key={name} className="break-all">
+              {name}
+            </li>
+          ))}
+        </ul>
+      )}
+      {initialMode !== "restore" && (
+        <fieldset className="flex gap-4" disabled={active}>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="import-mode"
+              checked={mode === "inplace"}
+              onChange={() => setMode("inplace")}
             />
-            {pollFailed && (
+            就地补登记
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="import-mode"
+              checked={mode === "copy"}
+              onChange={() => setMode("copy")}
+            />
+            复制导入
+          </label>
+        </fieldset>
+      )}
+      {mode === "copy" && (
+        <div className="space-y-2">
+          <label htmlFor={sourceId}>来源目录</label>
+          <div className="flex items-center gap-2">
+            <Input
+              id={sourceId}
+              value={source}
+              disabled={active}
+              onChange={(event) => setSource(event.currentTarget.value)}
+            />
+            <Tip label="选择来源目录">
               <Button
+                type="button"
                 variant="outline"
-                size="sm"
-                onClick={() => {
-                  setError("");
-                  setChecking((value) => value + 1);
-                }}
+                size="icon-lg"
+                disabled={active}
+                aria-label="选择来源目录"
+                onClick={() => setPickerOpen(true)}
               >
-                重新查询
+                <FolderIcon />
               </Button>
-            )}
+            </Tip>
           </div>
-        )}
-        {report && (
-          <div className="space-y-3 text-t-sm">
-            <section className="overflow-hidden rounded-lg border border-ok-bd">
-              <h3 className="bg-ok-bg px-4 py-3 text-t-md font-medium text-ok-ink">
-                导入完成 · 新增 {report.imported.length} 项 · 同名同容跳过{" "}
-                {report.skipped_identical.length} 项
-              </h3>
-              {report.skipped_identical.map((name) => (
-                <p key={name} className="px-4 py-2 break-all">
-                  {name} · 内容相同，已跳过
-                </p>
-              ))}
-            </section>
-            {!!report.skipped_conflict.length && (
-              <section className="overflow-hidden rounded-lg border border-warn-bd">
-                <h3 className="bg-warn-bg px-4 py-3 text-t-md font-medium text-warn-ink">
-                  {report.skipped_conflict.length} 个同名文件内容不同，已跳过、未覆盖
-                </h3>
-                {report.skipped_conflict.map((row) => (
-                  <div key={row.name} className="space-y-1 px-4 py-2 break-all">
-                    <p className="font-medium">{row.name}</p>
-                    <div className="flex flex-wrap gap-2 text-muted-foreground">
-                      <span>
-                        已登记{" "}
-                        <ContentFingerprint
-                          size={row.existing_size}
-                          hash={row.existing_sha256}
-                        />
-                      </span>
-                      <span>
-                        本次{" "}
-                        <ContentFingerprint
-                          size={row.incoming_size}
-                          hash={row.incoming_sha256}
-                        />
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                <p className="px-4 pb-3 text-muted-foreground">
-                  要保留本次文件，请先在来源目录改名，再导入。
-                </p>
-              </section>
-            )}
-            {!!report.skipped_duplicate.length && (
-              <section className="overflow-hidden rounded-lg border border-warn-bd">
-                <h3 className="bg-warn-bg px-4 py-3 text-t-md font-medium text-warn-ink">
-                  {report.skipped_duplicate.length} 个异名文件内容相同，已跳过
-                </h3>
-                {report.skipped_duplicate.map((row) => (
-                  <div
-                    key={row.name}
-                    className="flex flex-wrap items-center gap-2 px-4 py-2"
-                  >
-                    <span className="min-w-0 flex-1 break-all">
-                      {row.name} · 与 {row.duplicate_of} 相同
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={active}
-                      onClick={() => void submit(row.name)}
-                    >
-                      仍按新名导入
-                    </Button>
-                  </div>
-                ))}
-              </section>
-            )}
-            {report.rejected.map((row) => (
-              <p key={row.name} className="break-all text-warn-ink">
-                {row.name} · {row.reason}
-              </p>
-            ))}
-          </div>
-        )}
-        <DialogFooter>
-          {active ? (
+        </div>
+      )}
+      {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
+      {task?.status === "running" && (
+        <div role="status" className="space-y-2">
+          <span>
+            {cancelling ? "正在取消" : "正在导入"} · {Math.round(task.progress * 100)}%
+          </span>
+          <progress
+            className="w-full"
+            value={task.progress}
+            max={1}
+            aria-label="导入进度"
+          />
+          {pollFailed && (
             <Button
               variant="outline"
-              disabled={submitting || cancelling}
-              onClick={() => void cancel()}
+              size="sm"
+              onClick={() => {
+                setError("");
+                setChecking((value) => value + 1);
+              }}
             >
-              取消导入
+              重新查询
             </Button>
-          ) : (
-            <>
-              <Button variant="ghost" onClick={onClose}>
-                关闭
-              </Button>
-              <Button
-                disabled={mode === "copy" && !source.trim()}
-                onClick={() => void submit()}
-              >
-                导入
-              </Button>
-            </>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      )}
+      {report && (
+        <div className="space-y-3 text-t-sm">
+          <section className="overflow-hidden rounded-lg border border-ok-bd">
+            <h3 className="bg-ok-bg px-4 py-3 text-t-md font-medium text-ok-ink">
+              导入完成 · 新增 {report.imported.length} 项 · 同名同容跳过{" "}
+              {report.skipped_identical.length} 项
+            </h3>
+            {report.skipped_identical.map((name) => (
+              <p key={name} className="px-4 py-2 break-all">
+                {name} · 内容相同，已跳过
+              </p>
+            ))}
+          </section>
+          {!!report.skipped_conflict.length && (
+            <section className="overflow-hidden rounded-lg border border-warn-bd">
+              <h3 className="bg-warn-bg px-4 py-3 text-t-md font-medium text-warn-ink">
+                {report.skipped_conflict.length} 个同名文件内容不同，已跳过、未覆盖
+              </h3>
+              {report.skipped_conflict.map((row) => (
+                <div key={row.name} className="space-y-1 px-4 py-2 break-all">
+                  <p className="font-medium">{row.name}</p>
+                  <div className="flex flex-wrap gap-2 text-muted-foreground">
+                    <span>
+                      已登记{" "}
+                      <ContentFingerprint
+                        size={row.existing_size}
+                        hash={row.existing_sha256}
+                      />
+                    </span>
+                    <span>
+                      本次{" "}
+                      <ContentFingerprint
+                        size={row.incoming_size}
+                        hash={row.incoming_sha256}
+                      />
+                    </span>
+                  </div>
+                </div>
+              ))}
+              <p className="px-4 pb-3 text-muted-foreground">
+                要保留本次文件，请先在来源目录改名，再导入。
+              </p>
+            </section>
+          )}
+          {!!report.skipped_duplicate.length && (
+            <section className="overflow-hidden rounded-lg border border-warn-bd">
+              <h3 className="bg-warn-bg px-4 py-3 text-t-md font-medium text-warn-ink">
+                {report.skipped_duplicate.length} 个异名文件内容相同，已跳过
+              </h3>
+              {report.skipped_duplicate.map((row) => (
+                <div
+                  key={row.name}
+                  className="flex flex-wrap items-center gap-2 px-4 py-2"
+                >
+                  <span className="min-w-0 flex-1 break-all">
+                    {row.name} · 与 {row.duplicate_of} 相同
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={active}
+                    onClick={() => void submit(row.name)}
+                  >
+                    仍按新名导入
+                  </Button>
+                </div>
+              ))}
+            </section>
+          )}
+          {report.rejected.map((row) => (
+            <p key={row.name} className="break-all text-warn-ink">
+              {row.name} · {row.reason}
+            </p>
+          ))}
+        </div>
+      )}
+      <DialogFooter>
+        {active ? (
+          <Button
+            variant="outline"
+            disabled={submitting || cancelling}
+            onClick={() => void cancel()}
+          >
+            取消导入
+          </Button>
+        ) : (
+          <>
+            <Button variant="ghost" onClick={onClose}>
+              关闭
+            </Button>
+            <Button
+              disabled={mode === "copy" && !source.trim()}
+              onClick={() => void submit()}
+            >
+              导入
+            </Button>
+          </>
+        )}
+      </DialogFooter>
+    </DialogShell>
   );
 }

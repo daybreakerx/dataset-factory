@@ -15,17 +15,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { SkillFileInfo, SkillImportResponse, SkillInfo } from "../../../api";
 import { api } from "../../../api";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
+import { DialogShell } from "../../../components/dialog-shell";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../../components/ui/dialog";
 import { Input } from "../../../components/ui/input";
 import { Switch } from "../../../components/ui/switch";
 import {
@@ -476,121 +469,117 @@ export function SkillsPanel(): ReactElement {
           })}
         </div>
       </fieldset>
-      <Dialog
+      <DialogShell
         open={importOpen}
         onOpenChange={(open) => {
           if (!importing && !readingDrop) setImportOpen(open);
         }}
+        title="导入 Skill 包"
+        description="agentskills.io 标准"
       >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>导入 Skill 包</DialogTitle>
-            <DialogDescription>agentskills.io 标准</DialogDescription>
-          </DialogHeader>
-          <fieldset disabled={importing || readingDrop} className="min-w-0 space-y-3">
-            <button
+        <fieldset disabled={importing || readingDrop} className="min-w-0 space-y-3">
+          <button
+            type="button"
+            aria-label="拖入 Skill 包"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              void drop(event.dataTransfer);
+            }}
+            onClick={() => fileInputRef.current?.click()}
+            className="flex w-full items-center justify-center gap-3 rounded-md border border-dashed border-input bg-card p-8 text-t-md text-muted-foreground"
+          >
+            <ImportIcon className="size-4" />
+            拖文件夹 / SKILL.md 到这里导入
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            hidden
+            aria-label="选择 skill 文件夹"
+            // @ts-expect-error -- webkitdirectory 为浏览器非标准属性，React DOM 类型未收录
+            webkitdirectory=""
+            onChange={(event) => {
+              const picked = Array.from(event.currentTarget.files ?? []);
+              if (picked.length > 0) {
+                void doImport(picked);
+              }
+              event.currentTarget.value = "";
+            }}
+          />
+          <input
+            ref={mdInputRef}
+            type="file"
+            accept=".md"
+            hidden
+            aria-label="选择 SKILL.md 文件"
+            onChange={(event) => {
+              void doImportFile(event.currentTarget.files?.[0]);
+              event.currentTarget.value = "";
+            }}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <Button
               type="button"
-              aria-label="拖入 Skill 包"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault();
-                void drop(event.dataTransfer);
-              }}
+              variant="outline"
+              disabled={importing}
               onClick={() => fileInputRef.current?.click()}
-              className="flex w-full items-center justify-center gap-3 rounded-md border border-dashed border-input bg-card p-8 text-t-md text-muted-foreground"
             >
-              <ImportIcon className="size-4" />
-              拖文件夹 / SKILL.md 到这里导入
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              hidden
-              aria-label="选择 skill 文件夹"
-              // @ts-expect-error -- webkitdirectory 为浏览器非标准属性，React DOM 类型未收录
-              webkitdirectory=""
-              onChange={(event) => {
-                const picked = Array.from(event.currentTarget.files ?? []);
-                if (picked.length > 0) {
-                  void doImport(picked);
-                }
-                event.currentTarget.value = "";
-              }}
+              <FolderOpenIcon className="size-4" />
+              文件夹
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={importing}
+              onClick={() => mdInputRef.current?.click()}
+            >
+              <FileTextIcon className="size-4" />
+              SKILL.md 文件
+            </Button>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <Input
+              aria-label="skill 服务器路径"
+              placeholder="服务器上的目录或文件"
+              value={pathValue}
+              onInput={(event) => setPathValue(event.currentTarget.value)}
             />
-            <input
-              ref={mdInputRef}
-              type="file"
-              accept=".md"
-              hidden
-              aria-label="选择 SKILL.md 文件"
-              onChange={(event) => {
-                void doImportFile(event.currentTarget.files?.[0]);
-                event.currentTarget.value = "";
-              }}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={importing}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <FolderOpenIcon className="size-4" />
-                文件夹
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={importing}
-                onClick={() => mdInputRef.current?.click()}
-              >
-                <FileTextIcon className="size-4" />
-                SKILL.md 文件
-              </Button>
-            </div>
-            <div className="mt-2 flex gap-2">
-              <Input
-                aria-label="skill 服务器路径"
-                placeholder="服务器上的目录或文件"
-                value={pathValue}
-                onInput={(event) => setPathValue(event.currentTarget.value)}
-              />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-lg"
-                    aria-label="选择技能目录或文件"
-                    disabled={importing}
-                    onClick={() => setPickingPath(true)}
-                  >
-                    <FolderOpenIcon />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>选择目录或文件</TooltipContent>
-              </Tooltip>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={importing || pathValue.trim() === ""}
-                onClick={() => void doImportPath()}
-              >
-                导入
-              </Button>
-            </div>
-            {feedback !== null && (
-              <Alert
-                variant={feedback.kind === "error" ? "destructive" : "success"}
-                className="mt-2"
-              >
-                <AlertDescription>{feedback.text}</AlertDescription>
-              </Alert>
-            )}
-          </fieldset>
-        </DialogContent>
-      </Dialog>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-lg"
+                  aria-label="选择技能目录或文件"
+                  disabled={importing}
+                  onClick={() => setPickingPath(true)}
+                >
+                  <FolderOpenIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>选择目录或文件</TooltipContent>
+            </Tooltip>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={importing || pathValue.trim() === ""}
+              onClick={() => void doImportPath()}
+            >
+              导入
+            </Button>
+          </div>
+          {feedback !== null && (
+            <Alert
+              variant={feedback.kind === "error" ? "destructive" : "success"}
+              className="mt-2"
+            >
+              <AlertDescription>{feedback.text}</AlertDescription>
+            </Alert>
+          )}
+        </fieldset>
+      </DialogShell>
 
       {/* 右：详情 + 包内容预览 */}
       <div className="flex min-w-0 shrink-0 flex-1 flex-col border-t border-border p-4 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l lg:px-8 lg:py-6">
@@ -731,32 +720,18 @@ export function SkillsPanel(): ReactElement {
           }}
         />
       )}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>删除技能「{selected}」？</DialogTitle>
-            <DialogDescription>
-              将从 Skill 库整目录移除该包。此操作不可撤销；停用 ≠ 删除。
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDeleteDialogOpen(false)}
-            >
-              取消
-            </Button>
-            <Button
-              type="button"
-              variant="destructive-fill"
-              onClick={() => void remove()}
-            >
-              删除
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DialogShell
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title={<>删除技能「{selected}」？</>}
+        description="将从 Skill 库整目录移除该包。此操作不可撤销；停用 ≠ 删除。"
+        cancel={{ label: "取消", onClick: () => setDeleteDialogOpen(false) }}
+        confirm={{
+          label: "删除",
+          variant: "destructive-fill",
+          onClick: () => void remove(),
+        }}
+      />
     </div>
   );
 }

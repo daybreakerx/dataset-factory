@@ -4,17 +4,10 @@ import type { ReactElement } from "react";
 import { useCallback, useEffect, useState } from "react";
 import type { EndpointConfigSummary, EndpointTestResult } from "../../../api";
 import { api, errorMessage } from "../../../api";
+import { DialogShell } from "../../../components/dialog-shell";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../../components/ui/dialog";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import {
@@ -741,32 +734,18 @@ export function EndpointConfigPanel(): ReactElement {
         )}
       </div>
 
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>删除端点配置「{selected}」？</DialogTitle>
-            <DialogDescription>
-              将连同该配置的密钥文件一起移除；当前使用中的配置需先切换才能删。此操作不可撤销。
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDeleteDialogOpen(false)}
-            >
-              取消
-            </Button>
-            <Button
-              type="button"
-              variant="destructive-fill"
-              onClick={() => void remove()}
-            >
-              删除
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DialogShell
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title={<>删除端点配置「{selected}」？</>}
+        description="将连同该配置的密钥文件一起移除；当前使用中的配置需先切换才能删。此操作不可撤销。"
+        cancel={{ label: "取消", onClick: () => setDeleteDialogOpen(false) }}
+        confirm={{
+          label: "删除",
+          variant: "destructive-fill",
+          onClick: () => void remove(),
+        }}
+      />
     </div>
   );
 }

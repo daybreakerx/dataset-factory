@@ -1,15 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, api, errorMessage, type TaskView } from "../../../api";
+import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../../components/ui/dialog";
 
 interface Props {
   wid: string;
@@ -116,28 +109,16 @@ export function RebuildImportsDialog({ wid, onClose, onRebuilt }: Props) {
   }
 
   return (
-    <Dialog
+    <DialogShell
       open
       onOpenChange={(open) => {
         if (!open && !busy) onClose();
       }}
-    >
-      <DialogContent className="max-h-[90dvh] w-[min(540px,100%)] max-w-none overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>重建导入记录</DialogTitle>
-          <DialogDescription>当前工作目录</DialogDescription>
-        </DialogHeader>
-        <p className="rounded-md border border-warn-bd bg-warn-bg p-3 text-t-sm text-warn-ink">
-          重建会按工作目录现状补一条导入记录，缺失对账以当前素材为准。来源记为空，无法再按原来源找回素材。现有产物不变；缺少打标时的素材哈希时，产物时效仍无法校验。
-        </p>
-        {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
-        {busy && <p role="status">正在重建导入记录</p>}
-        {count !== null && (
-          <p role="status" className="text-ok-ink">
-            重建完成 · 登记素材 {count} 条
-          </p>
-        )}
-        <DialogFooter>
+      className="max-h-[90dvh] w-[min(540px,100%)] max-w-none overflow-y-auto"
+      title="重建导入记录"
+      description="当前工作目录"
+      footer={
+        <>
           {!busy && (
             <Button variant="ghost" onClick={onClose}>
               {count === null ? "取消" : "关闭"}
@@ -159,8 +140,19 @@ export function RebuildImportsDialog({ wid, onClose, onRebuilt }: Props) {
               重建导入记录
             </Button>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <p className="rounded-md border border-warn-bd bg-warn-bg p-3 text-t-sm text-warn-ink">
+        重建会按工作目录现状补一条导入记录，缺失对账以当前素材为准。来源记为空，无法再按原来源找回素材。现有产物不变；缺少打标时的素材哈希时，产物时效仍无法校验。
+      </p>
+      {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
+      {busy && <p role="status">正在重建导入记录</p>}
+      {count !== null && (
+        <p role="status" className="text-ok-ink">
+          重建完成 · 登记素材 {count} 条
+        </p>
+      )}
+    </DialogShell>
   );
 }

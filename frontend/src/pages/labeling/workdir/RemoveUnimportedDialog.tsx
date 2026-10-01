@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
+import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
-import { Button } from "../../../components/ui/button";
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
@@ -59,38 +56,41 @@ export function RemoveUnimportedDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{recoveryPath ? "已删除文件" : "删除未导入文件"}</DialogTitle>
-          <DialogDescription className="break-all">{name}</DialogDescription>
-        </DialogHeader>
-        {recoveryPath ? (
-          <div role="status" className="space-y-2 text-t-md text-text-3">
-            <p>文件已从工作目录移出。原文件保留在以下位置：</p>
-            <p className="break-all rounded-md bg-muted p-3">{recoveryPath}</p>
-          </div>
-        ) : (
-          <p className="text-t-md text-text-3">
-            此文件将从工作目录移出，不再出现在未导入清单中。原文件会保留在恢复目录；就地采用的文件也会从原位置移出。
-          </p>
-        )}
-        {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
-        <DialogFooter>
-          <Button variant="outline" disabled={pending} onClick={onClose}>
-            {recoveryPath ? "关闭" : "取消"}
-          </Button>
-          {!recoveryPath && (
-            <Button
-              variant="destructive-fill"
-              disabled={pending}
-              onClick={() => void remove()}
-            >
-              {pending ? "删除中" : "删除"}
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <DialogShell
+      open
+      onOpenChange={(open) => !open && !pending && onClose()}
+      cancel={{
+        label: recoveryPath ? "关闭" : "取消",
+        variant: "outline",
+        disabled: pending,
+        onClick: onClose,
+      }}
+      confirm={
+        recoveryPath
+          ? undefined
+          : {
+              label: pending ? "删除中" : "删除",
+              variant: "destructive-fill",
+              disabled: pending,
+              onClick: () => void remove(),
+            }
+      }
+    >
+      <DialogHeader>
+        <DialogTitle>{recoveryPath ? "已删除文件" : "删除未导入文件"}</DialogTitle>
+        <DialogDescription className="break-all">{name}</DialogDescription>
+      </DialogHeader>
+      {recoveryPath ? (
+        <div role="status" className="space-y-2 text-t-md text-text-3">
+          <p>文件已从工作目录移出。原文件保留在以下位置：</p>
+          <p className="break-all rounded-md bg-muted p-3">{recoveryPath}</p>
+        </div>
+      ) : (
+        <p className="text-t-md text-text-3">
+          此文件将从工作目录移出，不再出现在未导入清单中。原文件会保留在恢复目录；就地采用的文件也会从原位置移出。
+        </p>
+      )}
+      {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
+    </DialogShell>
   );
 }
