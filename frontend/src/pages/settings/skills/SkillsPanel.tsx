@@ -1,87 +1,25 @@
-/** 能力 · 技能（列表 + 详情双栏，含包内容预览与三种导入方式）。 */
-import {
-  CopyIcon,
-  FileTextIcon,
-  FolderOpenIcon,
-  ImageIcon,
-  ImportIcon,
-  SaveIcon,
-  SearchIcon,
-  Trash2Icon,
-  Undo2Icon,
-} from "lucide-react";
+/**
+ * 能力 · 技能（列表 + 详情双栏，含包内容预览与三种导入方式）——面板编排层。
+ * 草稿与反馈状态、命令回调（启停 / 导入 / 删除 / 存文件 / 改名）住这里；
+ * 展示块拆在同目录：skill-list / skill-detail（内嵌包内容胶囊）/ import-dialog /
+ * delete-dialog；列表查询收拢在 use-skills（命令类留调用点）。
+ */
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SkillFileInfo, SkillImportResponse, SkillInfo } from "../../../api";
 import { api } from "../../../api";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
-import { DialogShell } from "../../../components/dialog-shell";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
-import { Badge } from "../../../components/ui/badge";
-import { Button } from "../../../components/ui/button";
-import { Input } from "../../../components/ui/input";
-import { Switch } from "../../../components/ui/switch";
-import {
-  Tip,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "../../../components/ui/tooltip";
 import { type Feedback, reportError } from "../../../lib/feedback";
-import { formatBytes, formatChars } from "../../../lib/format";
-import { cn } from "../../../lib/utils";
+import { formatBytes } from "../../../lib/format";
+import { DeleteDialog } from "./delete-dialog";
+import { ImportDialog } from "./import-dialog";
+import { SkillDetail } from "./skill-detail";
 import { readSkillDrop } from "./skill-drop";
-
-function SkillFileChip({
-  entry,
-  active,
-  disabled,
-  onSelect,
-}: {
-  entry: SkillFileInfo;
-  active: boolean;
-  disabled: boolean;
-  onSelect: (path: string) => void;
-}): ReactElement {
-  const chip = (
-    <button
-      type="button"
-      disabled={disabled || !entry.previewable}
-      onClick={() => onSelect(entry.path)}
-      className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-full border px-3 py-1 text-t-sm transition-colors [overflow-wrap:anywhere]",
-        entry.previewable
-          ? "border-border bg-card hover:bg-accent"
-          : "cursor-not-allowed border-border bg-muted text-n-400 line-through",
-        active && entry.previewable && "border-primary bg-primary/10 text-primary",
-      )}
-    >
-      {entry.path.startsWith("references/") ? (
-        <FileTextIcon className="size-3" />
-      ) : entry.path.startsWith("assets/") ? (
-        <ImageIcon className="size-3" />
-      ) : (
-        <CopyIcon className="size-3" />
-      )}
-      {entry.path}
-    </button>
-  );
-  if (entry.previewable) {
-    return chip;
-  }
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex">{chip}</span>
-      </TooltipTrigger>
-      <TooltipContent>不参与注入（注入范围 = SKILL.md 与 references/）</TooltipContent>
-    </Tooltip>
-  );
-}
+import { SkillList } from "./skill-list";
+import { useSkills } from "./use-skills";
 
 export function SkillsPanel(): ReactElement {
-  const [skills, setSkills] = useState<SkillInfo[]>([]);
-  const [search, setSearch] = useState("");
   const [selected, setSelected] = useState("");
   const [files, setFiles] = useState<SkillFileInfo[]>([]);
   const [previewPath, setPreviewPath] = useState("");
@@ -108,8 +46,6 @@ export function SkillsPanel(): ReactElement {
   const dropPending = useRef(false);
   const [pathValue, setPathValue] = useState("");
   const [pickingPath, setPickingPath] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const mdInputRef = useRef<HTMLInputElement>(null);
 
   /** 失败分流：连接类失败改弹浮层（不占界面位置），后端返回的业务错误仍就地展示。 */
   const fail = useCallback((err: unknown): void => {
@@ -117,18 +53,15 @@ export function SkillsPanel(): ReactElement {
     if (text !== null) setFeedback({ kind: "error", text });
   }, []);
 
+  const { skills, reload: fetchSkills } = useSkills(fail);
+
   const reload = useCallback(async (): Promise<void> => {
-    try {
-      const list = await api.listSkills();
-      setSkills(list);
-      // 首次加载默认选中第一个技能（详情区直接有内容；用户可再点选其他）。
-      setSelected((current) =>
-        current === "" && list.length > 0 ? (list[0]?.name ?? "") : current,
-      );
-    } catch (err) {
-      fail(err);
-    }
-  }, [fail]);
+    const list = await fetchSkills();
+    // 首次加载默认选中第一个技能（详情区直接有内容；用户可再点选其他）。
+    setSelected((current) =>
+      current === "" && list.length > 0 ? (list[0]?.name ?? "") : current,
+    );
+  }, [fetchSkills]);
 
   useEffect(() => {
     void reload();
@@ -183,15 +116,6 @@ export function SkillsPanel(): ReactElement {
   }, [selected, fail]);
 
   const current = skills.find((item) => item.name === selected);
-  const keyword = search.trim().toLowerCase();
-  const visible =
-    keyword === ""
-      ? skills
-      : skills.filter(
-          (item) =>
-            item.name.toLowerCase().includes(keyword) ||
-            item.description.toLowerCase().includes(keyword),
-        );
 
   const pick = (name: string): void => {
     if (dirty || saving) return;
@@ -367,219 +291,34 @@ export function SkillsPanel(): ReactElement {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-auto bg-card lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:overflow-hidden">
       {/* 左：列表 + 导入 */}
-      <fieldset
+      <SkillList
         disabled={dirty || saving}
-        className="flex min-w-0 shrink-0 flex-col lg:min-h-0"
-      >
-        <div className="flex flex-wrap items-center gap-2 px-4 pt-6 pb-2 lg:px-6">
-          <h3 className="text-t-sm font-medium text-muted-foreground">技能列表</h3>
-          <span className="text-t-sm text-muted-foreground">{skills.length} 个</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto"
-            onClick={() => {
-              setFeedback(null);
-              setImportOpen(true);
-            }}
-          >
-            <ImportIcon />
-            导入 Skill
-          </Button>
-        </div>
-        <div className="relative mx-4 my-2 lg:mx-6">
-          <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            aria-label="搜索技能"
-            placeholder="搜索名称或描述…"
-            className="pl-8"
-            value={search}
-            onInput={(event) => setSearch(event.currentTarget.value)}
-          />
-        </div>
-        <div className="max-h-40 min-h-0 flex-1 space-y-1 overflow-y-auto px-4 pb-3 lg:max-h-none lg:px-6">
-          {visible.length === 0 && (
-            <p className="px-1 text-t-sm text-muted-foreground">
-              {skills.length === 0 ? "Skill 库为空" : "没有匹配的技能"}
-            </p>
-          )}
-          {visible.map((skill) => {
-            const active = skill.name === selected;
-            return (
-              <div
-                key={skill.name}
-                className={
-                  "rounded-md px-3 py-2 transition-colors " +
-                  (active ? "bg-primary/10" : "bg-card hover:bg-accent")
-                }
-              >
-                <div className="flex items-center gap-2">
-                  <Switch
-                    disabled={toggling}
-                    checked={skill.enabled}
-                    aria-label={`启用 ${skill.name}`}
-                    onClick={() => void toggle(skill)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => pick(skill.name)}
-                    className="min-w-0 flex-1 text-left"
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="min-w-0 truncate text-t-md font-medium">
-                        {skill.name}
-                      </span>
-                      <Tip label="注入正文字符数（SKILL.md + references，即打标请求的注入量）">
-                        <span className="shrink-0 text-t-sm text-muted-foreground">
-                          {formatChars(skill.body_chars)}
-                        </span>
-                      </Tip>
-                    </span>
-                    {skill.description === "" ? (
-                      <span className="line-clamp-2 text-t-sm text-muted-foreground">
-                        （无描述）
-                      </span>
-                    ) : (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          {/* 去掉 block：line-clamp-2 自带 -webkit-box 显示模式与省略号，
-                              block 会把它覆盖成普通块级导致截断失效（长下划线词把卡片撑破
-                              左栏宽度，2026-09-13 用户反馈）；anywhere 断长词兜底 */}
-                          <span
-                            className={
-                              "line-clamp-2 text-t-sm [overflow-wrap:anywhere] " +
-                              (skill.description.startsWith("文件损坏：")
-                                ? "text-destructive"
-                                : "text-muted-foreground")
-                            }
-                          >
-                            {skill.description}
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-80 whitespace-normal leading-relaxed">
-                          {skill.description}
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </button>
-                  <span className="sr-only">{skill.enabled ? "已启用" : "已停用"}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </fieldset>
-      <DialogShell
+        skills={skills}
+        selected={selected}
+        toggling={toggling}
+        onToggle={(skill) => void toggle(skill)}
+        onPick={pick}
+        onImport={() => {
+          setFeedback(null);
+          setImportOpen(true);
+        }}
+      />
+      <ImportDialog
         open={importOpen}
         onOpenChange={(open) => {
           if (!importing && !readingDrop) setImportOpen(open);
         }}
-        title="导入 Skill 包"
-        description="agentskills.io 标准"
-      >
-        <fieldset disabled={importing || readingDrop} className="min-w-0 space-y-3">
-          <button
-            type="button"
-            aria-label="拖入 Skill 包"
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              void drop(event.dataTransfer);
-            }}
-            onClick={() => fileInputRef.current?.click()}
-            className="flex w-full items-center justify-center gap-3 rounded-md border border-dashed border-input bg-card p-8 text-t-md text-muted-foreground"
-          >
-            <ImportIcon className="size-4" />
-            拖文件夹 / SKILL.md 到这里导入
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            hidden
-            aria-label="选择 skill 文件夹"
-            // @ts-expect-error -- webkitdirectory 为浏览器非标准属性，React DOM 类型未收录
-            webkitdirectory=""
-            onChange={(event) => {
-              const picked = Array.from(event.currentTarget.files ?? []);
-              if (picked.length > 0) {
-                void doImport(picked);
-              }
-              event.currentTarget.value = "";
-            }}
-          />
-          <input
-            ref={mdInputRef}
-            type="file"
-            accept=".md"
-            hidden
-            aria-label="选择 SKILL.md 文件"
-            onChange={(event) => {
-              void doImportFile(event.currentTarget.files?.[0]);
-              event.currentTarget.value = "";
-            }}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={importing}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <FolderOpenIcon className="size-4" />
-              文件夹
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={importing}
-              onClick={() => mdInputRef.current?.click()}
-            >
-              <FileTextIcon className="size-4" />
-              SKILL.md 文件
-            </Button>
-          </div>
-          <div className="mt-2 flex gap-2">
-            <Input
-              aria-label="skill 服务器路径"
-              placeholder="服务器上的目录或文件"
-              value={pathValue}
-              onInput={(event) => setPathValue(event.currentTarget.value)}
-            />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-lg"
-                  aria-label="选择技能目录或文件"
-                  disabled={importing}
-                  onClick={() => setPickingPath(true)}
-                >
-                  <FolderOpenIcon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>选择目录或文件</TooltipContent>
-            </Tooltip>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={importing || pathValue.trim() === ""}
-              onClick={() => void doImportPath()}
-            >
-              导入
-            </Button>
-          </div>
-          {feedback !== null && (
-            <Alert
-              variant={feedback.kind === "error" ? "destructive" : "success"}
-              className="mt-2"
-            >
-              <AlertDescription>{feedback.text}</AlertDescription>
-            </Alert>
-          )}
-        </fieldset>
-      </DialogShell>
+        importing={importing}
+        readingDrop={readingDrop}
+        feedback={feedback}
+        pathValue={pathValue}
+        onPathInput={setPathValue}
+        onPickPath={() => setPickingPath(true)}
+        onImportFiles={(picked) => void doImport(picked)}
+        onImportFile={(picked) => void doImportFile(picked)}
+        onImportPath={() => void doImportPath()}
+        onDrop={(transfer) => void drop(transfer)}
+      />
 
       {/* 右：详情 + 包内容预览 */}
       <div className="flex min-w-0 shrink-0 flex-1 flex-col border-t border-border p-4 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l lg:px-8 lg:py-6">
@@ -589,119 +328,32 @@ export function SkillsPanel(): ReactElement {
           </Alert>
         )}
         {current !== undefined ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <input
-                aria-label="技能名称"
-                value={nameDraft ?? current.name}
-                disabled={saving || loadingPreview}
-                onChange={(event) =>
-                  setNameDraft(
-                    event.currentTarget.value === current.name
-                      ? null
-                      : event.currentTarget.value,
-                  )
-                }
-                className="min-w-15 max-w-105 field-sizing-content rounded-md border border-transparent bg-transparent px-1 py-0.5 text-t-xl font-medium hover:border-border hover:bg-card focus:border-input"
-              />
-              <Badge variant={current.enabled ? "success" : "muted"}>
-                {current.enabled ? "已启用" : "已停用"}
-              </Badge>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="删除技能"
-                    className="ml-auto"
-                    disabled={dirty || saving || loadingPreview}
-                    onClick={() => setDeleteDialogOpen(true)}
-                  >
-                    <Trash2Icon className="text-bad-ink" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>删除技能</TooltipContent>
-              </Tooltip>
-            </div>
-            <label
-              htmlFor="skill-description"
-              className="flex items-center gap-3 text-t-sm"
-            >
-              <span className="shrink-0 text-muted-foreground">描述</span>
-              <Input
-                aria-label="技能描述"
-                id="skill-description"
-                value={descriptionDraft ?? current.description}
-                disabled={saving || loadingPreview || previewPath !== "SKILL.md"}
-                onChange={(event) =>
-                  setDescriptionDraft(
-                    event.currentTarget.value === current.description
-                      ? null
-                      : event.currentTarget.value,
-                  )
-                }
-              />
-            </label>
-
-            <div>
-              <div className="flex flex-wrap gap-1.5">
-                {files.map((entry) => (
-                  <SkillFileChip
-                    key={entry.path}
-                    entry={entry}
-                    active={entry.path === previewPath}
-                    disabled={dirty || saving}
-                    onSelect={(path) => void openPreview(path)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {previewPath !== "" && (
-              <div className="flex min-h-40 flex-1 flex-col gap-2">
-                <label
-                  htmlFor="skill-content"
-                  className="text-t-sm text-muted-foreground"
-                >
-                  内容预览
-                </label>
-                <textarea
-                  aria-label="技能文件内容"
-                  id="skill-content"
-                  spellCheck={false}
-                  value={previewContent}
-                  disabled={saving || loadingPreview}
-                  onChange={(event) => setPreviewContent(event.currentTarget.value)}
-                  className="min-h-40 w-full flex-1 resize-y rounded-md border border-input bg-card px-4 py-3 font-sans text-t-sm leading-(--lh-loose) hover:border-n-400 focus:border-n-400"
-                />
-              </div>
-            )}
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="ghost"
-                disabled={!dirty || saving}
-                onClick={() => {
-                  setPreviewContent(originalContent);
-                  setDescriptionDraft(null);
-                  setNameDraft(null);
-                }}
-              >
-                <Undo2Icon />
-                放弃更改
-              </Button>
-              <Tip label={dirty ? "" : "没有未保存的修改"}>
-                <Button
-                  variant={dirty ? "default" : "ghost"}
-                  disabled={!dirty || saving || loadingPreview}
-                  onClick={() => void save()}
-                >
-                  <SaveIcon />
-                  保存更改
-                </Button>
-              </Tip>
-            </div>
-          </div>
+          <SkillDetail
+            current={current}
+            nameDraft={nameDraft}
+            onNameChange={(value) =>
+              setNameDraft(value === current.name ? null : value)
+            }
+            saving={saving}
+            loadingPreview={loadingPreview}
+            dirty={dirty}
+            onDelete={() => setDeleteDialogOpen(true)}
+            files={files}
+            previewPath={previewPath}
+            onOpenPreview={(path) => void openPreview(path)}
+            previewContent={previewContent}
+            onPreviewChange={setPreviewContent}
+            descriptionDraft={descriptionDraft}
+            onDescriptionChange={(value) =>
+              setDescriptionDraft(value === current.description ? null : value)
+            }
+            onRevert={() => {
+              setPreviewContent(originalContent);
+              setDescriptionDraft(null);
+              setNameDraft(null);
+            }}
+            onSave={() => void save()}
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-t-md text-muted-foreground">
             左侧选择一个技能查看详情与包内容。
@@ -720,17 +372,11 @@ export function SkillsPanel(): ReactElement {
           }}
         />
       )}
-      <DialogShell
+      <DeleteDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title={<>删除技能「{selected}」？</>}
-        description="将从 Skill 库整目录移除该包。此操作不可撤销；停用 ≠ 删除。"
-        cancel={{ label: "取消", onClick: () => setDeleteDialogOpen(false) }}
-        confirm={{
-          label: "删除",
-          variant: "destructive-fill",
-          onClick: () => void remove(),
-        }}
+        target={selected}
+        onConfirm={() => void remove()}
       />
     </div>
   );
