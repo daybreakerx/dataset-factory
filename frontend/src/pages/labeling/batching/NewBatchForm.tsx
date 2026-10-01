@@ -1,31 +1,17 @@
-import { ArrowLeftIcon, FolderIcon, SettingsIcon } from "lucide-react";
+import { ArrowLeftIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import {
-  ApiError,
-  api,
-  type EndpointConfigSummary,
-  errorMessage,
-  type PromptInfo,
-  type SkillInfo,
-  type TaskView,
-} from "../../../api";
+import { ApiError, api, errorMessage, type TaskView } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
 import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
-import { Input } from "../../../components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../../components/ui/select";
-import { Tip } from "../../../components/ui/tooltip";
 import { type ImportReport, parseImportReport } from "../runs/import-report";
 import { ImportMaterialsDialog } from "../workdir/ImportMaterialsDialog";
 import type { BatchSelection } from "./BatchSelector";
+import { BatchSourceFields } from "./batch-source-fields";
+import { BatchStrategyFields } from "./batch-strategy-fields";
+import { useBatchFormLists } from "./use-batch-form-lists";
 
 type Workdir = components["schemas"]["WorkdirInfo"];
 type Batch = components["schemas"]["BatchView"];
@@ -45,23 +31,14 @@ export function NewBatchForm({
   onOpenWorkbench,
 }: Props) {
   const id = useId();
+  const lists = useBatchFormLists();
   const [mode, setMode] = useState<"copy" | "inplace">("copy");
   const [path, setPath] = useState("");
   const [source, setSource] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [library, setLibrary] = useState("scratch");
   const [name, setName] = useState("");
-  const [endpoint, setEndpoint] = useState("");
-  const [prompt, setPrompt] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [strategies, setStrategies] = useState<components["schemas"]["StrategyView"][]>(
-    [],
-  );
-  const [endpoints, setEndpoints] = useState<EndpointConfigSummary[]>([]);
-  const [prompts, setPrompts] = useState<PromptInfo[]>([]);
-  const [skills, setSkills] = useState<SkillInfo[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
   const [workdir, setWorkdir] = useState<Workdir | null>(null);
@@ -107,35 +84,8 @@ export function NewBatchForm({
   }, [workdir]);
 
   useEffect(() => {
-    let current = true;
     mounted.current = true;
-    void Promise.all([
-      api.listStrategies(),
-      api.listEndpoints(),
-      api.listPrompts(),
-      api.listSkills(),
-    ])
-      .then(([libraryItems, endpointItems, promptItems, skillItems]) => {
-        if (!current) return;
-        setStrategies(libraryItems);
-        setEndpoints(endpointItems);
-        setPrompts(promptItems);
-        // V16：全部技能都列出来（含已停用）——只列已启用时，用户在表单里根本
-        // 看不见「还有什么可用」，想启用只能自己切去设置页猜。
-        setSkills(skillItems);
-        setEndpoint(
-          endpointItems.find((entry) => entry.is_active)?.name ??
-            endpointItems[0]?.name ??
-            "",
-        );
-        setPrompt(promptItems[0]?.name ?? "");
-        setLoaded(true);
-      })
-      .catch((reason: unknown) => {
-        if (current) setError(errorMessage(reason));
-      });
     return () => {
-      current = false;
       mounted.current = false;
       clearTimeout(timer.current);
       wake.current?.();
@@ -146,7 +96,7 @@ export function NewBatchForm({
     if (pending.current) return;
     pending.current = true;
     setBusy(true);
-    setError("");
+    lists.setError("");
     try {
       let directory = workdir;
       let importTask = taskId;
@@ -225,8 +175,8 @@ export function NewBatchForm({
             ? {
                 type: "scratch",
                 name: name.trim(),
-                endpoint_id: endpoint,
-                prompt_id: prompt,
+                endpoint_id: lists.endpoint,
+                prompt_id: lists.prompt,
                 skill_ids: selectedSkills,
               }
             : { type: "library", id: library, name: name.trim() || null },
@@ -259,7 +209,7 @@ export function NewBatchForm({
       if (mounted.current)
         onCreated({ workdirId: directory.id, batchId: createdBatch.id });
     } catch (reason) {
-      if (mounted.current) setError(errorMessage(reason));
+      if (mounted.current) lists.setError(errorMessage(reason));
     } finally {
       pending.current = false;
       if (mounted.current) setBusy(false);
@@ -267,58 +217,10 @@ export function NewBatchForm({
   }
 
   const valid =
-    loaded &&
+    lists.loaded &&
     !!path.trim() &&
     (mode === "copy" ? !!source.trim() : acknowledged) &&
-    (library !== "scratch" || (!!name.trim() && !!endpoint && !!prompt));
-  const picker = (
-    label: string,
-    value: string,
-    change: (value: string) => void,
-    options: { value: string; label: string; disabled?: boolean }[],
-    options_?: { count?: number; onManage?: () => void },
-  ) => (
-    <div className="space-y-2">
-      {/* V16：计数头 + 右上角齿轮跳设置——下拉空着的时候，用户看得见「这里有多少
-          可选、去哪里加」。 */}
-      <div className="flex items-center gap-2">
-        <span className="text-t-sm text-muted-foreground">
-          {label}
-          {options_?.count !== undefined ? ` · 共 ${options_.count} 条` : ""}
-        </span>
-        {options_?.onManage !== undefined && (
-          <Tip label={`管理${label}`}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`管理${label}`}
-              className="ml-auto"
-              onClick={options_.onManage}
-            >
-              <SettingsIcon className="size-3.5" />
-            </Button>
-          </Tip>
-        )}
-      </div>
-      <Select value={value} onValueChange={change} disabled={busy || !!batch}>
-        <SelectTrigger aria-label={label}>
-          <SelectValue placeholder="请选择" />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem
-              key={option.value}
-              value={option.value}
-              disabled={option.disabled}
-            >
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
+    (library !== "scratch" || (!!name.trim() && !!lists.endpoint && !!lists.prompt));
 
   return (
     <section aria-label="新建跑批" className="h-full overflow-auto px-6 py-4">
@@ -361,197 +263,42 @@ export function NewBatchForm({
           </Button>
           <h1 className="text-t-2xl font-semibold">新建跑批</h1>
         </div>
-        <fieldset disabled={busy || !!workdir} className="space-y-4">
-          <legend className="mb-3 text-t-sm text-muted-foreground">素材来源</legend>
-          {/* V16：来源两张卡带副说明——「复制 / 就地」各自意味着什么，选择前读得到。 */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label
-              className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${mode === "copy" ? "border-primary/50 bg-primary/5" : "border-border bg-card"}`}
-            >
-              <input
-                type="radio"
-                name={`${id}-mode`}
-                className="mt-1"
-                checked={mode === "copy"}
-                onChange={() => setMode("copy")}
-              />
-              <span>
-                <span className="block text-t-md font-medium">复制导入</span>
-                <span className="mt-1 block text-t-xs text-muted-foreground">
-                  把素材复制进独立的工作目录，源目录保持原样（推荐——试标、重跑互不干扰）。
-                </span>
-              </span>
-            </label>
-            <label
-              className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${mode === "inplace" ? "border-primary/50 bg-primary/5" : "border-border bg-card"}`}
-            >
-              <input
-                type="radio"
-                name={`${id}-mode`}
-                className="mt-1"
-                checked={mode === "inplace"}
-                onChange={() => setMode("inplace")}
-              />
-              <span>
-                <span className="block text-t-md font-medium">就地采用</span>
-                <span className="mt-1 block text-t-xs text-muted-foreground">
-                  直接把素材目录登记为工作目录——.dsf 与产物 txt 会写进这个目录。
-                </span>
-              </span>
-            </label>
-          </div>
-          {mode === "copy" && (
-            <div className="space-y-2">
-              <label htmlFor={`${id}-source`}>来源目录</label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id={`${id}-source`}
-                  value={source}
-                  onChange={(event) => setSource(event.currentTarget.value)}
-                />
-                <Tip label="选择来源目录">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-lg"
-                    aria-label="选择来源目录"
-                    onClick={() => setDirectoryField("source")}
-                  >
-                    <FolderIcon />
-                  </Button>
-                </Tip>
-              </div>
-            </div>
-          )}
-          <div className="space-y-2">
-            <label htmlFor={`${id}-path`}>工作目录</label>
-            <div className="flex items-center gap-2">
-              <Input
-                id={`${id}-path`}
-                value={path}
-                onChange={(event) => setPath(event.currentTarget.value)}
-              />
-              <Tip label="选择工作目录">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-lg"
-                  aria-label="选择工作目录"
-                  onClick={() => setDirectoryField("path")}
-                >
-                  <FolderIcon />
-                </Button>
-              </Tip>
-            </div>
-          </div>
-          {mode === "inplace" && (
-            <label className="flex items-start gap-2 rounded-md border border-warn-bd bg-warn-bg p-3 text-t-sm text-warn-ink">
-              <input
-                type="checkbox"
-                className="cb mt-1"
-                checked={acknowledged}
-                onChange={(event) => setAcknowledged(event.currentTarget.checked)}
-              />
-              确认就地采用：工具将写入 .dsf 与产物 txt，删除工作目录会连素材一起删除。
-            </label>
-          )}
-        </fieldset>
-        {picker(
-          "策略来源",
-          library,
-          (value) => {
+        <BatchSourceFields
+          id={id}
+          mode={mode}
+          source={source}
+          path={path}
+          acknowledged={acknowledged}
+          disabled={busy || !!workdir}
+          onModeChange={setMode}
+          onSourceChange={setSource}
+          onPathChange={setPath}
+          onAcknowledgeChange={setAcknowledged}
+          onPickDirectory={setDirectoryField}
+        />
+        <BatchStrategyFields
+          id={id}
+          library={library}
+          name={name}
+          endpoint={lists.endpoint}
+          prompt={lists.prompt}
+          selectedSkills={selectedSkills}
+          strategies={lists.strategies}
+          endpoints={lists.endpoints}
+          prompts={lists.prompts}
+          skills={lists.skills}
+          busy={busy}
+          batchLocked={!!batch}
+          onLibraryChange={(value) => {
             setLibrary(value);
-            setName(strategies.find((entry) => entry.id === value)?.name ?? "");
-          },
-          [
-            { value: "scratch", label: "从零配置" },
-            ...strategies.map((entry) => ({
-              value: entry.id,
-              label: `${entry.name}${entry.available ? "" : " · 引用缺失"}`,
-              disabled: !entry.available,
-            })),
-          ],
-          { count: strategies.length },
-        )}
-        <div className="space-y-2">
-          <label htmlFor={`${id}-name`}>策略名</label>
-          <Input
-            id={`${id}-name`}
-            value={name}
-            disabled={busy || !!batch}
-            onChange={(event) => setName(event.currentTarget.value)}
-          />
-        </div>
-        {library === "scratch" && (
-          <>
-            {picker(
-              "端点配置",
-              endpoint,
-              setEndpoint,
-              endpoints.map((entry) => ({
-                value: entry.id,
-                label: `${entry.name} · ${entry.model}`,
-              })),
-              {
-                count: endpoints.length,
-                onManage: onNavigateToSettings,
-              },
-            )}
-            {picker(
-              "基础提示词",
-              prompt,
-              setPrompt,
-              prompts.map((entry) => ({
-                value: entry.id,
-                label: `${entry.name} · ${entry.description}`,
-              })),
-              { count: prompts.length, onManage: onNavigateToSettings },
-            )}
-            <fieldset disabled={busy || !!batch} className="space-y-2">
-              <div className="flex items-center gap-2">
-                <legend className="text-t-sm text-muted-foreground">
-                  Skill · 共 {skills.length} 条
-                </legend>
-                {onNavigateToSettings !== undefined && (
-                  <Tip label="管理 Skill">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label="管理 Skill"
-                      className="ml-auto"
-                      onClick={onNavigateToSettings}
-                    >
-                      <SettingsIcon className="size-3.5" />
-                    </Button>
-                  </Tip>
-                )}
-              </div>
-              {skills.map((skill) => (
-                <label key={skill.name} className="flex items-center gap-2 text-t-sm">
-                  <input
-                    type="checkbox"
-                    className="cb"
-                    disabled={!skill.enabled}
-                    checked={selectedSkills.includes(skill.id)}
-                    onChange={(event) => {
-                      const checked = event.currentTarget.checked;
-                      setSelectedSkills((previous) =>
-                        checked
-                          ? [...previous, skill.name]
-                          : previous.filter((name) => name !== skill.name),
-                      );
-                    }}
-                  />
-                  {skill.name}
-                  {!skill.enabled && (
-                    <span className="text-t-xs text-text-4">（已停用）</span>
-                  )}
-                </label>
-              ))}
-            </fieldset>
-          </>
-        )}
+            setName(lists.strategies.find((entry) => entry.id === value)?.name ?? "");
+          }}
+          onNameChange={setName}
+          onEndpointChange={lists.setEndpoint}
+          onPromptChange={lists.setPrompt}
+          onSelectedSkillsChange={setSelectedSkills}
+          onNavigateToSettings={onNavigateToSettings}
+        />
         {scan !== null && (
           // V16 扫描摘要行（原型 :713-716）：登记完成后、发车之前，先告诉用户
           // 这一跑会吃多少、收哪些、不收哪些、为什么。
@@ -565,8 +312,8 @@ export function NewBatchForm({
             </span>
           </div>
         )}
-        {error && !unimported && (
-          <FormError className="text-bad-ink">{error}</FormError>
+        {lists.error && !unimported && (
+          <FormError className="text-bad-ink">{lists.error}</FormError>
         )}
         {progress && (
           <p role="status" className="text-t-sm text-muted-foreground">
@@ -604,7 +351,9 @@ export function NewBatchForm({
               </li>
             ))}
           </ul>
-          {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
+          {lists.error && (
+            <FormError className="text-t-sm text-bad-ink">{lists.error}</FormError>
+          )}
         </DialogShell>
         {!unimported && (
           <div className="space-y-3 border-t border-border pt-4">
