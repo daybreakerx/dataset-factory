@@ -1,20 +1,9 @@
-import { ChevronDownIcon, CopyIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { type ReactElement, useEffect, useRef, useState } from "react";
-import {
-  api,
-  type EndpointConfigSummary,
-  type PromptInfo,
-  type SkillInfo,
-} from "../../../api";
-import type { components } from "../../../api-types.gen";
+import type { EndpointConfigSummary, PromptInfo, SkillInfo } from "../../../api";
+import { api } from "../../../api";
 import { DialogShell } from "../../../components/dialog-shell";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -22,60 +11,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../components/ui/select";
-import {
-  Tip,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "../../../components/ui/tooltip";
+import { Tip } from "../../../components/ui/tooltip";
 import { reportError } from "../../../lib/feedback";
-import { formatChars } from "../../../lib/format";
 import {
   isStrategySelection,
   readStoredJson,
   WORKBENCH_STRATEGY_KEY,
   writeStoredJson,
 } from "../../../lib/ui-storage";
+import { StrategyMenu } from "./strategy-menu";
+import { type Strategy, useStrategies } from "./use-strategies";
 
-type Strategy = components["schemas"]["StrategyView"];
 type References = Pick<Strategy, "endpoint_id" | "prompt_id" | "skill_ids">;
-
-/** 悬停气泡里的出身三参数（components/data.md 键值行：键用弱字、值用次字，键列全站统一 84px）。
-
-    策略存的是各资产的稳定 ID：展示前按传入的资产列表反查显示名；反查不到
-    （资产已删除）时显示 ID 原样——缺失本身由 available / missing_refs 表达。
-    */
-function StrategyRefs({
-  entry,
-  prompts,
-  skills,
-  endpoints,
-}: {
-  entry: Strategy;
-  prompts: PromptInfo[];
-  skills: SkillInfo[];
-  endpoints: EndpointConfigSummary[];
-}): ReactElement {
-  const endpointName =
-    endpoints.find((item) => item.id === entry.endpoint_id)?.name ?? entry.endpoint_id;
-  const promptName =
-    prompts.find((item) => item.id === entry.prompt_id)?.name ?? entry.prompt_id;
-  const skillNames = entry.skill_ids.map(
-    (sid) => skills.find((item) => item.id === sid)?.name ?? sid,
-  );
-  return (
-    <span className="grid grid-cols-[84px_minmax(0,1fr)] gap-x-2 gap-y-1 text-left">
-      <span className="text-text-4">端点</span>
-      <span className="min-w-0 wrap-anywhere text-text-2">{endpointName}</span>
-      <span className="text-text-4">提示词</span>
-      <span className="min-w-0 wrap-anywhere text-text-2">{promptName}</span>
-      <span className="text-text-4">Skill</span>
-      <span className="min-w-0 wrap-anywhere text-text-2">
-        {skillNames.length === 0 ? "无" : skillNames.join("、")}
-      </span>
-    </span>
-  );
-}
 
 export function StrategyToolbar({
   references,
@@ -98,16 +45,13 @@ export function StrategyToolbar({
   /** 新策略落库成功后回调：工作域把当前草稿会话改挂到新策略 id（会话归属 v3）。 */
   onStrategySaved: (strategy: Strategy) => void;
 }): ReactElement {
-  const [entries, setEntries] = useState<Strategy[]>([]);
+  const [open, setOpen] = useState(false);
+  const { entries, loading, error, setEntries, setError, fetchList } =
+    useStrategies(open);
   const [selected, setSelected] = useState<Strategy | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [open, setOpen] = useState(false);
-  // L9：锁定状态下点了非当前项 → 在列表内给出原因（不弹全局 toast，就地可见）。
-  const [switchNotice, setSwitchNotice] = useState<string | null>(null);
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [remove, setRemove] = useState<Strategy | null>(null);
   const [repair, setRepair] = useState<Strategy | null>(null);
   const [bindings, setBindings] = useState<References>({
@@ -129,37 +73,6 @@ export function StrategyToolbar({
       mounted.current = false;
     };
   }, []);
-
-  // 策略库列表：挂载即拉（启动恢复 v2——boot 要恢复「我在哪个策略里」，不能等首次
-  // 打开下拉），此后每次打开下拉重拉一份；关闭后跳过（保留当前清单），取消链随
-  // 依赖变化级联（旧响应迟到不覆盖新清单，见 StrictMode 用例）。
-  const firstLoad = useRef(true);
-  useEffect(() => {
-    if (!open && !firstLoad.current) return;
-    firstLoad.current = false;
-    let cancelled = false;
-    setLoading(true);
-    void api
-      .listStrategies()
-      .then((list) => {
-        if (!cancelled) {
-          setEntries(list);
-          setError("");
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setEntries([]);
-          setError(reportError(err) ?? "");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
 
   // 策略选中镜像落盘：id + 名称/描述缓冲 + 签名四元组（会话域对账与重启恢复都认它）。
   // 新建态（无选中）落 null——新建草稿缓冲不跨重启；门闩未开不写，防止挂载首帧
@@ -325,154 +238,42 @@ export function StrategyToolbar({
             }}
             className="min-w-24 max-w-full field-sizing-content rounded-md border border-transparent bg-transparent py-1 pr-7 pl-2 text-t-2xl font-semibold hover:border-border hover:bg-card focus:border-input"
           />
-          <DropdownMenu open={open} onOpenChange={setOpen}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                {/* L9（2026-09-21 审计 / 原型 :1084-1093）：未保存时列表照常打开、
-                    选中非当前项时才提示——「点不动但看不见有什么」改成「点得动但会告诉你」。 */}
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 size-6"
-                    aria-label="切换策略"
-                  >
-                    <ChevronDownIcon />
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>切换策略</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent
-              align="start"
-              className="w-96 max-w-[calc(100vw-32px)] p-1"
-            >
-              {switchNotice !== null && (
-                <p
-                  role="status"
-                  className="rounded-md bg-warn-bg px-2 py-1.5 text-t-xs text-warn-ink"
-                >
-                  {switchNotice}
-                </p>
-              )}
-              <div className="flex items-center justify-between px-2 py-1 text-t-xs text-text-4">
-                <span>策略库 · 共 {entries.length} 条</span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="新建策略"
-                      disabled={busy || loading || locked}
-                      onClick={() => {
-                        selectionTouched.current = true;
-                        selectionResolved.current = true;
-                        setSelected(null);
-                        setName("");
-                        setDescription("");
-                        setOpen(false);
-                        // 新建 = 离开当前配置（换底座）：会话清空，与切策略同语义。
-                        onNewStrategy();
-                      }}
-                    >
-                      <PlusIcon />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>新建策略</TooltipContent>
-                </Tooltip>
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                {entries.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className={`group flex items-center gap-1 rounded-md p-2 ${selected?.id === entry.id ? "bg-primary/10" : "hover:bg-accent"}`}
-                  >
-                    <Tip
-                      label={
-                        <StrategyRefs
-                          entry={entry}
-                          prompts={prompts}
-                          skills={skills}
-                          endpoints={endpoints}
-                        />
-                      }
-                    >
-                      <span className="min-w-0 flex-1">
-                        <button
-                          type="button"
-                          disabled={busy || loading}
-                          className={`w-full min-w-0 text-left ${entry.available ? "text-text-2" : "text-text-4"}`}
-                          onClick={() => {
-                            if (switchLocked && selected?.id !== entry.id) {
-                              // L9：锁着的时候点了要说清为什么（原型 :1093 文案）。
-                              setSwitchNotice(
-                                "当前有未保存的改动——先点「保存」，才能切换策略。",
-                              );
-                              return;
-                            }
-                            setSwitchNotice(null);
-                            void choose(entry);
-                          }}
-                        >
-                          <span className="flex items-baseline gap-2">
-                            <span className="block min-w-0 truncate text-t-md font-medium">
-                              {entry.name}
-                            </span>
-                            <span className="shrink-0 text-t-xs text-n-500">
-                              {formatChars(entry.body_chars)}
-                            </span>
-                          </span>
-                          <span className="block truncate text-t-xs text-n-500">
-                            {entry.description}
-                          </span>
-                          {!entry.available && (
-                            <span className="text-t-xs text-bad-ink">引用缺失</span>
-                          )}
-                        </button>
-                      </span>
-                    </Tip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`复制策略 ${entry.name}`}
-                          disabled={busy || loading}
-                          onClick={() =>
-                            void operate(async () => {
-                              const copy = await api.copyStrategy(entry.id);
-                              if (mounted.current) remember(copy);
-                            })
-                          }
-                        >
-                          <CopyIcon />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>复制</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-bad-ink"
-                          aria-label={`删除策略 ${entry.name}`}
-                          disabled={busy || loading}
-                          onClick={() => {
-                            setRemove(entry);
-                            setOpen(false);
-                          }}
-                        >
-                          <Trash2Icon />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>删除</TooltipContent>
-                    </Tooltip>
-                  </div>
-                ))}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <StrategyMenu
+            open={open}
+            onOpenChange={setOpen}
+            entries={entries}
+            selected={selected}
+            busy={busy}
+            loading={loading}
+            locked={locked}
+            switchLocked={switchLocked}
+            prompts={prompts}
+            skills={skills}
+            endpoints={endpoints}
+            onNew={() => {
+              selectionTouched.current = true;
+              selectionResolved.current = true;
+              setSelected(null);
+              setName("");
+              setDescription("");
+              setOpen(false);
+              // 新建 = 离开当前配置（换底座）：会话清空，与切策略同语义。
+              onNewStrategy();
+            }}
+            onChoose={(entry) => {
+              void choose(entry);
+            }}
+            onCopy={(entry) =>
+              void operate(async () => {
+                const copy = await api.copyStrategy(entry.id);
+                if (mounted.current) remember(copy);
+              })
+            }
+            onRemove={(entry) => {
+              setRemove(entry);
+              setOpen(false);
+            }}
+          />
         </div>
         <input
           aria-label="策略描述"
@@ -513,7 +314,7 @@ export function StrategyToolbar({
             size="sm"
             onClick={() =>
               void operate(async () => {
-                const list = await api.listStrategies();
+                const list = await fetchList();
                 if (mounted.current) setEntries(list);
               })
             }
