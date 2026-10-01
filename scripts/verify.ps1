@@ -40,11 +40,24 @@ foreach ($raw in Get-Content $Manifest -Encoding UTF8) {
     $dir = if ($group -eq 'repo') { $Repo } else { Join-Path $Repo $group }
     Write-Host "`n=== [$group] $label ===" -ForegroundColor Cyan
     $step = [System.Diagnostics.Stopwatch]::StartNew()
+    # 清单命令允许 bash 风格的环境变量前缀（如 BASELINE_TIER=render npx ...）：
+    # cmd 不认这种写法，这里翻译成 $env: 再执行、跑完恢复，两套 runner 读同一份清单。
+    $envBackup = @{}
+    while ($cmd -match '^([A-Za-z_][A-Za-z0-9_]*)=([^ ]*)\s+(.+)$') {
+        $envBackup[$Matches[1]] = [Environment]::GetEnvironmentVariable($Matches[1])
+        Set-Item -Path "env:$($Matches[1])" -Value $Matches[2]
+        $cmd = $Matches[3]
+    }
     Push-Location $dir
     try {
         & cmd.exe /d /c $cmd
         $code = $LASTEXITCODE
     } finally {
+        foreach ($name in $envBackup.Keys) {
+            $old = $envBackup[$name]
+            if ($null -eq $old) { Remove-Item -Path "env:$name" -ErrorAction SilentlyContinue }
+            else { Set-Item -Path "env:$name" -Value $old }
+        }
         Pop-Location
     }
     $step.Stop()
