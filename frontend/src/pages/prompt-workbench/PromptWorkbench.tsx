@@ -1,5 +1,4 @@
 /** 策略工作台：组合库、提示词编辑与对话调试。 */
-import { PlusIcon, XIcon } from "lucide-react";
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -10,23 +9,7 @@ import {
   useState,
 } from "react";
 import { api } from "../../api";
-import type { MediaPreviewTarget } from "../../components/media-lightbox";
-import { MediaLightbox } from "../../components/media-lightbox";
-import { Alert, AlertDescription } from "../../components/ui/alert";
-import { Button } from "../../components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "../../components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "../../components/ui/tooltip";
+import { TooltipProvider } from "../../components/ui/tooltip";
 import { usePersistedState } from "../../hooks/use-persisted-state";
 import type { Feedback } from "../../lib/feedback";
 import { reportError } from "../../lib/feedback";
@@ -37,11 +20,9 @@ import {
   type WorkbenchEditorMirror,
 } from "../../lib/ui-storage";
 import { useChatSession } from "../../session/chat-session";
-import { MessageList } from "./chat/MessageList";
+import { ChatColumn } from "./chat/ChatColumn";
 import { EditorColumn } from "./editor/EditorColumn";
-import { InputArea } from "./editor/InputArea";
 import { useWorkbenchLists } from "./hooks/use-workbench-lists";
-import { EndpointSwitcher } from "./strategy/EndpointSwitcher";
 import { StrategyToolbar } from "./strategy/StrategyToolbar";
 
 export function PromptWorkbench({
@@ -69,8 +50,6 @@ export function PromptWorkbench({
   const [promptBusy, setPromptBusy] = useState(false);
   const [strategyBusy, setStrategyBusy] = useState(false);
   const [endpointBusy, setEndpointBusy] = useState(false);
-  // 媒体大图预览：消息流缩略图与待发附件卡的共同出口。
-  const [preview, setPreview] = useState<MediaPreviewTarget | null>(null);
 
   // ---------- 对话列（状态与逻辑住在 App 级会话域：切页卸载本组件不打断流式生成） ----------
   const {
@@ -548,138 +527,42 @@ export function PromptWorkbench({
             onDeleteConfirm={() => void deleteSelected()}
           />
 
-          <section
-            className="flex min-h-80 min-w-0 flex-col border-t border-border px-6 py-4 lg:min-h-0 lg:border-t-0 lg:border-l"
-            aria-label="调试对话列"
-          >
-            <div className="flex min-w-0 items-center gap-3 pb-3">
-              <h2 className="shrink-0 text-t-xl font-semibold">对话</h2>
-              <EndpointSwitcher
-                endpoints={endpoints}
-                disabled={endpointBusy || strategyBusy || promptBusy}
-                onActivate={(cid) => void activateEndpoint(cid)}
-                onManage={onNavigateToSettings}
-              />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="清空当前会话"
-                    className="ml-auto"
-                    onClick={() => {
-                      interactionRef.current += 1;
-                      newSession();
-                    }}
-                  >
-                    <PlusIcon />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>清空当前会话（旧会话仍保存在磁盘上）</TooltipContent>
-              </Tooltip>
-            </div>
-
-            {/* 消息流 */}
-            <MessageList
-              messages={messages}
-              streaming={streaming}
-              waitSeconds={waitSeconds}
-              copiedId={copiedId}
-              onCopy={copyCaption}
-              onPreview={setPreview}
-            />
-
-            {chatError !== "" && (
-              <Alert variant="destructive" className="mt-3">
-                <AlertDescription>{chatError}</AlertDescription>
-              </Alert>
-            )}
-
-            {/* 输入区 */}
-            <InputArea
-              actions={
-                <DropdownMenu>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label="添加 Skill">
-                          <PlusIcon />
-                        </Button>
-                      </DropdownMenuTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent>添加 Skill</TooltipContent>
-                  </Tooltip>
-                  <DropdownMenuContent
-                    side="top"
-                    align="start"
-                    className="max-h-60 w-64 overflow-y-auto"
-                  >
-                    <DropdownMenuLabel>
-                      Skill 库 · 共 {skills.length} 条
-                    </DropdownMenuLabel>
-                    {skills.map((skill) => (
-                      <DropdownMenuCheckboxItem
-                        key={skill.id}
-                        checked={skillIds.includes(skill.id)}
-                        disabled={!skill.enabled || controlsBusy}
-                        onSelect={(event) => {
-                          event.preventDefault();
-                          handleToggleSkill(skill.id);
-                        }}
-                      >
-                        <span className="truncate">
-                          {skill.name}
-                          {skill.enabled ? "" : "（已停用）"}
-                        </span>
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              }
-              selectedSkills={
-                <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
-                  {skillIds.map((sid) => {
-                    const label = skills.find((entry) => entry.id === sid)?.name ?? sid;
-                    return (
-                      <span
-                        key={sid}
-                        className="inline-flex h-(--h-xs) shrink-0 items-center gap-1 rounded-full border border-border px-2 text-t-sm"
-                      >
-                        {label}
-                        <button
-                          type="button"
-                          aria-label={`移除 Skill ${label}`}
-                          onClick={() => handleToggleSkill(sid)}
-                        >
-                          <XIcon className="size-3.5" />
-                        </button>
-                      </span>
-                    );
-                  })}
-                </div>
-              }
-              instruction={instruction}
-              onInstructionChange={(value) => {
-                interactionRef.current += 1;
-                setInstruction(value);
-              }}
-              onInstructionKeyDown={onInstructionKeyDown}
-              media={media}
-              onPickMedia={handlePickMedia}
-              onMediaFpsChange={setMediaFps}
-              onMediaMaxFramesChange={setMediaMaxFrames}
-              onClearMedia={clearMedia}
-              canSend={canSend}
-              sending={sending}
-              onSend={handleSend}
-              onStop={stopGeneration}
-              onPreview={setPreview}
-            />
-          </section>
+          <ChatColumn
+            endpoints={endpoints}
+            skills={skills}
+            skillIds={skillIds}
+            disabled={endpointBusy || strategyBusy || promptBusy}
+            controlsBusy={controlsBusy}
+            canSend={canSend}
+            messages={messages}
+            streaming={streaming}
+            waitSeconds={waitSeconds}
+            copiedId={copiedId}
+            chatError={chatError}
+            instruction={instruction}
+            media={media}
+            sending={sending}
+            onActivateEndpoint={(cid) => void activateEndpoint(cid)}
+            onManageEndpoints={onNavigateToSettings}
+            onNewSession={() => {
+              interactionRef.current += 1;
+              newSession();
+            }}
+            onCopy={copyCaption}
+            onToggleSkill={handleToggleSkill}
+            onInstructionChange={(value) => {
+              interactionRef.current += 1;
+              setInstruction(value);
+            }}
+            onInstructionKeyDown={onInstructionKeyDown}
+            onPickMedia={handlePickMedia}
+            onMediaFpsChange={setMediaFps}
+            onMediaMaxFramesChange={setMediaMaxFrames}
+            onClearMedia={clearMedia}
+            onSend={handleSend}
+            onStop={stopGeneration}
+          />
         </fieldset>
-
-        <MediaLightbox target={preview} onClose={() => setPreview(null)} />
       </div>
     </TooltipProvider>
   );
