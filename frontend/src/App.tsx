@@ -1,27 +1,11 @@
-import type { LucideIcon } from "lucide-react";
-import {
-  ActivityIcon,
-  ArrowLeftIcon,
-  FileTextIcon,
-  FolderInputIcon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
-  SettingsIcon,
-  TagsIcon,
-} from "lucide-react";
+import { PanelLeftOpenIcon } from "lucide-react";
 import type { ReactElement } from "react";
-import { Activity, lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { api } from "./api";
-import { ShutdownButton } from "./components/shutdown-button";
-import { ThemeToggle } from "./components/theme-toggle";
+import { useState } from "react";
+import { PageViewport } from "./app-shell/page-viewport";
+import { Sidebar } from "./app-shell/sidebar";
 import { Dialog, DialogContent, DialogTitle } from "./components/ui/dialog";
 import { ToastViewport } from "./components/ui/toast";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./components/ui/tooltip";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { usePersistedState } from "./hooks/use-persisted-state";
 import { useTheme } from "./hooks/use-theme";
 import {
@@ -32,147 +16,21 @@ import {
   SHELL_SIDEBAR_COLLAPSED_KEY,
   type ShellPage,
 } from "./lib/ui-storage";
-import { cn } from "./lib/utils";
-import logo from "./logo-speed-d.png";
-import { PromptWorkbench } from "./pages/prompt-workbench/PromptWorkbench";
 import { ChatSessionProvider } from "./session/chat-session";
-
-/**
- * 打标页与设置容器切成分包、进页面时才载（G4「减少无谓开销」）。
- *
- * 为什么这样切：应用永远从工作台起画（`useState<PageKey>("prompts")`），工作台是首屏，
- * 保持静态导入不动；另两页的代码（含它们独用的 radix 弹层与大量业务组件）在首屏那一帧
- * 是纯浪费的下载与解析。加载在本地服务下是一帧内的事。
- */
-const LabelingPage = lazy(() =>
-  import("./pages/labeling/LabelingPage").then((m) => ({ default: m.LabelingPage })),
-);
-const SettingsPage = lazy(() =>
-  import("./pages/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })),
-);
-
-/** 顶级页面：一期两项（提示词工作台 / 设置容器）；后续期页面届时挂主导航长入。 */
-type PageKey = ShellPage;
 
 /** 设置节恢复守卫：localStorage 里的 JSON 不可信，畸形值回退默认节。 */
 function isSettingsSection(value: unknown): value is SettingsSection {
   return value === "endpoints" || value === "skills" || value === "service";
 }
 
-interface NavItem {
-  key: PageKey;
-  label: string;
-  icon: LucideIcon;
-}
-
-interface NavGroup {
-  title: string;
-  items: NavItem[];
-}
-
-const NAV_GROUPS: readonly NavGroup[] = [
-  {
-    title: "工作区",
-    items: [{ key: "prompts", label: "策略", icon: FileTextIcon }],
-  },
-  { title: "流水线", items: [{ key: "labeling", label: "打标", icon: TagsIcon }] },
-];
-
-/** 产品版本号（侧栏脚注）；与 package.json / 后端 app version 同步维护。 */
-const APP_VERSION = "v0.1.0";
+/** 顶级页面：一期两项（提示词工作台 / 设置容器）；后续期页面届时挂主导航长入。 */
+type PageKey = ShellPage;
 
 /**
- * 常驻探测间隔。
- *
- * 为什么要常驻：服务被脚本直接杀掉时页面收不到任何事件，只有主动探测才会把点转红。
- * 间隔取 30 秒——够快（配合「任一请求连不上就立刻重查」，用户实际操作时当场就红），也够慢
- * （视觉与请求基线每屏取数不到 30 秒，不会往基线里掺进不定数的探测请求）。
+ * 应用外壳：持有壳级状态（上次页面 / 侧栏折叠 / 设置节 / 主题）并编排布局——
+ * 导航侧栏、页面切换＋保活与服务状态探测的实体件在 app-shell/（批15 立层）。
+ * 侧栏状态经 props 下传：桌面常驻与窄屏抽屉是侧栏的两处实例，必须共享同一份状态。
  */
-const SERVICE_PROBE_MS = 30_000;
-/** UI 上的关闭是优雅停机（等手头请求做完才退），确认期每秒探一次、探到不通就定在红点。 */
-const STOPPING_PROBE_MS = 1_000;
-const STOPPING_TRIES = 60;
-
-/**
- * 侧栏脚注的服务状态点（components/shell.md「状态点 + 版本号」组合口径）。
- *
- * 数据 = GET /api/service，不为点编造状态（components/marks.md）。探测时机四处：进页、窗口聚焦、
- * `df:service-changed`（任何一次请求连不上后端时由 `reportError` 广播）、常驻低频轮询。
- * 「正在停止」是点上的第四个状态：UI 关闭被受理但服务还在排空请求，这段时间既不是运行中
- * 也不是不可用，如实标出来（与「关闭前会等正在进行的请求跑完」的弹窗文案同一个事实）。
- */
-function ServiceDot(): ReactElement {
-  const [state, setState] = useState<"probing" | "ok" | "stopping" | "bad">("probing");
-  const refresh = useCallback(() => {
-    void api.getService().then(
-      () => setState("ok"),
-      () => setState("bad"),
-    );
-  }, []);
-  useEffect(() => {
-    refresh();
-    const onWake = (): void => refresh();
-    const onStopping = (): void => setState("stopping");
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") refresh();
-    }, SERVICE_PROBE_MS);
-    window.addEventListener("focus", onWake);
-    window.addEventListener("df:service-changed", onWake);
-    window.addEventListener("df:service-stopping", onStopping);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", onWake);
-      window.removeEventListener("df:service-changed", onWake);
-      window.removeEventListener("df:service-stopping", onStopping);
-    };
-  }, [refresh]);
-  const stopping = state === "stopping";
-  useEffect(() => {
-    if (!stopping) {
-      return;
-    }
-    let tries = 0;
-    const timer = window.setInterval(() => {
-      tries += 1;
-      void api.getService().then(
-        () => {
-          // 排空得比确认期慢（例如正在跑一轮长生成）：不谎报，退回常驻节奏继续探测。
-          if (tries >= STOPPING_TRIES) setState("ok");
-        },
-        () => setState("bad"),
-      );
-    }, STOPPING_PROBE_MS);
-    return () => window.clearInterval(timer);
-  }, [stopping]);
-  const label =
-    state === "ok"
-      ? "服务运行中"
-      : state === "bad"
-        ? "服务不可用"
-        : state === "stopping"
-          ? "正在停止服务"
-          : "正在检测服务";
-  const cls =
-    state === "ok"
-      ? "bg-ok-dot"
-      : state === "bad"
-        ? "bg-bad-dot"
-        : "bg-info-dot animate-pulse";
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          role="img"
-          aria-label={label}
-          className={`inline-block size-1.5 rounded-full ${cls}`}
-        />
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-/** 可折叠侧栏、全局操作与独立滚动的工作画布。 */
 export function App(): ReactElement {
   const { mode, setMode } = useTheme();
   // 外壳三态跨重启持久化（页面状态保持）：上次页面 / 侧栏折叠 / 设置节——
@@ -193,18 +51,6 @@ export function App(): ReactElement {
     isSettingsSection,
   );
   const [workPage, setWorkPage] = useState<PageKey>("prompts");
-  // 首访挂载（visited）：没进过的页不渲染 Activity——首屏零额外成本；进过的页实例
-  // 隐藏常驻（切页即隐藏不卸载，状态、DOM、滚动位置全保留）。初始集合含恢复出的
-  // 起始页，重启直达「上次停留的页面」时它就是可见页。
-  const [visited, setVisited] = useState<ReadonlySet<PageKey>>(() => new Set([page]));
-  useEffect(() => {
-    setVisited((previous) => {
-      if (previous.has(page)) return previous;
-      const next = new Set(previous);
-      next.add(page);
-      return next;
-    });
-  }, [page]);
 
   function openSettings() {
     if (page !== "settings") setWorkPage(page);
@@ -212,177 +58,27 @@ export function App(): ReactElement {
     setNavigationOpen(false);
   }
 
-  const navigation = (
-    <aside
-      data-testid="sidebar"
-      className={cn(
-        "flex h-full shrink-0 flex-col bg-n-75 text-text-1 transition-[width] duration-150",
-        collapsed && !navigationOpen ? "w-16" : "w-62.5",
-      )}
-    >
-      {page !== "settings" && (
-        <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() =>
-                  navigationOpen
-                    ? setNavigationOpen(false)
-                    : setCollapsed((value) => !value)
-                }
-                className="group flex size-8 shrink-0 items-center justify-center rounded-md bg-black hover:bg-nav-hover"
-                aria-label={collapsed ? "展开侧栏" : "收起侧栏"}
-              >
-                <img
-                  src={logo}
-                  alt=""
-                  className="size-[27px] object-contain group-hover:hidden"
-                />
-                {collapsed ? (
-                  <PanelLeftOpenIcon className="hidden size-4 group-hover:block" />
-                ) : (
-                  <PanelLeftCloseIcon className="hidden size-4 group-hover:block" />
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{collapsed ? "展开侧栏" : "收起侧栏"}</TooltipContent>
-          </Tooltip>
-          {!collapsed && (
-            <span className="min-w-0">
-              <span className="block truncate font-medium">Dataset Factory</span>
-              <span className="block truncate text-t-sm text-text-3">
-                打标流水线工具
-              </span>
-            </span>
-          )}
-        </div>
-      )}
-
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-1">
-        {page === "settings" ? (
-          <>
-            <button
-              type="button"
-              aria-label="返回工作区"
-              onClick={() => {
-                setPage(workPage);
-                setNavigationOpen(false);
-              }}
-              className="mt-2 flex h-(--h-md) w-full items-center gap-3 rounded-md px-3 text-text-3 hover:bg-nav-hover"
-            >
-              <ArrowLeftIcon className="size-4 shrink-0" />
-              {!collapsed && "返回工作区"}
-            </button>
-            {!collapsed && (
-              <p className="px-2 pt-4 pb-1 text-t-sm font-medium text-text-3">设置</p>
-            )}
-            {(
-              [
-                { key: "endpoints", label: "端点配置", icon: SettingsIcon },
-                { key: "skills", label: "技能", icon: FolderInputIcon },
-                { key: "service", label: "服务运行", icon: ActivityIcon },
-              ] as const
-            ).map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                aria-label={item.label}
-                aria-current={settingsSection === item.key ? "page" : undefined}
-                onClick={() => {
-                  setSettingsSection(item.key);
-                  setNavigationOpen(false);
-                }}
-                className={cn(
-                  "flex h-(--h-md) w-full items-center gap-3 rounded-md px-3 text-text-3 hover:bg-nav-hover",
-                  collapsed && "justify-center px-0",
-                  settingsSection === item.key &&
-                    "bg-nav-active font-medium text-text-1",
-                )}
-              >
-                <item.icon className="size-4 shrink-0" />
-                {!collapsed && item.label}
-              </button>
-            ))}
-          </>
-        ) : (
-          NAV_GROUPS.map((group) => (
-            <div key={group.title}>
-              {!collapsed && (
-                <p className="px-2 pt-4 pb-1 text-t-sm font-medium text-text-3">
-                  {group.title}
-                </p>
-              )}
-              {collapsed && <div className="mx-1 my-3 h-px bg-border" />}
-              <ul className="space-y-0.5">
-                {group.items.map((item) => {
-                  const active = page === item.key;
-                  return (
-                    <li key={item.key}>
-                      <button
-                        type="button"
-                        aria-label={item.label}
-                        aria-current={active ? "page" : undefined}
-                        onClick={() => {
-                          setPage(item.key);
-                          setNavigationOpen(false);
-                        }}
-                        className={cn(
-                          "flex h-(--h-md) w-full items-center gap-3 rounded-md px-3 transition-colors",
-                          collapsed && "justify-center px-0",
-                          active
-                            ? "bg-nav-active font-medium text-text-1"
-                            : "text-text-3 hover:bg-nav-hover hover:text-text-1",
-                        )}
-                      >
-                        <item.icon className="size-4 shrink-0" />
-                        {!collapsed && <span className="truncate">{item.label}</span>}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))
-        )}
-      </nav>
-
-      <div
-        className={cn(
-          "flex items-center gap-2 border-t border-border p-3 text-t-xs text-text-4",
-          collapsed ? "flex-col" : "px-4",
-        )}
-      >
-        <ShutdownButton sidebar />
-        <ThemeToggle sidebar mode={mode} onModeChange={setMode} />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label="设置"
-              aria-current={page === "settings" ? "page" : undefined}
-              onClick={openSettings}
-              className="flex size-(--h-md) shrink-0 items-center justify-center rounded-md text-text-3 hover:bg-nav-hover hover:text-text-1"
-            >
-              <SettingsIcon className="size-4" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>设置</TooltipContent>
-        </Tooltip>
-        {!collapsed && (
-          <span className="ml-auto flex items-center gap-1.5">
-            <ServiceDot />
-            <span className="tabular-nums">{APP_VERSION}</span>
-          </span>
-        )}
-      </div>
-    </aside>
-  );
+  const sidebarProps = {
+    page,
+    workPage,
+    collapsed,
+    navigationOpen,
+    settingsSection,
+    mode,
+    setPage,
+    setCollapsed,
+    setNavigationOpen,
+    setSettingsSection,
+    setMode,
+    openSettings,
+  };
 
   return (
     <TooltipProvider>
       <div className="flex h-full min-w-0 flex-col overflow-hidden md:flex-row">
-        <div className="hidden h-full shrink-0 md:block">{navigation}</div>
+        <div className="hidden h-full shrink-0 md:block">
+          <Sidebar {...sidebarProps} />
+        </div>
         <div className="flex shrink-0 items-center gap-3 bg-n-75 px-4 py-2 md:hidden">
           <button
             type="button"
@@ -403,7 +99,7 @@ export function App(): ReactElement {
             className="left-0 top-0 h-dvh w-62.5 max-w-full translate-x-0 translate-y-0 gap-0 rounded-none border-0 p-0"
           >
             <DialogTitle className="sr-only">导航</DialogTitle>
-            {navigation}
+            <Sidebar {...sidebarProps} />
           </DialogContent>
         </Dialog>
         <main className="min-h-0 min-w-0 flex-1">
@@ -412,40 +108,12 @@ export function App(): ReactElement {
               依然保留——会话的生命周期本来就比任何一页长，层级与「哪页在显示」
               解耦，不依赖保活细节。 */}
           <ChatSessionProvider>
-            {/* 三页 Activity 保活：切页 = 隐藏不卸载，状态、DOM、滚动位置
-                全保留；Effect 隐藏自动卸载、切回重建，「挂载即取数」的刷新节奏与
-                卸载重挂时代一致。首访才挂载：没进过的页不占首屏成本。滚动容器放
-                在每页自己的根上——滚动位置属于页面而非外壳，三页互不干扰。 */}
-            {visited.has("prompts") && (
-              <Activity mode={page === "prompts" ? "visible" : "hidden"}>
-                <Suspense fallback={null}>
-                  <div className="h-full overflow-y-auto" data-testid="page-prompts">
-                    <PromptWorkbench onNavigateToSettings={openSettings} />
-                  </div>
-                </Suspense>
-              </Activity>
-            )}
-            {visited.has("settings") && (
-              <Activity mode={page === "settings" ? "visible" : "hidden"}>
-                <Suspense fallback={null}>
-                  <div className="h-full overflow-y-auto" data-testid="page-settings">
-                    <SettingsPage section={settingsSection} />
-                  </div>
-                </Suspense>
-              </Activity>
-            )}
-            {visited.has("labeling") && (
-              <Activity mode={page === "labeling" ? "visible" : "hidden"}>
-                <Suspense fallback={null}>
-                  <div className="h-full overflow-y-auto" data-testid="page-labeling">
-                    <LabelingPage
-                      onNavigateToSettings={openSettings}
-                      onOpenWorkbench={() => setPage("prompts")}
-                    />
-                  </div>
-                </Suspense>
-              </Activity>
-            )}
+            <PageViewport
+              page={page}
+              settingsSection={settingsSection}
+              openSettings={openSettings}
+              onOpenWorkbench={() => setPage("prompts")}
+            />
           </ChatSessionProvider>
         </main>
       </div>

@@ -17,7 +17,7 @@ module.exports = {
     {
       name: "shell-no-deep-page-imports",
       comment:
-        "壳层条：App.tsx（及日后 app-shell/）只许 import 页面入口文件（组件与其导出类型）、壳层自身件、下层公共件；禁 import 页面目录内非入口文件。新增页面入口须同步加入 pathNot 白名单（批15 立 app-shell/ 时复核）。",
+        "壳层条：App.tsx 与 app-shell/ 只许 import 页面入口文件（组件与其导出类型）、壳层自身件、下层公共件；禁 import 页面目录内非入口文件。新增页面入口须同步加入 pathNot 白名单。",
       severity: "error",
       from: {
         path: "^src/(App\\.tsx|app-shell/)",

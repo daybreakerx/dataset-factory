@@ -1,4 +1,4 @@
-﻿{
+{
   "files": {
     "includes": ["src/**", "*.ts", "*.json", "index.html", "!src/api-types.gen.ts"]
   },
@@ -67,7 +67,7 @@
       }
     },
     {
-      "includes": ["src/App.tsx"],
+      "includes": ["src/App.tsx", "src/app-shell/**"],
       "linter": {
         "rules": {
           "style": {
@@ -77,7 +77,7 @@
                 "patterns": [
                   {
                     "group": ["**/pages/*/*/**"],
-                    "message": "壳层条：App.tsx 只许 import 页面入口文件（pages/<页>/<入口>.tsx），禁引页面目录内更深层文件（契约全文见 .dependency-cruiser.cjs）"
+                    "message": "壳层条：App.tsx 与 app-shell/ 只许 import 页面入口文件（pages/<页>/<入口>.tsx），禁引页面目录内更深层文件（契约全文见 .dependency-cruiser.cjs）"
                   }
                 ]
               }
