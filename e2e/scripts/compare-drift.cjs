@@ -1,16 +1,16 @@
-// 漂移比较器（规划档 §4.2 机制第五件）：把当批「全档 dump」（.verify/baseline-dump/）
-// 与批0 全档存档（baseline-archive/full/）逐屏 diff，按两级判读产出批次报告。
+// 漂移比较器：把当批「全档 dump」（.verify/baseline-dump/）
+// 与冻结的全档存档（baseline-archive/full/）逐屏 diff，按两级判读产出批次报告。
 //
-// 用法（批2~15 每批收口跑，批0.6 演练跑 batch-00）：
+// 用法：
 //   前一步（同批）：BASELINE_REPORT=1 npx playwright test tests/visual-baseline.spec.ts
 //   本步：node scripts/compare-drift.cjs --batch 03
 //
-// 判读规则（规划档 §4.4，用于**读**差异——本件不卡门禁，exit 恒 0）：
+// 判读规则（用于**读**差异——本件不卡门禁，exit 恒 0）：
 //   「key 同而列变」或「行整条消失」= 回归（当批查明修正，不攒账）；
 //   「key 变而其余列全同」= 结构性已知差异（可解释即可，如组件拆分/包装层插入）。
 //   列比对 = 去掉首列 key 后的整行文本全等。
 //
-// 报告落 e2e/drift-reports/batch-<NN>.txt（入库）；批17 以报告目录为逐条归因台账。
+// 报告落 e2e/drift-reports/batch-<NN>.txt（入库）；收口复核以报告目录为逐条归因台账。
 
 "use strict";
 
@@ -122,7 +122,7 @@ function main() {
   const lines = [
     `# 批次漂移报告 batch-${args.batch}`,
     `- 生成时间：${new Date().toISOString()}`,
-    `- 口径：全档 dump（.verify/baseline-dump/）vs 批0 全档存档（baseline-archive/full/）`,
+    `- 口径：全档 dump（.verify/baseline-dump/）vs 冻结全档存档（baseline-archive/full/）`,
     `- 判读：key 同列变 / 行消失 = 回归（当批查明）；key 变列同 = 结构性（可解释即可）`,
     "",
   ];
@@ -181,7 +181,7 @@ function main() {
     lines.push("");
   }
   lines.push(`## 汇总：${screenCount} 屏，回归 ${regressionTotal} 条，结构性 ${structuralTotal} 条`);
-  lines.push("- 回归条目当批归因：预期内注明，不可解释的查明修正，不攒到批17。");
+  lines.push("- 回归条目当批归因：预期内注明，不可解释的查明修正，不攒账。");
 
   fs.mkdirSync(REPORTS, { recursive: true });
   const reportPath = path.join(REPORTS, `batch-${args.batch}.txt`);

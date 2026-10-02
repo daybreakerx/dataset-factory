@@ -1,7 +1,7 @@
 /**
  * 页面切换与保活视口（壳层件）：三页 Activity 保活 + 首访懒挂载。
- * 自 App.tsx 收拢（批15 应用壳立层）；保活逻辑（visited）只被本块的 Activity
- * 渲染消费、随块内聚，页面入口经 props 回调与外壳解耦。JSX 与注释逐字随迁。
+ * 保活逻辑（visited）只被本块的 Activity 渲染消费、随块内聚，页面入口经 props
+ * 回调与外壳解耦。
  */
 import type { ReactElement } from "react";
 import { Activity, lazy, Suspense, useEffect, useState } from "react";

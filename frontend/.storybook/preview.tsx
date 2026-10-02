@@ -7,7 +7,7 @@ import "../src/globals.css";
  * ① 应用样式入口 globals.css（Tailwind 4 + tokens，与实现同一份）；
  * ② TooltipProvider（与 App.tsx 外壳同语义：tooltip 是全局可用件，不逐 story 重复包）；
  * ③ fetch stub 装饰器（页面挂载即取数，story 运行时没有 Playwright 路由层，
- *    不打桩则所有取数点落错误态——前端全量重构线 批16.3 数据面）。
+ *    不打桩则所有取数点落错误态）。
  */
 
 /** 桩表形状：键 = `方法 /api/路径`（不含 query），值 = JSON 响应体；null 表示回 404。

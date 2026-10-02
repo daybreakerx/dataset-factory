@@ -1,6 +1,5 @@
 /**
  * 服务状态探测（壳层件）：侧栏脚注的服务状态点及其探测循环。
- * 自 App.tsx 收拢（批15 应用壳立层），逻辑与注释逐字随迁、零行为变化。
  */
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useState } from "react";

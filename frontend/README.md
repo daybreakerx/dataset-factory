@@ -7,7 +7,7 @@
 
 `src/` 按**就近分层**组织（2026-10 前端全量重构定形）：`App.tsx` 为编排薄壳，壳层件住 `app-shell/`（导航侧栏、页面切换＋保活视口、服务状态点）；数据访问按后端路由域拆在 `api/`（`client.ts` 公共件＋各域文件，`index.ts` 聚合门面——调用方一律 `import { api }`，不深引域文件）；会话域状态住 `session/`；跨页复用件住 `components/`（`dialog-shell.tsx` 为弹窗族件）；页面专属区块、弹窗与数据 hooks 住 `pages/<页>/` 子目录（labeling／prompt-workbench／settings 各按链再分）。
 
-结构细则与各域约定（三条共识规则、数据 hooks 约定、弹窗族件约定、Storybook 约定）见外层协作仓 `context/product/frontend-structure.md`；**分层依赖由 `.dependency-cruiser.cjs` 机器强制**（verify 的 depcruise 步与 CI frontend job），`biome.json` 的 `noRestrictedImports` 同向双保险——下层禁引 pages、api 禁引 UI 层、壳层只引页面入口、禁循环依赖。
+**分层依赖由 `.dependency-cruiser.cjs` 机器强制**（verify 的 depcruise 步与 CI frontend job），`biome.json` 的 `noRestrictedImports` 同向双保险——下层禁引 pages、api 禁引 UI 层、壳层只引页面入口、禁循环依赖。
 
 ## 令牌接线
 

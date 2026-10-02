@@ -47,7 +47,7 @@ export default defineConfig({
       // 步骤产出入 artifact，再构建一遍纯属重复。
       // 写法注意：--prefix 必须放在 run **之前**（npm 自己的全局选项）。老写法
       // `npm run build --prefix ../frontend` 在本机 npm 下会被原样传给 build script 或
-      // 静默跑错目录——dist 不更新、测试全绿地跑在旧界面上（批0 仪器验收实锤）。
+      // 静默跑错目录——dist 不更新、测试全绿地跑在旧界面上。
       command: process.env.CI
         ? serve(PORT)
         : `npm run build:frontend && ${serve(PORT)}`,

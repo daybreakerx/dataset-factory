@@ -5,7 +5,7 @@ import type { ApiStubTable } from "../../../.storybook/preview";
 import { SettingsPage } from "./SettingsPage";
 
 /**
- * SettingsPage 的样例 stories（批16.3 页面 stories：对应页面稿 设置页四份）。
+ * SettingsPage 的样例 stories（端点配置与技能两个设置子页、四个状态）。
  * section 经 props 摆拍；各面板挂载即取列表——数据面按桩表回放。
  */
 const meta = {
@@ -60,13 +60,13 @@ const SKILLS_STUBS = {
   ],
 } satisfies ApiStubTable as ApiStubTable;
 
-/** 端点配置（对应页面稿 端点配置/端点配置.html）：列表＋选中行详情（高级参数折叠）。 */
+/** 端点配置：列表＋选中行详情（高级参数折叠）。 */
 export const Endpoints: Story = {
   args: { section: "endpoints" },
   parameters: { apiStubs: ENDPOINTS_STUBS },
 };
 
-/** 端点配置 · 展开态（对应页面稿 端点配置-展开态.html）：play 点触发行展开高级参数。
+/** 端点配置 · 展开态：play 点触发行展开高级参数。
  * play 先等详情列落成（boot 取数异步，触发行在选中详情里），再点、再等展开后的字段。 */
 export const EndpointsAdvExpanded: Story = {
   args: { section: "endpoints" },
@@ -79,15 +79,15 @@ export const EndpointsAdvExpanded: Story = {
   },
 };
 
-/** 技能（对应页面稿 技能/技能.html）：左列表＋右详情。 */
+/** 技能：左列表＋右详情。 */
 export const Skills: Story = {
   args: { section: "skills" },
   parameters: { apiStubs: SKILLS_STUBS },
 };
 
 /**
- * 端点配置 · 窄视口（对应页面稿 设置页/窄屏列表展收.html）：390 宽查看。
- * 稿的两态交互（收起／暂展）实现侧尚未施工（对齐批在案、排本线完工后）——
+ * 端点配置 · 窄视口：390 宽查看。
+ * 窄屏两态交互（收起／暂展）实现侧尚未施工——
  * 本 story 呈现实现现状的响应式形态，收展交互施工后 story 自动跟上。
  */
 export const EndpointsNarrow: Story = {

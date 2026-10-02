@@ -5,7 +5,7 @@ import { ChatSessionProvider } from "../../session/chat-session";
 import { PromptWorkbench } from "./PromptWorkbench";
 
 /**
- * PromptWorkbench 的样例 stories（批16.3 页面 stories：对应页面稿 策略页两态）。
+ * PromptWorkbench 的样例 stories（默认态与对话态）。
  * 数据面：boot 取四表（prompts / skills / endpoints / strategies）＋会话恢复
  * （GET /api/sessions/latest，认领路径）——对话态桩回带消息的快照、默认态回 404 空白起步。
  */
@@ -85,7 +85,7 @@ const BASE_STUBS = {
   ],
 } satisfies ApiStubTable as ApiStubTable;
 
-/** 默认态（对应页面稿 策略页/默认态）：空对话列、新建策略草稿（无会话快照，404 空白起步）。 */
+/** 默认态：空对话列、新建策略草稿（无会话快照，404 空白起步）。 */
 export const Default: Story = {
   parameters: {
     apiStubs: {
@@ -95,7 +95,7 @@ export const Default: Story = {
   },
 };
 
-/** 对话态（对应页面稿 策略页/对话态）：认领路径带回 st1 桶的最近会话，对话列有历史消息。 */
+/** 对话态：认领路径带回 st1 桶的最近会话，对话列有历史消息。 */
 export const WithConversation: Story = {
   parameters: {
     apiStubs: {

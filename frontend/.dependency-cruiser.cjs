@@ -1,16 +1,14 @@
-// 前端分层契约（dependency-cruiser）—— 前端全量重构线 批3「防线契约 v1」。
+// 前端分层契约（dependency-cruiser）。
 //
 // 为什么有它：后端有 import-linter 的分层契约在 CI 强制，前端此前一条结构规则都没有——
-// 「有没有东西在替人盯着结构」的差别（process/协作仓重构.md §4.5）。契约挡「分层被违反」，
-// 挡不住「分层分得对不对」，也抓不到「复制」；分层形态的权威口径在
-// process/前端重构线.md §二（终态目录树），人读规范批17 成文于 context/product/frontend-structure.md。
+// 「有没有东西在替人盯着结构」的差别。契约挡「分层被违反」，
+// 挡不住「分层分得对不对」，也抓不到「复制」。
 //
-// 全局口径（规划档 批3）：
-// - type-only import 不豁免（批17 收紧：批3 曾默认放行留复核口，批17 复核全仓
-//   type-only 越层引用为零〔grep 实证〕，豁免撤销、契约对类型引用同样生效）；
+// 全局口径：
+// - type-only import 不豁免——契约对类型引用同样生效；
 // - *.test.* 测试文件豁免出契约——colocated 测试天然 import 页面内部件，
-//   不豁免则「现有代码零违规」不可达（第十轮审计 J5）；
-// - 每条规则都做过「故意造违规」探针自证（批3.5，git 历史 359 之后一笔可见），防「0 违规」是工具没跑起来的假绿。
+//   不豁免则「现有代码零违规」不可达；
+// - 每条规则都做过「故意造违规」探针自证，防「0 违规」是工具没跑起来的假绿。
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
@@ -97,7 +95,7 @@ module.exports = {
     },
     {
       name: "no-circular",
-      comment: "禁循环依赖（批3 前实测全仓 0 环，可达）。",
+      comment: "禁循环依赖（实测全仓 0 环，可达）。",
       severity: "error",
       from: {
         pathNot: ["\\.test\\.[jt]sx?$"],

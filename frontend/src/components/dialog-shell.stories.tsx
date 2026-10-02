@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { DialogShell } from "./dialog-shell";
 
 /**
- * DialogShell 的样例 stories（批16.2 组件 stories 先例）：摆拍弹窗族件的两种标准页脚形态。
+ * DialogShell 的样例 stories：摆拍弹窗族件的两种标准页脚形态。
  * open 常开（story 只呈现开态）；onOpenChange 为空实现——样例不含关闭交互。
  */
 const meta = {

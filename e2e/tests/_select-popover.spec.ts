@@ -3,7 +3,7 @@ import { test } from "@playwright/test";
 // 表单 Select 弹层取证（SPC_*，2026-09-30 立件）——稿侧「通用件/下拉选择器.html」三侧取证的实现侧翼补缺：
 // 此前实现侧值全部来自 select.tsx 类名读取、从未开弹层实测（取证缺口，2026-09-29 定「过此件时补」）。
 // 身份：四件取证常备件之一（env-gate 门内默认 skip，不进 CI——同 _compare-capture／_audit-* 口径）；
-// 长期常备、不专门回收；复跑时点＝前端重构线批0.4（重构前基线）与批17.7（收口复核）。
+// 长期常备、不专门回收；大重构开工前与收口复核各复跑一次。
 // 跑法：cd workspace/e2e && NO_PROXY='*' SELECT_PROBE=1 npx playwright test _select-popover
 
 test("measure select popover computed styles", async ({ page }) => {

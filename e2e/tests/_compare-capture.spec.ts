@@ -645,7 +645,7 @@ test("measure chat-message computed styles", async ({ page }) => {
 
   // 自清：本块两次真发送各落一条真实会话（请求信封先落盘再发）。不清理的话，同文件
   // 后面的 workbench 版式块（measure workbench page layout）会被开机认领链带进对话态，
-  // 它要量的「空态」前提被打破、30s 超时（888 连跑必挂的根因，批17.7 归因在案）。
+  // 它要量的「空态」前提被打破、30s 超时（888 连跑必挂的根因）。
   // 本文件内只有本块创建会话，「删 latest 直到 404」即精确自清；409＝该会话的轮次
   // 还在服务端收尾（停止后异步退场），稍候重删。
   await page.evaluate(async () => {

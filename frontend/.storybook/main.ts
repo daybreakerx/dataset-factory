@@ -1,7 +1,7 @@
 import type { StorybookConfig } from "@storybook/react-vite";
 
 /**
- * Storybook 配置（前端全量重构线 批16 立）。
+ * Storybook 配置。
  *
  * stories 与组件同目录（src 下任意层的 .stories.tsx 文件）——就近形态与目录分层契约一致；
  * 框架走 @storybook/react-vite，与应用同一条 Vite 链（复用根 vite.config.ts 的

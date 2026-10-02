@@ -18,7 +18,7 @@ import { defineBaselineScreens } from "./fixtures/baseline-screens";
 // 把快照打成假红。
 //
 // 屏定义在 fixtures/baseline-screens.ts（与 _baseline-archive 共享，单一来源）。
-// 采集档位：BASELINE_TIER=full（默认，全档）/ render（渲染等价档）——切档见规划档 §4.2。
+// 采集档位：BASELINE_TIER=full（默认，全档）/ render（渲染等价档）——口径见 fixtures/baseline-probe.ts。
 // 只报不卡（dump 不断言）：BASELINE_REPORT=1 npx playwright test tests/visual-baseline.spec.ts
 //
 // 首采 / 有意更新基线：npx playwright test visual-baseline --update-snapshots

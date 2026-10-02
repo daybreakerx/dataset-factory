@@ -5,7 +5,7 @@ import type { ApiStubTable } from "../../.storybook/preview";
 import { Sidebar } from "./sidebar";
 
 /**
- * Sidebar 的样例 stories（批16.3 页面 stories：对应页面稿 侧栏三态）。
+ * Sidebar 的样例 stories（展开／折叠／设置模式三态）。
  * 壳级状态全部经 props 摆拍（App 持有、侧栏无自身 state）；服务状态点挂载即探测
  * GET /api/service——桩回运行中。桌面常驻与窄屏抽屉共用本组件（抽屉包 Dialog 由壳层管）。
  */
@@ -41,18 +41,18 @@ const SERVICE_STUBS = {
   },
 } satisfies ApiStubTable as ApiStubTable;
 
-/** 展开态（对应页面稿 侧栏/展开态）：品牌区＋主导航＋设置节＋脚注。 */
+/** 展开态：品牌区＋主导航＋设置节＋脚注。 */
 export const Expanded: Story = {
   parameters: { apiStubs: SERVICE_STUBS },
 };
 
-/** 折叠态（对应页面稿 侧栏/折叠态）：16 宽纵排图标，状态点居最下。 */
+/** 折叠态：16 宽纵排图标，状态点居最下。 */
 export const Collapsed: Story = {
   args: { collapsed: true },
   parameters: { apiStubs: SERVICE_STUBS },
 };
 
-/** 设置模式（对应页面稿 侧栏/设置模式）：品牌区整段隐藏、首行返回工作区＋设置组＋三子页项。 */
+/** 设置模式：品牌区整段隐藏、首行返回工作区＋设置组＋三子页项。 */
 export const SettingsMode: Story = {
   args: { page: "settings", settingsSection: "endpoints" },
   parameters: { apiStubs: SERVICE_STUBS },

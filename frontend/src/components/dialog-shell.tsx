@@ -49,7 +49,7 @@ export type DialogShellProps = {
  * 主体 children、可选页脚（note 备注槽＋cancel/confirm 动作对，或自由 footer）。
  * 头行或页脚有形态分叉的弹窗不传对应 props、由 children 自组，现状结构原样保留；
  * 壳面宽度与滚动经 className 透传。弹窗视觉归一（宽度档、备注槽、飞行期钮态等）
- * 属对齐批施工，届时改这一处全站生效。
+ * 尚未施工，届时改这一处全站生效。
  */
 export function DialogShell({
   open,

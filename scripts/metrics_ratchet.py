@@ -1,13 +1,13 @@
-"""度量棘轮的机械比对步：抑制类计数只许持平或下降（规划档 §4.3）。
+"""度量棘轮的机械比对步：抑制类计数只许持平或下降。
 
-为什么单独成步：measure_metrics.py 只计数、无阈值比对，18 批跨会话靠人眼比对「不得新增」
-必然漏（审计 V5）。本脚本把「biome-ignore 总数 / useExhaustiveDependencies 豁免数」两项
-棘轮钉进 verify 流程——当批计数超过基线即非 0 退出，红在人眼前、不红在批17 复核。
+为什么单独成步：measure_metrics.py 只计数、无阈值比对，跨会话靠人眼比对「不得新增」
+必然漏。本脚本把「biome-ignore 总数 / useExhaustiveDependencies 豁免数」两项
+棘轮钉进 verify 流程——计数超过基线即非 0 退出，红在人眼前、不用攒到收口复核。
 
 用法（verify-steps.txt 里跟在 measure_metrics --json 步骤之后）：
     python scripts/metrics_ratchet.py .verify/metrics.json scripts/metrics-baseline.json
 
-口径自证（memory 在案教训：度量脚本要能证明自己没坏）：每次跑都打印读到的两个计数值；
+口径自证（度量脚本要能证明自己没坏）：每次跑都打印读到的两个计数值；
 「当前 0 / 基线 5」这类倒挂先怀疑脚本读错文件，再信结论。
 """
 
@@ -63,8 +63,7 @@ def main(argv: list[str]) -> int:
             failed = True
     if failed:
         print(
-            "棘轮失守：抑制计数上升。停批核查——确需新增豁免走规划档 §4.3 呈用户裁决，"
-            "不许就地豁免。"
+            "棘轮失守：抑制计数上升。停下核查——确需新增豁免须呈用户裁决，不许就地豁免。"
         )
         return 1
     return 0

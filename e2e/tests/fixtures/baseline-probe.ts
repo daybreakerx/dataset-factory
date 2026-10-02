@@ -6,15 +6,14 @@ import { expect, type Page } from "@playwright/test";
 import { stubApi } from "./api-stubs";
 
 // 视觉与请求基线的共享底座：探针、稳定化、起屏、采集与档位切换。
-// 原逻辑都在 visual-baseline.spec.ts 单文件里；批0 扩出「渲染等价档」与「全档只报不卡
-// 通道」后，同一套探针要被三处使用（基线断言 / 全档存档 / 当批 dump），抽到这里单源。
+// 同一套探针要被三处使用（基线断言 / 全档存档 / 当批 dump），抽到这里单源。
 //
-// 档位口径（前端重构线规划档 §4.2 的落地）：
-//   full（默认）  —— 全列：类名 + 结构路径 + 渲染等价全开。批1（纯移动）与批17（收口）用。
+// 档位口径：
+//   full（默认）  —— 全列：类名 + 结构路径 + 渲染等价全开。
 //   render        —— 类名不采集；结构路径退化为「去匿名段 + 同 key 兄弟序号」的行 key，
-//                    只作配对、不作比对列。批2~15（拆解期）用。
+//                    只作配对、不作比对列。
 // 切档用环境变量：BASELINE_TIER=render npx playwright test tests/visual-baseline.spec.ts
-// （切档会改变探针输出内容，需配合 --update-snapshots 重采；见批0.5 演练。）
+// （切档会改变探针输出内容，需配合 --update-snapshots 重采。）
 
 const NEWLINE = "\n";
 
@@ -24,7 +23,7 @@ export type BaselineTier = "full" | "render";
 export type SnapFn = (page: Page, sink: string[], name: string) => Promise<void>;
 
 /** 当批采集档位：读 BASELINE_TIER（缺省 full）。dump（只报不卡）模式强制全档——
- * 它的比对对象是批0 的全档存档，口径必须一致（规划档 §4.2）。 */
+ * 它的比对对象是冻结的全档存档，口径必须一致。 */
 export function getTier(): BaselineTier {
   if (isDumpMode()) {
     return "full";
@@ -123,7 +122,7 @@ interface ProbeRow {
  * 样式列（两档一致）：几何 / 字号 / 字重 / 字色 / 底色 / 四边边宽 / 边色 / 圆角 / 四边 padding /
  * gap / display / box-shadow / z-index / overflow / line-height / letter-spacing /
  * transform / position / rotate / opacity。
- * 扩列原因（批0.2⑤）：影/层级/溢出/行高/字距/变换/定位恰是族件（影）、浮层（层级）、
+ * 扩列原因：影/层级/溢出/行高/字距/变换/定位恰是族件（影）、浮层（层级）、
  * 滚动容器（溢出）最会动的维度；rotate 单列是因为 Tailwind 4 的 rotate-* 走独立 CSS
  * `rotate` 属性、只看 transform 会漏旋转；opacity 原先只当可见性过滤、半透明态变化采不到。
  *
@@ -171,8 +170,8 @@ export async function probe(page: Page): Promise<string> {
     // 渲染等价档行 key 的段：只认「带身份」的祖先段——有 data-slot / data-testid /
     // role / aria-label / 自有文字之一才算数，其余匿名段剔除。纯文本 diff 的配对语义
     // 靠「同 key 兄弟序号」补（同 keyOf 之后统一编号，见 collectRows）。
-    // （v4 重设计原因：data-slot＋aria-label＋归一化文字三字段在真实页面大面积同时为空，
-    // 原行 key 退化成空串撞键——见规划档批0.5 与第三轮审计 C1。）
+    // （重设计原因：data-slot＋aria-label＋归一化文字三字段在真实页面大面积同时为空，
+    // 原行 key 退化成空串撞键。）
     const segmentOf = (node: Element): string | null => {
       const slot = node.getAttribute("data-slot") ?? "";
       const testid = node.getAttribute("data-testid") ?? "";
