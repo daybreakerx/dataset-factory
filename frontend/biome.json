@@ -1,6 +1,13 @@
 {
   "files": {
-    "includes": ["src/**", "*.ts", "*.json", "index.html", "!src/api-types.gen.ts"]
+    "includes": [
+      "src/**",
+      ".storybook/**",
+      "*.ts",
+      "*.json",
+      "index.html",
+      "!src/api-types.gen.ts"
+    ]
   },
   "css": {
     "parser": {

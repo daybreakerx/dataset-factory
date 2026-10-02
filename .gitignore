@@ -36,6 +36,7 @@ blob-report/
 # 打包 / 构建产物
 dist/
 build/
+storybook-static/
 *.egg-info/
 
 # 注意：uv.lock 要入库（锁定确切版本、保证可复现安装），不要忽略它

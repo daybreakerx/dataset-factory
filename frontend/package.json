@@ -6,6 +6,8 @@
   "description": "Dataset Factory 前端：本地 Web 入口（Vite + React + TypeScript）",
   "scripts": {
     "dev": "vite",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
@@ -36,6 +38,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.13",
+    "@storybook/react-vite": "^10.6.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
@@ -49,6 +52,7 @@
     "knip": "^6.37.0",
     "openapi-typescript": "^7.13.0",
     "postcss": "^8.5.28",
+    "storybook": "^10.6.1",
     "typescript": "^5.9.3",
     "vite": "^8.3.0",
     "vitest": "^5.0.0"
