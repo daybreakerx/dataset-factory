@@ -385,7 +385,14 @@ def test_state_lock_release_preserves_lock_file_identity(workdir: Path) -> None:
 
 
 def test_state_contender_does_not_hold_maintenance_while_waiting(workdir: Path) -> None:
-    """状态锁等待者不占维护锁，持有状态锁的线程仍可完成嵌套操作。"""
+    """状态锁等待者不占维护锁，持有状态锁的线程仍可完成嵌套操作。
+
+    竞争方每个重试周期只在维护锁内停留微秒级（可写性＋身份核对即出）——本测试
+    验证可用性边界：等待状态锁期间，维护锁必须能在宽预算内被第三方拿到。预算
+    给足（维护锁 5s / 竞争方 15s）防 CI 满载 runner 的线程饥饿假红（实锤：竞争方
+    持维护锁段被饿过 0.5s，旧预算假红一次）；断言方向不变——竞争方若持续占着
+    维护锁，这里照样超时红。
+    """
     dsf = WorkdirStore(workdir).dsf_path
     holder = StateLock(dsf)
     started = threading.Event()
@@ -394,7 +401,7 @@ def test_state_contender_does_not_hold_maintenance_while_waiting(workdir: Path) 
 
     def contend() -> None:
         started.set()
-        lock = StateLock(dsf, timeout=2)
+        lock = StateLock(dsf, timeout=15)
         try:
             lock.acquire()
             lock.release()
@@ -406,13 +413,13 @@ def test_state_contender_does_not_hold_maintenance_while_waiting(workdir: Path) 
     worker = threading.Thread(target=contend)
     worker.start()
     try:
-        assert started.wait(2)
+        assert started.wait(10)
         time.sleep(0.1)
-        with maintenance_guard(workdir, timeout=0.5):
+        with maintenance_guard(workdir, timeout=5):
             assert not finished.is_set()
     finally:
         holder.release()
-        worker.join(3)
+        worker.join(16)
 
     assert not worker.is_alive()
     assert errors == []
