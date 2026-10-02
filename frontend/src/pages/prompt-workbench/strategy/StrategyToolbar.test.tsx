@@ -41,6 +41,7 @@ const strategy: components["schemas"]["StrategyView"] = {
   updated_at: "2026-09-01T00:00:00Z",
 };
 const select = vi.fn<() => Promise<void>>();
+const onRestored = vi.fn<(strategy: components["schemas"]["StrategyView"]) => void>();
 function mount(strict = false): void {
   const content = (
     <TooltipProvider>
@@ -57,6 +58,7 @@ function mount(strict = false): void {
         onSelect={select}
         onStrategySaved={vi.fn()}
         onNewStrategy={() => {}}
+        onRestored={onRestored}
       />
     </TooltipProvider>
   );
@@ -68,6 +70,7 @@ beforeEach(() => {
   // 认领是尽力而为：默认「没有会话」（404 形状的 reject），认领链静默收摊。
   mocks.latestSession.mockRejectedValue(new Error("404 no session"));
   select.mockResolvedValue(undefined);
+  onRestored.mockClear();
 });
 
 it("StrictMode 下关闭重开菜单后忽略旧列表响应", async () => {
@@ -267,6 +270,26 @@ describe("策略选中的启动恢复与镜像（v2）", () => {
     expect(mocks.latestSession).not.toHaveBeenCalled();
   });
 
+  it("启动恢复认领策略时回调 onRestored：工作域据此把端点 chip 锚回策略冻结的端点", async () => {
+    localStorage.setItem(
+      "dsf-workbench-strategy",
+      JSON.stringify({
+        id: "a1",
+        name: "详细描述",
+        description: "训练用",
+        endpoint_id: "e-default-x1",
+        prompt_id: "p-caption-01",
+        skill_ids: [],
+      }),
+    );
+    mount();
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("策略名称")).toHaveValue("详细描述"),
+    );
+    expect(onRestored).toHaveBeenCalledWith(strategy);
+  });
+
   it("镜像指向已删除的策略：保持新建态，不按签名认领", async () => {
     localStorage.setItem(
       "dsf-workbench-strategy",
@@ -313,6 +336,7 @@ describe("策略选中的启动恢复与镜像（v2）", () => {
           onSelect={select}
           onStrategySaved={vi.fn()}
           onNewStrategy={onNewStrategy}
+          onRestored={vi.fn()}
         />
       </TooltipProvider>,
     );

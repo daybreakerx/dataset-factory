@@ -1,4 +1,9 @@
-/** 连接 · 端点配置 · 删除确认弹窗（DialogShell 预设层接线；删除命令由面板执行）。 */
+/**
+ * 连接 · 端点配置 · 删除确认弹窗（DialogShell 预设层接线；删除命令由面板执行）。
+ * 两行确认窄档（宽度＝内容宽、上限 480、下限 360，DESIGN.md 四 / 稿侧 base.css
+ * §13 `.modal--narrow`）；无正文段——删除的约束说明只留页脚左备注槽一行。
+ * 全局激活退役后删除无前置拦截（ADR 2026-09-30），任何配置可直接删。
+ */
 import type { ReactElement } from "react";
 import { DialogShell } from "../../../components/dialog-shell";
 
@@ -21,8 +26,9 @@ export function DeleteDialog({
     <DialogShell
       open={open}
       onOpenChange={onOpenChange}
+      className="w-fit min-w-[min(360px,calc(100vw-48px))] max-w-[min(480px,calc(100vw-48px))]"
       title={<>删除端点配置「{target}」？</>}
-      description="将连同该配置的密钥文件一起移除；当前使用中的配置需先切换才能删。此操作不可撤销。"
+      note="此操作不可撤销"
       cancel={{ label: "取消", onClick: () => onOpenChange(false) }}
       confirm={{
         label: "删除",

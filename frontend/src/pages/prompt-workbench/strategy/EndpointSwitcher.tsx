@@ -1,4 +1,4 @@
-/** 端点配置切换器（chip = 「名称 · 模型名」；切换调 activate，对新请求立即生效）。 */
+/** 端点配置切换器（chip = 「名称 · 模型名」；页内局部选择器——选中记忆纯会话内，刷新后随策略恢复）。 */
 import { ChevronDownIcon } from "lucide-react";
 import type { ReactElement } from "react";
 import type { EndpointConfigSummary } from "../../../api";
@@ -14,16 +14,19 @@ import {
 
 export function EndpointSwitcher({
   endpoints,
+  selectedId,
   disabled = false,
-  onActivate,
+  onSelect,
   onManage,
 }: {
   endpoints: EndpointConfigSummary[];
+  /** 页内当前选中的配置 ID（空串 = 未选）；显示按 ID 现查，指向已删配置时显示未配置端点。 */
+  selectedId: string;
   disabled?: boolean;
-  onActivate: (cid: string) => void;
+  onSelect: (cid: string) => void;
   onManage: () => void;
 }): ReactElement {
-  const active = endpoints.find((item) => item.is_active);
+  const selected = endpoints.find((item) => item.id === selectedId);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -35,18 +38,14 @@ export function EndpointSwitcher({
           aria-label="端点配置切换器"
           disabled={disabled}
         >
-          <span
-            className={`size-1.5 shrink-0 rounded-full ${active ? "bg-ok-dot" : "bg-n-400"}`}
-            aria-hidden
-          />
           <span className="truncate">
-            {active ? `${active.name} · ${active.model}` : "未配置端点"}
+            {selected ? `${selected.name} · ${selected.model}` : "未配置端点"}
           </span>
           <ChevronDownIcon className="size-3 shrink-0" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel>端点配置（当前使用）</DropdownMenuLabel>
+        <DropdownMenuLabel>端点配置</DropdownMenuLabel>
         {endpoints.length === 0 && (
           <DropdownMenuLabel>（还没有配置——去「管理配置」新增）</DropdownMenuLabel>
         )}
@@ -54,12 +53,14 @@ export function EndpointSwitcher({
           <DropdownMenuItem
             key={item.name}
             disabled={disabled}
-            onSelect={() => onActivate(item.id)}
+            onSelect={() => onSelect(item.id)}
           >
             <span className="flex-1 truncate">
               {item.name} · {item.model}
             </span>
-            {item.is_active && <span className="size-2 rounded-full bg-success" />}
+            {item.id === selectedId && (
+              <span className="size-2 rounded-full bg-success" />
+            )}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />

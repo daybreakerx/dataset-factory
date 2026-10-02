@@ -1,6 +1,6 @@
 /**
  * 连接 · 端点配置（列表 + 详情双栏）——面板编排层。
- * 草稿与反馈状态、命令回调（保存 / 创建 / 删除 / 激活 / 测试连接）住这里；
+ * 草稿与反馈状态、命令回调（保存 / 创建 / 删除 / 测试连接）住这里；
  * 展示块拆在同目录：config-list / config-form（内嵌 test-connection 与高级参数
  * 折叠区）/ delete-dialog；列表查询收拢在 use-endpoint-configs（命令类留调用点）。
  */
@@ -68,10 +68,8 @@ export function EndpointConfigPanel(): ReactElement {
 
   useEffect(() => {
     void reload().then((list) => {
-      const active = list.find((item) => item.is_active);
-      if (active !== undefined) {
-        setSelected(active.name);
-      }
+      // 默认选中第一套（无激活机制，不挑「当前使用」的）。
+      setSelected(list[0]?.name ?? "");
     });
   }, [reload]);
 
@@ -263,19 +261,6 @@ export function EndpointConfigPanel(): ReactElement {
     }
   };
 
-  const activate = async (): Promise<void> => {
-    try {
-      await api.activateEndpoint(selected);
-      await reload();
-      setFeedback({
-        kind: "success",
-        text: `已切换当前使用的配置为「${selected}」，对新请求立即生效`,
-      });
-    } catch (err) {
-      failFeedback(err);
-    }
-  };
-
   const remove = async (): Promise<void> => {
     try {
       await api.deleteEndpoint(selected);
@@ -320,7 +305,6 @@ export function EndpointConfigPanel(): ReactElement {
             feedback={feedback}
             canSave={canSave}
             onSave={() => void save()}
-            onActivate={() => void activate()}
             onDelete={() => setDeleteDialogOpen(true)}
             testing={testing}
             testResult={testResult}

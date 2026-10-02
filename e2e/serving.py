@@ -327,13 +327,14 @@ def main() -> None:
         atexit.register(_release_and_remove, data_home, owner_lock)
 
     from dataset_factory.api import create_app
-    from dataset_factory.llm import DEFAULT_CONFIG_NAME, SecretValue, create_config
+    from dataset_factory.llm import SecretValue, create_config
     from starlette.routing import Mount
 
     system_app = create_app()
-    # 端点配置预先写进数据根：打标请求将指向同源 /fake-llm/v1。
+    # 端点配置预先写进数据根：打标请求将指向同源 /fake-llm/v1（请求显式携带端点，
+    # 显示名固定 "default"——E2E 桩表与取证件按名对齐它）。
     create_config(
-        DEFAULT_CONFIG_NAME,
+        "default",
         base_url=f"http://127.0.0.1:{args.port}/fake-llm/v1",
         model="fake-e2e-model",
         api_key=SecretValue("sk-e2e-not-a-real-key"),

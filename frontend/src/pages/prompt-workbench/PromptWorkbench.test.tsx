@@ -33,7 +33,6 @@ const apiMock = vi.hoisted(() => ({
   deletePrompt: vi.fn(),
   listSkills: vi.fn(),
   listEndpoints: vi.fn(),
-  activateEndpoint: vi.fn(),
   labelStream: vi.fn(),
   latestSession: vi.fn(),
   listStrategies: vi.fn(),
@@ -65,7 +64,6 @@ const ENDPOINTS: EndpointConfigSummary[] = [
     model: "model-a",
     api_format: "openai-chat-completions",
     has_api_key: true,
-    is_active: true,
     request_params: {},
   },
   {
@@ -75,7 +73,6 @@ const ENDPOINTS: EndpointConfigSummary[] = [
     model: "model-b",
     api_format: "openai-chat-completions",
     has_api_key: false,
-    is_active: false,
     request_params: {},
   },
 ];
@@ -118,6 +115,15 @@ const renderWorkbench = () =>
     </ChatSessionProvider>,
   );
 
+/**
+ * 经 chip 选一套端点（页内局部选择器）：全局激活退役后，chip 无策略锚时停在
+ * 「未配置端点」，发送 / 保存策略前都要先走这一步（与真实操作同构）。
+ */
+const pickEndpoint = async (name: string): Promise<void> => {
+  await userEvent.click(screen.getByLabelText("端点配置切换器"));
+  await userEvent.click(await screen.findByText(new RegExp(`${name} · `)));
+};
+
 describe("PromptWorkbench", () => {
   it("连续选择附件时只采用最后一次读取结果，移除后不被迟到读取恢复", async () => {
     const readers: DeferredReader[] = [];
@@ -152,31 +158,29 @@ describe("PromptWorkbench", () => {
     }
   });
 
-  it("端点激活期间禁止发送，失败后恢复原端点与输入", async () => {
-    let rejectActivation!: (error: Error) => void;
-    apiMock.activateEndpoint.mockReturnValueOnce(
-      new Promise<void>((_resolve, reject) => {
-        rejectActivation = reject;
-      }),
-    );
+  it("未选端点发送被拦：就地提示选择端点；选中后照常发送（契约必填的前端守卫）", async () => {
     renderWorkbench();
     await waitFor(() => expect(screen.getByLabelText("名称")).toHaveValue("h3-video"));
+    // chip 无策略锚时停在「未配置端点」——此时发送不发请求，就地给出指引。
+    expect(screen.getByText("未配置端点")).toBeInTheDocument();
     fireEvent.input(screen.getByLabelText("打标指令"), {
       target: { value: "保留指令" },
     });
-
-    await userEvent.click(screen.getByLabelText("端点配置切换器"));
-    await userEvent.click(screen.getByText("backup · model-b"));
-    expect(screen.getByLabelText("端点配置切换器")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "发送" })).toBeDisabled();
-    fireEvent.keyDown(screen.getByLabelText("打标指令"), { key: "Enter" });
+    await userEvent.click(screen.getByRole("button", { name: "发送" }));
     expect(apiMock.labelStream).not.toHaveBeenCalled();
-    await act(async () => rejectActivation(new Error("激活失败")));
-
-    expect(screen.getByText(/激活失败/)).toBeInTheDocument();
-    expect(screen.getByText("default · model-a")).toBeInTheDocument();
+    expect(screen.getByText(/请先在对话顶端选择端点配置/)).toBeInTheDocument();
     expect(screen.getByLabelText("打标指令")).toHaveValue("保留指令");
-    expect(screen.getByRole("button", { name: "发送" })).toBeEnabled();
+
+    await pickEndpoint("default");
+    expect(screen.getByText("default · model-a")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "发送" }));
+    await waitFor(() => {
+      expect(apiMock.labelStream).toHaveBeenCalledWith(
+        expect.objectContaining({ endpoint_id: "e-default-x1" }),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
   });
 
   it("选择 Skill 后迟到的会话恢复不替换当前组合", async () => {
@@ -264,7 +268,6 @@ describe("PromptWorkbench", () => {
   it("提示词草稿锁定策略切换，保存后应用完整组合", async () => {
     apiMock.listStrategies.mockResolvedValue([strategy]);
     apiMock.savePrompt.mockResolvedValue(undefined);
-    apiMock.activateEndpoint.mockResolvedValue(undefined);
     renderWorkbench();
     await waitFor(() => expect(screen.getByLabelText("名称")).toHaveValue("h3-video"));
 
@@ -292,24 +295,19 @@ describe("PromptWorkbench", () => {
     ).toBeInTheDocument();
   });
 
-  it("策略端点激活失败保留原提示词与端点并允许重试", async () => {
+  it("策略应用失败（取提示词报错）保留原提示词并允许重试", async () => {
     apiMock.listStrategies.mockResolvedValue([strategy]);
-    apiMock.activateEndpoint.mockRejectedValueOnce(new Error("端点不可用"));
     renderWorkbench();
     await waitFor(() => expect(screen.getByLabelText("名称")).toHaveValue("h3-video"));
-    apiMock.getPrompt.mockResolvedValue({
-      id: "p-simple-001",
-      name: "simple",
-      description: "",
-      body: "简短",
-    });
+    // boot 的首条自动选中已消费过 getPrompt：reject 挂在 boot 之后、只打策略应用这一次。
+    apiMock.getPrompt.mockRejectedValueOnce(new Error("提示词读取失败"));
 
     await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
     await userEvent.click(screen.getByRole("button", { name: /^备用策略/ }));
 
-    expect(await screen.findByText(/端点不可用/)).toBeInTheDocument();
+    expect(await screen.findByText(/提示词读取失败/)).toBeInTheDocument();
     expect(screen.getByLabelText("名称")).toHaveValue("h3-video");
-    expect(screen.getByText("default · model-a")).toBeInTheDocument();
+    expect(screen.getByText("未配置端点")).toBeInTheDocument();
   });
 
   it("迟到的会话恢复不覆盖已经编辑的提示词", async () => {
@@ -385,8 +383,8 @@ describe("PromptWorkbench", () => {
     await waitFor(() => {
       expect(apiMock.getPrompt).toHaveBeenCalledWith("p-h3-video-01");
     });
-    // 端点切换器 chip 显示「名称 · 模型名」。
-    expect(screen.getByText("default · model-a")).toBeInTheDocument();
+    // 端点 chip 无策略锚时停在「未配置端点」（页内局部选择器，不自动挑默认）。
+    expect(screen.getByText("未配置端点")).toBeInTheDocument();
     expect(screen.getByLabelText("名称")).toHaveValue("h3-video");
     expect(screen.getByLabelText("描述")).toHaveValue("视频打标");
     expect(screen.getByLabelText("正文（Markdown）")).toHaveValue("你是打标助手。");
@@ -448,18 +446,20 @@ describe("PromptWorkbench", () => {
     expect(await screen.findByText("已保存提示词「new-prompt」")).toBeInTheDocument();
   });
 
-  it("发送：labelStream 请求携带选中的基础提示词，流式渲染后上屏终稿与模型 meta", async () => {
+  it("发送：labelStream 请求携带选中的基础提示词与端点，流式渲染后上屏终稿与模型 meta", async () => {
     renderWorkbench();
 
     await waitFor(() => {
       expect(screen.getByLabelText("名称")).toHaveValue("h3-video");
     });
+    await pickEndpoint("default");
     await userEvent.type(screen.getByLabelText("打标指令"), "给这张图打个标");
     await userEvent.click(screen.getByRole("button", { name: "发送" }));
 
     await waitFor(() => {
       expect(apiMock.labelStream).toHaveBeenCalledWith(
         expect.objectContaining({
+          endpoint_id: "e-default-x1",
           prompt_id: "p-h3-video-01",
           instruction: "给这张图打个标",
           skill_ids: [],
@@ -495,6 +495,7 @@ describe("PromptWorkbench", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("名称")).toHaveValue("h3-video");
     });
+    await pickEndpoint("default");
     await userEvent.type(screen.getByLabelText("打标指令"), "给这张图打个标");
     await userEvent.click(screen.getByRole("button", { name: "发送" }));
 
@@ -522,6 +523,7 @@ describe("PromptWorkbench", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("名称")).toHaveValue("h3-video");
     });
+    await pickEndpoint("default");
     await userEvent.type(screen.getByLabelText("打标指令"), "给这张图打个标");
     await userEvent.click(screen.getByRole("button", { name: "发送" }));
 
@@ -538,6 +540,7 @@ describe("PromptWorkbench", () => {
     renderWorkbench();
 
     await waitFor(() => expect(apiMock.listPrompts).toHaveBeenCalled());
+    await pickEndpoint("default");
     await userEvent.type(screen.getByLabelText("打标指令"), "打标");
     await userEvent.click(screen.getByRole("button", { name: "发送" }));
 
@@ -550,17 +553,12 @@ describe("PromptWorkbench", () => {
     });
   });
 
-  it("端点切换器选择另一套配置：调 activateEndpoint 并更新 chip", async () => {
-    apiMock.activateEndpoint.mockResolvedValue(undefined);
+  it("端点切换器选择另一套配置：仅更新页内选中并立即反映在 chip 上（无激活调用）", async () => {
     renderWorkbench();
 
-    await waitFor(() => screen.getByText("default · model-a"));
-    await userEvent.click(screen.getByLabelText("端点配置切换器"));
-    await userEvent.click(screen.getByText("backup · model-b"));
+    await waitFor(() => screen.getByText("未配置端点"));
+    await pickEndpoint("backup");
 
-    await waitFor(() => {
-      expect(apiMock.activateEndpoint).toHaveBeenCalledWith("e-backup-x1");
-    });
     expect(await screen.findByText("backup · model-b")).toBeInTheDocument();
   });
 
@@ -603,6 +601,7 @@ describe("PromptWorkbench", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("名称")).toHaveValue("h3-video");
     });
+    await pickEndpoint("default");
     fireEvent.change(screen.getByLabelText("附图或视频（最多 1 个）"), {
       target: {
         files: [new File(["fake-mp4"], "clip.mp4", { type: "video/mp4" })],
@@ -657,6 +656,7 @@ describe("PromptWorkbench", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("名称")).toHaveValue("h3-video");
     });
+    await pickEndpoint("default");
     await userEvent.type(screen.getByLabelText("打标指令"), "打个标");
     await userEvent.click(screen.getByRole("button", { name: "发送" }));
     await waitFor(() => expect(screen.getByText("半截")).toBeInTheDocument());
@@ -992,6 +992,7 @@ describe("对话页交互改版与媒体预览", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("名称")).toHaveValue("h3-video");
     });
+    await pickEndpoint("default");
     await userEvent.type(screen.getByLabelText("打标指令"), "打个标");
     await userEvent.click(screen.getByRole("button", { name: "发送" }));
 
@@ -1027,6 +1028,7 @@ describe("对话页交互改版与媒体预览", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("名称")).toHaveValue("h3-video");
     });
+    await pickEndpoint("default");
     fireEvent.change(screen.getByLabelText("附图或视频（最多 1 个）"), {
       target: {
         files: [new File(["fake-png"], "cat.png", { type: "image/png" })],

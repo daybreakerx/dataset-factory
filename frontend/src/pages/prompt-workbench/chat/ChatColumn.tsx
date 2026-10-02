@@ -31,6 +31,7 @@ import { MessageList } from "./MessageList";
 /** 对话列整块（工作台右列）。事件走回调 props；配置忙态由页面判定后传入。 */
 export function ChatColumn({
   endpoints,
+  selectedEndpointId,
   skills,
   skillIds,
   disabled,
@@ -44,7 +45,7 @@ export function ChatColumn({
   instruction,
   media,
   sending,
-  onActivateEndpoint,
+  onSelectEndpoint,
   onManageEndpoints,
   onNewSession,
   onCopy,
@@ -59,9 +60,11 @@ export function ChatColumn({
   onStop,
 }: {
   endpoints: EndpointConfigSummary[];
+  /** 端点 chip 的页内选中 ID（空串 = 未选；显示按 ID 现查）。 */
+  selectedEndpointId: string;
   skills: SkillInfo[];
   skillIds: string[];
-  /** 配置飞行中（端点激活 / 策略应用 / 提示词保存任一）：端点切换器禁用。 */
+  /** 配置飞行中（策略应用 / 提示词保存任一）：端点切换器禁用。 */
   disabled: boolean;
   /** 发送或任一配置飞行中：Skill 勾选项整体禁用。 */
   controlsBusy: boolean;
@@ -74,7 +77,7 @@ export function ChatColumn({
   instruction: string;
   media: PendingMedia | null;
   sending: boolean;
-  onActivateEndpoint: (cid: string) => void;
+  onSelectEndpoint: (cid: string) => void;
   onManageEndpoints: () => void;
   onNewSession: () => void;
   onCopy: (message: ChatMessage) => void;
@@ -100,8 +103,9 @@ export function ChatColumn({
         <h2 className="shrink-0 text-t-xl font-semibold">对话</h2>
         <EndpointSwitcher
           endpoints={endpoints}
+          selectedId={selectedEndpointId}
           disabled={disabled}
-          onActivate={onActivateEndpoint}
+          onSelect={onSelectEndpoint}
           onManage={onManageEndpoints}
         />
         <Tooltip>

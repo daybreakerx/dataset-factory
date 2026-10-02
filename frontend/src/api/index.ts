@@ -23,8 +23,6 @@ import { workdirApi } from "./workdir";
 
 export { ApiError, errorMessage } from "./client";
 export type {
-  ConfigResponse,
-  ConfigUpdateRequest,
   EndpointConfigSummary,
   EndpointCreateRequest,
   EndpointRequestParams,

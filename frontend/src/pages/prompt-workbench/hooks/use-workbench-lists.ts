@@ -1,7 +1,7 @@
 /**
  * 工作台页面的数据 hook：收拢查询类调用（提示词 / Skill / 端点配置三份列表的
  * boot 并行取数与提示词列表刷新）。
- * 命令类调用（提示词 CRUD、端点激活）留在页面调用点，不在这里包装。
+ * 命令类调用（提示词 CRUD）留在页面调用点，不在这里包装。
  */
 
 import type { Dispatch, SetStateAction } from "react";
@@ -30,18 +30,15 @@ export function useWorkbenchLists(failFeedback: FailFeedback): {
   prompts: PromptInfo[];
   skills: SkillInfo[];
   endpoints: EndpointConfigSummary[];
-  activeModel: string;
   setPrompts: Dispatch<SetStateAction<PromptInfo[]>>;
   setSkills: Dispatch<SetStateAction<SkillInfo[]>>;
   setEndpoints: Dispatch<SetStateAction<EndpointConfigSummary[]>>;
-  setActiveModel: Dispatch<SetStateAction<string>>;
   fetchAllLists: () => Promise<WorkbenchLists>;
   reloadPrompts: () => Promise<void>;
 } {
   const [prompts, setPrompts] = useState<PromptInfo[]>([]);
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [endpoints, setEndpoints] = useState<EndpointConfigSummary[]>([]);
-  const [activeModel, setActiveModel] = useState("");
 
   const fetchAllLists = useCallback(async (): Promise<WorkbenchLists> => {
     const [promptList, skillList, endpointList] = await Promise.all([
@@ -64,11 +61,9 @@ export function useWorkbenchLists(failFeedback: FailFeedback): {
     prompts,
     skills,
     endpoints,
-    activeModel,
     setPrompts,
     setSkills,
     setEndpoints,
-    setActiveModel,
     fetchAllLists,
     reloadPrompts,
   };

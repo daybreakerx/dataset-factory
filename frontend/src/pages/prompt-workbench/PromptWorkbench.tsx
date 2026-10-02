@@ -24,6 +24,7 @@ import { ChatColumn } from "./chat/ChatColumn";
 import { EditorColumn } from "./editor/EditorColumn";
 import { useWorkbenchLists } from "./hooks/use-workbench-lists";
 import { StrategyToolbar } from "./strategy/StrategyToolbar";
+import type { Strategy } from "./strategy/use-strategies";
 
 export function PromptWorkbench({
   onNavigateToSettings,
@@ -49,7 +50,10 @@ export function PromptWorkbench({
   const [promptMenuOpen, setPromptMenuOpen] = useState(false);
   const [promptBusy, setPromptBusy] = useState(false);
   const [strategyBusy, setStrategyBusy] = useState(false);
-  const [endpointBusy, setEndpointBusy] = useState(false);
+  // 端点 chip 的页内选中（ADR 2026-09-30「全局当前使用」退役）：纯会话内记忆、
+  // 刷新复位——复位不是回默认值，而是随启动恢复的策略锚回它冻结的端点；
+  // 没有策略选中时为空（chip 显示未配置端点，选端点属于新建组合的一部分）。
+  const [selectedEndpointId, setSelectedEndpointId] = useState("");
 
   // ---------- 对话列（状态与逻辑住在 App 级会话域：切页卸载本组件不打断流式生成） ----------
   const {
@@ -81,7 +85,7 @@ export function PromptWorkbench({
     setChatError,
   } = useChatSession();
 
-  // ---------- 端点配置（页面职责：发送时刻把 activeModel / promptName 传给会话域） ----------
+  // ---------- 端点配置（页面职责：发送时刻把选中端点 / 提示词传给会话域） ----------
   // 会话恢复是否带回了基础提示词：带回了就不做「自动选中首条」（恢复优先于默认）。
   const restoredPromptRef = useRef(false);
   const promptRequestRef = useRef(0);
@@ -89,7 +93,6 @@ export function PromptWorkbench({
   // 本轮保存已成功 rename 过的显示名（重试保存时防重复 rename；成功后清空）。
   const renamedToRef = useRef<string | null>(null);
   const interactionRef = useRef(0);
-  const activatingEndpointRef = useRef(false);
 
   // 编辑器状态镜像（跨重启）：选中提示词 + 未保存草稿合一键，恢复即视为
   // 最近一次用户意图。列表装载时按镜像分流（见下方启动分流）；镜像指向已删除的
@@ -114,14 +117,16 @@ export function PromptWorkbench({
     prompts,
     skills,
     endpoints,
-    activeModel,
     setPrompts,
     setSkills,
     setEndpoints,
-    setActiveModel,
     fetchAllLists,
     reloadPrompts,
   } = useWorkbenchLists(failEditor);
+
+  // 端点选中的派生值（按 ID 现查）：选中指向已删配置（外部删除 / 策略引用悬空）时
+  // 为 undefined——chip 显示未配置端点、发送与保存策略随之拦下，即「置空提示重选」。
+  const selectedEndpoint = endpoints.find((item) => item.id === selectedEndpointId);
 
   const selectPrompt = useCallback(
     async (pid: string, options?: { resetSession?: boolean }): Promise<void> => {
@@ -211,7 +216,6 @@ export function PromptWorkbench({
         setPrompts(lists.prompts);
         setSkills(lists.skills);
         setEndpoints(lists.endpoints);
-        setActiveModel(lists.endpoints.find((item) => item.is_active)?.model ?? "");
         const mirror = editorMirrorRef.current;
         // 镜像优先（恢复优先级：编辑器镜像 > 会话快照 > 首条）：镜像 = 用户离开
         // 时刻的编辑器原样（选中 + 未保存草稿），比快照（最后一次发送时的配置）更新。
@@ -266,15 +270,7 @@ export function PromptWorkbench({
     return () => {
       cancelled = true;
     };
-  }, [
-    selectPrompt,
-    failEditor,
-    fetchAllLists,
-    setPrompts,
-    setSkills,
-    setEndpoints,
-    setActiveModel,
-  ]);
+  }, [selectPrompt, failEditor, fetchAllLists, setPrompts, setSkills, setEndpoints]);
 
   // 会话恢复带回了基础提示词：带回了就不做「自动选中首条」（恢复优先于默认），
   // 也不覆盖用户已选 / 已编辑的草稿——用户动过手（interactionRef > 0）就让位。
@@ -368,28 +364,20 @@ export function PromptWorkbench({
     }
   };
 
-  const activateEndpoint = async (cid: string): Promise<void> => {
-    if (activatingEndpointRef.current || sending || strategyBusy) return;
+  /** 选端点（页内局部选择器）：纯前端状态，没有激活调用——发送 / 保存策略取当前选中。 */
+  const selectEndpoint = (cid: string): void => {
     interactionRef.current += 1;
-    activatingEndpointRef.current = true;
-    setEndpointBusy(true);
     setChatError("");
-    try {
-      await api.activateEndpoint(cid);
-      setEndpoints((current) =>
-        current.map((item) => ({ ...item, is_active: item.id === cid })),
-      );
-      setActiveModel(endpoints.find((item) => item.id === cid)?.model ?? "");
-    } catch (err) {
-      setChatError(reportError(err) ?? "");
-    } finally {
-      activatingEndpointRef.current = false;
-      setEndpointBusy(false);
-    }
+    setSelectedEndpointId(cid);
   };
 
+  /** 启动恢复认领了策略：chip 锚回该策略冻结的端点（未保存的 chip 改动随刷新作废）。 */
+  const handleStrategyRestored = useCallback((strategy: Strategy): void => {
+    setSelectedEndpointId(strategy.endpoint_id);
+  }, []);
+
   const handleToggleSkill = (name: string): void => {
-    if (sending || strategyBusy || activatingEndpointRef.current) return;
+    if (sending || strategyBusy) return;
     interactionRef.current += 1;
     toggleSkill(name);
   };
@@ -405,9 +393,19 @@ export function PromptWorkbench({
 
   /** 发送（配置侧收口）：忙态守卫在这里，会话域只管发送本身与重入守卫。 */
   const handleSend = (): void => {
-    if (endpointBusy || strategyBusy || promptBusy) return;
+    if (strategyBusy || promptBusy) return;
+    if (selectedEndpoint === undefined) {
+      // 契约必填（批1 起）：没有可选中的端点（未选 / 选中被删）就地拦下说清楚，
+      // 不让请求打到后端吃一句原始报错。
+      setChatError("请先在对话顶端选择端点配置。");
+      return;
+    }
     interactionRef.current += 1;
-    send({ promptId: selectedId === "" ? null : selectedId, activeModel });
+    send({
+      promptId: selectedId === "" ? null : selectedId,
+      activeModel: selectedEndpoint.model,
+      endpointId: selectedEndpoint.id,
+    });
   };
 
   // 中文输入法的回车上屏不属于「发送」（isComposing 判定），Shift+Enter 换行。
@@ -418,7 +416,7 @@ export function PromptWorkbench({
     }
   };
 
-  const controlsBusy = sending || endpointBusy || strategyBusy || promptBusy;
+  const controlsBusy = sending || strategyBusy || promptBusy;
   const canSend = !controlsBusy && (instruction.trim() !== "" || media !== null);
   const promptDirty =
     isNewDraft ||
@@ -431,7 +429,7 @@ export function PromptWorkbench({
       <div className="flex h-full min-h-0 flex-col">
         <StrategyToolbar
           references={{
-            endpoint_id: endpoints.find((entry) => entry.is_active)?.id ?? "",
+            endpoint_id: selectedEndpoint?.id ?? "",
             prompt_id: selectedId,
             skill_ids: skillIds,
           }}
@@ -447,9 +445,6 @@ export function PromptWorkbench({
               const full = await api.getPrompt(strategy.prompt_id);
               if (request !== promptRequestRef.current)
                 throw new Error("当前编辑状态已改变，请重新选择策略");
-              await api.activateEndpoint(strategy.endpoint_id);
-              if (request !== promptRequestRef.current)
-                throw new Error("当前编辑状态已改变，请重新选择策略");
               restoredPromptRef.current = true;
               setSelectedId(full.id);
               setDraftName(full.name);
@@ -458,16 +453,8 @@ export function PromptWorkbench({
               setSavedPrompt(full);
               setIsNewDraft(false);
               applySkillIds(strategy.skill_ids);
-              setEndpoints((current) =>
-                current.map((entry) => ({
-                  ...entry,
-                  is_active: entry.id === strategy.endpoint_id,
-                })),
-              );
-              setActiveModel(
-                endpoints.find((entry) => entry.id === strategy.endpoint_id)?.model ??
-                  "",
-              );
+              // 选策略随跳：chip 锚到该策略冻结的端点（页内选中，无激活调用）。
+              setSelectedEndpointId(strategy.endpoint_id);
               // 切策略 = 换端点 + 提示词 + Skill 的整套口径（N1 同源③）。会话处理
               // （v3，归属即身份）：进该策略的桶——拉它名下最近会话接上（「切走
               // 再切回」不丢历史），桶里还没有会话就空白起步。
@@ -479,11 +466,12 @@ export function PromptWorkbench({
           }}
           onNewStrategy={() => attachBucket(NEW_STRATEGY_ID)}
           onStrategySaved={(strategy) => assignActiveSession(strategy.id)}
+          onRestored={handleStrategyRestored}
         />
         <fieldset
           // N1④（2026-09-21 审计）：发送中只锁配置类操作、不锁整页——「能打字 /
           // 能挂附件 / 能切端点」是等待 125 秒时最基本的自由；sending 不再参与禁用。
-          disabled={endpointBusy || strategyBusy || promptBusy}
+          disabled={strategyBusy || promptBusy}
           className="grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-auto lg:grid-cols-2 lg:overflow-hidden"
         >
           <EditorColumn
@@ -527,9 +515,10 @@ export function PromptWorkbench({
 
           <ChatColumn
             endpoints={endpoints}
+            selectedEndpointId={selectedEndpointId}
             skills={skills}
             skillIds={skillIds}
-            disabled={endpointBusy || strategyBusy || promptBusy}
+            disabled={strategyBusy || promptBusy}
             controlsBusy={controlsBusy}
             canSend={canSend}
             messages={messages}
@@ -540,7 +529,7 @@ export function PromptWorkbench({
             instruction={instruction}
             media={media}
             sending={sending}
-            onActivateEndpoint={(cid) => void activateEndpoint(cid)}
+            onSelectEndpoint={selectEndpoint}
             onManageEndpoints={onNavigateToSettings}
             onNewSession={() => {
               interactionRef.current += 1;

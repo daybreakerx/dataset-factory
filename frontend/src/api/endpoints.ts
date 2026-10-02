@@ -1,14 +1,12 @@
 /**
- * 端点配置域：多套端点配置的 CRUD / 激活 / 连通性测试，以及旧版全局配置的读写
- * （后端 routes_endpoints ＋ routes_config——同属端点配置这一族）。
+ * 端点配置域：多套端点配置的 CRUD 与连通性测试（后端 routes_endpoints）。
+ * 全局激活机制已退役（ADR 2026-09-30）：请求显式携带端点，没有「当前使用」指针。
  */
 
 import type { components } from "../api-types.gen";
 
 import { PROBE_TIMEOUT_MS, request } from "./client";
 
-export type ConfigResponse = components["schemas"]["ConfigResponse"];
-export type ConfigUpdateRequest = components["schemas"]["ConfigUpdateRequest"];
 export type EndpointConfigSummary = components["schemas"]["EndpointConfigSummary"];
 export type EndpointRequestParams = components["schemas"]["EndpointRequestParams"];
 export type EndpointCreateRequest = components["schemas"]["EndpointCreateRequest"];
@@ -17,17 +15,10 @@ export type EndpointTestRequest = components["schemas"]["EndpointTestRequest"];
 export type EndpointTestResult = components["schemas"]["EndpointTestResult"];
 
 export const endpointsApi = {
-  /** 读当前端点配置（密钥只报来源、绝不回内容）。 */
-  getConfig: () => request<ConfigResponse>("GET", "/api/config"),
-
-  /** 写端点配置（api_key 缺省表示沿用已存密钥）。 */
-  updateConfig: (payload: ConfigUpdateRequest) =>
-    request<void>("PUT", "/api/config", payload),
-
   /** 列出端点多配置概要（密钥只报有无）。 */
   listEndpoints: () => request<EndpointConfigSummary[]>("GET", "/api/endpoints"),
 
-  /** 新增一套端点配置；当前没有生效配置时后端自动设为当前使用。 */
+  /** 新增一套端点配置。 */
   createEndpoint: (payload: EndpointCreateRequest) =>
     request<EndpointConfigSummary>("POST", "/api/endpoints", payload),
 
@@ -39,13 +30,9 @@ export const endpointsApi = {
       payload,
     ),
 
-  /** 删除一套端点配置（当前使用中的会被后端拒绝）。 */
+  /** 删除一套端点配置（无前置拦截，任何配置可删）。 */
   deleteEndpoint: (cid: string) =>
     request<void>("DELETE", `/api/endpoints/${encodeURIComponent(cid)}`),
-
-  /** 把一套配置设为当前使用；对新请求立即生效。 */
-  activateEndpoint: (cid: string) =>
-    request<void>("POST", `/api/endpoints/${encodeURIComponent(cid)}/activate`),
 
   /** 测试端点连通性（用表单当前值发极小真实请求；密钥缺省回落该配置已存密钥）。 */
   testEndpoint: (payload: EndpointTestRequest) =>

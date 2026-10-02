@@ -91,8 +91,15 @@ interface ChatSessionValue {
   media: PendingMedia | null;
   restoreState: ChatRestoreState;
   restoredPromptId: string | null;
-  /** 发送一轮打标：promptId / activeModel 由组件在发送时刻传入（配置仍归页面管）。 */
-  send(input: { promptId: string | null; activeModel: string }): void;
+  /**
+   * 发送一轮打标：promptId / activeModel / endpointId 由组件在发送时刻传入
+   * （配置仍归页面管；endpoint_id 契约必填——全局激活退役后请求显式携带端点）。
+   */
+  send(input: {
+    promptId: string | null;
+    activeModel: string;
+    endpointId: string;
+  }): void;
   stopGeneration(): void;
   newSession(): void;
   /** 清对话列（切提示词 = 换 system 底座）：保留输入与附件，不重开输入状态。 */
@@ -116,7 +123,7 @@ interface ChatSessionValue {
   setMediaMaxFrames(maxFrames: number): void;
   clearMedia(): void;
   copyCaption(message: ChatMessage): void;
-  /** 对话列错误条的直写口（端点激活等页面侧流程也往这里报）。 */
+  /** 对话列错误条的直写口（页面侧流程的失败也往这里报）。 */
   setChatError(value: string): void;
 }
 
@@ -204,9 +211,11 @@ export function ChatSessionProvider({
     ({
       promptId,
       activeModel,
+      endpointId,
     }: {
       promptId: string | null;
       activeModel: string;
+      endpointId: string;
     }): void => {
       if (sendingRef.current) return;
       if (instruction.trim() === "" && media === null) return;
@@ -276,6 +285,8 @@ export function ChatSessionProvider({
         try {
           await api.labelStream(
             {
+              // 请求显式携带端点（批1 起契约必填）：发送时刻的 chip 选中。
+              endpoint_id: endpointId,
               session_id: sessionId,
               prompt_id: promptId,
               skill_ids: skillIds,

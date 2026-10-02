@@ -57,7 +57,6 @@ const BASE_STUBS = {
       model: "example-caption-model",
       api_format: "openai-chat",
       has_api_key: true,
-      is_active: true,
       request_params: {},
     },
     {
@@ -67,7 +66,6 @@ const BASE_STUBS = {
       model: "offline-model",
       api_format: "openai-chat",
       has_api_key: false,
-      is_active: false,
       request_params: {},
     },
   ],

@@ -26,14 +26,6 @@ export const API_STUBS: Record<string, unknown> = {
     { id: "k-1", name: "caption-style", description: "风格约束", enabled: true, body_chars: 1234 },
     { id: "k-2", name: "anatomy-check", description: "结构检查", enabled: false, body_chars: 567 },
   ],
-  "GET /api/config": {
-    id: "e-1",
-    name: "default",
-    base_url: "https://api.example.test/v1",
-    model: "example-caption-model",
-    api_key_configured: true,
-    key_source: "credentials",
-  },
   "GET /api/endpoints": [
     {
       id: "e-1",
@@ -42,7 +34,6 @@ export const API_STUBS: Record<string, unknown> = {
       model: "example-caption-model",
       api_format: "openai-chat",
       has_api_key: true,
-      is_active: true,
       request_params: {},
     },
     {
@@ -52,7 +43,6 @@ export const API_STUBS: Record<string, unknown> = {
       model: "offline-model",
       api_format: "openai-chat",
       has_api_key: false,
-      is_active: false,
       request_params: { temperature: 0.7 },
     },
   ],

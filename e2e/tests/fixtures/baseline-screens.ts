@@ -276,6 +276,9 @@ export function defineBaselineScreens(
     const sink: string[] = [];
     await bootGated(page, sink, gatedOverrides(ids));
     await page.getByRole("textbox", { name: "策略名称" }).waitFor({ state: "visible" });
+    // chip 选中真 gated 端点：请求显式携带端点（全局激活退役），不选进不了闸门。
+    await page.getByRole("button", { name: "端点配置切换器" }).click();
+    await page.getByRole("menu").getByRole("menuitem", { name: /gated-probe/ }).click();
     await page.locator('input[type="file"]').setInputFiles({
       name: "probe.png",
       mimeType: "image/png",

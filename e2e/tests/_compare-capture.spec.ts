@@ -421,8 +421,9 @@ test("measure tooltip computed styles", async ({ page }) => {
 });
 
 // 零件取证 · 端点切换器（select-endpoint）computed style 实测（同一 CMP_CAPTURE=1 门）
-// 触发件（ghost 按钮：状态点＋「名字 · 模型」＋箭头）→ 弹层（面板/头行标签/行/active 点/分隔线/管理项）。
-// 数据 = 数据根种子端点 ＋ API 补建第二条（保证「当前＋普通」两行）；种子零触碰（不足两条才建）。
+// 触发件（ghost 按钮：「名字 · 模型」＋箭头；全局激活退役后触发件无状态点）→
+// 弹层（面板/头行标签/行/选中点/分隔线/管理项）。
+// 数据 = 数据根种子端点 ＋ API 补建第二条（保证「选中＋普通」两行）；种子零触碰（不足两条才建）。
 test("measure endpoint-switcher computed styles", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
@@ -454,10 +455,6 @@ test("measure endpoint-switcher computed styles", async ({ page }) => {
   const trigger = page.getByRole("button", { name: "端点配置切换器" });
   await trigger.waitFor({ state: "visible", timeout: 10_000 });
   console.log("EP_TRIGGER:", JSON.stringify(await trigger.evaluate(SCENE_BOX), null, 2));
-  console.log("EP_TRIGGER_DOT:", JSON.stringify(await trigger.locator("span.rounded-full").first().evaluate((el) => {
-    const cs = getComputedStyle(el);
-    return { width: cs.width, height: cs.height, backgroundColor: cs.backgroundColor, borderRadius: cs.borderRadius };
-  }), null, 2));
   console.log("EP_TRIGGER_TEXT:", JSON.stringify(await trigger.locator("span.truncate").evaluate(TXT), null, 2));
   console.log("EP_TRIGGER_CHEV:", JSON.stringify(await trigger.locator("svg").evaluate((el) => {
     const cs = getComputedStyle(el);
@@ -470,10 +467,16 @@ test("measure endpoint-switcher computed styles", async ({ page }) => {
     return { backgroundColor: cs.backgroundColor, color: cs.color };
   }), null, 2));
 
-  // 打开弹层；挪开鼠标防悬停污染、等入场动画落定
-  await page.mouse.move(10, 500);
+  // 页内选中一套（局部选择器语义）：弹层行的「选中点」与选中行样式要选中后才存在。
   await trigger.click();
   const menu = page.getByRole("menu");
+  await menu.waitFor({ state: "visible", timeout: 5000 });
+  await menu.getByRole("menuitem").first().click();
+  await page.waitForTimeout(300);
+
+  // 重新打开弹层测量；挪开鼠标防悬停污染、等入场动画落定
+  await page.mouse.move(10, 500);
+  await trigger.click();
   await menu.waitFor({ state: "visible", timeout: 5000 });
   await page.mouse.move(10, 500);
   await page.waitForTimeout(400);
@@ -485,7 +488,7 @@ test("measure endpoint-switcher computed styles", async ({ page }) => {
     return { popLeft: Math.round(m.left), popRight: Math.round(m.right), popTop: Math.round(m.top), chipLeft: Math.round(t.left), chipRight: Math.round(t.right), chipBottom: Math.round(t.bottom), align: Math.abs(m.right - t.right) < 2 ? "right" : (Math.abs(m.left - t.left) < 2 ? "left" : "other") };
   }), null, 2));
 
-  const headLabel = menu.locator("div").filter({ hasText: "端点配置（当前使用）" }).last();
+  const headLabel = menu.locator("div").filter({ hasText: /^端点配置$/ }).last();
   console.log("EP_HEAD_LABEL:", JSON.stringify(await headLabel.evaluate((el) => {
     const cs = getComputedStyle(el);
     return { text: (el.textContent ?? "").slice(0, 20), fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom };
@@ -493,7 +496,7 @@ test("measure endpoint-switcher computed styles", async ({ page }) => {
 
   const items = menu.getByRole("menuitem");
   console.log("EP_ITEMS_COUNT:", JSON.stringify({ count: await items.count() }));
-  // active 行 = 带 active 点（size-2 圆点）的行；管理项 = 「管理配置」
+  // 选中行 = 带选中点（size-2 圆点）的行；管理项 = 「管理配置」
   const activeDot = menu.locator("span.size-2.rounded-full");
   console.log("EP_ACTIVE_DOT:", JSON.stringify(await activeDot.first().evaluate((el) => {
     const cs = getComputedStyle(el);
@@ -542,7 +545,10 @@ test("measure chat-message computed styles", async ({ page }) => {
     return { fontSize: cs.fontSize, color: cs.color, textAlign: cs.textAlign, marginTop: cs.marginTop };
   }), null, 2));
 
-  // ② 文本往返（默认种子端点，假模型秒回）
+  // ② 文本往返（默认种子端点，假模型秒回）：发送前先在 chip 选中 default——
+  // 全局激活退役后请求显式携带端点（契约必填），页内未选会被前端守卫拦下。
+  await page.getByRole("button", { name: "端点配置切换器" }).click();
+  await page.getByRole("menu").getByRole("menuitem", { name: /^default/ }).click();
   await page.getByLabel("打标指令").fill("取证·用户消息：给这张图写一段训练用描述。");
   await page.getByRole("button", { name: "发送", exact: true }).click();
   await page.getByText("E2E 假模型的打标结果").last().waitFor({ state: "visible", timeout: 20_000 });
@@ -1668,7 +1674,7 @@ test("measure settings-endpoint-config computed styles", async ({ page }) => {
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
   await page.reload();
 
-  // 造数（幂等）：按名补缺——测试数据根可能已有此前取证轮留下的端点；首套不存在时先建（自动设为当前使用）
+  // 造数（幂等）：按名补缺——测试数据根可能已有此前取证轮留下的端点；不存在时先建
   const setup = await page.evaluate(async () => {
     const eps: Array<{ id: string; name: string }> = await (await fetch("/api/endpoints")).json();
     const names = new Set(eps.map((e) => e.name));
@@ -1697,17 +1703,10 @@ test("measure settings-endpoint-config computed styles", async ({ page }) => {
         body: JSON.stringify(body),
       });
     }
-    // SiliconFlow 恒为当前使用（证据态确定性）：后端只在「第一套配置」时自动激活，其余场合显式激活兜底
-    const after = await (await fetch("/api/endpoints")).json();
-    const sf = after.find((e: { name: string }) => e.name === "SiliconFlow");
-    if (sf && !sf.is_active) {
-      await fetch(`/api/endpoints/${encodeURIComponent(sf.id)}/activate`, { method: "POST" });
-    }
     const final = await (await fetch("/api/endpoints")).json();
     return {
       count: final.length,
       names: final.map((e: { name: string }) => e.name),
-      active: final.find((e: { is_active: boolean }) => e.is_active)?.name,
     };
   });
   console.log("EPC_SETUP:", JSON.stringify(setup));
@@ -1845,42 +1844,13 @@ test("measure settings-endpoint-config computed styles", async ({ page }) => {
     return { pad: g.padding, weight: g.fontWeight, size: g.fontSize, gap: g.columnGap, radius: g.borderRadius, chev: svg ? getComputedStyle(svg).width + "/" + getComputedStyle(svg).color : null, sum: sum ? [getComputedStyle(sum).fontSize, getComputedStyle(sum).fontWeight, getComputedStyle(sum).color] : null };
   }), null, 2));
   console.log("EPC_FOOT:", JSON.stringify(await page.evaluate(() => {
-    const foot = Array.from(document.querySelectorAll("div")).find((d) => d.querySelector("button") && d.textContent?.includes("立即生效于新请求") && d.className.includes("border-t"));
+    // 页脚提示行（「切换设为当前使用…」）随激活机制退役：按「border-t 行内含保存钮」定位。
+    const foot = Array.from(document.querySelectorAll("div")).find((d) => d.querySelector("button") && d.textContent?.includes("保存更改") && d.className.includes("border-t"));
     if (!foot) return null;
     const g = getComputedStyle(foot);
-    const note = foot.querySelector("span");
     const save = Array.from(foot.querySelectorAll("button")).find((b) => b.textContent?.includes("保存"));
-    return { pt: g.paddingTop, bt: g.borderTopWidth + " " + g.borderTopColor, gap: g.columnGap, note: note ? [getComputedStyle(note).fontSize, getComputedStyle(note).color] : null, save: save ? [save.offsetHeight, getComputedStyle(save).backgroundColor, getComputedStyle(save).color, getComputedStyle(save).borderRadius, save.textContent] : null };
+    return { pt: g.paddingTop, bt: g.borderTopWidth + " " + g.borderTopColor, gap: g.columnGap, save: save ? [save.offsetHeight, getComputedStyle(save).backgroundColor, getComputedStyle(save).color, getComputedStyle(save).borderRadius, save.textContent] : null };
   }), null, 2));
-
-  // 「设为当前使用」钮：激活第二套后 SiliconFlow 变非活跃 → 详情出切换钮
-  await page.evaluate(async () => {
-    const eps = await (await fetch("/api/endpoints")).json();
-    const oc = eps.find((e: { name: string }) => e.name === "OpenCode Go");
-    await fetch(`/api/endpoints/${encodeURIComponent(oc.id)}/activate`, { method: "POST" });
-  });
-  await page.reload();
-  await gotoSettings();
-  await page.getByRole("button", { name: "SiliconFlow" }).click();
-  await page.waitForTimeout(300);
-  const switchBtn = page.getByRole("button", { name: "设为当前使用" });
-  console.log("EPC_SWITCH_BTN:", JSON.stringify(await switchBtn.evaluate((el) => {
-    const cs = getComputedStyle(el);
-    return { h: el.offsetHeight, bg: cs.backgroundColor, bd: cs.borderTopColor, color: cs.color, size: cs.fontSize };
-  }), null, 2));
-  console.log("EPC_ST_NONACTIVE:", JSON.stringify(await page.evaluate(() => {
-    const head = Array.from(document.querySelectorAll("h3")).find((h) => h.textContent === "SiliconFlow")?.parentElement;
-    return { badgeCount: head ? head.querySelectorAll("span[data-slot]").length : null };
-  }), null, 2));
-  // 恢复 SiliconFlow 为当前使用（保持数据态稳定）
-  await page.evaluate(async () => {
-    const eps = await (await fetch("/api/endpoints")).json();
-    const sf = eps.find((e: { name: string }) => e.name === "SiliconFlow");
-    await fetch(`/api/endpoints/${encodeURIComponent(sf.id)}/activate`, { method: "POST" });
-  });
-  await page.reload();
-  await gotoSettings();
-  await page.waitForTimeout(300);
 
   // 高级参数展开态
   await page.getByRole("button", { name: /高级参数/ }).click();
@@ -1917,13 +1887,16 @@ test("measure settings-endpoint-config computed styles", async ({ page }) => {
     const title = dlg.querySelector('[data-slot="dialog-title"]');
     const desc = dlg.querySelector('[data-slot="dialog-description"]');
     const foot = dlg.querySelector('[data-slot="dialog-footer"]');
-    const cancel = foot?.querySelector("button:first-child");
-    const del = foot?.querySelector("button:last-child");
+    const note = foot?.querySelector("span");
+    const buttons = foot ? Array.from(foot.querySelectorAll("button")) : [];
+    const cancel = buttons[0];
+    const del = buttons[buttons.length - 1];
     const close = dlg.querySelector("button.absolute");
     return {
       w: dlg.getBoundingClientRect().width, radius: g.borderRadius, pad: g.padding, bg: g.backgroundColor, shadow: g.boxShadow.slice(0, 40),
       title: title ? [getComputedStyle(title).fontSize, getComputedStyle(title).fontWeight] : null,
       desc: desc ? [getComputedStyle(desc).fontSize, getComputedStyle(desc).color] : null,
+      note: note ? [note.textContent, getComputedStyle(note).fontSize, getComputedStyle(note).color, getComputedStyle(note).marginRight] : null,
       cancel: cancel ? [cancel.offsetHeight, getComputedStyle(cancel).backgroundColor, getComputedStyle(cancel).borderTopColor, cancel.textContent] : null,
       del: del ? [del.offsetHeight, getComputedStyle(del).backgroundColor, getComputedStyle(del).color, del.textContent] : null,
       close: close ? (close as HTMLElement).offsetHeight : null,

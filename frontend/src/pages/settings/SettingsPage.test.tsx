@@ -11,7 +11,6 @@ const apiMock = vi.hoisted(() => ({
   createEndpoint: vi.fn(),
   updateEndpoint: vi.fn(),
   deleteEndpoint: vi.fn(),
-  activateEndpoint: vi.fn(),
   testEndpoint: vi.fn(),
   listSkills: vi.fn(),
   importSkill: vi.fn(),
@@ -40,7 +39,6 @@ const ENDPOINTS: EndpointConfigSummary[] = [
     model: "model-a",
     api_format: "openai-chat-completions",
     has_api_key: true,
-    is_active: true,
     request_params: {},
   },
   {
@@ -50,7 +48,6 @@ const ENDPOINTS: EndpointConfigSummary[] = [
     model: "model-b",
     api_format: "openai-chat-completions",
     has_api_key: false,
-    is_active: false,
     request_params: {},
   },
 ];
@@ -125,7 +122,7 @@ describe("SettingsPage · 连接·端点配置", () => {
     expect(screen.getByLabelText("名称")).toHaveValue("default");
     expect(screen.getByLabelText("名称")).toBeEnabled();
     expect(screen.getByLabelText("模型名称")).toHaveValue("model-a");
-    expect(screen.getByText(/已配置 · 来源：credentials 文件/)).toBeInTheDocument();
+    expect(screen.getByText("已配置")).toBeInTheDocument();
   });
 
   it("保存更改：不带密钥调 updateEndpoint（后端沿用已存密钥）", async () => {
@@ -156,7 +153,6 @@ describe("SettingsPage · 连接·端点配置", () => {
       model: "model-a",
       api_format: "openai-chat-completions",
       has_api_key: true,
-      is_active: true,
       request_params: {},
     };
     // 改名后 reload 拿到含新名的列表，详情区保持在新配置上（同「添加配置」的两次 mock 口径）。
@@ -194,7 +190,6 @@ describe("SettingsPage · 连接·端点配置", () => {
       model: "m",
       api_format: "openai-chat-completions",
       has_api_key: true,
-      is_active: false,
       request_params: {},
     };
     // 真实后端在创建后会把它返回进列表；mock 同样按两次调用给不同结果，
@@ -224,19 +219,6 @@ describe("SettingsPage · 连接·端点配置", () => {
       });
     });
     expect(await screen.findByText("已创建配置「new-one」")).toBeInTheDocument();
-  });
-
-  it("未激活配置显示「设为当前使用」；点击调 activateEndpoint", async () => {
-    apiMock.activateEndpoint.mockResolvedValue(undefined);
-    render(<SettingsPage />);
-
-    await waitFor(() => screen.getByText("backup"));
-    await userEvent.click(screen.getByText("backup"));
-    await userEvent.click(await screen.findByRole("button", { name: "设为当前使用" }));
-
-    await waitFor(() => {
-      expect(apiMock.activateEndpoint).toHaveBeenCalledWith("backup");
-    });
   });
 
   it("删除：确认对话框内的删除钮才真正调 deleteEndpoint", async () => {
@@ -304,7 +286,6 @@ describe("SettingsPage · 端点配置·高级参数", () => {
     model: "model-t",
     api_format: "openai-chat-completions",
     has_api_key: true,
-    is_active: true,
     request_params: {
       temperature: 0.7,
       extra_body: { top_k: 50 },

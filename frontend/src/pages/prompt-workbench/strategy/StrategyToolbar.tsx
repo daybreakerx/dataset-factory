@@ -33,6 +33,7 @@ export function StrategyToolbar({
   onSelect,
   onNewStrategy,
   onStrategySaved,
+  onRestored,
 }: {
   references: References;
   prompts: PromptInfo[];
@@ -44,6 +45,8 @@ export function StrategyToolbar({
   onNewStrategy: () => void;
   /** 新策略落库成功后回调：工作域把当前草稿会话改挂到新策略 id（会话归属 v3）。 */
   onStrategySaved: (strategy: Strategy) => void;
+  /** 启动恢复认领了策略时回调：端点 chip 锚定该策略冻结的端点（随跳同语义）。 */
+  onRestored: (strategy: Strategy) => void;
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const { entries, loading, error, setEntries, setError, fetchList } =
@@ -116,6 +119,7 @@ export function StrategyToolbar({
       if (byId !== undefined) {
         const mirror = readStoredJson(WORKBENCH_STRATEGY_KEY, isStrategySelection);
         setSelected(byId);
+        onRestored(byId);
         setName(mirror?.name || byId.name);
         setDescription(mirror?.description || byId.description);
         // 补全认领写回的骨架镜像（空名称）——落回完整版，下次重启直接用。
@@ -144,7 +148,7 @@ export function StrategyToolbar({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [entries, loading, selected, name, description]);
+  }, [entries, loading, selected, name, description, onRestored]);
 
   const remember = (entry: Strategy): void => {
     setEntries((current) =>

@@ -4,32 +4,6 @@
  */
 
 export interface paths {
-    "/api/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Config
-         * @description 查看当前使用的配置（密钥只报来源与是否已配置，绝不回内容）。
-         */
-        get: operations["get_config_api_config_get"];
-        /**
-         * Update Config
-         * @description 更新当前使用的配置；尚无可用配置时创建 default 并启用。
-         *
-         *     api_key 缺省沿用该配置已存的密钥（Web 表单改 base_url 不必重输密钥）。
-         */
-        put: operations["update_config_api_config_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/endpoints": {
         parameters: {
             query?: never;
@@ -98,29 +72,9 @@ export interface paths {
         post?: never;
         /**
          * Remove
-         * @description 删除一套端点配置（连同其密钥文件）。
+         * @description 删除一套端点配置（连同其密钥文件；不再有任何前置拦截——悬空引用由建批时的「引用缺失」报错与 `dsf strategy rebind` 兜底）。
          */
         delete: operations["remove_api_endpoints__cid__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/endpoints/{cid}/activate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Activate
-         * @description 把一套配置设为当前使用；对新请求立即生效。
-         */
-        post: operations["activate_api_endpoints__cid__activate_post"];
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -240,7 +194,7 @@ export interface paths {
         put?: never;
         /**
          * Label
-         * @description 跑一轮打标（带 session_id 即续接迭代改写）。
+         * @description 跑一轮打标（带 session_id 即续接迭代改写；端点由请求显式携带）。
          */
         post: operations["label_api_label_post"];
         delete?: never;
@@ -1870,42 +1824,6 @@ export interface components {
             recovery_path: string | null;
         };
         /**
-         * ConfigResponse
-         * @description GET /api/config 的响应体——密钥只报来源、绝不回内容。
-         */
-        ConfigResponse: {
-            /** Api Key Configured */
-            api_key_configured: boolean;
-            /** Base Url */
-            base_url: string | null;
-            /**
-             * Id
-             * @description 当前使用的配置 ID；未配置为 null
-             */
-            id?: string | null;
-            /** Key Source */
-            key_source: string | null;
-            /** Model */
-            model: string | null;
-            /**
-             * Name
-             * @description 当前使用的配置显示名；未配置为 null
-             */
-            name?: string | null;
-        };
-        /**
-         * ConfigUpdateRequest
-         * @description PUT /api/config 的请求体——api_key 缺省沿用现有密钥（不强迫重输）。
-         */
-        ConfigUpdateRequest: {
-            /** Api Key */
-            api_key?: string | null;
-            /** Base Url */
-            base_url: string;
-            /** Model */
-            model: string;
-        };
-        /**
          * CreateDirectoryRequest
          * @description 在既有父目录下创建一层目录。
          */
@@ -2011,11 +1929,6 @@ export interface components {
              * @description 配置 ID（内部稳定身份，目录名即 ID，不随改名变化）
              */
             id: string;
-            /**
-             * Is Active
-             * @description 是否为当前使用的配置
-             */
-            is_active: boolean;
             /**
              * Model
              * @description 模型名
@@ -2597,6 +2510,11 @@ export interface components {
          * @description POST /api/label 的请求体。
          */
         LabelRequest: {
+            /**
+             * Endpoint Id
+             * @description 本轮使用的端点配置 ID（请求显式携带端点——ADR 2026-09-30「全局当前使用退役」；缺失由请求校验直接判 422）
+             */
+            endpoint_id: string;
             /**
              * Image Base64
              * @description 图片（data URL 或纯 base64）；缺省纯文本轮
@@ -3650,66 +3568,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    get_config_api_config_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConfigResponse"];
-                };
-            };
-        };
-    };
-    update_config_api_config_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConfigUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description 参数不合法 / 未提供密钥 */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_all_api_endpoints_get: {
         parameters: {
             query?: never;
@@ -3859,53 +3717,6 @@ export interface operations {
         };
     };
     remove_api_endpoints__cid__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                cid: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description 配置不存在 */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorDetail"];
-                };
-            };
-            /** @description 是当前使用中的配置（先切换到其他配置再删） */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    activate_api_endpoints__cid__activate_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4183,7 +3994,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description 会话或提示词不存在 */
+            /** @description 会话 / 提示词 / 端点配置不存在 */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -4252,7 +4063,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description 会话或提示词不存在 */
+            /** @description 会话 / 提示词 / 端点配置不存在 */
             404: {
                 headers: {
                     [name: string]: unknown;

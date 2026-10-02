@@ -170,12 +170,12 @@ describe("App 外壳", () => {
     });
     apiMock.listEndpoints.mockResolvedValue([
       {
+        id: "e-1",
         name: "ep",
         base_url: "https://a/v1",
         model: "model-a",
         api_format: "openai-chat-completions",
         has_api_key: true,
-        is_active: true,
         request_params: {},
       },
     ]);
@@ -197,6 +197,9 @@ describe("App 外壳", () => {
 
     render(<App />);
     await screen.findByLabelText("打标指令");
+    // chip 无策略锚时停在未配置端点：发送前先经切换器选一套（契约必填的前端守卫）。
+    await user.click(screen.getByLabelText("端点配置切换器"));
+    await user.click(await screen.findByText("ep · model-a"));
     await user.type(screen.getByLabelText("打标指令"), "打个标");
     await user.click(screen.getByRole("button", { name: "发送" }));
     await screen.findByText("半截");

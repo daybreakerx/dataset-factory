@@ -71,6 +71,9 @@ test.describe("页面状态保持", () => {
     await page.getByLabel("正文（Markdown）").fill("客观描述可见画面。");
     await page.getByRole("button", { name: "保存", exact: true }).click();
     await expect(page.getByText(/已保存提示词/)).toBeVisible();
+    // 策略保存冻结端点、对话请求显式携带端点（全局激活退役）：先在 chip 选中种子端点。
+    await page.getByRole("button", { name: "端点配置切换器" }).click();
+    await page.getByRole("menu").getByRole("menuitem", { name: /^default/ }).click();
     await page.getByLabel("策略名称", { exact: true }).fill("E2E 状态策略");
     await page.getByRole("button", { name: "保存策略" }).click();
     await page.getByRole("button", { name: "切换策略" }).click();
@@ -109,6 +112,9 @@ test.describe("页面状态保持", () => {
     await page.getByLabel("正文（Markdown）").fill("客观描述可见画面。");
     await page.getByRole("button", { name: "保存", exact: true }).click();
     await expect(page.getByText(/已保存提示词/)).toBeVisible();
+    // 策略保存冻结端点、对话请求显式携带端点（全局激活退役）：先在 chip 选中种子端点。
+    await page.getByRole("button", { name: "端点配置切换器" }).click();
+    await page.getByRole("menu").getByRole("menuitem", { name: /^default/ }).click();
 
     // 策略 A：保存 → 应用 → 发言。
     await page.getByLabel("策略名称", { exact: true }).fill("桶隔离A");

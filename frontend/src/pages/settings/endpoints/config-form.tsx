@@ -1,5 +1,5 @@
 /**
- * 连接 · 端点配置 · 详情表单（右列）：头行（题名 / 当前使用章 / 删除钮）、五个字段
+ * 连接 · 端点配置 · 详情表单（右列）：头行（题名 / 删除钮）、五个字段
  * （名称 / Base URL / API 格式 / 模型名称 / API 密钥）、反馈条、测试连接行、
  * 高级参数折叠区与页脚动作行。展示层——草稿状态与命令回调由面板传入。
  */
@@ -7,7 +7,6 @@ import { LockIcon } from "lucide-react";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 import type { EndpointConfigSummary, EndpointTestResult } from "../../../api";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
-import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
@@ -53,7 +52,6 @@ type ConfigFormProps = {
   feedback: Feedback | null;
   canSave: boolean;
   onSave: () => void;
-  onActivate: () => void;
   onDelete: () => void;
   testing: boolean;
   testResult: EndpointTestResult | null;
@@ -73,7 +71,7 @@ type ConfigFormProps = {
   onThinkingChange: (mode: ThinkingMode) => void;
 };
 
-/** 详情表单：编辑 / 创建共用一套草稿；保存与激活等命令由面板执行。 */
+/** 详情表单：编辑 / 创建共用一套草稿；保存与删除等命令由面板执行。 */
 export function ConfigForm({
   creating,
   current,
@@ -90,7 +88,6 @@ export function ConfigForm({
   feedback,
   canSave,
   onSave,
-  onActivate,
   onDelete,
   testing,
   testResult,
@@ -113,7 +110,6 @@ export function ConfigForm({
         <h3 className="text-t-lg font-semibold">
           {creating ? "添加配置" : current?.name}
         </h3>
-        {!creating && current?.is_active && <Badge variant="info">当前使用</Badge>}
         {!creating && (
           <Button
             type="button"
@@ -200,7 +196,7 @@ export function ConfigForm({
             <span className="size-2 rounded-full bg-success" aria-hidden />
           )}
           {(current?.has_api_key ?? false)
-            ? `已配置${current?.is_active ? " · 来源：credentials 文件" : ""}`
+            ? "已配置"
             : "未配置——可之后补配，或用环境变量 DSF_API_KEY 兜底"}
         </p>
         <p className="flex items-center gap-1.5 text-t-sm text-muted-foreground">
@@ -237,20 +233,10 @@ export function ConfigForm({
       />
 
       <div className="flex items-center gap-2 border-t border-border pt-4">
-        {!creating && (
-          <span className="text-t-sm text-muted-foreground">
-            切换「设为当前使用」立即生效于新请求
-          </span>
-        )}
         <span className="flex-1" />
         <Button type="button" disabled={!canSave} onClick={onSave}>
           {creating ? "创建配置" : "保存更改"}
         </Button>
-        {!creating && current !== undefined && !current.is_active && (
-          <Button type="button" variant="outline" onClick={onActivate}>
-            设为当前使用
-          </Button>
-        )}
       </div>
     </div>
   );

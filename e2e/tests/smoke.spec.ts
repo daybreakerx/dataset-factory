@@ -92,6 +92,9 @@ test.describe("打标全链路", () => {
     await page.getByRole("button", { name: "保存", exact: true }).click();
     await expect(page.getByText("已保存提示词「e2e-label-prompt」")).toBeVisible();
 
+    // 请求显式携带端点（全局激活退役）：发送前在 chip 选中种子端点 default。
+    await page.getByRole("button", { name: "端点配置切换器" }).click();
+    await page.getByRole("menu").getByRole("menuitem", { name: /^default/ }).click();
     // 发指令、等待假模型回复上屏（请求条里应带着刚建的基础提示词）。
     await page
       .getByLabel("打标指令")
@@ -110,7 +113,7 @@ test.describe("设置页", () => {
     // 页面保活：策略页常驻 DOM（隐藏），「名称」标签两页都有——按页容器取作用域。
     const settings = page.getByTestId("page-settings");
     await expect(settings.getByLabel("Base URL")).toHaveValue(/fake-llm\/v1$/);
-    await expect(settings.getByText(/已配置 · 来源：credentials 文件/)).toBeVisible();
+    await expect(settings.getByText("已配置")).toBeVisible();
     // 名称可编辑（2026-09-23 起：改名后端 PUT new_name 支持）。
     await expect(settings.getByLabel("名称", { exact: true })).toBeEnabled();
   });

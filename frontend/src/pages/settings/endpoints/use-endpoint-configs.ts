@@ -1,6 +1,6 @@
 /**
  * 端点配置面板的数据 hook：收拢查询类调用（配置列表及其 reload），供面板各区块共享。
- * 命令类调用（创建 / 更新 / 删除 / 激活 / 测试连接）留在面板调用点，不在这里包装。
+ * 命令类调用（创建 / 更新 / 删除 / 测试连接）留在面板调用点，不在这里包装。
  */
 import { useCallback, useState } from "react";
 import type { EndpointConfigSummary } from "../../../api";

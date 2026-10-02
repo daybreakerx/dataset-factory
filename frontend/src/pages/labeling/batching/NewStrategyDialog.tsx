@@ -81,13 +81,7 @@ export function NewStrategyDialog({
           prompts,
           skills: availableSkills.filter((entry) => entry.enabled),
         });
-        setEndpoint(
-          (value) =>
-            value ||
-            endpoints.find((entry) => entry.is_active)?.id ||
-            endpoints[0]?.id ||
-            "",
-        );
+        setEndpoint((value) => value || endpoints[0]?.id || "");
         setPrompt((value) => value || prompts[0]?.id || "");
       },
       (reason: unknown) => {

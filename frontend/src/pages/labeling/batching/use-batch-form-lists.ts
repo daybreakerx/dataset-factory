@@ -37,11 +37,7 @@ export function useBatchFormLists() {
         // 全部技能都列出来（含已停用）——只列已启用时，用户在表单里根本
         // 看不见「还有什么可用」，想启用只能自己切去设置页猜。
         setSkills(skillItems);
-        setEndpoint(
-          endpointItems.find((entry) => entry.is_active)?.name ??
-            endpointItems[0]?.name ??
-            "",
-        );
+        setEndpoint(endpointItems[0]?.name ?? "");
         setPrompt(promptItems[0]?.name ?? "");
         setLoaded(true);
       })

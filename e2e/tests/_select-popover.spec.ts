@@ -15,7 +15,7 @@ test("measure select popover computed styles", async ({ page }) => {
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
   await page.reload();
 
-  // 造数（幂等）：与 EPC 块同口径——按名补缺两套端点（不打 activate：本件量弹层，不依赖激活态）
+  // 造数（幂等）：与 EPC 块同口径——按名补缺两套端点（本件量弹层，与端点激活机制无关）
   const setup = await page.evaluate(async () => {
     const eps: Array<{ id: string; name: string }> = await (await fetch("/api/endpoints")).json();
     const names = new Set(eps.map((e) => e.name));

@@ -61,11 +61,9 @@ export async function seedGatedStrategy(request: APIRequestContext): Promise<Gat
     ).json()) as { id: string };
     endpointId = created.id;
   }
-  // 显式激活：对话链路（routes_labeling.build_engine → read_config）按「当前使用」配置
-  // 解析模型端点，不走策略绑定的端点——不激活，对话仍打在 serving.py 预写的 default
-  // （fake-e2e-model，不进闸门）上，闸门永远等不到调用。
-  await request.post(`/api/endpoints/${encodeURIComponent(endpointId)}/activate`);
-
+  // 端点的指向由请求显式携带（全局激活退役，ADR 2026-09-30）：gatedOverrides 把
+  // 真端点回填进前端桩表，用例在 chip 里选中它，payload 的 endpoint_id 才能被
+  // 真后端解析到 gated-probe 配置、模型调用进闸门。
   // 提示词：用 serving.py 预写的固定 ID 条目，不再随机创建（随机 id 会让请求清单快照漂）。
 
   // 策略（引用固定 id 提示词与 gated 端点；skill_ids 留空——真后端没有技能可引）。
@@ -108,6 +106,18 @@ export function gatedOverrides(ids: GatedIds): Record<string, unknown> {
       body: "请用中文详细描述这张图的主体、姿态、背景与光线。",
     },
     "GET /api/skills": [],
+    // 端点列表给真分配的 gated 端点：chip 里选中它，发送的 endpoint_id 才进闸门。
+    "GET /api/endpoints": [
+      {
+        id: ids.endpointId,
+        name: "gated-probe",
+        base_url: `http://127.0.0.1:8765/fake-llm/v1`,
+        model: "gated-e2e-model",
+        api_format: "openai-chat-completions",
+        has_api_key: true,
+        request_params: {},
+      },
+    ],
     "GET /api/sessions/latest": null,
     "GET /api/strategies": [
       {

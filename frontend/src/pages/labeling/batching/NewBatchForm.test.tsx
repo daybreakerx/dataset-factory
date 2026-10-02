@@ -56,7 +56,6 @@ beforeEach(() => {
       id: "e-model-x1111",
       name: "model",
       model: "test",
-      is_active: true,
       has_api_key: true,
       base_url: "https://example.invalid",
       api_format: "openai-chat-completions",

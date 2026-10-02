@@ -2,7 +2,6 @@
 import { PlusIcon } from "lucide-react";
 import type { ReactElement } from "react";
 import type { EndpointConfigSummary } from "../../../api";
-import { Tip } from "../../../components/ui/tooltip";
 
 type ConfigListProps = {
   endpoints: EndpointConfigSummary[];
@@ -11,7 +10,7 @@ type ConfigListProps = {
   onStartCreate: () => void;
 };
 
-/** 左列：每行带激活点与模型名，行尾虚线「添加配置」入口；列表区独立滚动。 */
+/** 左列：每行带模型名，行尾虚线「添加配置」入口；列表区独立滚动。 */
 export function ConfigList({
   endpoints,
   selected,
@@ -46,14 +45,6 @@ export function ConfigList({
                 />
               )}
               <span className="flex items-center gap-2">
-                <Tip label={item.is_active ? "当前使用" : ""}>
-                  <span
-                    className={
-                      "size-2 rounded-full " +
-                      (item.is_active ? "bg-success" : "bg-muted-foreground/30")
-                    }
-                  />
-                </Tip>
                 <span
                   className={`truncate text-t-md font-medium${active ? " text-primary" : ""}`}
                 >

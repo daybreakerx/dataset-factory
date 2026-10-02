@@ -175,6 +175,7 @@ describe("labelStream SSE 解析", () => {
 
     await api.labelStream(
       {
+        endpoint_id: "e1",
         prompt_id: "p",
         instruction: "写",
         image_name: "image.png",
@@ -209,6 +210,7 @@ describe("labelStream SSE 解析", () => {
     await expect(
       api.labelStream(
         {
+          endpoint_id: "e1",
           prompt_id: "缺失",
           instruction: "x",
           image_name: "image.png",
