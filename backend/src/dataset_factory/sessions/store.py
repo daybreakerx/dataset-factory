@@ -3,13 +3,15 @@
 一会话一目录 ``sessions/<会话id>/``（会话 id = 创建时刻的 UTC 时间戳，定宽、字典序即时间序）：
 ``events.jsonl`` 是 append-only 事件流（消息 + 请求信封 + 设置，每行一个 JSON 对象，只追加
 不改写）；``attachments/`` 存本会话图片副本（原名 + 序号、重名不覆盖，会话自包含）；
-``meta.json`` 存会话元数据（当前只有归属 ``strategy_id``——会话属于哪个策略 / ``__new__``
-草稿桶，供「按桶查最近」「删策略级联删会话」「每桶滚动保留」使用；归属不进事件流，因为
-桶查询不应依赖事件流语义的解析方）。恢复 = 读最新目录回放。崩溃 / 中断安全靠三点：
-append-only（已落盘的行不受后续崩溃影响）、每次追加后 fsync（「请求信封先落盘再发」的
-依据）、回放时宽容丢弃末尾写了一半的残缺行（其余损坏仍 fail loud）。meta.json 用原子写，
-损坏或缺失按「无归属」处理（fail-soft：丢归属只是查不到，事件流完好）。数据根复用共享
-``_fs``；本模块禁 import 入口层 / llm / 同层数据域（分层契约守）。
+``meta.json`` 存会话元数据：归属 ``strategy_id``（会话属于哪个策略 / ``__new__`` 草稿桶，
+供「按桶查最近」「删策略级联删会话」「每桶滚动保留」使用）与来源 ``source``（web / cli，
+两表面的会话分开管理——Web 只消费 web 来源、cli 来源不被 Web 的滚动删除清掉，ADR
+2026-09-30「全局当前使用退役」）。归属与来源都不进事件流，因为桶查询不应依赖事件流语义
+的解析方。恢复 = 读最新目录回放。崩溃 / 中断安全靠三点：append-only（已落盘的行不受后续
+崩溃影响）、每次追加后 fsync（「请求信封先落盘再发」的依据）、回放时宽容丢弃末尾写了一半
+的残缺行（其余损坏仍 fail loud）。meta.json 用原子写，损坏或缺失按「无归属、来源 web」
+处理（fail-soft：丢元数据只是查不到/不参与过滤，事件流完好）。数据根复用共享 ``_fs``；
+本模块禁 import 入口层 / llm / 同层数据域（分层契约守）。
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import shutil
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal, cast
 
 from .._clock import now_iso
 from .._fs import atomic_write_text, data_root, is_single_path_segment
@@ -39,6 +42,11 @@ from .model import (
     dump_event,
     parse_event,
 )
+
+# 会话来源（ADR 2026-09-30「全局当前使用退役」）：两个入口表面各盖各的章，分开管理——
+# Web 工作台只消费 web 来源（滚动保留每桶一份照旧、不被 CLI 会话顶掉），cli 来源不被
+# 滚动删除、由 `dsf session remove` 手动清理。存量会话无该字段，一律按 web 归账。
+type SessionSource = Literal["web", "cli"]
 
 _SESSIONS_DIRNAME = "sessions"
 _EVENTS_FILENAME = "events.jsonl"
@@ -151,17 +159,20 @@ def _unique_attachment_name(directory: Path, original: str) -> str:
     return candidate
 
 
-def create_session(strategy_id: str | None = None) -> str:
+def create_session(
+    strategy_id: str | None = None, *, source: SessionSource = "web"
+) -> str:
     """新建一个会话，返回其 id（= 创建时间戳，也是 sessions/ 下的目录名）。
 
-    建目录并落一个空 events.jsonl 与 meta.json（归属 strategy_id，None = 无归属）——
-    会话一创建即完整合法、能立刻被 list_sessions / latest_session_id / 桶查询识别
-    （attachments/ 留到首次存附件时再建）。meta 写失败时清掉半建目录再抛：无归属的
-    新会话对桶查询永不可达，留着只会成为僵尸目录。
+    建目录并落一个空 events.jsonl 与 meta.json（归属 strategy_id，None = 无归属；来源
+    source 由入口表面盖章）——会话一创建即完整合法、能立刻被 list_sessions /
+    latest_session_id / 桶查询识别（attachments/ 留到首次存附件时再建）。meta 写失败时
+    清掉半建目录再抛：无归属的新会话对桶查询永不可达，留着只会成为僵尸目录。
 
     Args:
         strategy_id: 会话归属（策略 id 或 ``__new__`` 草稿桶）；None = 无归属（存量
             与不经过本参数的调用方保持旧行为）。
+        source: 会话来源（web / cli）；Web 入口与 CLI 入口各盖各的章。
 
     Returns:
         新会话的 id。
@@ -175,9 +186,7 @@ def create_session(strategy_id: str | None = None) -> str:
     try:
         session_dir.mkdir(parents=True)
         (session_dir / _EVENTS_FILENAME).touch()
-        atomic_write_text(
-            _meta_path(session_id), json.dumps({"strategy_id": strategy_id})
-        )
+        _write_meta(session_id, {"strategy_id": strategy_id, "source": source})
     except OSError as exc:
         shutil.rmtree(session_dir, ignore_errors=True)
         raise SessionError(
@@ -191,6 +200,23 @@ def _meta_path(session_id: str) -> Path:
     return _session_dir(session_id) / _META_FILENAME
 
 
+def _write_meta(session_id: str, fields: Mapping[str, object]) -> None:
+    """整份原子写 meta.json（调用方给全量字段；来源等既有字段由调用方保留）。"""
+    atomic_write_text(_meta_path(session_id), json.dumps(dict(fields)))
+
+
+def _read_meta(session_id: str) -> dict[str, object]:
+    """读 meta.json 并解析成对象；缺失 / 损坏 / 非对象按空表处理（fail-soft，不炸恢复链）。"""
+    path = _meta_path(session_id)
+    if not path.is_file():
+        return {}
+    try:
+        parsed: object = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return cast(dict[str, object], parsed) if isinstance(parsed, dict) else {}
+
+
 def read_strategy_id(session_id: str) -> str | None:
     """读会话归属（meta.json 的 strategy_id）；无归属 / 无 meta / meta 损坏返回 None。
 
@@ -202,18 +228,26 @@ def read_strategy_id(session_id: str) -> str | None:
         SessionNotFoundError: 没有这个会话。
     """
     _validate_id(session_id)
-    path = _meta_path(session_id)
-    if not path.is_file():
-        return None
-    try:
-        value = json.loads(path.read_text(encoding="utf-8")).get("strategy_id")
-    except (OSError, json.JSONDecodeError, AttributeError):
-        return None
+    value = _read_meta(session_id).get("strategy_id")
     return value if isinstance(value, str) and value else None
+
+
+def read_session_source(session_id: str) -> SessionSource:
+    """读会话来源（meta.json 的 source）；存量 / 缺失 / 损坏一律按 web 归账。
+
+    Raises:
+        SessionIdError: id 非法。
+        SessionNotFoundError: 没有这个会话。
+    """
+    _validate_id(session_id)
+    value = _read_meta(session_id).get("source")
+    return "cli" if value == "cli" else "web"
 
 
 def write_strategy_id(session_id: str, strategy_id: str) -> None:
     """改写会话归属（保存新策略时把草稿会话从 ``__new__`` 改挂到新 id）。
+
+    只换 strategy_id 一个键，来源等其他既有元数据原样保留。
 
     Args:
         session_id: 会话 id。
@@ -227,40 +261,52 @@ def write_strategy_id(session_id: str, strategy_id: str) -> None:
     _validate_id(session_id)
     if not _events_path(session_id).is_file():
         raise SessionNotFoundError(f"未找到会话 {session_id!r}。")
+    meta = _read_meta(session_id)
+    meta["strategy_id"] = strategy_id
     try:
-        atomic_write_text(
-            _meta_path(session_id), json.dumps({"strategy_id": strategy_id})
-        )
+        _write_meta(session_id, meta)
     except OSError as exc:
         raise SessionError(
             f"无法改写会话 {session_id!r} 的归属：{exc.strerror or exc}"
         ) from exc
 
 
-def sessions_for_strategy(strategy_id: str) -> list[str]:
-    """某归属桶下的全部会话 id（按创建时间正序）。"""
+def sessions_for_strategy(
+    strategy_id: str, *, source: SessionSource | None = None
+) -> list[str]:
+    """某归属桶下的全部会话 id（按创建时间正序）；给 ``source`` 时只看该来源的会话。"""
     return [
         session_id
         for session_id in list_sessions()
         if read_strategy_id(session_id) == strategy_id
+        and (source is None or read_session_source(session_id) == source)
     ]
 
 
-def latest_session_id_for(strategy_id: str) -> str | None:
-    """某归属桶下最新（创建时间最晚）的会话 id；桶为空返回 None。"""
-    bucket = sessions_for_strategy(strategy_id)
+def latest_session_id_for(
+    strategy_id: str, *, source: SessionSource | None = None
+) -> str | None:
+    """某归属桶下最新（创建时间最晚）的会话 id；桶为空返回 None。
+
+    ``source`` 过滤口径同 sessions_for_strategy（Web 侧按 web 来源取，不被 CLI 会话顶掉）。
+    """
+    bucket = sessions_for_strategy(strategy_id, source=source)
     return bucket[-1] if bucket else None
 
 
-def retain_latest_for(strategy_id: str, *, keep: str) -> list[str]:
-    """滚动保留：删掉桶内除 ``keep`` 外的全部会话，返回被删的会话 id 清单。
+def retain_latest_for(
+    strategy_id: str, *, keep: str, source: SessionSource
+) -> list[str]:
+    """滚动保留：删掉桶内除 ``keep`` 外的**该来源**（``source``）会话，返回被删的 id 清单。
 
-    调用时机在「新会话首轮回复成功落盘后」（入口层编排）——失败轮不调本函数，
-    旧会话保留；``keep`` 不在桶内（异常时序，如并发下的记录漂移）则整桶不动
-    （宁可多留不可误删——被删的旧会话没有恢复手段）。删除失败（如目录被外部
-    占用）时跳过该目录继续，不中断整批。
+    调用时机在「新会话首轮回复成功落盘后」（Web 入口编排，source=web）——失败轮不调
+    本函数，旧会话保留；**cli 来源的会话不在删除范围**（ADR 2026-09-30：CLI 的高频机器
+    调用不得顶掉 Web 工作台的对话，CLI 会话由 `dsf session remove` 手动清理）。
+    ``keep`` 不在桶内（异常时序，如并发下的记录漂移）则整桶不动（宁可多留不可误删——
+    被删的旧会话没有恢复手段）。删除失败（如目录被外部占用）时跳过该目录继续，不中断
+    整批。
     """
-    bucket = sessions_for_strategy(strategy_id)
+    bucket = sessions_for_strategy(strategy_id, source=source)
     if keep not in bucket:
         return []
     removed: list[str] = []
@@ -317,9 +363,18 @@ def list_sessions() -> list[str]:
     )
 
 
-def latest_session_id() -> str | None:
-    """最新（创建时间最晚）的会话 id；一个会话都没有时返回 None（恢复 = 读最新目录回放）。"""
+def latest_session_id(*, source: SessionSource | None = None) -> str | None:
+    """最新（创建时间最晚）的会话 id；一个会话都没有时返回 None（恢复 = 读最新目录回放）。
+
+    ``source`` 给出时只在该来源里取（Web 的存量认领垫层按 web 取，避免捞到 CLI 会话）。
+    """
     sessions = list_sessions()
+    if source is not None:
+        sessions = [
+            session_id
+            for session_id in sessions
+            if read_session_source(session_id) == source
+        ]
     return sessions[-1] if sessions else None
 
 

@@ -52,9 +52,13 @@ router = APIRouter(prefix="/api", tags=["打标与会话"])
 _VIDEO_MIME = VIDEO_MIME_BY_SUFFIX
 
 
-def build_engine() -> LabelingEngine:
-    """从当前端点配置装配打标引擎（api 版工厂，测试 monkeypatch 注入假客户端）。"""
-    config = read_config()
+def build_engine(endpoint_id: str) -> LabelingEngine:
+    """按请求显式携带的端点配置装配打标引擎（api 版工厂，测试 monkeypatch 注入假客户端）。
+
+    端点不再有全局「当前使用」状态（ADR 2026-09-30「全局当前使用退役」）：每轮对话
+    请求显式带 endpoint_id（契约必填），指向不存在的配置由 read_config 抛可操作错误。
+    """
+    config = read_config(endpoint_id)
     return LabelingEngine(build_completer(config), config.model)
 
 
@@ -78,13 +82,13 @@ def _decode_media(payload: str, kind: str) -> bytes:
             "model": ErrorDetail,
             "description": "输入不合法（图片 / 视频不合法或互斥、提示词未选、空轮、端点配置缺失）",
         },
-        404: {"model": ErrorDetail, "description": "会话或提示词不存在"},
+        404: {"model": ErrorDetail, "description": "会话 / 提示词 / 端点配置不存在"},
         502: {"model": ErrorDetail, "description": "模型端点调用失败"},
         500: {"model": ErrorDetail, "description": "会话落盘等内部错误"},
     },
 )
 def label(request: LabelRequest) -> LabelResponse:
-    """跑一轮打标（带 session_id 即续接迭代改写）。"""
+    """跑一轮打标（带 session_id 即续接迭代改写；端点由请求显式携带）。"""
     if request.image_base64 and request.video_base64:
         raise HTTPException(
             status_code=400, detail="图片与视频只能带一个（一期单素材/次）。"
@@ -96,7 +100,7 @@ def label(request: LabelRequest) -> LabelResponse:
         _decode_media(request.video_base64, "视频") if request.video_base64 else None
     )
     video_mime = _VIDEO_MIME.get(Path(request.video_name).suffix.lower(), "video/mp4")
-    result = build_engine().label(
+    result = build_engine(request.endpoint_id).label(
         session_id=request.session_id,
         prompt_id=request.prompt_id,
         skill_ids=request.skill_ids,
@@ -125,7 +129,7 @@ def label(request: LabelRequest) -> LabelResponse:
             "model": ErrorDetail,
             "description": "输入不合法（同 /api/label；预备段失败走正常状态码，流中失败发 error 事件）",
         },
-        404: {"model": ErrorDetail, "description": "会话或提示词不存在"},
+        404: {"model": ErrorDetail, "description": "会话 / 提示词 / 端点配置不存在"},
     },
 )
 def label_stream(request: LabelRequest) -> StreamingResponse:
@@ -141,7 +145,7 @@ def label_stream(request: LabelRequest) -> StreamingResponse:
         _decode_media(request.video_base64, "视频") if request.video_base64 else None
     )
     video_mime = _VIDEO_MIME.get(Path(request.video_name).suffix.lower(), "video/mp4")
-    generator = build_engine().label_stream(
+    generator = build_engine(request.endpoint_id).label_stream(
         session_id=request.session_id,
         prompt_id=request.prompt_id,
         skill_ids=request.skill_ids,
@@ -211,14 +215,17 @@ def latest_session(strategy_id: str | None = None) -> SessionSnapshotResponse:
     带 ``strategy_id`` 查询时按归属桶取最新（会话归属 v3：每策略各自的最近会话），
     该桶为空同样 404；不带时为全局最新（存量认领垫层用）。
     """
+    # Web 工作台只消费 web 来源（CLI 会话不顶掉 Web 对话——ADR 2026-09-30）。
     session_id = (
-        latest_session_id_for(strategy_id) if strategy_id else latest_session_id()
+        latest_session_id_for(strategy_id, source="web")
+        if strategy_id
+        else latest_session_id(source="web")
     )
     if session_id is None:
         raise HTTPException(
             status_code=404, detail="还没有任何会话；发第一轮打标即自动创建。"
         )
-    return _snapshot_response(build_engine().restore(session_id))
+    return _snapshot_response(LabelingEngine.restore(session_id))
 
 
 @router.get(
@@ -228,17 +235,18 @@ def latest_session(strategy_id: str | None = None) -> SessionSnapshotResponse:
 )
 def get_session(session_id: str) -> SessionSnapshotResponse:
     """某会话快照（设置 + 对话历史 + 归属）。"""
-    return _snapshot_response(build_engine().restore(session_id))
+    return _snapshot_response(LabelingEngine.restore(session_id))
 
 
 def _retain_bucket(strategy_id: str | None, *, keep: str) -> None:
-    """按桶滚动保留（会话归属 v3）：桶内只留 ``keep``，其余删除。
+    """按桶滚动保留（会话归属 v3）：桶内只留 ``keep``，其余 **web 来源**会话删除。
 
-    策略为 None（无归属轮）不滚动。删除失败静默跳过（retain_latest_for 内部
-    已逐目录兜底）——保留失败不回滚本轮成功的打标结果。
+    Web 的滚动保留只清自己的会话——cli 来源不被滚动删除（ADR 2026-09-30：CLI 的高频
+    机器调用不得顶掉 Web 工作台的对话）。策略为 None（无归属轮）不滚动。删除失败
+    静默跳过（retain_latest_for 内部已逐目录兜底）——保留失败不回滚本轮成功的打标结果。
     """
     if strategy_id:
-        retain_latest_for(strategy_id, keep=keep)
+        retain_latest_for(strategy_id, keep=keep, source="web")
 
 
 @router.post(
@@ -259,7 +267,7 @@ def assign_session_strategy(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except SessionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return _snapshot_response(build_engine().restore(session_id))
+    return _snapshot_response(LabelingEngine.restore(session_id))
 
 
 @router.delete(

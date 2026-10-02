@@ -1,8 +1,9 @@
-"""单元测试：llm 请求侧配置视图（当前使用配置的读取 / 请求参数解析 / 密钥双通道 / 脱敏）。
+"""单元测试：llm 请求侧配置视图（指定配置的读取 / 请求参数解析 / 密钥双通道 / 脱敏）。
 
 全部离线、不真调 API；用 temp_data_root fixture 把数据根隔离到临时目录，绝不碰真实 ~/.dataset_factory。
-多配置存储本身（CRUD / active 指针 / 名称校验）见 test_llm_endpoints.py；这里直接在
-endpoints/ 下摆好已激活的配置文件作为读取输入，聚焦「读侧怎么解析」。
+多配置存储本身（CRUD / 名称校验）见 test_llm_endpoints.py；这里直接在 endpoints/ 下摆好
+配置文件作为读取输入，聚焦「读侧怎么解析」。请求显式携带端点（ADR 2026-09-30「全局
+当前使用退役」），read_config 一律带配置引用、不存在缺省语义。
 """
 
 from __future__ import annotations
@@ -22,17 +23,16 @@ from dataset_factory.llm import (
 )
 
 
-def _seed_active_config(
+def _seed_config(
     root: Path, config: dict[str, object], key: str = "sk-file-key"
 ) -> None:
-    """在数据根下摆一套已激活的 default 配置（存储行为由 test_llm_endpoints.py 负责）。"""
+    """在数据根下摆一套 default 配置（存储行为由 test_llm_endpoints.py 负责）。"""
     endpoint_dir = root / "endpoints" / "default"
     endpoint_dir.mkdir(parents=True, exist_ok=True)
     (endpoint_dir / "config.json").write_text(
         json.dumps(config, ensure_ascii=False), encoding="utf-8"
     )
     (endpoint_dir / "credentials").write_text(key, encoding="utf-8")
-    (root / "endpoints" / "active").write_text("default\n", encoding="utf-8")
 
 
 def _seed_config_only(root: Path, config: dict[str, object]) -> None:
@@ -42,7 +42,6 @@ def _seed_config_only(root: Path, config: dict[str, object]) -> None:
     (endpoint_dir / "config.json").write_text(
         json.dumps(config, ensure_ascii=False), encoding="utf-8"
     )
-    (root / "endpoints" / "active").write_text("default\n", encoding="utf-8")
 
 
 def _write_raw_config(root: Path, content: str) -> None:
@@ -50,12 +49,11 @@ def _write_raw_config(root: Path, content: str) -> None:
     endpoint_dir = root / "endpoints" / "default"
     endpoint_dir.mkdir(parents=True, exist_ok=True)
     (endpoint_dir / "config.json").write_text(content, encoding="utf-8")
-    (root / "endpoints" / "active").write_text("default\n", encoding="utf-8")
 
 
 def test_read_config_parses_request_params(temp_data_root: Path) -> None:
     """config.json 里配了请求参数时，read_config 把它们带进 EndpointConfig.request。"""
-    _seed_active_config(
+    _seed_config(
         temp_data_root,
         {
             "base_url": "https://api.example.com/v1",
@@ -70,7 +68,7 @@ def test_read_config_parses_request_params(temp_data_root: Path) -> None:
         },
     )
 
-    request = read_config().request
+    request = read_config("default").request
 
     assert request.temperature == 0.7
     assert request.top_p == 0.8
@@ -83,12 +81,12 @@ def test_read_config_parses_request_params(temp_data_root: Path) -> None:
 
 def test_read_config_request_params_default_when_absent(temp_data_root: Path) -> None:
     """没配请求参数时用内置默认；生成参数为 None（意思是「不传」而不是「传 0」）。"""
-    _seed_active_config(
+    _seed_config(
         temp_data_root,
         {"base_url": "https://api.example.com/v1", "model": "test-model"},
     )
 
-    request = read_config().request
+    request = read_config("default").request
 
     assert request.temperature is None
     assert request.top_p is None
@@ -118,18 +116,18 @@ def test_read_config_rejects_bad_request_param(
     )
 
     with pytest.raises(ConfigError):
-        read_config()
+        read_config("default")
 
 
 def test_read_config_from_files(temp_data_root: Path) -> None:
     """正常路径：config.json 出 base_url/model，credentials 出密钥。"""
-    _seed_active_config(
+    _seed_config(
         temp_data_root,
         {"base_url": "https://api.example.com/v1", "model": "test-model"},
         key="sk-abc123",
     )
 
-    cfg = read_config()
+    cfg = read_config("default")
 
     assert cfg.base_url == "https://api.example.com/v1"
     assert cfg.model == "test-model"
@@ -143,9 +141,8 @@ def test_read_config_parses_golden_fixture(temp_data_root: Path) -> None:
     endpoint_dir.mkdir(parents=True)
     shutil.copyfile(golden, endpoint_dir / "config.json")
     (endpoint_dir / "credentials").write_text("sk-golden-fixture", encoding="utf-8")
-    (temp_data_root / "endpoints" / "active").write_text("default\n", encoding="utf-8")
 
-    cfg = read_config()
+    cfg = read_config("default")
 
     assert cfg.base_url == "https://api.example.com/v1"
     assert cfg.model == "example-caption-model"
@@ -155,14 +152,14 @@ def test_env_key_overrides_credentials(
     temp_data_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """双通道：DSF_API_KEY 环境变量优先覆盖 credentials 文件。"""
-    _seed_active_config(
+    _seed_config(
         temp_data_root,
         {"base_url": "https://api.example.com/v1", "model": "test-model"},
         key="sk-file-key",
     )
     monkeypatch.setenv("DSF_API_KEY", "sk-env-key")
 
-    assert read_config().api_key.reveal() == "sk-env-key"
+    assert read_config("default").api_key.reveal() == "sk-env-key"
 
 
 def test_env_key_without_credentials_file(
@@ -175,22 +172,15 @@ def test_env_key_without_credentials_file(
     )
     monkeypatch.setenv("DSF_API_KEY", "  sk-env-only  ")
 
-    assert read_config().api_key.reveal() == "sk-env-only"
+    assert read_config("default").api_key.reveal() == "sk-env-only"
 
 
-def test_no_config_anywhere_raises(temp_data_root: Path) -> None:
-    """什么配置都没有 → ConfigError，信息可操作（指向 dsf config set / 设置页）。"""
-    with pytest.raises(ConfigError, match="未配置任何端点"):
-        read_config()
+def test_read_config_missing_ref_raises(temp_data_root: Path) -> None:
+    """请求指定的配置不存在 → ConfigNotFoundError（ConfigError 子类），消息点名引用。"""
+    from dataset_factory.llm import ConfigNotFoundError
 
-
-def test_active_pointer_dangling_raises(temp_data_root: Path) -> None:
-    """active 指向不存在的配置 → ConfigError，提示重新选择。"""
-    (temp_data_root / "endpoints").mkdir()
-    (temp_data_root / "endpoints" / "active").write_text("ghost\n", encoding="utf-8")
-
-    with pytest.raises(ConfigError, match="重新选择"):
-        read_config()
+    with pytest.raises(ConfigNotFoundError, match="ghost"):
+        read_config("ghost")
 
 
 def test_malformed_config_json_raises(temp_data_root: Path) -> None:
@@ -198,7 +188,7 @@ def test_malformed_config_json_raises(temp_data_root: Path) -> None:
     _write_raw_config(temp_data_root, "{not valid json")
 
     with pytest.raises(ConfigError, match="JSON"):
-        read_config()
+        read_config("default")
 
 
 def test_config_not_object_raises(temp_data_root: Path) -> None:
@@ -206,7 +196,7 @@ def test_config_not_object_raises(temp_data_root: Path) -> None:
     _write_raw_config(temp_data_root, json.dumps(["a"]))
 
     with pytest.raises(ConfigError, match="对象"):
-        read_config()
+        read_config("default")
 
 
 def test_config_missing_fields_raises(temp_data_root: Path) -> None:
@@ -214,7 +204,7 @@ def test_config_missing_fields_raises(temp_data_root: Path) -> None:
     _seed_config_only(temp_data_root, {"base_url": "https://x/v1"})
 
     with pytest.raises(ConfigError, match="model"):
-        read_config()
+        read_config("default")
 
 
 def test_no_key_anywhere_raises(temp_data_root: Path) -> None:
@@ -222,17 +212,15 @@ def test_no_key_anywhere_raises(temp_data_root: Path) -> None:
     _seed_config_only(temp_data_root, {"base_url": "https://x/v1", "model": "m"})
 
     with pytest.raises(ConfigError, match="API 密钥"):
-        read_config()
+        read_config("default")
 
 
 def test_empty_credentials_raises(temp_data_root: Path) -> None:
     """credentials 文件只有空白 → 视为无密钥 → ConfigError。"""
-    _seed_active_config(
-        temp_data_root, {"base_url": "https://x/v1", "model": "m"}, key="   "
-    )
+    _seed_config(temp_data_root, {"base_url": "https://x/v1", "model": "m"}, key="   ")
 
     with pytest.raises(ConfigError, match="API 密钥"):
-        read_config()
+        read_config("default")
 
 
 def test_secret_value_masks_repr() -> None:
@@ -258,7 +246,7 @@ def test_endpoint_config_repr_masks_key() -> None:
 
 def test_request_config_fields_keep_types(temp_data_root: Path) -> None:
     """RequestConfig 字段类型收紧：读侧产出的 extra_body 是普通 dict（可交给 SDK）。"""
-    _seed_active_config(
+    _seed_config(
         temp_data_root,
         {
             "base_url": "https://x/v1",
@@ -267,7 +255,7 @@ def test_request_config_fields_keep_types(temp_data_root: Path) -> None:
         },
     )
 
-    extra = read_config().request.extra_body
+    extra = read_config("default").request.extra_body
 
     assert extra is not None
     assert cast(dict[str, object], extra)["enable_thinking"] is False

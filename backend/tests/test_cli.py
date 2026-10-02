@@ -59,11 +59,10 @@ def fake_engine(monkeypatch: pytest.MonkeyPatch) -> FakeCompleter:
     completer = FakeCompleter()
     from dataset_factory.labeling import LabelingEngine
 
-    monkeypatch.setattr(
-        label_module,
-        "build_engine",
-        lambda: LabelingEngine(completer, "test-model"),
-    )
+    def fake_build(endpoint_ref: str) -> LabelingEngine:
+        return LabelingEngine(completer, "test-model", source="cli")
+
+    monkeypatch.setattr(label_module, "build_engine", fake_build)
     return completer
 
 
@@ -97,7 +96,9 @@ def test_label_outputs_caption_and_session_hint(
     """首轮 label：stdout 只有 caption（供外部 agent 解析），stderr 提示会话 id 续接。"""
     _save_prompt("h3", "你是打标助手。")
 
-    result = runner.invoke(app, ["label", "-p", "h3", "-m", "打标"])
+    result = runner.invoke(
+        app, ["label", "--endpoint", "e-test", "-p", "h3", "-m", "打标"]
+    )
 
     assert result.exit_code == 0
     assert result.stdout == "打标结果\n"
@@ -109,7 +110,9 @@ def test_label_json_mode(temp_data_root: Path, fake_engine: FakeCompleter) -> No
     """--json：stdout 输出 {session_id, caption} 结构化 JSON。"""
     _save_prompt("h3", "你是打标助手。")
 
-    result = runner.invoke(app, ["label", "-p", "h3", "-m", "打标", "--json"])
+    result = runner.invoke(
+        app, ["label", "--endpoint", "e-test", "-p", "h3", "-m", "打标", "--json"]
+    )
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -125,16 +128,28 @@ def test_label_resume_iterates_with_history(
     completer = FakeCompleter(replies=["第一轮", "第二轮"])
     from dataset_factory.labeling import LabelingEngine
 
-    def fake_build() -> LabelingEngine:
-        return LabelingEngine(completer, "test-model")
+    def fake_build(endpoint_ref: str) -> LabelingEngine:
+        return LabelingEngine(completer, "test-model", source="cli")
 
     monkeypatch.setattr(label_module, "build_engine", fake_build)
-    first = runner.invoke(app, ["label", "-p", "h3", "-m", "描述图"])
+    first = runner.invoke(
+        app, ["label", "--endpoint", "e-test", "-p", "h3", "-m", "描述图"]
+    )
     assert first.exit_code == 0
     assert first.stdout == "第一轮\n"
     (session_id,) = list_sessions()
     second = runner.invoke(
-        app, ["label", "--session", session_id, "-m", "改成一句话", "--json"]
+        app,
+        [
+            "label",
+            "--endpoint",
+            "e-test",
+            "--session",
+            session_id,
+            "-m",
+            "改成一句话",
+            "--json",
+        ],
     )
 
     assert second.exit_code == 0
@@ -156,7 +171,19 @@ def test_label_with_image_and_skill(
 
     result = runner.invoke(
         app,
-        ["label", "-p", "h3", "-s", skill_name, "-i", str(image), "-m", "描述"],
+        [
+            "label",
+            "--endpoint",
+            "e-test",
+            "-p",
+            "h3",
+            "-s",
+            skill_name,
+            "-i",
+            str(image),
+            "-m",
+            "描述",
+        ],
     )
 
     assert result.exit_code == 0
@@ -180,6 +207,8 @@ def test_label_with_video_passes_frame_params(
         app,
         [
             "label",
+            "--endpoint",
+            "e-test",
             "-p",
             "h3",
             "-v",
@@ -213,7 +242,19 @@ def test_label_image_and_video_together_is_usage_error(
 
     result = runner.invoke(
         app,
-        ["label", "-p", "h3", "-i", str(image), "-v", str(video), "-m", "描述"],
+        [
+            "label",
+            "--endpoint",
+            "e-test",
+            "-p",
+            "h3",
+            "-i",
+            str(image),
+            "-v",
+            str(video),
+            "-m",
+            "描述",
+        ],
     )
 
     assert result.exit_code == 2
@@ -225,7 +266,9 @@ def test_label_missing_prompt_exits_user_error(
     temp_data_root: Path, fake_engine: FakeCompleter
 ) -> None:
     """基础提示词不存在：退出码 1、stderr 给可操作错误。"""
-    result = runner.invoke(app, ["label", "-p", "不存在", "-m", "打标"])
+    result = runner.invoke(
+        app, ["label", "--endpoint", "e-test", "-p", "不存在", "-m", "打标"]
+    )
 
     assert result.exit_code == 1
     assert "不存在" in result.stderr
@@ -237,22 +280,20 @@ def test_label_empty_turn_exits_user_error(
     """无指令无图：退出码 1（EmptyTurnError 的可操作消息）。"""
     _save_prompt("h3", "你是打标助手。")
 
-    result = runner.invoke(app, ["label", "-p", "h3"])
+    result = runner.invoke(app, ["label", "--endpoint", "e-test", "-p", "h3"])
 
     assert result.exit_code == 1
     assert "内容" in result.stderr
 
 
-def test_label_missing_config_exits_user_error(
-    temp_data_root: Path,
-) -> None:
-    """未配置端点就打标：退出码 1、stderr 提示先 dsf config set（不甩栈）。"""
+def test_label_requires_endpoint_option(temp_data_root: Path) -> None:
+    """label 不带 --endpoint：按用法错误退 2（请求显式携带端点，没有缺省端点）。"""
     _save_prompt("h3", "你是打标助手。")
 
     result = runner.invoke(app, ["label", "-p", "h3", "-m", "打标"])
 
-    assert result.exit_code == 1
-    assert "dsf config set" in result.stderr
+    assert result.exit_code == 2
+    assert "--endpoint" in result.stderr
 
 
 def test_chat_rounds_and_exit_on_eof(
@@ -261,7 +302,9 @@ def test_chat_rounds_and_exit_on_eof(
     """chat 新会话：两轮交互后 EOF 干净退出（exit 0），回复打印到 stdout。"""
     _save_prompt("h3", "你是打标助手。")
 
-    result = runner.invoke(app, ["chat", "-p", "h3"], input="第一轮\n第二轮\n")
+    result = runner.invoke(
+        app, ["chat", "--endpoint", "e-test", "-p", "h3"], input="第一轮\n第二轮\n"
+    )
 
     assert result.exit_code == 0
     assert "打标结果" in result.output
@@ -275,9 +318,11 @@ def test_chat_resumes_latest_session(
 ) -> None:
     """chat 不带 --session：自动恢复最新会话（先 label 开一轮，chat 续上同一会话）。"""
     _save_prompt("h3", "你是打标助手。")
-    first = runner.invoke(app, ["label", "-p", "h3", "-m", "首轮"])
+    first = runner.invoke(
+        app, ["label", "--endpoint", "e-test", "-p", "h3", "-m", "首轮"]
+    )
     session_id = list_sessions()[0]
-    result = runner.invoke(app, ["chat"], input="继续改写\n")
+    result = runner.invoke(app, ["chat", "--endpoint", "e-test"], input="继续改写\n")
 
     assert first.exit_code == 0
     assert result.exit_code == 0
@@ -294,7 +339,11 @@ def test_chat_at_image_syntax(
     image = tmp_path / "cat.jpg"
     image.write_bytes(b"png!")
 
-    result = runner.invoke(app, ["chat", "-p", "h3"], input=f"@{image} 描述这张图\n")
+    result = runner.invoke(
+        app,
+        ["chat", "--endpoint", "e-test", "-p", "h3"],
+        input=f"@{image} 描述这张图\n",
+    )
 
     assert result.exit_code == 0
     user = fake_engine.calls[0][1]
@@ -310,7 +359,9 @@ def test_chat_with_skill_flag(temp_data_root: Path, fake_engine: FakeCompleter) 
     skill_name = import_skill(_SKILL_PACK).skill.name
 
     result = runner.invoke(
-        app, ["chat", "-p", "h3", "-s", skill_name], input="第一轮\n第二轮\n"
+        app,
+        ["chat", "--endpoint", "e-test", "-p", "h3", "-s", skill_name],
+        input="第一轮\n第二轮\n",
     )
 
     assert result.exit_code == 0
@@ -331,7 +382,11 @@ def test_chat_at_video_syntax(
     video = tmp_path / "clip.mp4"
     video.write_bytes(b"mp4!")
 
-    result = runner.invoke(app, ["chat", "-p", "h3"], input=f"@{video} 描述这段视频\n")
+    result = runner.invoke(
+        app,
+        ["chat", "--endpoint", "e-test", "-p", "h3"],
+        input=f"@{video} 描述这段视频\n",
+    )
 
     assert result.exit_code == 0
     user = fake_engine.calls[0][1]
@@ -354,7 +409,17 @@ def test_chat_at_video_with_frame_options(
 
     result = runner.invoke(
         app,
-        ["chat", "-p", "h3", "--video-fps", "4", "--video-max-frames", "8"],
+        [
+            "chat",
+            "--endpoint",
+            "e-test",
+            "-p",
+            "h3",
+            "--video-fps",
+            "4",
+            "--video-max-frames",
+            "8",
+        ],
         input=f"@{video} 描述\n",
     )
 
@@ -374,7 +439,9 @@ def test_chat_at_video_missing_file_keeps_session_alive(
     _save_prompt("h3", "你是打标助手。")
 
     result = runner.invoke(
-        app, ["chat", "-p", "h3"], input="@不存在的视频.mp4 描述\n第二轮\n"
+        app,
+        ["chat", "--endpoint", "e-test", "-p", "h3"],
+        input="@不存在的视频.mp4 描述\n第二轮\n",
     )
 
     assert result.exit_code == 0
@@ -385,13 +452,26 @@ def test_chat_at_video_missing_file_keeps_session_alive(
 
 
 def test_config_set_and_show(temp_data_root: Path) -> None:
-    """config set：密钥交互输入不回显落盘；show 显示配置与密钥来源（不显内容）。"""
-    result_set = runner.invoke(
+    """config set 点名更新已有配置：密钥留空沿用；show 按名显示（不显内容）。"""
+    runner.invoke(
         app,
-        ["config", "set", "--base-url", "https://api.example.com/v1", "--model", "m1"],
+        ["config", "add", "alpha", "--base-url", "https://a/v1", "--model", "m-a"],
         input="test-key-123\n",
     )
-    result_show = runner.invoke(app, ["config", "show"])
+    result_set = runner.invoke(
+        app,
+        [
+            "config",
+            "set",
+            "alpha",
+            "--base-url",
+            "https://api.example.com/v1",
+            "--model",
+            "m1",
+        ],
+        input="\n",
+    )
+    result_show = runner.invoke(app, ["config", "show", "alpha"])
 
     assert result_set.exit_code == 0
     assert result_show.exit_code == 0
@@ -401,12 +481,24 @@ def test_config_set_and_show(temp_data_root: Path) -> None:
     assert "test-key-123" not in result_show.output
 
 
-def test_config_show_empty(temp_data_root: Path) -> None:
-    """config show 空配置：显示未配置提示（不报错）。"""
-    result = runner.invoke(app, ["config", "show"])
+def test_config_set_missing_ref_fails(temp_data_root: Path) -> None:
+    """set 只更新已存在的配置：点名不存在的配置退出 1、提示 add。"""
+    result = runner.invoke(
+        app,
+        ["config", "set", "ghost", "--base-url", "https://x/v1", "--model", "m"],
+        input="\n",
+    )
 
-    assert result.exit_code == 0
-    assert "未配置" in result.output
+    assert result.exit_code == 1
+    assert "不存在" in result.stderr
+
+
+def test_config_show_missing_ref_fails(temp_data_root: Path) -> None:
+    """show 点名不存在的配置：退出码 1。"""
+    result = runner.invoke(app, ["config", "show", "ghost"])
+
+    assert result.exit_code == 1
+    assert "不存在" in result.stderr
 
 
 def test_config_list_empty(temp_data_root: Path) -> None:
@@ -417,8 +509,8 @@ def test_config_list_empty(temp_data_root: Path) -> None:
     assert "还没有端点配置" in result.output
 
 
-def test_config_add_list_use_show_roundtrip(temp_data_root: Path) -> None:
-    """add（密钥留空跳过）/ list（* 标记当前使用）/ use 切换 / show 跟随——多配置命令闭环。"""
+def test_config_add_list_show_roundtrip(temp_data_root: Path) -> None:
+    """add（密钥留空跳过）/ list / show——多配置命令闭环（无「当前使用」标记）。"""
     first = runner.invoke(
         app,
         ["config", "add", "alpha", "--base-url", "https://a/v1", "--model", "m-a"],
@@ -430,25 +522,18 @@ def test_config_add_list_use_show_roundtrip(temp_data_root: Path) -> None:
         input="\n",
     )
     listing = runner.invoke(app, ["config", "list"])
+    show = runner.invoke(app, ["config", "show", "beta"])
 
     assert first.exit_code == 0
     assert second.exit_code == 0
     assert listing.exit_code == 0
     lines = listing.output.splitlines()
-    assert lines[0].startswith("* alpha")
+    assert lines[0].startswith("alpha")
     assert "密钥已配置" in lines[0]
-    assert lines[1].startswith("  beta")
+    assert lines[1].startswith("beta")
     assert "密钥未配置" in lines[1]
     # 密钥只进不出：列表输出绝不含密钥明文。
     assert "test-key-123" not in listing.output
-
-    use = runner.invoke(app, ["config", "use", "beta"])
-    after = runner.invoke(app, ["config", "list"])
-    show = runner.invoke(app, ["config", "show"])
-
-    assert use.exit_code == 0
-    assert after.output.splitlines()[0].startswith("  alpha")
-    assert after.output.splitlines()[1].startswith("* beta")
     assert show.exit_code == 0
     assert "beta" in show.output
 
@@ -475,16 +560,8 @@ def test_config_add_duplicate_display_name_allowed(temp_data_root: Path) -> None
     assert infos[0].id != infos[1].id
 
 
-def test_config_use_missing_fails(temp_data_root: Path) -> None:
-    """切换到不存在的配置：退出码 1。"""
-    result = runner.invoke(app, ["config", "use", "ghost"])
-
-    assert result.exit_code == 1
-    assert "不存在" in result.stderr
-
-
-def test_config_remove_roundtrip_and_active_guard(temp_data_root: Path) -> None:
-    """remove 删非当前配置成功；删当前使用中的配置被拒（先切换再删）。"""
+def test_config_remove_roundtrip(temp_data_root: Path) -> None:
+    """remove 删除一套配置成功；其余配置不受影响（删除不再有任何前置拦截）。"""
     runner.invoke(
         app,
         ["config", "add", "alpha", "--base-url", "https://a/v1", "--model", "m"],
@@ -498,12 +575,9 @@ def test_config_remove_roundtrip_and_active_guard(temp_data_root: Path) -> None:
 
     remove_beta = runner.invoke(app, ["config", "remove", "beta", "-y"])
     listing = runner.invoke(app, ["config", "list"])
-    remove_alpha = runner.invoke(app, ["config", "remove", "alpha", "-y"])
 
     assert remove_beta.exit_code == 0
-    assert listing.output.splitlines()[0].startswith("* alpha")
-    assert remove_alpha.exit_code == 1
-    assert "当前使用" in remove_alpha.stderr
+    assert [line.split(" ")[0] for line in listing.output.splitlines()] == ["alpha"]
 
 
 def test_prompt_lifecycle(temp_data_root: Path, tmp_path: Path) -> None:
@@ -691,7 +765,7 @@ def test_config_test_reports_success_and_failure(
         return ProbeResult(ok=True, message="连接成功，模型应答正常。", latency_ms=12.0)
 
     monkeypatch.setattr(config_module, "probe_endpoint", fake_probe_ok)
-    ok = runner.invoke(app, ["config", "test"])
+    ok = runner.invoke(app, ["config", "test", "alpha"])
 
     assert ok.exit_code == 0
     assert "连接成功" in ok.output
@@ -703,7 +777,7 @@ def test_config_test_reports_success_and_failure(
         )
 
     monkeypatch.setattr(config_module, "probe_endpoint", fake_probe_fail)
-    bad = runner.invoke(app, ["config", "test"])
+    bad = runner.invoke(app, ["config", "test", "alpha"])
 
     assert bad.exit_code == 1
     assert "鉴权失败" in bad.stderr
@@ -725,12 +799,14 @@ def test_config_test_missing_name_reports_name(temp_data_root: Path) -> None:
     assert "不存在" in result.stderr
 
 
-def test_config_test_without_config_or_key(temp_data_root: Path) -> None:
-    """config test：没有配置 → 提示添加；配置无密钥（环境变量也没设）→ 提示补配。"""
+def test_config_test_requires_ref_and_key_channels(
+    temp_data_root: Path,
+) -> None:
+    """config test：不带配置名按用法错误退 2；配置无密钥（环境变量也没设）→ 提示补配。"""
     empty = runner.invoke(app, ["config", "test"])
 
-    assert empty.exit_code == 1
-    assert "没有可测试的端点配置" in empty.stderr
+    assert empty.exit_code == 2
+    assert "test" in empty.stderr or "REF" in empty.stderr or "配置" in empty.stderr
 
     created = runner.invoke(
         app,
@@ -910,11 +986,10 @@ def test_config_params_show_empty(temp_data_root: Path) -> None:
 
 
 def test_config_params_errors_report_name(temp_data_root: Path) -> None:
-    """params 没有配置 / 配置名不存在：退出码 1、stderr 回显配置名或引导。"""
+    """params 不带配置名按用法错误退 2；配置名不存在：退出码 1、stderr 回显配置名。"""
     empty = runner.invoke(app, ["config", "params"])
 
-    assert empty.exit_code == 1
-    assert "没有可用的端点配置" in empty.stderr
+    assert empty.exit_code == 2
 
     runner.invoke(
         app,
@@ -965,7 +1040,7 @@ def test_session_list_and_show(
 ) -> None:
     """session list / show：label 一轮后可列出、回放对话历史。"""
     _save_prompt("h3", "你是打标助手。")
-    runner.invoke(app, ["label", "-p", "h3", "-m", "描述图"])
+    runner.invoke(app, ["label", "--endpoint", "e-test", "-p", "h3", "-m", "描述图"])
     (session_id,) = list_sessions()
 
     listing = runner.invoke(app, ["session", "list"])
@@ -991,7 +1066,9 @@ def test_label_unknown_skill_exits_user_error(
     """勾选不存在的 skill：退出码 1、stderr 给可操作错误（不静默吞掉）。"""
     _save_prompt("h3", "你是打标助手。")
 
-    result = runner.invoke(app, ["label", "-p", "h3", "-s", "不存在", "-m", "描述"])
+    result = runner.invoke(
+        app, ["label", "--endpoint", "e-test", "-p", "h3", "-s", "不存在", "-m", "描述"]
+    )
 
     assert result.exit_code == 1
     assert "不存在" in result.stderr
@@ -1006,12 +1083,14 @@ def test_chat_turn_failure_keeps_session_alive(
     _save_prompt("h3", "你是打标助手。")
     completer = _FlakyCompleter()
 
-    def fake_build() -> LabelingEngine:
-        return LabelingEngine(completer, "test-model")
+    def fake_build(endpoint_ref: str) -> LabelingEngine:
+        return LabelingEngine(completer, "test-model", source="cli")
 
     monkeypatch.setattr(label_module, "build_engine", fake_build)
 
-    result = runner.invoke(app, ["chat", "-p", "h3"], input="第一轮\n第二轮\n")
+    result = runner.invoke(
+        app, ["chat", "--endpoint", "e-test", "-p", "h3"], input="第一轮\n第二轮\n"
+    )
 
     assert result.exit_code == 0
     assert "错误：模型调用超时" in result.stderr

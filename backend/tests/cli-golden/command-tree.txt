@@ -1,4 +1,4 @@
-共 63 条命令
+共 62 条命令
 batch add
 batch edit
 batch exclude
@@ -22,7 +22,6 @@ config remove
 config set
 config show
 config test
-config use
 export plan
 export run
 label

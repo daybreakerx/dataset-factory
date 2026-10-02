@@ -27,6 +27,12 @@ class ErrorDetail(BaseModel):
 class LabelRequest(BaseModel):
     """POST /api/label 的请求体。"""
 
+    endpoint_id: str = Field(
+        description=(
+            "本轮使用的端点配置 ID（请求显式携带端点——ADR 2026-09-30「全局当前使用"
+            "退役」；缺失由请求校验直接判 422）"
+        ),
+    )
     session_id: str | None = Field(default=None, description="续接的会话 id；缺省新建")
     prompt_id: str | None = Field(
         default=None, description="基础提示词 ID；续接时缺省沿用会话设置"
@@ -252,27 +258,6 @@ class SkillImportResponse(BaseModel):
     total_bytes: int
 
 
-class ConfigResponse(BaseModel):
-    """GET /api/config 的响应体——密钥只报来源、绝不回内容。"""
-
-    id: str | None = Field(default=None, description="当前使用的配置 ID；未配置为 null")
-    name: str | None = Field(
-        default=None, description="当前使用的配置显示名；未配置为 null"
-    )
-    base_url: str | None
-    model: str | None
-    api_key_configured: bool
-    key_source: str | None
-
-
-class ConfigUpdateRequest(BaseModel):
-    """PUT /api/config 的请求体——api_key 缺省沿用现有密钥（不强迫重输）。"""
-
-    base_url: str
-    model: str
-    api_key: str | None = None
-
-
 class EndpointRequestParams(BaseModel):
     """一套端点配置的请求参数（生成 + 传输），随配置存于其 config.json。
 
@@ -359,7 +344,6 @@ class EndpointConfigSummary(BaseModel):
         description="API 调用格式（一期仅 OpenAI Chat Completions）"
     )
     has_api_key: bool = Field(description="是否已存密钥（只报有无）")
-    is_active: bool = Field(description="是否为当前使用的配置")
     request_params: EndpointRequestParams = Field(
         description="已设置的请求参数（生成 + 传输）；未设置的键为 null"
     )

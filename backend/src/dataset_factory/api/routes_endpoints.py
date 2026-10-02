@@ -1,10 +1,10 @@
-"""端点多配置端点：GET/POST /api/endpoints、PUT/DELETE /api/endpoints/{id}、POST .../{id}/activate、POST /api/endpoints/test。
+"""端点多配置端点：GET/POST /api/endpoints、PUT/DELETE /api/endpoints/{id}、POST /api/endpoints/test。
 
 设置页「列表 + 详情」与工作台切换器的数据面。**寻址一律用配置 ID**（内部稳定身份，
 显示名可改可重名、不参与寻址）。密钥只进不出：请求体可带密钥落盘，任何响应只报有无
 （has_api_key）、绝不回内容。错误状态码由 app 的全局异常映射表按异常类型给出（404
-不存在 / 409 删除当前使用 / 400 其余配置错），本文件不做 try/except 翻译——test 例外：
-连通性探测的成败是业务结果而非服务器错误，HTTP 恒 200。
+不存在 / 400 其余配置错），本文件不做 try/except 翻译——test 例外：连通性探测的成败是
+业务结果而非服务器错误，HTTP 恒 200。
 """
 
 from __future__ import annotations
@@ -26,7 +26,6 @@ from ..llm import (
     probe_endpoint,
     read_stored_api_key,
     rename_config,
-    set_active_config,
     update_config,
 )
 from .schemas import (
@@ -109,26 +108,11 @@ def update(cid: str, request: EndpointUpdateRequest) -> EndpointConfigSummary:
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
         404: {"model": ErrorDetail, "description": "配置不存在"},
-        409: {
-            "model": ErrorDetail,
-            "description": "是当前使用中的配置（先切换到其他配置再删）",
-        },
     },
 )
 def remove(cid: str) -> Response:
-    """删除一套端点配置（连同其密钥文件）。"""
+    """删除一套端点配置（连同其密钥文件；不再有任何前置拦截——悬空引用由建批时的「引用缺失」报错与 `dsf strategy rebind` 兜底）。"""
     delete_config(cid)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.post(
-    "/{cid}/activate",
-    status_code=status.HTTP_204_NO_CONTENT,
-    responses={404: {"model": ErrorDetail, "description": "配置不存在"}},
-)
-def activate(cid: str) -> Response:
-    """把一套配置设为当前使用；对新请求立即生效。"""
-    set_active_config(cid)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

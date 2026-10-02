@@ -1,0 +1,12 @@
+# oasdiff ERR 级豁免（regex，逐行一条；只对该行匹配的破坏性变更放行）。
+#
+# 「全局当前使用」退役（ADR 2026-09-30，决策记录在协作层 context/adr/decisions.md）：
+# 全局激活机制整体撤销，端点由每次请求显式携带。这是蓄意的破坏性变更——本仓前端类型
+# 由同一份契约生成（gen:api）且与后端同仓同笔演进，不存在落后于契约的外部消费者；
+# 豁免仅覆盖退役涉及的路径与字段，其余破坏性变更照常拦下。退役落账后如无新涉及项，
+# 本文件随退役收口清理。
+#
+POST /api/endpoints/\{cid\}/activate
+(GET|PUT) /api/config
+is_active
+endpoint_id

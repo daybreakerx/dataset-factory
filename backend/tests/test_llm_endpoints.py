@@ -1,8 +1,9 @@
-"""单元测试：端点多配置存储（endpoints/ 目录、active 指针、ID 身份）。
+"""单元测试：端点多配置存储（endpoints/ 目录、ID 身份）。
 
-全部离线；temp_data_root 把数据根隔离到临时目录。覆盖：CRUD 与设为当前使用、
-ID 身份与显示名解耦（改名只写字段、允许重名）、旧版数据（名字身份）的读时迁移、
-请求参数校验（含 enable_thinking 一等布尔）、密钥只进不出。
+全部离线；temp_data_root 把数据根隔离到临时目录。覆盖：CRUD、ID 身份与显示名解耦
+（改名只写字段、允许重名）、旧版数据（名字身份）的读时迁移、请求参数校验（含
+enable_thinking 一等布尔）、密钥只进不出。全局激活机制已退役（ADR 2026-09-30）：
+本目录无「当前使用」状态，遗留指针文件由扫描顺手清除。
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ from dataset_factory.llm import (
     ConfigError,
     ConfigNotFoundError,
     SecretValue,
-    active_config_id,
     config_id_by_display_name,
     config_info,
     create_config,
@@ -27,7 +27,6 @@ from dataset_factory.llm import (
     list_configs,
     read_stored_api_key,
     rename_config,
-    set_active_config,
     update_config,
 )
 
@@ -45,14 +44,13 @@ def _create(name: str, key: str = "sk-key") -> str:
 # ---------- 创建与列表 ----------
 
 
-def test_create_writes_files_and_auto_activates(temp_data_root: Path) -> None:
-    """创建第一套配置：目录名即 ID、config.json 带 id+name、active 指针指向它。"""
+def test_create_writes_files(temp_data_root: Path) -> None:
+    """创建配置：目录名即 ID、config.json 带 id+name 与端点字段。"""
     cid = _create("default")
 
     endpoint_dir = temp_data_root / "endpoints" / cid
     assert (endpoint_dir / "config.json").is_file()
     assert (endpoint_dir / "credentials").is_file()
-    assert active_config_id() == cid
     assert cid not in ("default",)  # ID 是随机短 ID，不是显示名
 
     saved = json.loads((endpoint_dir / "config.json").read_text(encoding="utf-8"))
@@ -63,16 +61,21 @@ def test_create_writes_files_and_auto_activates(temp_data_root: Path) -> None:
     assert saved["api_format"] == SUPPORTED_API_FORMAT
 
 
-def test_create_second_does_not_steal_active(temp_data_root: Path) -> None:
-    """创建第二套配置不抢当前使用权；列表里只有第一套标 active。"""
-    first = _create("alpha")
+def test_create_leaves_no_global_state(temp_data_root: Path) -> None:
+    """创建不产生任何全局状态文件（全局激活机制已退役）：endpoints/ 下只有配置目录。"""
+    _create("alpha")
     _create("beta")
 
-    assert active_config_id() == first
-    infos = {info.id: info for info in list_configs()}
-    assert infos[first].is_active
-    other = next(i for i in infos if i != first)
-    assert not infos[other].is_active
+    root = temp_data_root / "endpoints"
+    entries = sorted(entry.name for entry in root.iterdir())
+    assert entries == sorted(
+        config_info(cid).id for cid in map(_id_of_name, ["alpha", "beta"])
+    )
+
+
+def _id_of_name(name: str) -> str:
+    """按显示名取配置 ID（测试辅助；重名场景不用本助手）。"""
+    return next(info.id for info in list_configs() if info.name == name)
 
 
 def test_list_sorted_by_display_name_casefold(temp_data_root: Path) -> None:
@@ -123,9 +126,8 @@ def test_config_info_matches_list_entry(temp_data_root: Path) -> None:
 
 
 def test_empty_root_lists_nothing(temp_data_root: Path) -> None:
-    """空数据根：列表为空、active 为 None，不算错。"""
+    """空数据根：列表为空，不算错。"""
     assert list_configs() == []
-    assert active_config_id() is None
 
 
 # ---------- 显示名规则 ----------
@@ -295,7 +297,7 @@ def test_update_missing_config_raises(temp_data_root: Path) -> None:
 
 
 def test_rename_writes_display_name_only(temp_data_root: Path) -> None:
-    """改名：只写 config.json 的 name 字段——目录、ID、指针、密钥全部不动。"""
+    """改名：只写 config.json 的 name 字段——目录、ID、密钥全部不动。"""
     cid = _create("old-name", key="sk-stays")
 
     returned = rename_config(cid, "new-name")
@@ -305,7 +307,6 @@ def test_rename_writes_display_name_only(temp_data_root: Path) -> None:
     assert endpoint_dir.is_dir()  # 目录仍是 ID，未动
     saved = json.loads((endpoint_dir / "config.json").read_text(encoding="utf-8"))
     assert saved["name"] == "new-name"
-    assert active_config_id() == cid  # 指针存 ID，不受改名影响
     assert has_stored_key(cid) is True
     stored = read_stored_api_key(cid)
     assert stored is not None
@@ -341,31 +342,25 @@ def test_rename_to_invalid_display_name_raises(temp_data_root: Path) -> None:
     assert has_config(cid) is True
 
 
-# ---------- 删除与切换 ----------
+# ---------- 删除 ----------
 
 
-def test_delete_refuses_active_and_allows_others(temp_data_root: Path) -> None:
-    """删除当前使用中的配置被拒；切换后可删；目录连同 credentials 一起消失。"""
-    from dataset_factory.llm import ConfigConflictError
-
+def test_delete_removes_directory_and_credentials(temp_data_root: Path) -> None:
+    """删除：目录连同 credentials 一起消失；其余配置不受影响（删除不再有任何前置拦截）。"""
     first = _create("a")
     second = _create("b")
 
-    with pytest.raises(ConfigConflictError, match="当前使用"):
-        delete_config(first)
-
-    set_active_config(second)
     delete_config(first)
+
     assert has_config(first) is False
-    assert active_config_id() == second
+    assert has_config(second) is True
+    assert not (temp_data_root / "endpoints" / first).exists()
 
 
-def test_set_active_requires_existing(temp_data_root: Path) -> None:
-    """切换到不存在的 ID → ConfigNotFoundError（指针绝不悬空写出）。"""
-    from dataset_factory.llm import ConfigNotFoundError
-
+def test_delete_missing_config_raises(temp_data_root: Path) -> None:
+    """删除不存在的配置 → ConfigNotFoundError。"""
     with pytest.raises(ConfigNotFoundError):
-        set_active_config("eghost00001")
+        delete_config("eghost00001")
 
 
 # ---------- 旧版数据迁移 ----------
@@ -397,8 +392,6 @@ def test_legacy_config_migrates_to_id(temp_data_root: Path) -> None:
     assert migrated.name == "旧配置名"  # 旧目录名 → 显示名
     assert migrated.base_url == "https://legacy.example.com/v1"
     assert migrated.request_params == {"extra_body": {"top_k": 40}}
-    assert migrated.is_active is True  # 旧指针按名解析成新 ID
-    assert active_config_id() == migrated.id
     # 目录已改名为 ID、旧目录消失；密钥与参数随目录走。
     assert (temp_data_root / "endpoints" / "旧配置名").exists() is False
     stored = read_stored_api_key(migrated.id)
@@ -416,12 +409,11 @@ def test_legacy_config_migrates_to_id(temp_data_root: Path) -> None:
     assert [info.id for info in again] == [migrated.id]
 
 
-def test_legacy_active_pointer_resolved_by_name(temp_data_root: Path) -> None:
-    """已迁移配置 + 旧版指针（存的是名字）：active 按名解析回该配置的 ID。"""
-    cid = _create("pointer-name")
-    # 手工把指针回写成旧版形态（名字），模拟「迁移前指针、迁移后条目」。
-    (temp_data_root / "endpoints" / "active").write_text(
-        "pointer-name\n", encoding="utf-8"
-    )
+def test_legacy_active_pointer_swept_on_scan(temp_data_root: Path) -> None:
+    """旧版遗留的 active 指针文件（已退役机制）：扫描时顺手清除。"""
+    cid = _create("swept")
+    (temp_data_root / "endpoints" / "active").write_text(f"{cid}\n", encoding="utf-8")
 
-    assert active_config_id() == cid
+    list_configs()
+
+    assert (temp_data_root / "endpoints" / "active").exists() is False

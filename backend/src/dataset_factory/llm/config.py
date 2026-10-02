@@ -1,13 +1,13 @@
-"""llm 模块的请求侧配置视图——把当前使用的端点配置组装成可发请求的 EndpointConfig。
+"""llm 模块的请求侧配置视图——把**指定的**端点配置组装成可发请求的 EndpointConfig。
 
-存储侧（endpoints/ 多配置目录、迁移、增删改查、active 指针）见同目录 endpoints.py；
-本模块是其上的「请求视图」：读当前使用（active）的配置，套上密钥双通道与请求参数，
-产出构建 API 客户端所需的类型化对象。入口层管理多配置请调 endpoints 的接口；本模块
-只回答「现在发请求用哪套配置」。
+存储侧（endpoints/ 多配置目录、迁移、增删改查）见同目录 endpoints.py；本模块是其上的
+「请求视图」：按调用方显式给出的配置（请求显式携带端点——ADR 2026-09-30「全局当前使用
+退役」），套上密钥双通道与请求参数，产出构建 API 客户端所需的类型化对象。本模块不设、
+也不读任何「当前使用」状态。
 
 设计要点：
 
-- 密钥双通道：当前使用配置的 credentials 文件为主，环境变量 DSF_API_KEY 为辅且优先覆盖；
+- 密钥双通道：指定配置的 credentials 文件为主，环境变量 DSF_API_KEY 为辅且优先覆盖；
 - 全程脱敏：密钥绝不进 repr / str / 日志 / 错误信息；
 - 边界 Fail-Fast：缺失 / 损坏给可操作错误（哪里错、怎么修），不甩原始栈、不泄密钥。
 """
@@ -22,11 +22,8 @@ from typing import cast
 from .endpoints import (
     ConfigError,
     SecretValue,
-    active_config_id,
-    has_config,
-    has_stored_key,
-    read_active_files,
     read_config_data,
+    read_stored_api_key,
     validated_request_params,
 )
 
@@ -90,89 +87,32 @@ class EndpointConfig:
     request: RequestConfig = RequestConfig()
 
 
-@dataclass(frozen=True)
-class ConfigDescription:
-    """当前配置状态的诊断视图（不含密钥内容）。
+def read_config(cid: str) -> EndpointConfig:
+    """按显式指定的端点配置 + 请求参数 + 密钥，组装成 EndpointConfig。
 
-    Attributes:
-        id: 当前使用的配置 ID；None = 没有生效的当前配置（未配置任何端点、指针未设或悬空）。
-        name: 当前使用的配置显示名（id 存在时从条目解析；None 同上）。
-        base_url: 端点地址；未配置时 None。
-        model: 模型名；未配置时 None。
-        key_source: 密钥来源："env"（环境变量 DSF_API_KEY）/ "file"（当前配置的 credentials
-            文件）/ None（两通道都没配）。
-    """
+    端点由调用方显式给出（请求显式携带端点——ADR 2026-09-30「全局当前使用退役」）；
+    本函数不存在「缺省用哪套」的语义。入参接受配置 ID 或唯一显示名（解析口径同存储层）。
 
-    id: str | None
-    name: str | None
-    base_url: str | None
-    model: str | None
-    key_source: str | None
-
-
-def read_config() -> EndpointConfig:
-    """读取当前使用的端点配置 + 请求参数 + 密钥，组装成 EndpointConfig。
-
-    数据根由 data_root() 决定；测试用 temp_data_root fixture 设 DATASET_FACTORY_HOME 隔离真实目录。
+    Args:
+        cid: 端点配置 ID（或唯一显示名）。
 
     Returns:
         EndpointConfig：端点三要素 + 请求参数（未配置时用内置默认）。
 
     Raises:
-        ConfigError: 未配置任何端点 / 当前配置缺失或损坏 / 密钥两通道都拿不到（消息可操作、不含密钥）。
+        ConfigNotFoundError: 配置不存在。
+        ConfigError: config.json 损坏 / 字段不全 / 密钥两通道都拿不到（消息可操作、不含密钥）。
     """
-    cid, data, file_key = read_active_files()
-    # read_active_files 已把 base_url / model 校验为非空字符串，这里收窄只是让类型系统知道。
+    data = read_config_data(cid)
+    resolved = cast(str, data["id"])
+    # read_config_data 已把 base_url / model 校验为非空字符串，这里收窄只是让类型系统知道。
     base_url = cast(str, data["base_url"])
     model = cast(str, data["model"])
     return EndpointConfig(
         base_url=base_url,
         model=model,
-        api_key=resolve_api_key(file_key),
-        request=_parse_request_config(cid, data),
-    )
-
-
-def describe_config() -> ConfigDescription:
-    """只读描述当前使用的配置状态（诊断用，不因密钥缺失而报错）。
-
-    与 read_config 的分工：read_config 是「装配客户端」用的完整读取（缺一样就 fail loud）；
-    describe_config 是「给用户看现在配了什么」的诊断视图（缺什么就显示什么）。config.json
-    损坏仍会抛 ConfigError——坏文件不该被粉饰成「未配置」。
-
-    Returns:
-        ConfigDescription：当前配置的 ID / 显示名 / base_url / model 与密钥来源；没有生效的
-        当前配置时各字段为 None（密钥来源仍可能报 env——环境变量独立于配置存在）。
-
-    Raises:
-        ConfigError: 当前配置的 config.json 存在但损坏（非法 JSON / 顶层非对象 / 字段类型错）。
-    """
-    env_key_present = env_api_key() is not None
-    active = active_config_id()
-    if active is None or not has_config(active):
-        return ConfigDescription(
-            id=None,
-            name=None,
-            base_url=None,
-            model=None,
-            key_source="env" if env_key_present else None,
-        )
-    data = read_config_data(active)
-    raw_name = data.get("name")
-    display = raw_name if isinstance(raw_name, str) and raw_name else active
-    key_source: str | None
-    if env_key_present:
-        key_source = "env"
-    elif has_stored_key(active):
-        key_source = "file"
-    else:
-        key_source = None
-    return ConfigDescription(
-        id=active,
-        name=display,
-        base_url=cast(str, data["base_url"]),
-        model=cast(str, data["model"]),
-        key_source=key_source,
+        api_key=resolve_api_key(read_stored_api_key(resolved)),
+        request=_parse_request_config(resolved, data),
     )
 
 
@@ -280,6 +220,6 @@ def resolve_api_key(file_key: SecretValue | None) -> SecretValue:
     if resolved is not None:
         return resolved
     raise ConfigError(
-        "未找到 API 密钥：请设置当前使用配置的密钥（`dsf config set` 或 Web 设置页），"
+        "未找到 API 密钥：请为该端点配置密钥（Web 设置页或 `dsf config add`），"
         f"或使用环境变量 {ENV_API_KEY}。"
     )

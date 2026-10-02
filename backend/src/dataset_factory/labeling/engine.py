@@ -47,6 +47,7 @@ from ..sessions import (
     JsonValue,
     MessageEvent,
     SessionEvent,
+    SessionSource,
     SettingsEvent,
     append_envelope,
     append_message,
@@ -191,18 +192,23 @@ class LabelingEngine:
     """打标编排引擎：组装一轮打标、经 sessions 落盘、调用模型拿回 caption。
 
     构造时注入 Completer（测试注入假实现即可离线跑）与模型名（模型名进请求信封，
-    供复盘「当时用的是哪个模型」）。
+    供复盘「当时用的是哪个模型」）；再带一个会话来源章（web / cli），新建会话时盖进
+    meta——两表面的会话分开管理（ADR 2026-09-30「全局当前使用退役」）。
     """
 
-    def __init__(self, completer: Completer, model: str) -> None:
-        """注入补全客户端与模型名。
+    def __init__(
+        self, completer: Completer, model: str, source: SessionSource = "web"
+    ) -> None:
+        """注入补全客户端、模型名与会话来源章。
 
         Args:
             completer: 实现 llm.Completer 协议的客户端（唯一与模型通信的通道）。
             model: 模型名（写入请求信封）。
+            source: 新建会话的来源章（web / cli）；入口表面各盖各的。
         """
         self._completer = completer
         self._model = model
+        self._source: SessionSource = source
 
     def label(
         self,
@@ -278,6 +284,7 @@ class LabelingEngine:
             video_bytes=video_bytes,
             video_name=video_name,
             strategy_id=strategy_id,
+            source=self._source,
         )
         _ACTIVE_TURNS.add(session_id)
         try:
@@ -404,6 +411,7 @@ class LabelingEngine:
             video_bytes=video_bytes,
             video_name=video_name,
             strategy_id=strategy_id,
+            source=self._source,
         )
         _ACTIVE_TURNS.add(session_id)
         try:
@@ -664,8 +672,13 @@ class LabelingEngine:
         )
         return MaterialLabelResult(caption=caption, asset_hash=asset_hash)
 
-    def restore(self, session_id: str) -> SessionSnapshot:
+    @staticmethod
+    def restore(session_id: str) -> SessionSnapshot:
         """恢复一个会话：当前设置 + 对话历史（入口层重启 / CLI 续接的起点）。
+
+        staticmethod 是刻意的：恢复只读事件流、不碰模型端点，Web 的快照类端点因此
+        不必先装配一套端点配置才能读会话（请求显式携带端点后，读历史不需要端点）。
+
 
         Args:
             session_id: 会话 id。
@@ -726,6 +739,7 @@ def _begin_turn(
     video_bytes: bytes | None,
     video_name: str,
     strategy_id: str | None = None,
+    source: SessionSource = "web",
 ) -> tuple[
     str, Prompt, list[str], tuple[Message, ...], bytes | None, bytes | None, str | None
 ]:
@@ -778,7 +792,7 @@ def _begin_turn(
     prompt = read_prompt(wanted_prompt)
     skill_texts = _load_enabled_skill_texts(wanted_skills)
     if session_id is None:
-        session_id = create_session(strategy_id=strategy_id)
+        session_id = create_session(strategy_id=strategy_id, source=source)
     if (wanted_prompt, wanted_skills) != (
         settings.prompt_id,
         settings.skill_ids,

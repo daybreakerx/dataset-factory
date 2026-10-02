@@ -389,110 +389,6 @@
         "title": "CleanupResult",
         "type": "object"
       },
-      "ConfigResponse": {
-        "description": "GET /api/config 的响应体——密钥只报来源、绝不回内容。",
-        "properties": {
-          "api_key_configured": {
-            "title": "Api Key Configured",
-            "type": "boolean"
-          },
-          "base_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Url"
-          },
-          "id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "当前使用的配置 ID；未配置为 null",
-            "title": "Id"
-          },
-          "key_source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Key Source"
-          },
-          "model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "当前使用的配置显示名；未配置为 null",
-            "title": "Name"
-          }
-        },
-        "required": [
-          "base_url",
-          "model",
-          "api_key_configured",
-          "key_source"
-        ],
-        "title": "ConfigResponse",
-        "type": "object"
-      },
-      "ConfigUpdateRequest": {
-        "description": "PUT /api/config 的请求体——api_key 缺省沿用现有密钥（不强迫重输）。",
-        "properties": {
-          "api_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Api Key"
-          },
-          "base_url": {
-            "title": "Base Url",
-            "type": "string"
-          },
-          "model": {
-            "title": "Model",
-            "type": "string"
-          }
-        },
-        "required": [
-          "base_url",
-          "model"
-        ],
-        "title": "ConfigUpdateRequest",
-        "type": "object"
-      },
       "CreateDirectoryRequest": {
         "additionalProperties": false,
         "description": "在既有父目录下创建一层目录。",
@@ -706,11 +602,6 @@
             "title": "Id",
             "type": "string"
           },
-          "is_active": {
-            "description": "是否为当前使用的配置",
-            "title": "Is Active",
-            "type": "boolean"
-          },
           "model": {
             "description": "模型名",
             "title": "Model",
@@ -733,7 +624,6 @@
           "model",
           "api_format",
           "has_api_key",
-          "is_active",
           "request_params"
         ],
         "title": "EndpointConfigSummary",
@@ -1737,6 +1627,11 @@
       "LabelRequest": {
         "description": "POST /api/label 的请求体。",
         "properties": {
+          "endpoint_id": {
+            "description": "本轮使用的端点配置 ID（请求显式携带端点——ADR 2026-09-30「全局当前使用退役」；缺失由请求校验直接判 422）",
+            "title": "Endpoint Id",
+            "type": "string"
+          },
           "image_base64": {
             "anyOf": [
               {
@@ -1847,6 +1742,9 @@
             "type": "string"
           }
         },
+        "required": [
+          "endpoint_id"
+        ],
         "title": "LabelRequest",
         "type": "object"
       },
@@ -3475,71 +3373,6 @@
   },
   "openapi": "3.1.0",
   "paths": {
-    "/api/config": {
-      "get": {
-        "description": "查看当前使用的配置（密钥只报来源与是否已配置，绝不回内容）。",
-        "operationId": "get_config_api_config_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfigResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Get Config",
-        "tags": [
-          "配置"
-        ]
-      },
-      "put": {
-        "description": "更新当前使用的配置；尚无可用配置时创建 default 并启用。\n\napi_key 缺省沿用该配置已存的密钥（Web 表单改 base_url 不必重输密钥）。",
-        "operationId": "update_config_api_config_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConfigUpdateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "参数不合法 / 未提供密钥"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Update Config",
-        "tags": [
-          "配置"
-        ]
-      }
-    },
     "/api/endpoints": {
       "get": {
         "description": "列出全部端点配置（按名称排序；密钥只报有无）。",
@@ -3660,7 +3493,7 @@
     },
     "/api/endpoints/{cid}": {
       "delete": {
-        "description": "删除一套端点配置（连同其密钥文件）。",
+        "description": "删除一套端点配置（连同其密钥文件；不再有任何前置拦截——悬空引用由建批时的「引用缺失」报错与 `dsf strategy rebind` 兜底）。",
         "operationId": "remove_api_endpoints__cid__delete",
         "parameters": [
           {
@@ -3686,16 +3519,6 @@
               }
             },
             "description": "配置不存在"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "是当前使用中的配置（先切换到其他配置再删）"
           },
           "422": {
             "content": {
@@ -3780,52 +3603,6 @@
           }
         },
         "summary": "Update",
-        "tags": [
-          "端点配置"
-        ]
-      }
-    },
-    "/api/endpoints/{cid}/activate": {
-      "post": {
-        "description": "把一套配置设为当前使用；对新请求立即生效。",
-        "operationId": "activate_api_endpoints__cid__activate_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "cid",
-            "required": true,
-            "schema": {
-              "title": "Cid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
-                }
-              }
-            },
-            "description": "配置不存在"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Activate",
         "tags": [
           "端点配置"
         ]
@@ -4108,7 +3885,7 @@
     },
     "/api/label": {
       "post": {
-        "description": "跑一轮打标（带 session_id 即续接迭代改写）。",
+        "description": "跑一轮打标（带 session_id 即续接迭代改写；端点由请求显式携带）。",
         "operationId": "label_api_label_post",
         "requestBody": {
           "content": {
@@ -4149,7 +3926,7 @@
                 }
               }
             },
-            "description": "会话或提示词不存在"
+            "description": "会话 / 提示词 / 端点配置不存在"
           },
           "422": {
             "content": {
@@ -4229,7 +4006,7 @@
                 }
               }
             },
-            "description": "会话或提示词不存在"
+            "description": "会话 / 提示词 / 端点配置不存在"
           },
           "422": {
             "content": {

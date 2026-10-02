@@ -1,7 +1,8 @@
 """打标命令：``dsf label``（单发 + 会话续接，供外部 agent）与 ``dsf chat``（终端多轮）。
 
 两个命令走同一打标核心（LabelingEngine），与 Web 端能力对等；``dsf label`` 首次调用返回
-会话 id，之后带 ``--session`` 续接即带历史的迭代改写。
+会话 id，之后带 ``--session`` 续接即带历史的迭代改写。端点由 --endpoint 显式指定（请求
+显式携带端点——ADR 2026-09-30「全局当前使用退役」）。
 """
 
 from __future__ import annotations
@@ -19,6 +20,8 @@ from ..llm import (
     VIDEO_MIME_BY_SUFFIX,
     LLMError,
     build_completer,
+    config_id_by_display_name,
+    has_config,
     read_config,
 )
 from ..prompts import PromptNotFoundError, prompt_id_by_display_name, read_prompt
@@ -70,18 +73,37 @@ def _skill_ref(ref: str) -> str:
     return resolved
 
 
-def build_engine() -> LabelingEngine:
-    """从当前端点配置装配打标引擎。
+def _endpoint_ref(ref: str) -> str:
+    """--endpoint 的引用（ID 或唯一显示名）→ 配置 ID（解析不到按用法错误退出）。"""
+    if has_config(ref):
+        return ref
+    resolved = config_id_by_display_name(ref)
+    if resolved is None:
+        raise typer.BadParameter(
+            f"端点配置 {ref!r} 不存在（或显示名重名不唯一）；"
+            "用 dsf config list 查看各配置的 ID。"
+        )
+    return resolved
+
+
+def build_engine(endpoint_ref: str) -> LabelingEngine:
+    """从 --endpoint 指定的端点配置装配打标引擎。
 
     独立成函数是给测试留注入位：monkeypatch 本函数返回带假客户端的引擎，即可离线测
     CLI 全流程（llm 层可被 mock）。
     """
-    config = read_config()
-    return LabelingEngine(build_completer(config), config.model)
+    config = read_config(_endpoint_ref(endpoint_ref))
+    return LabelingEngine(build_completer(config), config.model, source="cli")
 
 
 @handle_domain_errors
 def label(
+    endpoint_ref: Annotated[
+        str,
+        typer.Option(
+            "--endpoint", help="端点配置（ID 或唯一显示名）；本轮请求显式携带端点"
+        ),
+    ],
     message: Annotated[
         str,
         typer.Option(
@@ -137,7 +159,7 @@ def label(
     """单发打标：发图片或视频 + 指令，输出 caption；带 --session 续接即迭代改写。"""
     if image is not None and video is not None:
         raise typer.BadParameter("图片与视频只能带一个（--image 与 --video 互斥）。")
-    engine = build_engine()
+    engine = build_engine(endpoint_ref)
     video_bytes = video.read_bytes() if video is not None else None
     video_mime = (
         VIDEO_MIME_BY_SUFFIX.get(video.suffix.lower(), "video/mp4")
@@ -176,6 +198,12 @@ def label(
 
 @handle_domain_errors
 def chat(
+    endpoint_ref: Annotated[
+        str,
+        typer.Option(
+            "--endpoint", help="端点配置（ID 或唯一显示名）；本轮请求显式携带端点"
+        ),
+    ],
     prompt_ref: Annotated[
         str | None,
         typer.Option(
@@ -209,7 +237,7 @@ def chat(
     ] = None,
 ) -> None:
     """终端多轮打标：交互输入指令（附图 / 附视频用 `@文件路径 指令`），Ctrl+D / Ctrl+C 退出。"""
-    engine = build_engine()
+    engine = build_engine(endpoint_ref)
     if session_id is None:
         session_id = latest_session_id()
     if session_id is not None:

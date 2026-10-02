@@ -181,12 +181,15 @@ jobs:
       # API 破坏性变更检测：对比上一个提交与本次提交的契约快照（快照与代码的一致性
       # 由 backend job 的漂移检查保证，所以这里直接比两个提交的快照是可靠的）。
       # fail-on: ERR —— 只有真破坏性变更才挡；纯新增 / 可选字段放宽不挡。
+      # err-ignore：蓄意的破坏性变更（如 ADR 裁定的机制退役）在 oasdiff-err-ignore.txt
+      # 按正则逐条豁免并留档说明；豁免面之外照常拦下。
       - name: Breaking change check (oasdiff)
         uses: oasdiff/oasdiff-action/breaking@v0
         with:
           base: .base-spec.json
           revision: backend/openapi.json
           fail-on: ERR
+          err-ignore: oasdiff-err-ignore.txt
           review: false                           # spec 不上传第三方，只在本 runner 内比对
 
   e2e:

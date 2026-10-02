@@ -1,12 +1,12 @@
 """llm 能力层：全项目唯一与模型端点通信的模块。
 
 对外接口：
-- 配置与密钥：EndpointConfig / SecretValue / ConfigError / data_root / read_config /
-  describe_config；多配置存储（endpoints/ 目录）——EndpointConfigInfo / list_configs /
-  config_info / create_config / update_config / rename_config / delete_config /
-  set_active_config / active_config_id / config_id_by_display_name / read_config_data / read_stored_api_key /
-  has_config / has_stored_key / validated_request_params / DEFAULT_CONFIG_NAME /
-  SUPPORTED_API_FORMAT
+- 配置与密钥：EndpointConfig / SecretValue / ConfigError / data_root / read_config（按
+  显式指定的配置装配请求——请求显式携带端点，本层不设「当前使用」状态）；多配置存储
+  （endpoints/ 目录）——EndpointConfigInfo / list_configs / config_info / create_config /
+  update_config / rename_config / delete_config / config_id_by_display_name /
+  read_config_data / read_stored_api_key / has_config / has_stored_key /
+  validated_request_params / SUPPORTED_API_FORMAT
 - 补全接口与客户端：Completer / OpenAIChatClient / build_completer
 - 消息模型：Message / Role / TextPart / ImagePart / ContentPart
 - 媒体护栏常量（单一事实源）：MAX_IMAGE_BYTES / MAX_VIDEO_BYTES / IMAGE_MIME_BY_SUFFIX / VIDEO_MIME_BY_SUFFIX / IMAGE_EXTENSIONS / VIDEO_EXTENSIONS
@@ -25,7 +25,6 @@ from .config import (
     ENV_API_KEY,
     EndpointConfig,
     RequestConfig,
-    describe_config,
     env_api_key,
     first_api_key,
     parse_request_params,
@@ -33,14 +32,11 @@ from .config import (
     resolve_api_key,
 )
 from .endpoints import (
-    DEFAULT_CONFIG_NAME,
     SUPPORTED_API_FORMAT,
-    ConfigConflictError,
     ConfigError,
     ConfigNotFoundError,
     EndpointConfigInfo,
     SecretValue,
-    active_config_id,
     config_id_by_display_name,
     config_info,
     create_config,
@@ -51,7 +47,6 @@ from .endpoints import (
     read_config_data,
     read_stored_api_key,
     rename_config,
-    set_active_config,
     update_config,
     validated_request_params,
 )
@@ -85,7 +80,6 @@ from .messages import (
 )
 
 __all__ = [
-    "DEFAULT_CONFIG_NAME",
     "ENV_API_KEY",
     "IMAGE_EXTENSIONS",
     "IMAGE_MIME_BY_SUFFIX",
@@ -95,7 +89,6 @@ __all__ = [
     "VIDEO_EXTENSIONS",
     "VIDEO_MIME_BY_SUFFIX",
     "Completer",
-    "ConfigConflictError",
     "ConfigError",
     "ConfigNotFoundError",
     "ContentPart",
@@ -122,14 +115,12 @@ __all__ = [
     "TextPart",
     "UnsupportedImageError",
     "VideoPart",
-    "active_config_id",
     "build_completer",
     "config_id_by_display_name",
     "config_info",
     "create_config",
     "data_root",
     "delete_config",
-    "describe_config",
     "env_api_key",
     "first_api_key",
     "has_config",
@@ -142,7 +133,6 @@ __all__ = [
     "read_stored_api_key",
     "rename_config",
     "resolve_api_key",
-    "set_active_config",
     "update_config",
     "validated_request_params",
 ]

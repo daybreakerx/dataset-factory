@@ -52,11 +52,10 @@ def fake_engine(monkeypatch: pytest.MonkeyPatch) -> FakeCompleter:
     completer = FakeCompleter()
     from dataset_factory.labeling import LabelingEngine
 
-    monkeypatch.setattr(
-        routes_labeling,
-        "build_engine",
-        lambda: LabelingEngine(completer, "test-model"),
-    )
+    def fake_build(endpoint_id: str) -> LabelingEngine:
+        return LabelingEngine(completer, "test-model")
+
+    monkeypatch.setattr(routes_labeling, "build_engine", fake_build)
     return completer
 
 
@@ -70,7 +69,8 @@ def test_label_first_turn(client: TestClient, fake_engine: FakeCompleter) -> Non
     _save_prompt("h3", "你是打标助手。")
 
     response = client.post(
-        "/api/label", json={"prompt_id": "h3", "instruction": "打标"}
+        "/api/label",
+        json={"endpoint_id": "e-test", "prompt_id": "h3", "instruction": "打标"},
     )
 
     assert response.status_code == 200
@@ -89,6 +89,7 @@ def test_label_with_data_url_image(
     response = client.post(
         "/api/label",
         json={
+            "endpoint_id": "e-test",
             "prompt_id": "h3",
             "instruction": "描述",
             "image_base64": data_url,
@@ -111,6 +112,7 @@ def test_session_attachment_serves_media_content_type(
     created = client.post(
         "/api/label",
         json={
+            "endpoint_id": "e-test",
             "prompt_id": "h3",
             "instruction": "描述",
             "image_base64": data_url,
@@ -121,6 +123,7 @@ def test_session_attachment_serves_media_content_type(
     video = client.post(
         "/api/label",
         json={
+            "endpoint_id": "e-test",
             "session_id": session_id,
             "instruction": "看视频",
             "video_base64": "ZmFrZS1tcDQtYnl0ZXM=",
@@ -141,11 +144,19 @@ def test_session_attachment_serves_media_content_type(
 def test_label_resume_iterates(client: TestClient, fake_engine: FakeCompleter) -> None:
     """带 session_id 续接：第二轮带历史（迭代改写）。"""
     _save_prompt("h3", "你是打标助手。")
-    first = client.post("/api/label", json={"prompt_id": "h3", "instruction": "第一轮"})
+    first = client.post(
+        "/api/label",
+        json={"endpoint_id": "e-test", "prompt_id": "h3", "instruction": "第一轮"},
+    )
     session_id = first.json()["session_id"]
 
     second = client.post(
-        "/api/label", json={"session_id": session_id, "instruction": "改成一句话"}
+        "/api/label",
+        json={
+            "endpoint_id": "e-test",
+            "session_id": session_id,
+            "instruction": "改成一句话",
+        },
     )
 
     assert second.status_code == 200
@@ -159,7 +170,9 @@ def test_label_empty_turn_is_400(
     """无指令无图：400 + 可操作错误。"""
     _save_prompt("h3", "你是打标助手。")
 
-    response = client.post("/api/label", json={"prompt_id": "h3"})
+    response = client.post(
+        "/api/label", json={"endpoint_id": "e-test", "prompt_id": "h3"}
+    )
 
     assert response.status_code == 400
     assert "内容" in response.json()["detail"]
@@ -173,7 +186,12 @@ def test_label_bad_base64_is_400(
 
     response = client.post(
         "/api/label",
-        json={"prompt_id": "h3", "instruction": "x", "image_base64": "!!!not-base64"},
+        json={
+            "endpoint_id": "e-test",
+            "prompt_id": "h3",
+            "instruction": "x",
+            "image_base64": "!!!not-base64",
+        },
     )
 
     assert response.status_code == 400
@@ -184,20 +202,24 @@ def test_label_unknown_prompt_is_404(
 ) -> None:
     """提示词不存在：404。"""
     response = client.post(
-        "/api/label", json={"prompt_id": "不存在", "instruction": "x"}
+        "/api/label",
+        json={"endpoint_id": "e-test", "prompt_id": "不存在", "instruction": "x"},
     )
 
     assert response.status_code == 404
 
 
-def test_label_missing_config_is_400(client: TestClient) -> None:
-    """未配置端点：400（ConfigError 映射，提示先配置；不走假引擎——ConfigError 来自真实装配）。"""
+def test_label_missing_endpoint_is_404(client: TestClient) -> None:
+    """指定端点不存在：404（ConfigNotFoundError 映射；不走假引擎——错误来自真实装配）。"""
     _save_prompt("h3", "你是打标助手。")
 
-    response = client.post("/api/label", json={"prompt_id": "h3", "instruction": "x"})
+    response = client.post(
+        "/api/label",
+        json={"endpoint_id": "e-test", "prompt_id": "h3", "instruction": "x"},
+    )
 
-    assert response.status_code == 400
-    assert "config" in response.json()["detail"]
+    assert response.status_code == 404
+    assert "不存在" in response.json()["detail"]
 
 
 def test_label_validation_error_is_422(
@@ -205,7 +227,8 @@ def test_label_validation_error_is_422(
 ) -> None:
     """请求字段类型错（skill_names 传字符串）：pydantic 自动 422。"""
     response = client.post(
-        "/api/label", json={"prompt_id": "h3", "skill_ids": "不是列表"}
+        "/api/label",
+        json={"endpoint_id": "e-test", "prompt_id": "h3", "skill_ids": "不是列表"},
     )
 
     assert response.status_code == 422
@@ -223,7 +246,10 @@ def test_sessions_latest_and_get_by_id(
 ) -> None:
     """打一轮后：latest 与按 id 查询都返回快照（设置 + 历史）。"""
     _save_prompt("h3", "你是打标助手。")
-    label = client.post("/api/label", json={"prompt_id": "h3", "instruction": "描述图"})
+    label = client.post(
+        "/api/label",
+        json={"endpoint_id": "e-test", "prompt_id": "h3", "instruction": "描述图"},
+    )
     session_id = label.json()["session_id"]
 
     latest = client.get("/api/sessions/latest")
@@ -431,76 +457,6 @@ def test_skills_import_single_file(client: TestClient, tmp_path: Path) -> None:
     assert [item["path"] for item in listing["files"]] == ["SKILL.md"]
 
 
-def test_config_get_empty(client: TestClient) -> None:
-    """空配置：name/base_url/model 为 null、api_key_configured=false。"""
-    response = client.get("/api/config")
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body == {
-        "id": None,
-        "name": None,
-        "base_url": None,
-        "model": None,
-        "api_key_configured": False,
-        "key_source": None,
-    }
-
-
-def test_config_update_and_get(client: TestClient) -> None:
-    """更新配置（带密钥）：落盘；GET 确认密钥只报来源、绝不回内容。"""
-    update = client.put(
-        "/api/config",
-        json={
-            "base_url": "https://api.example.com/v1",
-            "model": "m1",
-            "api_key": "test-key-123",  # pragma: allowlist secret —— 测试假密钥
-        },
-    )
-    get = client.get("/api/config")
-
-    assert update.status_code == 204
-    body = get.json()
-    # 空数据根上 PUT：创建 default 配置并设为当前使用。
-    assert body["name"] == "default"
-    assert body["base_url"] == "https://api.example.com/v1"
-    assert body["model"] == "m1"
-    assert body["api_key_configured"] is True
-    assert body["key_source"] == "file"
-    assert "test-key-123" not in get.text
-
-
-def test_config_update_without_key_reuses_stored(client: TestClient) -> None:
-    """更新配置不带密钥：沿用已存密钥（改 base_url 不必重输）。"""
-    client.put(
-        "/api/config",
-        json={
-            "base_url": "https://old/v1",
-            "model": "m1",
-            "api_key": "stored-key",  # pragma: allowlist secret —— 测试假密钥
-        },
-    )
-
-    update = client.put(
-        "/api/config", json={"base_url": "https://new/v1", "model": "m2"}
-    )
-
-    assert update.status_code == 204
-    body = client.get("/api/config").json()
-    assert body["base_url"] == "https://new/v1"
-    assert body["api_key_configured"] is True
-
-
-def test_config_update_without_key_when_none_is_400(client: TestClient) -> None:
-    """未配置过密钥又不带密钥更新：400（提示填写 api_key）。"""
-    response = client.put(
-        "/api/config", json={"base_url": "https://api/v1", "model": "m1"}
-    )
-
-    assert response.status_code == 400
-    assert "api_key" in response.json()["detail"]
-
-
 def test_endpoints_list_empty(client: TestClient) -> None:
     """空数据根：端点配置列表为空数组。"""
     response = client.get("/api/endpoints")
@@ -510,7 +466,7 @@ def test_endpoints_list_empty(client: TestClient) -> None:
 
 
 def test_endpoints_create_and_list(client: TestClient) -> None:
-    """创建一套配置：201 返回概要（密钥只报有无）；第一套自动成为当前使用。"""
+    """创建一套配置：201 返回概要（密钥只报有无）；创建不改变任何请求行为。"""
     response = client.post(
         "/api/endpoints",
         json={
@@ -521,7 +477,6 @@ def test_endpoints_create_and_list(client: TestClient) -> None:
         },
     )
     listing = client.get("/api/endpoints")
-    current = client.get("/api/config")
 
     assert response.status_code == 201
     created = response.json()
@@ -533,7 +488,6 @@ def test_endpoints_create_and_list(client: TestClient) -> None:
         "model": "m1",
         "api_format": "openai-chat-completions",
         "has_api_key": True,
-        "is_active": True,
         "request_params": {
             "temperature": None,
             "top_p": None,
@@ -545,7 +499,6 @@ def test_endpoints_create_and_list(client: TestClient) -> None:
         },
     }
     assert [item["name"] for item in listing.json()] == ["siliconflow"]
-    assert current.json()["name"] == "siliconflow"
 
 
 def test_endpoints_create_duplicate_display_name_allowed(client: TestClient) -> None:
@@ -652,7 +605,7 @@ def test_endpoints_update_missing_404(client: TestClient) -> None:
 
 
 def test_endpoints_rename_via_put(client: TestClient) -> None:
-    """PUT 带 new_name：改名成功返回新名概要，active 指针跟随，旧名消失。"""
+    """PUT 带 new_name：改名成功返回新名概要，旧名消失。"""
     created = client.post(
         "/api/endpoints",
         json={"name": "prod", "base_url": "https://a/v1", "model": "m"},
@@ -666,7 +619,6 @@ def test_endpoints_rename_via_put(client: TestClient) -> None:
 
     assert renamed.status_code == 200
     assert renamed.json()["name"] == "production"
-    assert client.get("/api/config").json()["name"] == "production"
     names = [item["name"] for item in client.get("/api/endpoints").json()]
     assert names == ["production"]
 
@@ -791,37 +743,8 @@ def test_endpoints_request_params_validation_422(client: TestClient) -> None:
     assert response.status_code == 422
 
 
-def test_endpoints_activate_switches_current(client: TestClient) -> None:
-    """切换当前使用：204；列表 is_active 跟随；GET /api/config 读到新配置。"""
-    client.post(
-        "/api/endpoints",
-        json={"name": "alpha", "base_url": "https://a/v1", "model": "m-a"},
-    )
-    client.post(
-        "/api/endpoints",
-        json={"name": "beta", "base_url": "https://b/v1", "model": "m-b"},
-    )
-
-    response = client.post("/api/endpoints/beta/activate")
-    listing = client.get("/api/endpoints")
-    current = client.get("/api/config")
-
-    assert response.status_code == 204
-    by_name = {item["name"]: item for item in listing.json()}
-    assert by_name["alpha"]["is_active"] is False
-    assert by_name["beta"]["is_active"] is True
-    assert current.json()["name"] == "beta"
-
-
-def test_endpoints_activate_missing_404(client: TestClient) -> None:
-    """切换到不存在的配置：404。"""
-    response = client.post("/api/endpoints/ghost/activate")
-
-    assert response.status_code == 404
-
-
-def test_endpoints_delete_non_active_204(client: TestClient) -> None:
-    """删除非当前使用的配置：204，列表少一项。"""
+def test_endpoints_delete_204(client: TestClient) -> None:
+    """删除一套配置：204，列表少一项（删除不再有任何前置拦截）。"""
     client.post(
         "/api/endpoints",
         json={"name": "alpha", "base_url": "https://a/v1", "model": "m"},
@@ -837,18 +760,6 @@ def test_endpoints_delete_non_active_204(client: TestClient) -> None:
     assert [item["name"] for item in client.get("/api/endpoints").json()] == ["alpha"]
 
 
-def test_endpoints_delete_active_409(client: TestClient) -> None:
-    """删除当前使用中的配置：409（先切换再删）。"""
-    client.post(
-        "/api/endpoints",
-        json={"name": "alpha", "base_url": "https://a/v1", "model": "m"},
-    )
-
-    response = client.delete("/api/endpoints/alpha")
-
-    assert response.status_code == 409
-
-
 def test_endpoints_delete_missing_404(client: TestClient) -> None:
     """删除不存在的配置：404。"""
     response = client.delete("/api/endpoints/ghost")
@@ -857,7 +768,7 @@ def test_endpoints_delete_missing_404(client: TestClient) -> None:
 
 
 def test_endpoints_never_leak_secret(client: TestClient) -> None:
-    """密钥只进不出：创建后，端点配置与当前配置的响应文本都不含密钥明文。"""
+    """密钥只进不出：创建后，端点配置的响应文本不含密钥明文。"""
     secret = "sk-super-secret-do-not-leak"  # pragma: allowlist secret
     client.post(
         "/api/endpoints",
@@ -870,10 +781,8 @@ def test_endpoints_never_leak_secret(client: TestClient) -> None:
     )
 
     endpoints_text = client.get("/api/endpoints").text
-    config_text = client.get("/api/config").text
 
     assert secret not in endpoints_text
-    assert secret not in config_text
 
 
 def test_skill_files_list_and_content(client: TestClient) -> None:
@@ -1198,7 +1107,7 @@ def test_label_stream_sse(client: TestClient, fake_engine: FakeCompleter) -> Non
 
     response = client.post(
         "/api/label/stream",
-        json={"prompt_id": "p1", "instruction": "描述它"},
+        json={"endpoint_id": "e-test", "prompt_id": "p1", "instruction": "描述它"},
     )
 
     assert response.status_code == 200
@@ -1224,13 +1133,15 @@ def test_session_snapshot_exposes_persisted_reasoning(
             yield StreamDelta(kind="reasoning", text="先确认主体。")
             yield from super().stream(messages)
 
-    monkeypatch.setattr(
-        routes_labeling,
-        "build_engine",
-        lambda: LabelingEngine(ThinkingCompleter(), "test-model"),
-    )
+    def fake_build(endpoint_id: str) -> LabelingEngine:
+        return LabelingEngine(ThinkingCompleter(), "test-model")
+
+    monkeypatch.setattr(routes_labeling, "build_engine", fake_build)
     _save_prompt("p1", "你是打标助手。")
-    client.post("/api/label/stream", json={"prompt_id": "p1", "instruction": "描述它"})
+    client.post(
+        "/api/label/stream",
+        json={"endpoint_id": "e-test", "prompt_id": "p1", "instruction": "描述它"},
+    )
 
     messages = client.get("/api/sessions/latest").json()["messages"]
 
@@ -1253,11 +1164,16 @@ def test_label_stream_mid_stream_error_emits_error_frame(
             raise AssertionError("流式路径不应调用 complete")
 
     engine = LabelingEngine(_MidStreamErrorCompleter(), "m")  # type: ignore[arg-type]
-    monkeypatch.setattr(routes_labeling, "build_engine", lambda: engine)
+
+    def fake_build(endpoint_id: str) -> LabelingEngine:
+        return engine
+
+    monkeypatch.setattr(routes_labeling, "build_engine", fake_build)
 
     _save_prompt("p1", "你是打标助手。")
     response = client.post(
-        "/api/label/stream", json={"prompt_id": "p1", "instruction": "x"}
+        "/api/label/stream",
+        json={"endpoint_id": "e-test", "prompt_id": "p1", "instruction": "x"},
     )
 
     assert response.status_code == 200
@@ -1288,6 +1204,7 @@ def test_label_with_video_uses_video_params(
     response = client.post(
         "/api/label",
         json={
+            "endpoint_id": "e-test",
             "prompt_id": "p1",
             "instruction": "描述动作",
             "video_base64": payload,
@@ -1314,6 +1231,7 @@ def test_label_with_fractional_fps_is_422(
     response = client.post(
         "/api/label",
         json={
+            "endpoint_id": "e-test",
             "prompt_id": "p1",
             "instruction": "x",
             "video_base64": payload,
@@ -1333,6 +1251,7 @@ def test_label_image_and_video_together_is_400(
     response = client.post(
         "/api/label",
         json={
+            "endpoint_id": "e-test",
             "prompt_id": "p1",
             "instruction": "x",
             "image_base64": payload,
@@ -1354,7 +1273,12 @@ class TestSessionOwnershipApi:
 
         first = client.post(
             "/api/label",
-            json={"prompt_id": "h3", "instruction": "一轮", "strategy_id": "s-x"},
+            json={
+                "endpoint_id": "e-test",
+                "prompt_id": "h3",
+                "instruction": "一轮",
+                "strategy_id": "s-x",
+            },
         )
         assert first.status_code == 200
         session_id = first.json()["session_id"]
@@ -1380,6 +1304,7 @@ class TestSessionOwnershipApi:
         session_id = client.post(
             "/api/label",
             json={
+                "endpoint_id": "e-test",
                 "prompt_id": "h3",
                 "instruction": "草稿轮",
                 "strategy_id": "__new__",
@@ -1439,6 +1364,7 @@ class TestSessionOwnershipApi:
         session_id = client.post(
             "/api/label",
             json={
+                "endpoint_id": "e-test",
                 "prompt_id": "h3",
                 "instruction": "一轮",
                 "strategy_id": strategy_id,
@@ -1466,7 +1392,12 @@ class TestSessionOwnershipApi:
         _save_prompt("h3", "你是打标助手。")
         session_id = client.post(
             "/api/label",
-            json={"prompt_id": "h3", "instruction": "一轮", "strategy_id": "s-busy"},
+            json={
+                "endpoint_id": "e-test",
+                "prompt_id": "h3",
+                "instruction": "一轮",
+                "strategy_id": "s-busy",
+            },
         ).json()["session_id"]
 
         # 直接登记一个进行中轮次，模拟流式生成中。

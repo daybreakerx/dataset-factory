@@ -34,6 +34,7 @@ from dataset_factory.sessions import (
     list_sessions,
     parse_event,
     read_events,
+    read_session_source,
     read_strategy_id,
     retain_latest_for,
     save_attachment,
@@ -632,12 +633,14 @@ class TestSessionOwnership:
         other_bucket = create_session(strategy_id="s-b")
         new = create_session(strategy_id="s-a")
 
-        removed = retain_latest_for("s-a", keep=new)
+        removed = retain_latest_for("s-a", keep=new, source="web")
 
         assert removed == [old]
         assert sessions_for_strategy("s-a") == [new]
         assert latest_session_id_for("s-b") == other_bucket
-        assert retain_latest_for("s-a", keep="20990101-000000-000000") == []
+        assert (
+            retain_latest_for("s-a", keep="20990101-000000-000000", source="web") == []
+        )
         assert sessions_for_strategy("s-a") == [new]
 
     def test_delete_session_removes_directory(self, temp_data_root: Path) -> None:
@@ -651,3 +654,60 @@ class TestSessionOwnership:
         assert latest_session_id_for("s-a") is None
         with pytest.raises(SessionNotFoundError):
             delete_session(session_id)
+
+
+class TestSessionSource:
+    """会话来源（meta.json 的 source，ADR 2026-09-30）：盖章、存量归 web、分来源查询与滚动保留。"""
+
+    def test_create_session_stamps_source(self, temp_data_root: Path) -> None:
+        """新建会话盖来源章：显式 cli 记 cli；缺省 web；存量无该字段也按 web 归账。"""
+        cli = create_session(source="cli")
+        web = create_session()
+
+        assert read_session_source(cli) == "cli"
+        assert read_session_source(web) == "web"
+
+        # 模拟存量会话：meta.json 手工改回只有 strategy_id 的旧形态。
+        meta = temp_data_root / "sessions" / cli / "meta.json"
+        meta.write_text(json.dumps({"strategy_id": None}), encoding="utf-8")
+        assert read_session_source(cli) == "web"
+
+    def test_bucket_query_filters_by_source(self, temp_data_root: Path) -> None:
+        """按桶查询可按来源过滤：Web 只看 web 会话，不被 CLI 会话顶掉。"""
+        web_old = create_session(strategy_id="s-a", source="web")
+        create_session(strategy_id="s-a", source="cli")
+        web_new = create_session(strategy_id="s-a", source="web")
+
+        assert sessions_for_strategy("s-a", source="web") == [web_old, web_new]
+        assert latest_session_id_for("s-a", source="web") == web_new
+        # 不过滤时两个来源都在桶里（CLI 侧消费全桶的口径不受影响）。
+        assert len(sessions_for_strategy("s-a")) == 3
+
+    def test_latest_session_filters_by_source(self, temp_data_root: Path) -> None:
+        """全局 latest 支持按来源取：Web 的认领垫层捞不到 CLI 会话。"""
+        cli = create_session(source="cli")
+        web = create_session(source="web")
+
+        assert latest_session_id(source="web") == web
+        assert latest_session_id(source="cli") == cli
+
+    def test_retain_latest_spares_cli_sessions(self, temp_data_root: Path) -> None:
+        """Web 滚动保留只清 web 来源：cli 会话留在桶里（ADR：不得顶掉 Web 对话）。"""
+        web_old = create_session(strategy_id="s-a", source="web")
+        cli = create_session(strategy_id="s-a", source="cli")
+        web_new = create_session(strategy_id="s-a", source="web")
+
+        removed = retain_latest_for("s-a", keep=web_new, source="web")
+
+        assert removed == [web_old]
+        assert sessions_for_strategy("s-a") == [cli, web_new]
+        assert read_session_source(cli) == "cli"
+
+    def test_write_strategy_id_preserves_source(self, temp_data_root: Path) -> None:
+        """改挂归属只换 strategy_id：来源章原样保留。"""
+        session_id = create_session(strategy_id="__new__", source="cli")
+
+        write_strategy_id(session_id, "s-saved")
+
+        assert read_strategy_id(session_id) == "s-saved"
+        assert read_session_source(session_id) == "cli"

@@ -27,7 +27,6 @@ from ..labeling import (
     SettingsFormatError,
 )
 from ..llm import (
-    ConfigConflictError,
     ConfigError,
     ConfigNotFoundError,
     ImageTooLargeError,
@@ -89,7 +88,6 @@ from ..workdir import (
 )
 from ..workdir.locks import sweep_cleaned_maintenance_records
 from . import (
-    routes_config,
     routes_endpoints,
     routes_export,
     routes_filesystem,
@@ -133,7 +131,6 @@ def create_app(frontend_dir: Path | None = None) -> FastAPI:
     app.include_router(routes_prompts.router)
     app.include_router(routes_skills.router)
     app.include_router(routes_endpoints.router)
-    app.include_router(routes_config.router)
     app.include_router(routes_service.router)
     app.include_router(routes_filesystem.router)
     app.include_router(routes_tasks.router)
@@ -199,7 +196,7 @@ _ERROR_MAP: list[tuple[int, tuple[type[Exception], ...]]] = [
             ConfigNotFoundError,
         ),
     ),
-    (409, (SkillExistsError, ConfigConflictError, PromptExistsError)),
+    (409, (SkillExistsError, PromptExistsError)),
     (413, (PromptTooLargeError,)),
     (502, (LLMError,)),
     (

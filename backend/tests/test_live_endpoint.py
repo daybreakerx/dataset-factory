@@ -33,7 +33,7 @@ import pytest
 import uvicorn
 
 from dataset_factory.api import create_app
-from dataset_factory.llm import DEFAULT_CONFIG_NAME, SecretValue, create_config
+from dataset_factory.llm import SecretValue, create_config
 
 # ---------- 环境与跳过逻辑 ----------
 
@@ -60,7 +60,7 @@ def live_system_client(
     ``create_app``」，模块级调用会在 collection 期就探测磁盘。
     """
     create_config(
-        DEFAULT_CONFIG_NAME,
+        "default",
         base_url=_LIVE_BASE_URL,
         model=_LIVE_MODEL,
         api_key=SecretValue(_LIVE_API_KEY),
@@ -179,7 +179,7 @@ def test_live_thinking_off_round(live_system_client: tuple[httpx.Client, Path]) 
     """
     client, _ = live_system_client
     updated = client.put(
-        f"/api/endpoints/{DEFAULT_CONFIG_NAME}",
+        "/api/endpoints/default",
         json={
             "base_url": _LIVE_BASE_URL,
             "model": _LIVE_MODEL,

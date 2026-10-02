@@ -23,7 +23,7 @@ import httpx
 import pytest
 import uvicorn
 
-from dataset_factory.llm import DEFAULT_CONFIG_NAME, SecretValue, create_config
+from dataset_factory.llm import SecretValue, create_config
 
 from .fake_llm_endpoint import FakeLLMEndpoint
 
@@ -93,7 +93,7 @@ def system_client(
     请求真正经过完整的 HTTP 协议栈（连接、编码、解码、超时）。
     """
     create_config(
-        DEFAULT_CONFIG_NAME,
+        "default",
         base_url=fake_endpoint.base_url,
         model="fake-label-model",
         api_key=SecretValue("sk-fake-for-system-test"),
@@ -128,6 +128,7 @@ def test_full_labeling_flow_over_real_http(
     label = system_client.post(
         "/api/label",
         json={
+            "endpoint_id": "default",
             "session_id": None,
             "prompt_id": pid,
             "skill_ids": [],
@@ -201,6 +202,7 @@ def test_error_path_real_http(
     response = system_client.post(
         "/api/label",
         json={
+            "endpoint_id": "default",
             "session_id": None,
             "prompt_id": pid,
             "skill_ids": [],
@@ -230,6 +232,7 @@ def test_session_recovery_over_real_http(
     first = system_client.post(
         "/api/label",
         json={
+            "endpoint_id": "default",
             "session_id": None,
             "prompt_id": pid,
             "skill_ids": [],
@@ -279,6 +282,7 @@ def test_stream_labeling_over_real_http(
         "POST",
         "/api/label/stream",
         json={
+            "endpoint_id": "default",
             "session_id": None,
             "prompt_id": pid,
             "skill_ids": [],
