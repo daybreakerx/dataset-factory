@@ -1222,11 +1222,29 @@ def test_strategy_use_without_pointer_says_unset(temp_data_root: Path) -> None:
 
 
 def test_strategy_use_missing_strategy_fails(temp_data_root: Path) -> None:
-    """strategy use 指向不存在的策略：报错退出（指针只指向现存在的策略）。"""
+    """strategy use 指向不存在的策略：用户错误退 1（指针只指向现存在的策略）。"""
     result = runner.invoke(app, ["strategy", "use", "s_missing"])
 
-    assert result.exit_code != 0
+    assert result.exit_code == 1
     assert "不存在" in result.output + result.stderr
+
+
+def test_stale_pointer_warns_but_does_not_block_explicit_call(
+    temp_data_root: Path, fake_engine: FakeCompleter
+) -> None:
+    """指针失效（策略文件被手动删）：stderr 给提示但不阻断——全显式调用照常可跑。"""
+    strategy_id = _seed_strategy()
+    assert runner.invoke(app, ["strategy", "use", strategy_id]).exit_code == 0
+    # 模拟盘上文件被外部删掉（绕过 delete_strategy，指针没有级联机会）。
+    (temp_data_root / "strategies" / f"{strategy_id}.json").unlink()
+
+    result = runner.invoke(
+        app, ["label", "--endpoint", "e-test", "-p", "h3", "-m", "打标", "--json"]
+    )
+
+    assert result.exit_code == 0
+    assert "指针失效" in result.stderr
+    assert "dsf strategy use" in result.stderr
 
 
 def test_label_explicit_endpoint_wins_over_dead_strategy_endpoint(

@@ -195,7 +195,7 @@ def test_delete_removes_entry(assets: None) -> None:
 
 
 def test_current_pointer_roundtrip(assets: None) -> None:
-    """「当前使用策略」指针：未设置返回 None；设置后回读一致。"""
+    """「当前使用策略」指针：未设置返回 None；设置后回读一致且不混入策略清单。"""
     entry = create_strategy(
         name="甲", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
     )
@@ -204,6 +204,8 @@ def test_current_pointer_roundtrip(assets: None) -> None:
     set_current_strategy(entry.id)
 
     assert current_strategy_id() == entry.id
+    # 指针件与策略清单隔离：set 之后 list_strategies 仍只有策略本身一条。
+    assert [item.id for item in list_strategies()] == [entry.id]
 
 
 def test_set_current_pointer_requires_existing_strategy(assets: None) -> None:
