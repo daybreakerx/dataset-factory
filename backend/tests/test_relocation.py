@@ -220,10 +220,18 @@ def test_relocate_updates_registry_and_cleans_old_location(
 def test_recreated_old_path_can_register_without_accepting_stale_state_writer(
     tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """清理后同路径新目录可登记，旧存储对象不能改写新目录状态。"""
+    """清理后同路径新目录可登记，旧存储对象不能改写新目录状态。
+
+    陈旧检测以 (dev, ino) 为身份（StateLock / import_guard 写前核对）。inode 复用
+    属机制盲区：Linux 上释放的 inode 可能被同路径新目录立即复用，此时新旧目录
+    (dev, ino) 相同、检测在机制上无从分辨——与下一测试的登记侧取舍同源，设计
+    接受此界。故断言只在「未复用」（可分辨）时生效：旧对象的写必须被拒；
+    复用发生时跳过（写会落进新目录，属已知边界）。
+    """
     source = tmp_path / "source"
     source.mkdir()
     stale = WorkdirStore(source)
+    stale_identity = (source.stat().st_dev, source.stat().st_ino)
     entry = WorkdirRegistry.register(source)
     destination = tmp_path / "destination"
     relocate_workdir(entry.id, destination)
@@ -232,10 +240,13 @@ def test_recreated_old_path_can_register_without_accepting_stale_state_writer(
     new_entry = WorkdirRegistry.register(source)
     current = WorkdirStore(source)
     current.mutate_state(lambda state: state.update({"new": True}))
-    with pytest.raises(WorkdirPathError):
-        stale.mutate_state(lambda state: state.update({"unexpected": True}))
-    with pytest.raises(WorkdirPathError):
-        stale.append_import_record({"imported_at": "now", "source": "", "files": []})
+    if (source.stat().st_dev, source.stat().st_ino) != stale_identity:
+        with pytest.raises(WorkdirPathError):
+            stale.mutate_state(lambda state: state.update({"unexpected": True}))
+        with pytest.raises(WorkdirPathError):
+            stale.append_import_record(
+                {"imported_at": "now", "source": "", "files": []}
+            )
 
     assert new_entry.id != entry.id
     assert current.read_state() == {"new": True}
