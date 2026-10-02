@@ -16,7 +16,7 @@
 │ config    端点配置管理（base_url / 模型名 / API 密钥，支持多套配置）                                                 │
 │ prompt    提示词库管理（增删改查）                                                                                   │
 │ skill     Skill 包管理（agentskills.io 标准）                                                                        │
-│ session   会话查看（list / show）                                                                                    │
+│ session   会话管理（list / show / remove）                                                                           │
 │ workdir   工作目录管理                                                                                               │
 │ batch     批次管理                                                                                                   │
 │ export    数据集导出                                                                                                 │

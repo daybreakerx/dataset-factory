@@ -2,6 +2,9 @@
 
 引用参数（--endpoint / --prompt / --skill）接受各资产的**稳定 ID 或唯一显示名**
 （2026-09-23 ID 化：显示名可改，ID 才是身份；解析收敛在 _endpoint_ref 等三个助手）。
+
+``use`` 子命令立「当前使用策略」指针——CLI 对话域（label / chat）的缺省语境，
+Web 不消费它（Web 的端点语境是策略页 chip 页内局部选择器，ADR 2026-09-30）。
 """
 
 from dataclasses import asdict
@@ -14,19 +17,44 @@ from ..prompts import PromptNotFoundError, prompt_id_by_display_name, read_promp
 from ..skills import SkillNotFoundError, get_skill, skill_id_by_display_name
 from ..strategies import (
     LibraryStrategy,
+    StrategyNotFoundError,
     copy_strategy,
     create_strategy,
+    current_strategy_id,
     delete_strategy,
     get_strategy,
     list_strategies,
     missing_refs,
     rebind_strategy,
+    set_current_strategy,
     update_strategy,
 )
 from .errors import handle_domain_errors
 from .operations import confirm_action, print_result
 
 app = typer.Typer(help="策略库管理", no_args_is_help=True)
+
+
+def resolve_current_strategy() -> LibraryStrategy | None:
+    """取「当前使用策略」条目；未设置或指针失效返回 None（消费方决定怎么报错）。
+
+    指针失效（指向的策略已被删文件等）时顺带在 stderr 给一句提示——缺省语境挂了
+    不能静默，但也不在这里直接退出：调用方可能还有全显式参数可用（外部 agent
+    脚本化调用不建策略的场景），该不该硬失败由调用方按语境定。
+    """
+    current = current_strategy_id()
+    if current is None:
+        return None
+    try:
+        return get_strategy(current)
+    except StrategyNotFoundError:
+        typer.secho(
+            f"提示：当前使用策略 {current} 已不存在（指针失效）；"
+            "用 dsf strategy use <id> 重新设置。",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return None
 
 
 def _view(entry: LibraryStrategy) -> dict[str, object]:
@@ -118,6 +146,27 @@ def list_all() -> None:
 def show(strategy_id: str) -> None:
     """按稳定 ID 查看策略。"""
     print_result(_view(get_strategy(strategy_id)))
+
+
+@app.command("use")
+@handle_domain_errors
+def use(
+    strategy_id: Annotated[
+        str | None,
+        typer.Argument(help="要设为当前使用的库策略 id；省略时查看当前指向"),
+    ] = None,
+) -> None:
+    """查看或设置「当前使用策略」——dsf label / dsf chat 缺省时的组合来源。"""
+    if strategy_id is None:
+        current = current_strategy_id()
+        if current is None:
+            typer.echo("（当前没有使用中的策略——dsf strategy use <id> 设置）")
+            return
+        entry = get_strategy(current)
+        typer.echo(f"当前使用：{entry.name} ({entry.id})")
+        return
+    entry = set_current_strategy(strategy_id)
+    typer.secho(f"已设为当前使用：{entry.name} ({entry.id})", fg=typer.colors.GREEN)
 
 
 @app.command("edit")

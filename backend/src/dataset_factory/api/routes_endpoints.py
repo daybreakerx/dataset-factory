@@ -59,7 +59,7 @@ def list_all() -> list[EndpointConfigSummary]:
     },
 )
 def create(request: EndpointCreateRequest) -> EndpointConfigSummary:
-    """新增一套端点配置；当前没有生效配置时自动设为当前使用。"""
+    """新增一套端点配置（创建不改变任何请求行为——请求显式携带端点）。"""
     api_key = _parse_key(request.api_key)
     cid = create_config(
         name=request.name,

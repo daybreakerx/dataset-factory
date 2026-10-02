@@ -26,6 +26,7 @@ from dataset_factory.strategies import (
     copy_strategy,
     create_batch,
     create_strategy,
+    current_strategy_id,
     delete_batch,
     delete_strategy,
     get_batch,
@@ -38,6 +39,7 @@ from dataset_factory.strategies import (
     rebind_strategy,
     remove_exclusions,
     set_batch_active,
+    set_current_strategy,
     strategy_content_hash,
     update_batch,
     update_strategy,
@@ -190,6 +192,51 @@ def test_delete_removes_entry(assets: None) -> None:
     assert list_strategies() == []
     with pytest.raises(StrategyNotFoundError):
         delete_strategy(entry.id)
+
+
+def test_current_pointer_roundtrip(assets: None) -> None:
+    """「当前使用策略」指针：未设置返回 None；设置后回读一致。"""
+    entry = create_strategy(
+        name="甲", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+
+    assert current_strategy_id() is None
+    set_current_strategy(entry.id)
+
+    assert current_strategy_id() == entry.id
+
+
+def test_set_current_pointer_requires_existing_strategy(assets: None) -> None:
+    """设置指针指向不存在的策略：StrategyNotFoundError（指针只指向现存在的策略）。"""
+    with pytest.raises(StrategyNotFoundError):
+        set_current_strategy("s_missing")
+
+
+def test_delete_strategy_clears_current_pointer(assets: None) -> None:
+    """删除当前使用的策略：指针一并清除（删除不再有前置拦截，指针不留悬空）。"""
+    entry = create_strategy(
+        name="甲", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    set_current_strategy(entry.id)
+
+    delete_strategy(entry.id)
+
+    assert current_strategy_id() is None
+
+
+def test_delete_other_strategy_keeps_pointer(assets: None) -> None:
+    """删除别的策略：当前指针不动。"""
+    kept = create_strategy(
+        name="保留", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    other = create_strategy(
+        name="其他", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    set_current_strategy(kept.id)
+
+    delete_strategy(other.id)
+
+    assert current_strategy_id() == kept.id
 
 
 def test_health_turns_unavailable_when_prompt_deleted(assets: None) -> None:

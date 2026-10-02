@@ -11,7 +11,7 @@ import json
 import logging
 import logging.handlers
 import sys
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import cast
 
@@ -34,11 +34,25 @@ from dataset_factory.llm import (
     StreamDelta,
     TextPart,
     VideoPart,
+    config_id_by_display_name,
+    create_config,
+    delete_config,
     list_configs,
 )
-from dataset_factory.prompts import Prompt, save_prompt
-from dataset_factory.sessions import list_sessions
+from dataset_factory.prompts import Prompt, read_prompt, save_prompt
+from dataset_factory.sessions import (
+    create_session,
+    list_sessions,
+    read_events,
+    read_session_source,
+    read_strategy_id,
+)
+from dataset_factory.sessions.model import SettingsEvent
 from dataset_factory.skills import import_skill
+from dataset_factory.strategies import (
+    create_strategy,
+    get_strategy,
+)
 
 from .conftest import FakeCompleter
 
@@ -55,11 +69,17 @@ runner = CliRunner()
 
 @pytest.fixture
 def fake_engine(monkeypatch: pytest.MonkeyPatch) -> FakeCompleter:
-    """把 CLI 的引擎装配换成假客户端版（离线、记录每轮消息）。"""
+    """把 CLI 的引擎装配换成假客户端版（离线、记录每轮消息）。
+
+    顺手在数据根造一套名为 e-test 的真实端点配置——批3 后端点解析留在命令体
+    （缺省语境与显式覆盖的真解析不再被引擎注入位屏蔽），显式 ``--endpoint e-test``
+    要能解析通过。
+    """
+    create_config("e-test", "https://api.example.com/v1", "test-model", api_key=None)
     completer = FakeCompleter()
     from dataset_factory.labeling import LabelingEngine
 
-    def fake_build(endpoint_ref: str) -> LabelingEngine:
+    def fake_build(endpoint_id: str) -> LabelingEngine:
         return LabelingEngine(completer, "test-model", source="cli")
 
     monkeypatch.setattr(label_module, "build_engine", fake_build)
@@ -69,6 +89,27 @@ def fake_engine(monkeypatch: pytest.MonkeyPatch) -> FakeCompleter:
 def _save_prompt(name: str, body: str) -> None:
     """往提示词库存一条测试提示词。"""
     save_prompt(Prompt(name=name, description="测试提示词", body=body))
+
+
+def _seed_strategy(with_skill: bool = False) -> str:
+    """造「当前使用策略」的完整语境（端点 e-test + 提示词 h3 + 可选 Skill）。
+
+    返回策略 id；供 use / label / chat 缺省链路类用例从同一条种子出发。端点按
+    **显示名**幂等（has_config 只认 ID，显示名解析要用 config_id_by_display_name）
+    ——本助手不依赖任何 fixture。
+    """
+    if config_id_by_display_name("e-test") is None:
+        create_config(
+            "e-test", "https://api.example.com/v1", "test-model", api_key=None
+        )
+    _save_prompt("h3", "你是打标助手。")
+    skill_ids = [import_skill(_SKILL_PACK).skill.id] if with_skill else []
+    return create_strategy(
+        name="当前策略",
+        endpoint_id="e-test",
+        prompt_id=read_prompt("h3").id,
+        skill_ids=skill_ids,
+    ).id
 
 
 class _FlakyCompleter:
@@ -124,6 +165,7 @@ def test_label_resume_iterates_with_history(
     temp_data_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """带 --session 续接：第二轮携带第一轮历史（迭代改写）。"""
+    create_config("e-test", "https://api.example.com/v1", "test-model", api_key=None)
     _save_prompt("h3", "你是打标助手。")
     completer = FakeCompleter(replies=["第一轮", "第二轮"])
     from dataset_factory.labeling import LabelingEngine
@@ -286,14 +328,75 @@ def test_label_empty_turn_exits_user_error(
     assert "内容" in result.stderr
 
 
-def test_label_requires_endpoint_option(temp_data_root: Path) -> None:
-    """label 不带 --endpoint：按用法错误退 2（请求显式携带端点，没有缺省端点）。"""
+def test_label_without_endpoint_or_strategy_exits_user_error(
+    temp_data_root: Path, fake_engine: FakeCompleter
+) -> None:
+    """label 不带 --endpoint 且未设当前使用策略：用户错误退 1，给可操作提示。"""
     _save_prompt("h3", "你是打标助手。")
 
     result = runner.invoke(app, ["label", "-p", "h3", "-m", "打标"])
 
-    assert result.exit_code == 2
-    assert "--endpoint" in result.stderr
+    assert result.exit_code == 1
+    assert "未设置当前使用策略" in result.stderr
+    assert "dsf strategy use" in result.stderr
+
+
+def _last_settings(session_id: str) -> Mapping[str, object]:
+    """取某会话最后一条设置事件的内容（缺省组合 / 覆盖断言用）。"""
+    events = [
+        event for event in read_events(session_id) if isinstance(event, SettingsEvent)
+    ]
+    return events[-1].settings
+
+
+def test_label_defaults_to_current_strategy_combination(
+    temp_data_root: Path, fake_engine: FakeCompleter
+) -> None:
+    """label 全缺省：端点 / 提示词用当前策略的，会话盖「发起时的当前策略」章（cli 来源）。"""
+    strategy_id = _seed_strategy()
+    assert runner.invoke(app, ["strategy", "use", strategy_id]).exit_code == 0
+
+    result = runner.invoke(app, ["label", "-m", "打标", "--json"])
+
+    assert result.exit_code == 0
+    session_id = cast("str", json.loads(result.output)["session_id"])
+    assert read_strategy_id(session_id) == strategy_id
+    assert read_session_source(session_id) == "cli"
+    assert _last_settings(session_id)["prompt"] == read_prompt("h3").id
+
+
+def test_label_defaults_include_strategy_skills(
+    temp_data_root: Path, fake_engine: FakeCompleter
+) -> None:
+    """label 全缺省且策略带 Skill：Skill 缺省取策略勾选（会话设置记录勾选 id）。"""
+    strategy_id = _seed_strategy(with_skill=True)
+    skill_ids = get_strategy(strategy_id).skill_ids
+    assert runner.invoke(app, ["strategy", "use", strategy_id]).exit_code == 0
+
+    result = runner.invoke(app, ["label", "-m", "打标", "--json"])
+
+    assert result.exit_code == 0
+    session_id = cast("str", json.loads(result.output)["session_id"])
+    assert _last_settings(session_id)["skills"] == skill_ids
+
+
+def test_label_explicit_flags_override_strategy_but_keep_chapter(
+    temp_data_root: Path, fake_engine: FakeCompleter
+) -> None:
+    """显式 -p / --endpoint 单次覆盖：组合用显式值、归属章仍是当前策略（章不断言组合）。"""
+    strategy_id = _seed_strategy()
+    assert runner.invoke(app, ["strategy", "use", strategy_id]).exit_code == 0
+    _save_prompt("另一条", "另一套正文。")
+
+    result = runner.invoke(
+        app,
+        ["label", "--endpoint", "e-test", "-p", "另一条", "-m", "打标", "--json"],
+    )
+
+    assert result.exit_code == 0
+    session_id = cast("str", json.loads(result.output)["session_id"])
+    assert read_strategy_id(session_id) == strategy_id
+    assert _last_settings(session_id)["prompt"] == read_prompt("另一条").id
 
 
 def test_chat_rounds_and_exit_on_eof(
@@ -313,19 +416,21 @@ def test_chat_rounds_and_exit_on_eof(
     assert session_id is not None
 
 
-def test_chat_resumes_latest_session(
+def test_chat_resumes_current_strategy_latest_cli_session(
     temp_data_root: Path, fake_engine: FakeCompleter
 ) -> None:
-    """chat 不带 --session：自动恢复最新会话（先 label 开一轮，chat 续上同一会话）。"""
-    _save_prompt("h3", "你是打标助手。")
-    first = runner.invoke(
-        app, ["label", "--endpoint", "e-test", "-p", "h3", "-m", "首轮"]
-    )
+    """chat 不带 --session：恢复当前策略最近一次 CLI 会话（先 label 全缺省开一轮）。"""
+    strategy_id = _seed_strategy()
+    use_result = runner.invoke(app, ["strategy", "use", strategy_id])
+    first = runner.invoke(app, ["label", "-m", "首轮"])
     session_id = list_sessions()[0]
-    result = runner.invoke(app, ["chat", "--endpoint", "e-test"], input="继续改写\n")
+    result = runner.invoke(app, ["chat"], input="继续改写\n")
 
+    assert use_result.exit_code == 0
     assert first.exit_code == 0
-    assert result.exit_code == 0
+    assert result.exit_code == 0, (
+        f"exit={result.exit_code} out={result.output!r} err={result.stderr!r}"
+    )
     assert f"恢复会话 {session_id}" in result.output
     assert list_sessions() == [session_id]
     assert len(fake_engine.calls) == 2
@@ -1053,6 +1158,98 @@ def test_session_list_and_show(
     assert "assistant: 打标结果" in show.output
 
 
+def test_session_list_defaults_to_cli_source(
+    temp_data_root: Path, fake_engine: FakeCompleter
+) -> None:
+    """session list 默认只列 cli 来源；--source web / all 按口径过滤。"""
+    _save_prompt("h3", "你是打标助手。")
+    runner.invoke(app, ["label", "--endpoint", "e-test", "-p", "h3", "-m", "描述图"])
+    web_id = create_session(source="web")
+    cli_only_id = create_session(source="cli")
+
+    listing = runner.invoke(app, ["session", "list"])
+    web_only = runner.invoke(app, ["session", "list", "--source", "web"])
+    everything = runner.invoke(app, ["session", "list", "--source", "all"])
+
+    assert listing.exit_code == 0
+    assert web_id not in listing.output
+    assert cli_only_id in listing.output
+    assert web_only.exit_code == 0
+    assert web_id in web_only.output
+    assert cli_only_id not in web_only.output
+    assert everything.exit_code == 0
+    assert web_id in everything.output
+    assert cli_only_id in everything.output
+
+
+def test_session_remove_requires_confirmation_then_deletes(
+    temp_data_root: Path, fake_engine: FakeCompleter
+) -> None:
+    """session remove：非交互缺 --yes 按用法错误退 2；--yes 删除后列表不再含它。"""
+    _save_prompt("h3", "你是打标助手。")
+    runner.invoke(app, ["label", "--endpoint", "e-test", "-p", "h3", "-m", "描述图"])
+    (session_id,) = list_sessions()
+
+    refused = runner.invoke(app, ["session", "remove", session_id])
+    removed = runner.invoke(app, ["session", "remove", session_id, "--yes"])
+
+    assert refused.exit_code == 2
+    assert removed.exit_code == 0
+    assert "已删除" in removed.output
+    assert list_sessions() == []
+
+
+def test_strategy_use_set_and_show_roundtrip(temp_data_root: Path) -> None:
+    """strategy use：设置后无参查看回显策略名与 id。"""
+    strategy_id = _seed_strategy()
+
+    use = runner.invoke(app, ["strategy", "use", strategy_id])
+    view = runner.invoke(app, ["strategy", "use"])
+
+    assert use.exit_code == 0
+    assert "已设为当前使用" in use.output
+    assert view.exit_code == 0
+    assert "当前使用：当前策略" in view.output
+    assert strategy_id in view.output
+
+
+def test_strategy_use_without_pointer_says_unset(temp_data_root: Path) -> None:
+    """strategy use 无参查看且未设置过：给「未设置」提示与设置指引。"""
+    view = runner.invoke(app, ["strategy", "use"])
+
+    assert view.exit_code == 0
+    assert "当前没有使用中的策略" in view.output
+
+
+def test_strategy_use_missing_strategy_fails(temp_data_root: Path) -> None:
+    """strategy use 指向不存在的策略：报错退出（指针只指向现存在的策略）。"""
+    result = runner.invoke(app, ["strategy", "use", "s_missing"])
+
+    assert result.exit_code != 0
+    assert "不存在" in result.output + result.stderr
+
+
+def test_label_explicit_endpoint_wins_over_dead_strategy_endpoint(
+    temp_data_root: Path, fake_engine: FakeCompleter
+) -> None:
+    """显式 --endpoint 优先于当前策略：策略端点已失效时显式值照常可跑（反之必炸）。"""
+    strategy_id = _seed_strategy()
+    assert runner.invoke(app, ["strategy", "use", strategy_id]).exit_code == 0
+    create_config(
+        "另一端点", "https://other.example.com/v1", "other-model", api_key=None
+    )
+    # 删掉策略指向的端点配置：缺省回落若解析策略端点就会报「配置不存在」。
+    cid = config_id_by_display_name("e-test")
+    assert cid is not None
+    delete_config(cid)
+
+    result = runner.invoke(
+        app, ["label", "--endpoint", "另一端点", "-m", "打标", "--json"]
+    )
+
+    assert result.exit_code == 0
+
+
 def test_usage_error_exit_code(temp_data_root: Path) -> None:
     """用法错误（未知子命令）：退出码 2（Typer/click 默认用法错误语义）。"""
     result = runner.invoke(app, ["不存在的命令"])
@@ -1080,6 +1277,7 @@ def test_chat_turn_failure_keeps_session_alive(
     """chat 某一轮失败（模型超时）：报错带重试提示后继续会话，下一轮照常进行。"""
     from dataset_factory.labeling import LabelingEngine
 
+    create_config("e-test", "https://api.example.com/v1", "test-model", api_key=None)
     _save_prompt("h3", "你是打标助手。")
     completer = _FlakyCompleter()
 

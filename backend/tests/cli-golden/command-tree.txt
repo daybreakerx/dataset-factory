@@ -1,4 +1,4 @@
-共 62 条命令
+共 64 条命令
 batch add
 batch edit
 batch exclude
@@ -33,6 +33,7 @@ prompt show
 run
 serve
 session list
+session remove
 session show
 skill disable
 skill enable
@@ -49,6 +50,7 @@ strategy list
 strategy rebind
 strategy rm
 strategy show
+strategy use
 workdir add
 workdir cleanup
 workdir cleanup-old

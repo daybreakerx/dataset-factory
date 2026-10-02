@@ -1,8 +1,12 @@
 """打标命令：``dsf label``（单发 + 会话续接，供外部 agent）与 ``dsf chat``（终端多轮）。
 
 两个命令走同一打标核心（LabelingEngine），与 Web 端能力对等；``dsf label`` 首次调用返回
-会话 id，之后带 ``--session`` 续接即带历史的迭代改写。端点由 --endpoint 显式指定（请求
-显式携带端点——ADR 2026-09-30「全局当前使用退役」）。
+会话 id，之后带 ``--session`` 续接即带历史的迭代改写。端点语境（ADR 2026-09-30
+「全局当前使用退役」）：缺省用「当前使用策略」（``dsf strategy use`` 设置）的完整组合
+（端点 + 基础提示词 + 启用 Skill），``--endpoint`` / ``-p`` / ``-s`` 显式给出时单次覆盖
+（不写回策略——组合的持久变更走 strategy edit / rebind）；``--endpoint`` 缺省沿用会话
+设置的口径只对续接轮的提示词 / Skill 成立，端点每轮都显式解析（与 Web 逐轮携带对等）。
+新建会话盖「发起时的当前策略」归属章（覆盖组合记在会话设置，归属章不断言组合）。
 """
 
 from __future__ import annotations
@@ -25,9 +29,11 @@ from ..llm import (
     read_config,
 )
 from ..prompts import PromptNotFoundError, prompt_id_by_display_name, read_prompt
-from ..sessions import SessionError, latest_session_id
+from ..sessions import SessionError, latest_session_id_for
 from ..skills import SkillNotFoundError, get_skill, skill_id_by_display_name
+from ..strategies import LibraryStrategy
 from .errors import DOMAIN_ERRORS, handle_domain_errors
+from .strategy import resolve_current_strategy
 
 # chat 输入行里附件的轻量语法：`@文件路径 指令`（@ 开头第一个词是附件路径，其余是指令；
 # 图片 / 视频按扩展名区分，视频扩展名集合以 llm 层的 VIDEO_EXTENSIONS 为准）。
@@ -86,24 +92,45 @@ def _endpoint_ref(ref: str) -> str:
     return resolved
 
 
-def build_engine(endpoint_ref: str) -> LabelingEngine:
-    """从 --endpoint 指定的端点配置装配打标引擎。
+def _endpoint_for(endpoint_ref: str | None, strategy: LibraryStrategy | None) -> str:
+    """本轮端点的解析结果：显式 --endpoint 优先（单次覆盖），否则取当前策略的端点。
+
+    Raises:
+        typer.Exit: 未显式指定且没有当前使用策略（缺省语境整体不可用），给出可操作提示。
+    """
+    if endpoint_ref is not None:
+        return _endpoint_ref(endpoint_ref)
+    if strategy is not None:
+        return strategy.endpoint_id
+    typer.secho(
+        "错误：未设置当前使用策略，且未显式指定 --endpoint；"
+        "用 dsf strategy use <id> 设置，或本轮显式给出 --endpoint。",
+        fg=typer.colors.RED,
+        err=True,
+    )
+    raise typer.Exit(1)
+
+
+def build_engine(endpoint_id: str) -> LabelingEngine:
+    """从已解析的端点配置 id 装配打标引擎（缺省语境的解析在命令体完成）。
 
     独立成函数是给测试留注入位：monkeypatch 本函数返回带假客户端的引擎，即可离线测
-    CLI 全流程（llm 层可被 mock）。
+    CLI 全流程（llm 层可被 mock）；把解析留在命令体也是为了测试——报错分支不被
+    引擎注入位屏蔽。
     """
-    config = read_config(_endpoint_ref(endpoint_ref))
+    config = read_config(endpoint_id)
     return LabelingEngine(build_completer(config), config.model, source="cli")
 
 
 @handle_domain_errors
 def label(
     endpoint_ref: Annotated[
-        str,
+        str | None,
         typer.Option(
-            "--endpoint", help="端点配置（ID 或唯一显示名）；本轮请求显式携带端点"
+            "--endpoint",
+            help="端点配置（ID 或唯一显示名）；缺省用当前使用策略的端点，显式给出即单次覆盖",
         ),
-    ],
+    ] = None,
     message: Annotated[
         str,
         typer.Option(
@@ -115,7 +142,7 @@ def label(
         typer.Option(
             "--prompt",
             "-p",
-            help="基础提示词（ID 或唯一显示名）；续接已有会话时可省（沿用会话设置）",
+            help="基础提示词（ID 或唯一显示名）；缺省取当前策略，续接沿用会话设置",
         ),
     ] = None,
     skill_refs: Annotated[
@@ -123,7 +150,7 @@ def label(
         typer.Option(
             "--skill",
             "-s",
-            help="启用的 skill（ID 或唯一显示名，可多次）；缺省沿用会话设置",
+            help="启用的 skill（ID 或唯一显示名，可多次）；缺省取当前策略，续接沿用会话",
         ),
     ] = None,
     image: Annotated[
@@ -159,19 +186,32 @@ def label(
     """单发打标：发图片或视频 + 指令，输出 caption；带 --session 续接即迭代改写。"""
     if image is not None and video is not None:
         raise typer.BadParameter("图片与视频只能带一个（--image 与 --video 互斥）。")
-    engine = build_engine(endpoint_ref)
+    strategy = resolve_current_strategy()
+    engine = build_engine(_endpoint_for(endpoint_ref, strategy))
     video_bytes = video.read_bytes() if video is not None else None
     video_mime = (
         VIDEO_MIME_BY_SUFFIX.get(video.suffix.lower(), "video/mp4")
         if video is not None
         else "video/mp4"
     )
+    # 新建会话时的缺省组合来自当前使用策略（显式参数单次覆盖）；续接时 None =
+    # 沿用会话设置。归属章 = 发起时的当前策略（覆盖不写回策略，章不断言组合）。
+    default_prompt = (
+        strategy.prompt_id
+        if strategy is not None and session_id is None and prompt_ref is None
+        else None
+    )
+    default_skills = (
+        strategy.skill_ids
+        if strategy is not None and session_id is None and skill_refs is None
+        else None
+    )
     result = engine.label(
         session_id=session_id,
-        prompt_id=_prompt_ref(prompt_ref) if prompt_ref else None,
+        prompt_id=_prompt_ref(prompt_ref) if prompt_ref else default_prompt,
         skill_ids=[_skill_ref(item) for item in (skill_refs or [])]
         if skill_refs
-        else None,
+        else default_skills,
         instruction=message,
         image=image,
         video_bytes=video_bytes,
@@ -179,6 +219,7 @@ def label(
         video_mime=video_mime,
         video_fps=video_fps,
         video_max_frames=video_max_frames,
+        strategy_id=strategy.id if strategy is not None else None,
     )
     if as_json:
         typer.echo(
@@ -199,15 +240,18 @@ def label(
 @handle_domain_errors
 def chat(
     endpoint_ref: Annotated[
-        str,
+        str | None,
         typer.Option(
-            "--endpoint", help="端点配置（ID 或唯一显示名）；本轮请求显式携带端点"
+            "--endpoint",
+            help="端点配置（ID 或唯一显示名）；缺省用当前使用策略的端点，显式给出即单次覆盖",
         ),
-    ],
+    ] = None,
     prompt_ref: Annotated[
         str | None,
         typer.Option(
-            "--prompt", "-p", help="基础提示词（ID 或唯一显示名）；新会话必选，续接可省"
+            "--prompt",
+            "-p",
+            help="基础提示词（ID 或唯一显示名）；缺省取当前策略，恢复沿用会话设置",
         ),
     ] = None,
     skill_refs: Annotated[
@@ -215,7 +259,7 @@ def chat(
         typer.Option(
             "--skill",
             "-s",
-            help="启用的 skill（ID 或唯一显示名，可多次）；首轮生效并随会话延续，续接可省",
+            help="启用的 skill（ID 或唯一显示名，可多次）；缺省取当前策略，恢复沿用会话",
         ),
     ] = None,
     video_fps: Annotated[
@@ -233,13 +277,24 @@ def chat(
     ] = 16,
     session_id: Annotated[
         str | None,
-        typer.Option("--session", help="要恢复的会话 id；缺省自动取最新会话"),
+        typer.Option(
+            "--session",
+            help="要恢复的会话 id；缺省恢复当前策略最近一次 CLI 会话（无则新建）",
+        ),
     ] = None,
 ) -> None:
     """终端多轮打标：交互输入指令（附图 / 附视频用 `@文件路径 指令`），Ctrl+D / Ctrl+C 退出。"""
-    engine = build_engine(endpoint_ref)
+    strategy = resolve_current_strategy()
+    engine = build_engine(_endpoint_for(endpoint_ref, strategy))
+    # 归属章只盖「发起时的当前策略」（新建会话那轮由引擎盖章，续接轮被引擎忽略——
+    # 归属跟随既有会话不随轮次漂移）；无当前策略（全显式调用的外部 agent 场景）= 无归属。
+    chapter = strategy.id if strategy is not None else None
     if session_id is None:
-        session_id = latest_session_id()
+        # 缺省恢复当前策略最近一次 CLI 会话（cli 来源不被 Web 滚动删除顶掉）；
+        # 没有当前策略或桶里还没有会话 → 新建。
+        session_id = (
+            latest_session_id_for(strategy.id, source="cli") if strategy else None
+        )
     if session_id is not None:
         snapshot = engine.restore(session_id)
         typer.secho(
@@ -262,14 +317,26 @@ def chat(
         attachment, instruction = _parse_chat_line(line)
         if not instruction and attachment is None and not line.strip():
             continue
+        # 新建会话那轮（session_id 还是 None）的缺省组合来自当前策略；恢复 / 续接轮
+        # None = 沿用会话设置（首轮落定后 prompt_ref / skill_refs 已被置 None）。
+        default_prompt = (
+            strategy.prompt_id
+            if strategy is not None and session_id is None and prompt_ref is None
+            else None
+        )
+        default_skills = (
+            strategy.skill_ids
+            if strategy is not None and session_id is None and skill_refs is None
+            else None
+        )
         try:
             if attachment is not None and attachment.suffix.lower() in VIDEO_EXTENSIONS:
                 result = engine.label(
                     session_id=session_id,
-                    prompt_id=_prompt_ref(prompt_ref) if prompt_ref else None,
+                    prompt_id=_prompt_ref(prompt_ref) if prompt_ref else default_prompt,
                     skill_ids=[_skill_ref(item) for item in (skill_refs or [])]
                     if skill_refs
-                    else None,
+                    else default_skills,
                     instruction=instruction,
                     video_bytes=_read_chat_video(attachment),
                     video_name=attachment.name,
@@ -278,16 +345,18 @@ def chat(
                     ),
                     video_fps=video_fps,
                     video_max_frames=video_max_frames,
+                    strategy_id=chapter,
                 )
             else:
                 result = engine.label(
                     session_id=session_id,
-                    prompt_id=_prompt_ref(prompt_ref) if prompt_ref else None,
+                    prompt_id=_prompt_ref(prompt_ref) if prompt_ref else default_prompt,
                     skill_ids=[_skill_ref(item) for item in (skill_refs or [])]
                     if skill_refs
-                    else None,
+                    else default_skills,
                     instruction=instruction,
                     image=attachment,
+                    strategy_id=chapter,
                 )
         except DOMAIN_ERRORS as exc:
             _report_turn_failure(exc)

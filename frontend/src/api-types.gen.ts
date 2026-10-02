@@ -19,7 +19,7 @@ export interface paths {
         put?: never;
         /**
          * Create
-         * @description 新增一套端点配置；当前没有生效配置时自动设为当前使用。
+         * @description 新增一套端点配置（创建不改变任何请求行为——请求显式携带端点）。
          */
         post: operations["create_api_endpoints_post"];
         delete?: never;

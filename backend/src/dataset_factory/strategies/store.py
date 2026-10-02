@@ -48,14 +48,17 @@ from .errors import (
 
 __all__ = [
     "LibraryStrategy",
+    "clear_current_strategy",
     "copy_strategy",
     "create_strategy",
+    "current_strategy_id",
     "delete_strategy",
     "get_strategy",
     "list_strategies",
     "missing_refs",
     "rebind_strategy",
     "require_refs_exist",
+    "set_current_strategy",
     "strategy_content_hash",
     "update_strategy",
 ]
@@ -68,6 +71,10 @@ _STRATEGY_ID_LENGTH = 11
 
 #: 显示名长度上限（纯显示别名、允许重名，只挡空与离谱长度）。
 _MAX_NAME_CHARS = 100
+
+#: 「当前使用策略」指针文件（库目录下，裸名不带 .json——list_strategies 的
+#: 扫描只认 *.json，内部指针件不混进策略清单）。内容 = 裸策略 id 单行文本。
+_CURRENT_POINTER_NAME = "_current-strategy"
 
 
 @dataclass
@@ -429,7 +436,9 @@ def copy_strategy(strategy_id: str) -> LibraryStrategy:
 def delete_strategy(strategy_id: str) -> None:
     """删除一条库策略；不存在抛 StrategyNotFoundError。
 
-    已应用到工作目录的批次不受影响（copy-on-apply，批次持有内容副本）。
+    已应用到工作目录的批次不受影响（copy-on-apply，批次持有内容副本）；「当前使用
+    策略」指针正指向它时一并清除（与「删除不再有前置拦截」同口径——指针悬空只会
+    让缺省语境报错，清掉更干净）。
     """
     path = _entry_path(strategy_id)
     if not path.is_file():
@@ -437,6 +446,57 @@ def delete_strategy(strategy_id: str) -> None:
             f"库策略 {strategy_id} 不存在——可能已被删除，请刷新策略库后重试。",
         )
     path.unlink()
+    if current_strategy_id() == strategy_id:
+        clear_current_strategy()
+
+
+def _current_pointer_path() -> Path:
+    """「当前使用策略」指针文件的落盘路径（库目录下）。"""
+    return _library_dir() / _CURRENT_POINTER_NAME
+
+
+def current_strategy_id() -> str | None:
+    """读「当前使用策略」指针（CLI 对话域的默认语境；Web 不消费它）。
+
+    指针是界面态不是数据：文件缺失 / 空 / 全空白一律按「未设置」处理（fail-soft，
+    丢指针只是缺省语境没了，不影响任何数据完整性）；有值原样返回（存在性校验交给
+    消费方——挂掉的指针要给「请重新 use」的贴切提示，而不是笼统的「策略不存在」）。
+
+    Returns:
+        指向的策略 id；未设置返回 None。
+    """
+    path = _current_pointer_path()
+    if not path.is_file():
+        return None
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    cleaned = raw.strip()
+    return cleaned or None
+
+
+def set_current_strategy(strategy_id: str) -> LibraryStrategy:
+    """设置「当前使用策略」指针；策略不存在抛 StrategyNotFoundError。
+
+    Args:
+        strategy_id: 要指向的库策略 id。
+
+    Returns:
+        指向的策略条目（调用方回显用）。
+
+    Raises:
+        StrategyNotFoundError: 策略不存在（指针只指向现存在的策略）。
+    """
+    entry = get_strategy(strategy_id)
+    _library_dir().mkdir(parents=True, exist_ok=True)
+    atomic_write_text(_current_pointer_path(), strategy_id)
+    return entry
+
+
+def clear_current_strategy() -> None:
+    """清除「当前使用策略」指针（未设置时什么都不做）。"""
+    _current_pointer_path().unlink(missing_ok=True)
 
 
 def strategy_content_hash(entry: LibraryStrategy) -> str:
