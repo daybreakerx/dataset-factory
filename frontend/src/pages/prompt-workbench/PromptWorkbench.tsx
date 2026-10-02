@@ -82,7 +82,6 @@ export function PromptWorkbench({
   } = useChatSession();
 
   // ---------- 端点配置（页面职责：发送时刻把 activeModel / promptName 传给会话域） ----------
-  const bodyInputRef = useRef<HTMLTextAreaElement>(null);
   // 会话恢复是否带回了基础提示词：带回了就不做「自动选中首条」（恢复优先于默认）。
   const restoredPromptRef = useRef(false);
   const promptRequestRef = useRef(0);
@@ -298,7 +297,6 @@ export function PromptWorkbench({
     setIsNewDraft(true);
     setPromptMenuOpen(false);
     setEditorFeedback(null);
-    bodyInputRef.current?.focus();
   };
 
   /** 保存草稿：名称改动过 = 先重命名（改文件名）再写内容，旧名不再保留。 */
