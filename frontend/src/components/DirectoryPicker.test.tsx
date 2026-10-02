@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { ApiError, api } from "../api";
@@ -138,7 +138,9 @@ it("重命名任务丢失后刷新清单并释放关闭和选择", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("任务已丢失");
   expect(screen.getByRole("button", { name: "选择此目录" })).toBeEnabled();
   expect(screen.getByRole("button", { name: /^取消$/ })).toBeEnabled();
-  expect(api.listDirectory).toHaveBeenCalledTimes(2);
+  // 清单独于 alert 渲染（revision effect 异步补拉）——轮询等它落地，CI 慢 runner 上
+  // alert 一出现就断言会数到 1（实锤：CI 连续两轮单红此用例、本地多核稳定绿）。
+  await waitFor(() => expect(api.listDirectory).toHaveBeenCalledTimes(2));
 });
 
 it("取消重命名继续查询原任务直至终态，失败仍可重试取消", async () => {
