@@ -742,10 +742,11 @@ test("measure attachment computed styles", async ({ page }) => {
   await page.mouse.move(10, 500);
   console.log("ATT_ACCEPT:", JSON.stringify({ accept: await page.locator('input[type="file"]').getAttribute("accept") }));
 
-  // ② 视频附件卡（真 mp4；封面抽帧成败如实记录——Chromium 缺 H.264 解码时静默回退图标）
+  // ② 视频附件卡（真 mp4；封面抽帧成败如实记录——Chromium 缺 H.264 解码时静默回退图标）。
+  // 素材件随仓入库（tests/fixtures/media/，与外层语料库同源的一份复制），取证不依赖仓外文件。
   await page.locator('input[type="file"]').setInputFiles({
     name: "att-probe.mp4", mimeType: "video/mp4",
-    buffer: readFileSync(resolve(process.cwd(), "../../context/test/materials/videos/mp4/preparing-a-bowl-with-yogurt-and-43925.mp4")),
+    buffer: readFileSync(resolve(process.cwd(), "tests/fixtures/media/preparing-a-bowl-with-yogurt-and-43925.mp4")),
   });
   await card.getByText("att-probe.mp4").waitFor({ state: "visible", timeout: 10_000 });
   await page.waitForTimeout(3500);   // 抽帧 3s 超时窗走完，落定封面或图标
