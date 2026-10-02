@@ -610,9 +610,11 @@ test("measure chat-message computed styles", async ({ page }) => {
   await page.getByLabel("打标指令").fill("取证·闸门消息：描述这张图。");
   await page.getByRole("button", { name: "发送", exact: true }).click();
 
-  // 等模型请求进闸门（服务器挂起 → 前端停在「响应中」）
+  // 等模型请求进闸门（服务器挂起 → 前端停在「响应中」）。
+  // 闸门端点挂在假模型应用上、带 /fake-llm 前缀——写主应用根会被 StaticFiles 回 405：
+  // 握手与释放双双静默失效，闸住的调用永不返回、轮次永不退场（会话删除恒 409）。
   await page.waitForFunction(async () => {
-    const r = await fetch("/__test__/gated-entered", { method: "POST" });
+    const r = await fetch("/fake-llm/__test__/gated-entered", { method: "POST" });
     return (await r.json() as { entered: boolean }).entered;
   }, undefined, { timeout: 20_000, polling: 300 });
   await page.waitForTimeout(400);
@@ -639,7 +641,29 @@ test("measure chat-message computed styles", async ({ page }) => {
     cls: "rounded-sm bg-amber-100 px-1.5 py-0.5 text-t-xs text-amber-700",
     note: "amber-100/amber-700 为 Tailwind 默认字面量、非语义令牌——疑似违 2.1，进对齐批裁决",
   }));
-  await page.evaluate(async () => { await fetch("/__test__/gated-release", { method: "POST" }); });
+  await page.evaluate(async () => { await fetch("/fake-llm/__test__/gated-release", { method: "POST" }); });
+
+  // 自清：本块两次真发送各落一条真实会话（请求信封先落盘再发）。不清理的话，同文件
+  // 后面的 workbench 版式块（measure workbench page layout）会被开机认领链带进对话态，
+  // 它要量的「空态」前提被打破、30s 超时（888 连跑必挂的根因，批17.7 归因在案）。
+  // 本文件内只有本块创建会话，「删 latest 直到 404」即精确自清；409＝该会话的轮次
+  // 还在服务端收尾（停止后异步退场），稍候重删。
+  await page.evaluate(async () => {
+    const sleep = (ms: number) => new Promise((r) => { setTimeout(r, ms); });
+    const log: string[] = [];
+    for (let i = 0; i < 8; i += 1) {
+      const latest = await fetch("/api/sessions/latest");
+      if (latest.status === 404) { console.log("SESSION_CLEANUP:", JSON.stringify(log)); return; }
+      if (!latest.ok) throw new Error(`latest 查询异常：${latest.status}`);
+      const snap = (await latest.json()) as { session_id: string };
+      const removed = await fetch(`/api/sessions/${encodeURIComponent(snap.session_id)}`, { method: "DELETE" });
+      log.push(`round${i}=${snap.session_id.slice(0, 10)},delete=${removed.status}`);
+      if (removed.status === 204 || removed.status === 404) continue;
+      if (removed.status === 409) { await sleep(500); continue; }
+      throw new Error(`删除会话异常：${removed.status}`);
+    }
+    throw new Error(`会话自清未收敛：${JSON.stringify(log)}`);
+  });
 });
 
 // 零件取证 · 附件条（attachment）computed style 实测（同一 CMP_CAPTURE=1 门）
