@@ -6,7 +6,8 @@
 // process/前端重构线.md §二（终态目录树），人读规范批17 成文于 context/product/frontend-structure.md。
 //
 // 全局口径（规划档 批3）：
-// - type-only import 一律放行（dependencyTypesNot: ["type-only"]；批17 复核是否收紧）；
+// - type-only import 不豁免（批17 收紧：批3 曾默认放行留复核口，批17 复核全仓
+//   type-only 越层引用为零〔grep 实证〕，豁免撤销、契约对类型引用同样生效）；
 // - *.test.* 测试文件豁免出契约——colocated 测试天然 import 页面内部件，
 //   不豁免则「现有代码零违规」不可达（第十轮审计 J5）；
 // - 每条规则都做过「故意造违规」探针自证（批3.5，git 历史 359 之后一笔可见），防「0 违规」是工具没跑起来的假绿。
@@ -30,7 +31,6 @@ module.exports = {
           "^src/pages/prompt-workbench/PromptWorkbench\\.tsx$",
           "^src/pages/settings/SettingsPage\\.tsx$",
         ],
-        dependencyTypesNot: ["type-only"],
       },
     },
     {
@@ -44,7 +44,6 @@ module.exports = {
       },
       to: {
         path: "^src/pages/(prompt-workbench|settings)/",
-        dependencyTypesNot: ["type-only"],
       },
     },
     {
@@ -57,7 +56,6 @@ module.exports = {
       },
       to: {
         path: "^src/pages/(labeling|settings)/",
-        dependencyTypesNot: ["type-only"],
       },
     },
     {
@@ -70,7 +68,6 @@ module.exports = {
       },
       to: {
         path: "^src/pages/(labeling|prompt-workbench)/",
-        dependencyTypesNot: ["type-only"],
       },
     },
     {
@@ -84,7 +81,6 @@ module.exports = {
       },
       to: {
         path: "^src/pages/",
-        dependencyTypesNot: ["type-only"],
       },
     },
     {
@@ -97,7 +93,6 @@ module.exports = {
       },
       to: {
         path: "^src/(components|pages|hooks|session)/",
-        dependencyTypesNot: ["type-only"],
       },
     },
     {
