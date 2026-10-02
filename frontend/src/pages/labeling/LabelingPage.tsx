@@ -35,9 +35,9 @@ export function LabelingPage({
   onNavigateToSettings,
   onOpenWorkbench,
 }: {
-  /** 跳应用级设置页（V16：新建跑批的三个下拉要有「去设置」的出口）。 */
+  /** 跳应用级设置页（新建跑批的三个下拉要有「去设置」的出口）。 */
   onNavigateToSettings?: () => void;
-  /** 跳对话工作台（V16：「拿不准效果？先试标」动线）。 */
+  /** 跳对话工作台（「拿不准效果？先试标」动线）。 */
   onOpenWorkbench?: () => void;
 } = {}) {
   const [error, setError] = useState("");
@@ -70,9 +70,9 @@ export function LabelingPage({
   const [creating, setCreating] = useState(false);
   const [settingsWid, setSettingsWid] = useState<string | null>(null);
   const [newStrategyWid, setNewStrategyWid] = useState<string | null>(null);
-  // L2：跑批中点条目会停跟随——给可见提示 + 「继续跟随」钮，不再静默停。
+  // 跑批中点条目会停跟随——给可见提示 + 「继续跟随」钮，不再静默停。
   const [followPaused, setFollowPaused] = useState(false);
-  // V15 + A2：跑批中的「当前产出」逐字呈现（思考只展示不落盘，关掉页面即没）。
+  // 跑批中的「当前产出」逐字呈现（思考只展示不落盘，关掉页面即没）。
   const [liveOutput, setLiveOutput] = useState<{
     item: string;
     reasoning: string;
@@ -362,10 +362,10 @@ export function LabelingPage({
             }
             retryRequest={retryRequest}
             onRunStatus={(status) => {
-              // "idle" = RunControl 探测到空闲（V15 连带的哨兵）：不抹状态章，改触发
+              // "idle" = RunControl 探测到空闲（空闲哨兵）：不抹状态章，改触发
               // latestRun 重读——抹空会把刚从磁盘读到的「已完成」等终态一并抹掉
               //（挂载探测与 15 秒慢轮每次空闲都会报一次 idle，徽标最多活 15 秒）；
-              // 回读拿到的就是真实终态，V15 要防的「卡 running」照样被复位，语义更准。
+              // 回读拿到的就是真实终态，要防的「卡 running」照样被复位，语义更准。
               if (status === "idle") setRunStateRevision((value) => value + 1);
               else setBatchRunState(status);
               // 终态 = 跟随提示与「当前产出」都收场（运行结束后回到普通概览）。

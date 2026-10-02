@@ -60,7 +60,7 @@ export function BatchStrategyFields({
     options_?: { count?: number; onManage?: () => void },
   ) => (
     <div className="space-y-2">
-      {/* V16：计数头 + 右上角齿轮跳设置——下拉空着的时候，用户看得见「这里有多少
+      {/* 计数头 + 右上角齿轮跳设置——下拉空着的时候，用户看得见「这里有多少
           可选、去哪里加」。 */}
       <div className="flex items-center gap-2">
         <span className="text-t-sm text-muted-foreground">

@@ -32,7 +32,7 @@ export function BatchSourceFields({
   return (
     <fieldset disabled={disabled} className="space-y-4">
       <legend className="mb-3 text-t-sm text-muted-foreground">素材来源</legend>
-      {/* V16：来源两张卡带副说明——「复制 / 就地」各自意味着什么，选择前读得到。 */}
+      {/* 来源两张卡带副说明——「复制 / 就地」各自意味着什么，选择前读得到。 */}
       <div className="grid gap-3 sm:grid-cols-2">
         <label
           className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${mode === "copy" ? "border-primary/50 bg-primary/5" : "border-border bg-card"}`}

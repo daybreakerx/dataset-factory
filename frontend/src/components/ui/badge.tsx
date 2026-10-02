@@ -4,8 +4,8 @@ import type { ComponentProps } from "react";
 import { cn } from "../../lib/utils";
 
 const badgeVariants = cva(
-  // 章的固定形态（DESIGN.md 四「章 / 标记」行）：胶囊形、18px 一档、11px 字（--t-xs）、medium。
-  // 18px 实现侧暂无高度令牌（--h-xs 是 22px 的行内动作档），按规范字面书写并在此登记出处。
+  // 章的固定形态（设计规范「章 / 标记」）：胶囊形、18px 一档、11px 字（--t-xs）、medium。
+  // 18px 实现侧暂无高度令牌（--h-xs 是 22px 的行内动作档），按规范字面书写。
   "inline-flex h-[18px] w-fit items-center justify-center gap-1 whitespace-nowrap rounded-full px-2 text-[11px] font-medium [&>svg]:size-3",
   {
     variants: {

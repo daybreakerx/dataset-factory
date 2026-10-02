@@ -319,7 +319,7 @@ def verify_integrity(wid: str, batch: str | None = None) -> IntegrityReport:
     responses={404: {"model": Problem, "description": "工作目录不存在"}},
 )
 def scan_preview(wid: str) -> ScanPreviewView:
-    """扫描素材目录的发车前摘要（新建跑批表单的「扫描到 N 项」行，V16）。
+    """扫描素材目录的发车前摘要（新建跑批表单的「扫描到 N 项」行）。
 
     只读现算不落任何状态：total / images / videos 数「登记在册且在盘」的素材
     （本次跑批会逐张处理的部分）；unimported 列出不会成为条目的文件与原因。

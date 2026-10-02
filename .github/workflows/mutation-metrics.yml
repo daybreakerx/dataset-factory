@@ -1,12 +1,12 @@
-# 变异度量（非门禁，手工触发）——goal L5「测试到底有没有用」的量化件。
+# 变异度量（非门禁，手工触发）——「测试到底有没有用」的量化件。
 #
 # 为什么单开一个 workflow、且不挂进 CI：
-#   - mutmut 官方要求 Windows 走 WSL（本机没有发行版，实测见 process/review-refactor.md 第三节），
+#   - mutmut 官方要求 Windows 走 WSL，
 #     只能在 Linux runner 上跑；
 #   - 变异测试是**度量**不是**门禁**：它慢（按 mutants 数逐个重跑测试），且存活变异体需要人
 #     逐条判读，把它挂成红/绿闸门只会逼人删断言或加豁免——正是要避免的那种「变绿的省事手段」。
 # 跑法：Actions → 变异度量 → Run workflow，或 `gh workflow run mutation-metrics.yml`。
-# 结果不进徽章，只写进步骤摘要（process/review-refactor.md 的 B6 行抄这个数）。
+# 结果不进徽章，只写进步骤摘要。
 
 name: 变异度量（非门禁）
 

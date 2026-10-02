@@ -18,9 +18,9 @@ type Batch = components["schemas"]["BatchView"];
 interface Props {
   onBack: () => void;
   onCreated: (selection: BatchSelection) => void;
-  /** 跳应用级设置页（V16：下拉的齿轮出口——想加端点 / 启用 Skill 不必自己摸路）。 */
+  /** 跳应用级设置页（下拉的齿轮出口——想加端点 / 启用 Skill 不必自己摸路）。 */
   onNavigateToSettings?: () => void;
-  /** 跳对话工作台（V16：「拿不准效果？先在对话中用单张试标」动线）。 */
+  /** 跳对话工作台（「拿不准效果？先在对话中用单张试标」动线）。 */
   onOpenWorkbench?: () => void;
 }
 
@@ -58,7 +58,7 @@ export function NewBatchForm({
   const pending = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const wake = useRef<(() => void) | undefined>(undefined);
-  // V16 发车前摘要：登记完成后（拿到 wid）拉一次扫描预览——
+  // 发车前摘要：登记完成后（拿到 wid）拉一次扫描预览——
   // 「这一跑会吃多少、收哪些、不收哪些、为什么」在发车按钮上方一眼可读。
   const [scan, setScan] = useState<components["schemas"]["ScanPreviewView"] | null>(
     null,
@@ -300,7 +300,7 @@ export function NewBatchForm({
           onNavigateToSettings={onNavigateToSettings}
         />
         {scan !== null && (
-          // V16 扫描摘要行（原型 :713-716）：登记完成后、发车之前，先告诉用户
+          // 扫描摘要行：登记完成后、发车之前，先告诉用户
           // 这一跑会吃多少、收哪些、不收哪些、为什么。
           <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-t-sm">
             <span className="font-medium">
@@ -366,7 +366,7 @@ export function NewBatchForm({
                 {busy ? "正在处理" : "开始打标"}
               </Button>
             </div>
-            {/* V16 底部动线与体积预告（原型 :780 / :783）。 */}
+            {/* 底部动线与体积预告。 */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-t-xs text-muted-foreground">
               {onOpenWorkbench !== undefined && (
                 <button

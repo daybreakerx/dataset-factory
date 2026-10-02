@@ -101,7 +101,7 @@ function useEndpointHealth(
 }
 
 const HEALTH_DOT: Record<EndpointHealth["status"], string> = {
-  // L14（2026-09-21 审计 / DESIGN.md :150）：.dot--run 的呼吸是全站唯一持续动画——
+  // 2026-09-21 定形：.dot--run 的呼吸是全站唯一持续动画——
   // 探测中改静态蓝点；「正在探测」的信息由文案承载，不靠动画。
   probing: "bg-info-dot",
   ok: "bg-ok-dot",

@@ -9,8 +9,8 @@
 - 运行流水回读：load_recent_success_hashes（续跑跳过判定的哈希锚点）/
   load_latest_item_records（每条素材最近一次尝试的结果）
 - 重试列表（state.json 的 retry_list 键，结构由本域定义）：read / add / remove /
-  clear（加入的资格判定 retry_rejections 用条目视图现算，PRD F7）；可重试类原因码
-  清单 RETRYABLE_REASON_CODES（F5 两类清单的单一事实源）
+  clear（加入的资格判定 retry_rejections 用条目视图现算）；可重试类原因码
+  清单 RETRYABLE_REASON_CODES（两类清单的单一事实源）
 - 跑批状态取值域（`run.json` / 进度快照 / SSE 共用一套词）：RUN_STATUS_RUNNING /
   RUN_STATUS_INTERRUPTED / TERMINAL_RUN_STATUSES（终态判定只此一处）
 - 异常：RunError 基类 + BatchInactiveError / RunNotActiveError / RunJournalCorruptedError /

@@ -76,14 +76,14 @@ export function BatchSelector({
     (entry) => entry.id === value?.batchId && entry.active,
   );
   const badge = batch && runState ? RUN_STATE_BADGES[runState] : undefined;
-  // V14：全站提示走自研气泡（DESIGN.md :343）——完整路径悬停可查，不再用原生 title。
+  // 全站提示走自研气泡——完整路径悬停可查，不再用原生 title。
   const fullLocation = directory?.path
     ? `${directory.path}${batch ? ` / ${batch.name} · ${batch.id}` : ""}`
     : "";
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      {/* V14：完整路径悬停可查（自研气泡）。Tooltip 在外、DropdownMenuTrigger 在内——
+      {/* 完整路径悬停可查（自研气泡）。Tooltip 在外、DropdownMenuTrigger 在内——
           两个 asChild 触发器链式克隆同一个按钮（PromptWorkbench 同款已验证模式），
           不能用 Tip 包住触发器：Tip 不透传 ref 会把 asChild 链打断、菜单打不开。 */}
       <TooltipProvider delayDuration={320}>

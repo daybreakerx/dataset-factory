@@ -123,7 +123,7 @@ export function useRunWatch({
         setKnown(true);
         // 空闲 = 200 + null（L3）：不是错误、也不再轮询；404 只剩 wid / 批次不存在。
         // 空闲必须报给顶栏状态章：运行可能在页面未观察的窗口期结束（如设置抽屉开着
-        // 时重打完成），不报会让 batchRunState 卡在 running、把导出入口永久藏住（V15）。
+        // 时重打完成），不报会让 batchRunState 卡在 running、把导出入口永久藏住。
         if (view === null) {
           runStatusRef.current?.("idle");
           finish();

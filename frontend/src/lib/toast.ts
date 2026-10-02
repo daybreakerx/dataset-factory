@@ -11,7 +11,7 @@ export interface ToastItem {
   text: string;
 }
 
-/** 驻留时长（components/overlay.md：2～4 秒自动消失）。 */
+/** 驻留时长（2～4 秒自动消失）。 */
 const LIFETIME_MS = 3500;
 
 let items: readonly ToastItem[] = [];

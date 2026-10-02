@@ -23,7 +23,7 @@ function isVideoAttachment(name: string): boolean {
   return VIDEO_EXTENSIONS.some((extension) => lowered.endsWith(extension));
 }
 
-/** 秒数 → `0:08` 形态的时长角标（视频封面右上角；原型 :1049-1083 口径）。 */
+/** 秒数 → `0:08` 形态的时长角标（视频封面右上角）。 */
 function durationBadge(seconds: number | undefined): string | null {
   if (seconds === undefined || !Number.isFinite(seconds)) return null;
   const total = Math.max(0, Math.round(seconds));

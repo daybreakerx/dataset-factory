@@ -62,7 +62,7 @@ source = ["dataset_factory"]
 
 [tool.coverage.report]
 show_missing = true
-# 硬门槛不在整包：核心五模块 ≥80%、入口层 cli/api 各 ≥70%（2026-09-12 设立）由 CI 的 coverage report --include 单独卡（goal B3）。
+# 硬门槛不在整包：核心五模块 ≥80%、入口层 cli/api 各 ≥70%（2026-09-12 设立）由 CI 的 coverage report --include 单独卡。
 
 [tool.importlinter]
 root_packages = ["dataset_factory"]
@@ -116,7 +116,7 @@ ignore = [
     "D417",           # 不强制每个参数都写进 Args（简单函数一行 docstring 即可）
     "D105",           # 魔术方法（如 __repr__）免 docstring
     "RUF001", "RUF002", "RUF003",  # 全角中文标点被判「易混 Unicode」，中文项目误报
-    "TRY003",         # 允许把可操作的长中文错误消息写在 raise 处（PRD 验收 12「哪里错怎么修」）
+    "TRY003",         # 允许把可操作的长中文错误消息写在 raise 处（「哪里错怎么修」验收口径）
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -149,7 +149,7 @@ venv = ".venv"
 # mutants/ 沙箱拷文件）：
 #   source_paths —— 沙箱里要**能 import 整个包**，测试收集阶段才不报 ModuleNotFoundError，
 #                   所以给整包 src/；
-#   only_mutate  —— 真正的变异范围＝本轮重构改动过的模块（goal L5 口径「只对改动模块跑」，
+#   only_mutate  —— 真正的变异范围＝本轮重构改动过的模块（口径「只对改动模块跑」，
 #                   全仓跑的成本不可控）。后续批次改到别的模块时往这里补。
 [tool.mutmut]
 source_paths = ["src/"]

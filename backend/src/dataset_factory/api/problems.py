@@ -39,7 +39,7 @@ def problem_response(
         status_code: HTTP 状态码（同时写入响应体 status 字段）。
         type_slug: 机器可读的错误类别短标识（如 ``task-not-found``）。
         title: 人读的短语概括（如「任务不存在」）。
-        detail: 中文可操作消息——讲清下一步该做什么（PRD 验收 12）。
+        detail: 中文可操作消息——讲清下一步该做什么。
         extras: 扩展字段（RFC 9457 允许 extension members，如占用者信息 occupier）；
             None = 不附加。
     """

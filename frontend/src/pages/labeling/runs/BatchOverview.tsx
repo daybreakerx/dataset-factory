@@ -18,9 +18,9 @@ interface Props {
   batch: string;
   items: ItemMap;
   exportRevision?: number;
-  /** 跑批进行中（V15）：导出入口收起，避免导出半批产物（PRD F8 口径）。 */
+  /** 跑批进行中：导出入口收起，避免导出半批产物。 */
   running?: boolean;
-  /** 跑批中的「当前产出」逐字流（A2）；null = 没有正在产出的条目。 */
+  /** 跑批中的「当前产出」逐字流；null = 没有正在产出的条目。 */
   liveOutput?: { item: string; reasoning: string; content: string } | null;
   onSelect: (row: components["schemas"]["ItemRowView"]) => void;
   onImported?: () => void;
@@ -218,7 +218,7 @@ export function BatchOverview({
         }}
       />
       {running && liveOutput !== null && (
-        // A2（2026-09-21 审计定案）：跑批中的「当前产出」——逐字正文 + 思考折叠区。
+        // 2026-09-21 定案：跑批中的「当前产出」——逐字正文 + 思考折叠区。
         // 思考只展示不落盘：这里的内容全部来自 SSE 内存态，关掉页面再打开就没有。
         <LiveOutput wid={wid} liveOutput={liveOutput} />
       )}
@@ -410,7 +410,7 @@ export function BatchOverview({
         )}
       </section>
       {running ? (
-        // V15（2026-09-21 审计 / PRD F8）：导出只属于「已完成批次」——
+        // 导出只属于「已完成批次」——
         // 跑批中给入口等于邀请用户导出半批产物。
         <p className="mt-4 border-t border-border pt-4 text-t-sm text-text-4">
           跑批进行中——打包导出在本批完成后开放。

@@ -131,7 +131,7 @@ it("编辑策略后锁定切换：列表照开、点了才提示；保存失败�
   );
 
   fireEvent.change(screen.getByLabelText("策略名称"), { target: { value: "新名字" } });
-  // L9（2026-09-21 审计 / 原型 :1084-1093）：锁定时列表照常打开，选中**非当前项**
+  // 2026-09-21 定形：锁定时列表照常打开，选中**非当前项**
   // 才就地提示原因——不再是「按钮灰掉、列表也打不开」。重开菜单点另一套策略。
   await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
   await userEvent.click(

@@ -74,7 +74,7 @@ def build_engine() -> LabelingEngine:
     """从当前端点配置装配打标引擎。
 
     独立成函数是给测试留注入位：monkeypatch 本函数返回带假客户端的引擎，即可离线测
-    CLI 全流程（goal B2「llm 层可被 mock」）。
+    CLI 全流程（llm 层可被 mock）。
     """
     config = read_config()
     return LabelingEngine(build_completer(config), config.model)

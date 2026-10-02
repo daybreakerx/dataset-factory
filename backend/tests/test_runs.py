@@ -257,7 +257,7 @@ def test_run_info_removed_and_lock_released_after_run(batch: Path) -> None:
 
 
 # --------------------------------------------------------------------------
-# 断点续跑（E1：哈希比对跳过判定）
+# 断点续跑（哈希比对跳过判定）
 # --------------------------------------------------------------------------
 
 
@@ -303,8 +303,8 @@ def test_resume_relables_when_product_blank_or_without_anchor(batch: Path) -> No
     assert report.counters["skipped"] == 0
 
 
-def test_e1_anchor_is_per_batch_not_global(batch: Path) -> None:
-    """E1 锚点按批次隔离（审计 P1 回归）：s1 后来对新材料打的标，不能当 s2 的锚点。
+def test_anchor_is_per_batch_not_global(batch: Path) -> None:
+    """锚点按批次隔离（回归防护）：s1 后来对新材料打的标，不能当 s2 的锚点。
 
     s2 用素材 v1 打标 → 素材换成 v2 → s1 对 v2 打标 → s2 续跑必须重打
     （s2 的产物出自 v1；若锚点串批，s1 的 v2 哈希会让 s2 的过期产物被错误跳过）。
@@ -337,7 +337,7 @@ def test_e1_anchor_is_per_batch_not_global(batch: Path) -> None:
 def test_run_info_write_failure_does_not_leak_lock(
     batch: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """锁路径 OSError 防御（审计 P1 回归）：run-info 写失败只损失提示、锁照常持有。
+    """锁路径 OSError 防御（回归防护）：run-info 写失败只损失提示、锁照常持有。
 
     锁在结束时正常释放——该工作目录不会死锁到进程重启。
     """
@@ -358,10 +358,10 @@ def test_run_info_write_failure_does_not_leak_lock(
 
 
 def test_same_stem_multi_extension_uses_one_source(batch: Path) -> None:
-    """同主干多扩展并存（审计 P2 回归）：计划比对与执行读取同源，E1 跳过判定生效。
+    """同主干多扩展并存（回归防护）：计划比对与执行读取同源，按批哈希跳过判定生效。
 
     导入器按完整文件名查重、同主干两种扩展可并存（手工放置场景）；若计划与执行
-    各取各的文件，E1 哈希永远对不上、每轮都重打。
+    各取各的文件，两边哈希永远对不上、每轮都重打。
     """
     (batch / "cat_001.png").write_bytes(b"png-variant")
     store = WorkdirStore(batch)

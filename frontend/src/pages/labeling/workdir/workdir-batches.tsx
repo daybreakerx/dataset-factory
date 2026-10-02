@@ -193,7 +193,7 @@ export function WorkdirBatches({
                 size="sm"
                 onClick={() => requestAction(batch, "hide")}
               >
-                {/* Q3：同一动作统一为「停用 / 启用」（PRD F3/F9 与后端 docstring 同口径），
+                {/* 同一动作统一为「停用 / 启用」（与后端 docstring 同口径），
                     不再与「隐藏 / 显示」三种写法并存。 */}
                 {batch.active ? "停用" : "启用"}
               </Button>

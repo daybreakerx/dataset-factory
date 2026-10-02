@@ -639,7 +639,7 @@ test("measure chat-message computed styles", async ({ page }) => {
   console.log("CHATMSG_PARTIAL:", JSON.stringify({ count: partialCount, note: partialCount === 0 ? "空内容中断不落消息（keepPartial 早退）" : "unexpected" }));
   console.log("CHATMSG_PARTIAL_CODE_LEVEL:", JSON.stringify({
     cls: "rounded-sm bg-amber-100 px-1.5 py-0.5 text-t-xs text-amber-700",
-    note: "amber-100/amber-700 为 Tailwind 默认字面量、非语义令牌——疑似违 2.1，进对齐批裁决",
+    note: "amber-100/amber-700 为 Tailwind 默认字面量、非语义令牌——疑似违反语义色纪律，待裁决",
   }));
   await page.evaluate(async () => { await fetch("/fake-llm/__test__/gated-release", { method: "POST" }); });
 
@@ -1412,7 +1412,7 @@ test("measure settings-sidebar computed styles", async ({ page }) => {
 
 // 零件取证 · 侧栏底部钮组（sidebar-foot）computed style 实测（同一 CMP_CAPTURE=1 门）。
 // 三钮静止（关机红图标 / 中性 ghost）→ 真悬停（中性 nav-hover／关机 bad-bg+加深）→ Tip 在场枚举
-// （关机钮当前无 Tooltip、主题钮旧复合文案——均为对齐批在案项，实测留证）→ 折叠纵排与版本隐藏 → 暗色。
+// （关机钮当前无 Tooltip、主题钮旧复合文案——均为已知待施工差异，实测留证）→ 折叠纵排与版本隐藏 → 暗色。
 const SF_BOX = (el: HTMLElement): Record<string, string | number> => {
   const cs = getComputedStyle(el);
   return {
@@ -1523,7 +1523,7 @@ test("measure sidebar-foot computed styles", async ({ page }) => {
   await sidebar.getByRole("button", { name: "展开侧栏" }).click();
   await page.waitForTimeout(400);
 
-  // ---- 暗色（dsf-theme=dark → html.dark）：侧栏底（对齐批在案：实现 n-75 暗 9% vs 规范 n-50）----
+  // ---- 暗色（dsf-theme=dark → html.dark）：侧栏底（已知差异：实现 n-75 暗 9% vs 规范 n-50）----
   // 注意：暗色下主题钮图标随 mode 变为 lucide-moon（亮色场景才是 lucide-monitor）。
   await page.evaluate(() => localStorage.setItem("dsf-theme", "dark"));
   await page.reload();

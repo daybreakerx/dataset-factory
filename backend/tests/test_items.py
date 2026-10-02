@@ -180,7 +180,7 @@ def test_non_empty_product_puts_item_in_done(batch: Path) -> None:
 
 
 def test_blank_product_is_not_done(batch: Path) -> None:
-    """产物为空 / 全空白属产物异常：不算已完成，回到排队中等重打（PRD F4）。"""
+    """产物为空 / 全空白属产物异常：不算已完成，回到排队中等重打。"""
     (batch / product_filename(1, "cat_001")).write_text("  \n ", encoding="utf-8")
 
     view = build_item_view(batch, 1)

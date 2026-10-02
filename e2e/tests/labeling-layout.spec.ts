@@ -52,8 +52,8 @@ test("打标页长名称下顶栏与条目列保持原型尺寸和对齐", async
   expect(searchBox.height).toBe(26);
   expect(selectorBox.x + selectorBox.width).toBeLessThan(createBox.x);
   const context = page.getByRole("region", { name: "策略配置" });
-  // V14（2026-09-21 审计）：健康信息移入自研气泡，章内文本 = 「端点 · 模型」——
-  // 按文本定位后取父级章容器做尺寸断言（可读名来自 base_url 域名，V9）。
+  // 2026-09-21 定形：健康信息移入自研气泡，章内文本 = 「端点 · 模型」——
+  // 按文本定位后取父级章容器做尺寸断言（可读名来自 base_url 域名）。
   const endpoint = context.getByText("Example · caption-model", { exact: true }).locator("..");
   await expect(endpoint).toBeVisible();
   await expect(endpoint).toHaveCSS("height", "26px");

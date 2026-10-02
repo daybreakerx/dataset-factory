@@ -94,7 +94,7 @@ export function StrategyMenu({
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <Tooltip>
         <TooltipTrigger asChild>
-          {/* L9（2026-09-21 审计 / 原型 :1084-1093）：未保存时列表照常打开、
+          {/* 2026-09-21 定形：未保存时列表照常打开、
               选中非当前项时才提示——「点不动但看不见有什么」改成「点得动但会告诉你」。 */}
           <DropdownMenuTrigger asChild>
             <Button
@@ -158,7 +158,7 @@ export function StrategyMenu({
                     className={`w-full min-w-0 text-left ${entry.available ? "text-text-2" : "text-text-4"}`}
                     onClick={() => {
                       if (switchLocked && selected?.id !== entry.id) {
-                        // L9：锁着的时候点了要说清为什么（原型 :1093 文案）。
+                        // L9：锁着的时候点了要说清为什么。
                         setSwitchNotice(
                           "当前有未保存的改动——先点「保存」，才能切换策略。",
                         );

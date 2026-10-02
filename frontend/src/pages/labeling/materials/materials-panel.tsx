@@ -255,7 +255,7 @@ export function MaterialsPanel({
                       });
                     }}
                   >
-                    {/* L10（PRD F7 口径）：同一颗钮随态换文案——点下去是反选，
+                    {/* 同一颗钮随态换文案：点下去是反选，
                         文案就必须能预告结果；六种叫法收敛为「全选 / 清空本组」。 */}
                     {(filtered[key] ?? [])
                       .filter((row) => row.can_retry && !row.in_retry)
@@ -268,7 +268,7 @@ export function MaterialsPanel({
               {(query || !collapsed.has(key)) && (
                 <div className="p-2">
                   {(() => {
-                    // V3（2026-09-21 审计 / PRD F6 不冲突）：全量渲染不虚拟化，
+                    // 2026-09-21 定案：全量渲染不虚拟化，
                     // 但组内默认只呈现 4 行 + 「其余 N 条」展开钮——几百条时
                     // 一屏滚不到头是呈现层问题，截断即可，不必上虚拟化。
                     const rows = filtered[key] ?? [];

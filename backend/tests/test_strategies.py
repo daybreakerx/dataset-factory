@@ -205,7 +205,7 @@ def test_health_turns_unavailable_when_prompt_deleted(assets: None) -> None:
 
 
 def test_rebind_restores_health(assets: None) -> None:
-    """置灰 → 重新指定 → 恢复可用（PRD 验收 18 的处置闭环）。"""
+    """置灰 → 重新指定 → 恢复可用（处置闭环）。"""
     save_prompt(Prompt(name="替补", description="", body="替补正文"))
     entry = create_strategy(
         name="策略", endpoint_id="main", prompt_id="详细描述", skill_ids=[]

@@ -92,7 +92,7 @@ class ItemRow:
         media: ``image`` / ``video`` / ``file``（界面选图标）。
         status: 状态位；未导入行的 status 就是 ``unimported``。
         can_retry: 能不能加入重试列表（已完成与可重试类失败能；排队中没什么可重试、
-            缺失要先补素材、不可重试失败要先解决格式问题——PRD F7 的置灰依据）。
+            缺失要先补素材、不可重试失败要先解决格式问题——置灰依据）。
         in_retry: 是否已在重试列表里（叠加标记，界面显示「已排重试」）。
     """
 
@@ -222,7 +222,7 @@ def _status_row(
     """素材在盘时定状态位：失败记录优先于产物，其次产物，其余排队中。
 
     失败优先于「有产物」不是随手排的顺序：上一轮成功产出过、这一轮因素材被换而重打
-    却失败了，此时盘上留着的是**旧素材的产物**——PRD F4 把这种情况明确算「未完成」
+    却失败了，此时盘上留着的是**旧素材的产物**——这种情况明确算「未完成」
     （哈希比对不一致按未完成重打），报成「已完成」会让用户以为新素材已经打好了。
     """
     media = media_kind(name)
@@ -244,7 +244,7 @@ def _status_row(
             name=name,
             media=media,
             status=GROUP_DONE,
-            # 已完成条目可以重打（覆盖旧 txt）——PRD F7 允许把满意的条目也收进名单。
+            # 已完成条目可以重打（覆盖旧 txt）——满意的条目也允许收进名单。
             can_retry=True,
             in_retry=in_retry,
         )
@@ -271,7 +271,7 @@ def _missing_row(stem: str, origin: ImportOrigin, in_retry: bool) -> ItemRow:
         name=origin.name,
         media=media_kind(origin.name),
         status=GROUP_MISSING,
-        # 素材都没了，重试必然失败——要先补回素材（PRD F6）。
+        # 素材都没了，重试必然失败——要先补回素材。
         can_retry=False,
         in_retry=in_retry,
         source=str(source_file),
@@ -298,10 +298,10 @@ def _build_unimported_rows(workdir: Path, registered: set[str]) -> list[ItemRow]
 
 
 def retry_rejections(workdir: Path, seq: int, items: list[str]) -> dict[str, str]:
-    """判定哪些条目不可加入重试列表（加入端点的资格关，PRD F7）。
+    """判定哪些条目不可加入重试列表（加入端点的资格关）。
 
     可入列 = ``can_retry``（已完成、可重试类失败）；不可入列给一条人读原因——
-    排队中（下一次全量跑批本来就会打它）、缺失（要先补回素材，验收 13）、
+    排队中（下一次全量跑批本来就会打它）、缺失（要先补回素材）、
     不可重试失败（要先解决格式等问题）。已在名单里的条目不在此判定
     （加入幂等，重复加入不是拒绝理由）。
 

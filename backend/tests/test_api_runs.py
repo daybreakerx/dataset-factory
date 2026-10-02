@@ -320,7 +320,7 @@ def test_current_run_rejects_wrong_batch(
     batch_env: tuple[Path, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """批次归属校验（审计 P2 回归）：s1 在跑时，s2 的 current / stop / stream 都 404。
+    """批次归属校验（回归防护）：s1 在跑时，s2 的 current / stop / stream 都 404。
 
     URL 是批次作用域——s2 的请求不能命中 s1 的运行（跨批次误停 / 进度张冠李戴）。
     """
@@ -375,7 +375,7 @@ def test_hide_batch_interrupts_running_run(
     batch_env: tuple[Path, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """停用批次中断运行（design 定案接线，审计 P2 回归）：hide 后运行以 interrupted 收尾。"""
+    """停用批次中断运行（设计定案接线，回归防护）：hide 后运行以 interrupted 收尾。"""
     workdir, wid = batch_env
     gates = _gates(1)
     _inject_fake_completer(monkeypatch, GatedCompleter(gates))

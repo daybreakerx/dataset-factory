@@ -47,7 +47,7 @@ export const workdirApi = {
       { names },
     ),
 
-  /** 发车前扫描摘要（V16）：这一跑吃多少、收哪些、不收哪些、为什么。 */
+  /** 发车前扫描摘要：这一跑吃多少、收哪些、不收哪些、为什么。 */
   scanPreview: (wid: string) =>
     request<components["schemas"]["ScanPreviewView"]>(
       "GET",

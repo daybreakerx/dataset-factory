@@ -1,6 +1,6 @@
 """api 入口层的请求 / 响应模型（pydantic）——HTTP 边界的运行时校验。
 
-字段类型错 → FastAPI 自动 422（一次报全部校验错误，PRD 验收 13）；业务规则（提示词
+字段类型错 → FastAPI 自动 422（一次报全部校验错误）；业务规则（提示词
 不存在、图片非法等）由核心库的域异常给出、错误映射表翻译成 HTTP 状态码。
 """
 
@@ -423,7 +423,7 @@ class ScanPreviewItem(BaseModel):
 
 
 class ScanPreviewView(BaseModel):
-    """GET /api/workdirs/{wid}/scan-preview 的响应体：新建跑批的发车前摘要（V16）。
+    """GET /api/workdirs/{wid}/scan-preview 的响应体：新建跑批的发车前摘要。
 
     回答「这一跑会吃多少、收哪些、不收哪些、为什么」：total / images / videos 数的是
     登记在册且在盘的素材（会被逐张打标的部分）；unimported 是不会成为条目的文件清单。
@@ -888,7 +888,7 @@ class ItemRowView(BaseModel):
         default=None, description="未完成行：最近一次的尝试序号（1–4）"
     )
     reason_code: str | None = Field(
-        default=None, description="未完成行：失败原因码（F5 两类清单）"
+        default=None, description="未完成行：失败原因码（两类原因码清单）"
     )
     message: str | None = Field(
         default=None, description="未完成行：失败原因（人读，来自运行流水）"

@@ -37,10 +37,10 @@ function TooltipContent({
   );
 }
 
-/** 悬停气泡提示（components/overlay.md 全站提示形态）：替代原生 title，避免系统直角灰框。
+/** 悬停气泡提示（全站提示形态规范）：替代原生 title，避免系统直角灰框。
  * 自带 Provider：页面会被单独渲染（组件测试 / 弹窗复用），不能依赖外壳的 Provider。
  * label 为空串 / null 时直接返回 children——禁用原因这类动态 label 在「可点」态
- * 不该残留一只空气泡（V14 的「原型有气泡、实现什么都没有」的反向兜底）。 */
+ * 不该残留一只空气泡（「原型有气泡、实现什么都没有」的反向兜底）。 */
 function Tip({ label, children }: { label: ReactNode; children: ReactElement }) {
   if (label === "" || label === null || label === undefined) {
     return children;

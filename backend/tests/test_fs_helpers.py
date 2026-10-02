@@ -111,7 +111,7 @@ def test_import_record_hash_is_the_landed_bytes(
 ) -> None:
     """导入记录的哈希 = 磁盘上那份字节的哈希（复制导入的锚点必须指向落盘内容）。
 
-    这是 goal G2 点名的不变量：哈希来自「同一次读里既写盘又喂哈希」的那批字节，
+    这是核心不变量：哈希来自「同一次读里既写盘又喂哈希」的那批字节，
     而不是复制完成后再回头去读源文件。这里用两种体量各测一遍（单块与跨多块），
     三方对齐：源字节、磁盘副本字节、`.dsf/imports.json` 里记下的摘要。
     """
@@ -193,7 +193,7 @@ def test_hash_stream_propagates_cancellation_from_on_chunk(tmp_path: Path) -> No
 def test_hash_stream_digests_the_bytes_it_moves(tmp_path: Path) -> None:
     """源文件在流途中被改写时，摘要跟的是**搬过的字节**，不是源文件的任一时刻。
 
-    这是 goal 点名不许顺手改掉的那条不变量的机制证明：第一块读完后由 `on_chunk` 把源
+    这是核心不变量（不许顺手改掉）的机制证明：第一块读完后由 `on_chunk` 把源
     改写成另一段内容，于是「原源」「现源」「落盘」三者互不相同，只有落盘那批字节配得上
     记录里的摘要——先读一遍算哈希、再读一遍写出去的实现会在这里立刻露馅。
     """

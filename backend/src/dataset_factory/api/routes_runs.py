@@ -381,7 +381,7 @@ _PROBLEM_422_NOT_ELIGIBLE: dict[int | str, dict[str, Any]] = {
 def add_batch_retry_list(wid: str, sN: str, body: RetryListRequest) -> RetryListView:
     """把条目加入重试列表（幂等去重），返回当前名单（名单顺序即重试顺序）。
 
-    只收「已完成」与「可重试的未完成」条目（PRD F7）——排队中无需重试、缺失要
+    只收「已完成」与「可重试的未完成」条目——排队中无需重试、缺失要
     先补素材、不可重试失败要先解决格式问题；资格用当刻的条目视图现判。改动经
     mutate_state 在状态锁内完成；运行期写入照常受理（本次运行按启动时的快照执行）。
     """

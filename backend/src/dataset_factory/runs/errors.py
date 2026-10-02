@@ -34,7 +34,7 @@ class RunJournalCorruptedError(RunError):
 class RetryItemNotEligibleError(RunError):
     """请求加入重试列表的条目里有不可入列的——HTTP 422 problem+json（retry-item-not-eligible）。
 
-    资格口径见 PRD F7（已完成与可重试类失败可入列）；整体拒绝、不做部分入列——
+    资格口径（已完成与可重试类失败可入列）；整体拒绝、不做部分入列——
     界面本就只允许勾选可入列条目，请求里出现不可入列条目 = 界面状态过期或客户端
     异常，部分入列会把「哪进了名单」变糊涂。
 

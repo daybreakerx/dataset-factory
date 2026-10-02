@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { stubApi } from "./fixtures/api-stubs";
 
-// 性能探针（goal G4「减少无谓开销」的计量件）。
+// 性能探针（「减少无谓开销」的计量件）。
 //
 // 测的是能在浏览器里客观计量的一件事：3000 条清单下，搜索框连打 10 个字符会在主线程上留下
 // 多少个长任务（>50ms）——「每次输入都全表小写化 + 全表重建」这类无谓开销就体现在这里。

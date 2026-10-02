@@ -65,7 +65,7 @@ def test_succeeded_task_returns_result_payload() -> None:
 
 
 def test_failed_task_carries_operable_error_message() -> None:
-    """任务体抛普通异常记 failed，异常消息进 error（PRD 验收 12 可操作消息）。"""
+    """任务体抛普通异常记 failed，异常消息进 error（可操作消息口径）。"""
 
     async def scenario() -> None:
         manager = TaskManager()

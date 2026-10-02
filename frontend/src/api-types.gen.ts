@@ -1062,7 +1062,7 @@ export interface paths {
          * Add Batch Retry List
          * @description 把条目加入重试列表（幂等去重），返回当前名单（名单顺序即重试顺序）。
          *
-         *     只收「已完成」与「可重试的未完成」条目（PRD F7）——排队中无需重试、缺失要
+         *     只收「已完成」与「可重试的未完成」条目——排队中无需重试、缺失要
          *     先补素材、不可重试失败要先解决格式问题；资格用当刻的条目视图现判。改动经
          *     mutate_state 在状态锁内完成；运行期写入照常受理（本次运行按启动时的快照执行）。
          */
@@ -1615,7 +1615,7 @@ export interface paths {
         };
         /**
          * Scan Preview
-         * @description 扫描素材目录的发车前摘要（新建跑批表单的「扫描到 N 项」行，V16）。
+         * @description 扫描素材目录的发车前摘要（新建跑批表单的「扫描到 N 项」行）。
          *
          *     只读现算不落任何状态：total / images / videos 数「登记在册且在盘」的素材
          *     （本次跑批会逐张处理的部分）；unimported 列出不会成为条目的文件与原因。
@@ -2567,7 +2567,7 @@ export interface components {
             reason?: string | null;
             /**
              * Reason Code
-             * @description 未完成行：失败原因码（F5 两类清单）
+             * @description 未完成行：失败原因码（两类原因码清单）
              */
             reason_code?: string | null;
             /**
@@ -3036,7 +3036,7 @@ export interface components {
         };
         /**
          * ScanPreviewView
-         * @description GET /api/workdirs/{wid}/scan-preview 的响应体：新建跑批的发车前摘要（V16）。
+         * @description GET /api/workdirs/{wid}/scan-preview 的响应体：新建跑批的发车前摘要。
          *
          *     回答「这一跑会吃多少、收哪些、不收哪些、为什么」：total / images / videos 数的是
          *     登记在册且在盘的素材（会被逐张打标的部分）；unimported 是不会成为条目的文件清单。

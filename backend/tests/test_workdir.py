@@ -254,7 +254,7 @@ def test_store_mutate_state_releases_lock_when_mutator_raises(workdir: Path) -> 
 def test_store_mutate_state_no_lost_update_across_threads(
     workdir: Path, iteration: int
 ) -> None:
-    """两线程并发读—改—写：各自追加的条目全部落盘（goal B2 的不丢更新）。"""
+    """两线程并发读—改—写：各自追加的条目全部落盘（不丢更新）。"""
     store = WorkdirStore(workdir)
     barrier = threading.Barrier(2)
     errors: list[str] = []

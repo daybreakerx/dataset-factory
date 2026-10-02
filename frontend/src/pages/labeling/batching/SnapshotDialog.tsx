@@ -31,7 +31,7 @@ function readableParam(key: string): string {
   return PARAM_LABELS[key] ?? key;
 }
 
-/** 64 位哈希截断成「前 4…后 4」（悬停可看全文；原型 :1453-1466 同款呈现）。 */
+/** 64 位哈希截断成「前 4…后 4」（悬停可看全文）。 */
 function shortHash(hash: string): string {
   return hash.length <= 12 ? hash : `${hash.slice(0, 4)}…${hash.slice(-4)}`;
 }
