@@ -1,8 +1,0 @@
-feat(全局当前使用退役): 批2 前端——chip 页内局部选择器与请求显式携带端点（ADR 2026-09-30）
-
-- 契约两连跑：gen:api 重生成 api-types.gen.ts（is_active 字段、activate 接口、遗留 GET/PUT /api/config 退场，label 请求 endpoint_id 必填）
-- 策略页：端点 chip 改页内局部选择器，选中锚定当前策略——选策略随跳、启动恢复经 onRestored 锚回策略冻结端点、未保存的手动切换随刷新作废（无策略选中时停在「未配置端点」）；保存策略取页内选中；撤 activate 调用与 is_active 状态流；发送未选端点就地拦下提示
-- 设置页：撤「设为当前使用」钮、「当前使用」Badge 与左列状态点、activate 流程；左列默认选中第一套；删除配置弹窗整版改版（正文三句撤、页脚左备注槽「此操作不可撤销」、两行确认窄档＝内容宽/上限480/下限360）
-- 打标页：新建策略弹窗与新建跑批表单端点默认第一套
-- 测试：组件测试与 stories 随契约同步（端点守卫、页内选中、恢复锚定各立回归）；E2E 桩表撤 is_active 与 /api/config；serving.py 种子改走 create_config("default")（批1 漏网）；smoke/page-state/strategy-workbench 补 chip 选端点步骤；取证件改选中语义（EP 块经 UI 选中后量行、EPC 撤激活子块、闸门屏经 chip 选中真 gated 端点）；视觉基线 27 屏按有意演进重采
-- 门禁：lint / vitest 293 / tsc+build / E2E 46 全绿
