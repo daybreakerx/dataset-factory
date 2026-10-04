@@ -80,7 +80,7 @@ function SelectItem({
       data-slot="select-item"
       className={cn(
         "relative flex w-full cursor-default items-center gap-2 rounded-md py-2 pr-8 pl-2 text-t-md outline-none select-none",
-        "focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:text-n-400 data-[state=checked]:bg-primary/10 data-[state=checked]:text-primary",
+        "focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:text-n-400 data-[state=checked]:bg-primary/10 data-[state=checked]:text-primary dark:data-[state=checked]:bg-primary/26",
         className,
       )}
       {...props}

@@ -41,7 +41,9 @@ function SkillFileChip({
         entry.previewable
           ? "border-border bg-card hover:bg-accent"
           : "cursor-not-allowed border-border bg-muted text-n-400 line-through",
-        active && entry.previewable && "border-primary bg-primary/10 text-primary",
+        active &&
+          entry.previewable &&
+          "border-primary bg-primary/10 text-primary dark:bg-primary/26",
       )}
     >
       {entry.path.startsWith("references/") ? (

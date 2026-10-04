@@ -35,7 +35,7 @@ export function BatchSourceFields({
       {/* 来源两张卡带副说明——「复制 / 就地」各自意味着什么，选择前读得到。 */}
       <div className="grid gap-3 sm:grid-cols-2">
         <label
-          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${mode === "copy" ? "border-primary/50 bg-primary/5" : "border-border bg-card"}`}
+          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${mode === "copy" ? "border-primary/50 bg-primary/5 dark:bg-primary/16" : "border-border bg-card"}`}
         >
           <input
             type="radio"
@@ -52,7 +52,7 @@ export function BatchSourceFields({
           </span>
         </label>
         <label
-          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${mode === "inplace" ? "border-primary/50 bg-primary/5" : "border-border bg-card"}`}
+          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${mode === "inplace" ? "border-primary/50 bg-primary/5 dark:bg-primary/16" : "border-border bg-card"}`}
         >
           <input
             type="radio"

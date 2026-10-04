@@ -296,7 +296,7 @@ export function DirectoryPicker({
           {listing.entries.map((entry) => (
             <div
               key={entry.path}
-              className={`flex min-w-0 flex-wrap items-center gap-3 border-b border-border/60 px-3 py-2 last:border-0 ${selected?.path === entry.path ? "bg-primary/8 text-primary" : "hover:bg-accent"}`}
+              className={`flex min-w-0 flex-wrap items-center gap-3 border-b border-border/60 px-3 py-2 last:border-0 ${selected?.path === entry.path ? "bg-primary/8 text-primary dark:bg-primary/22" : "hover:bg-accent"}`}
             >
               {browseOnly ? (
                 <span className="flex min-w-0 flex-1 items-center gap-3 text-t-md">

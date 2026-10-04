@@ -728,7 +728,7 @@ test("measure attachment computed styles", async ({ page }) => {
   const rmBtn = card.getByRole("button", { name: "移除附件" });
   console.log("ATT_REMOVE:", JSON.stringify(await rmBtn.evaluate(BTN_SHAPE), null, 2));
   await rmBtn.hover();
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(400);
   console.log("ATT_REMOVE_HOVER:", JSON.stringify(await rmBtn.evaluate((el) => ({ backgroundColor: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color })), null, 2));
   await page.mouse.move(10, 500);
   console.log("ATT_ADD_BTN:", JSON.stringify(await page.getByRole("button", { name: "附图片或视频（最多 1 个）" }).evaluate(BTN_SHAPE), null, 2));
@@ -876,7 +876,7 @@ test("measure skill-picker computed styles", async ({ page }) => {
     return { text: (el.textContent ?? "").slice(0, 22), opacity: cs.opacity, color: cs.color, dataDisabled: el.getAttribute("data-disabled") };
   }), null, 2));
   await rowOn.hover();
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(400);
   console.log("SKILL_ROW_HOVER:", JSON.stringify(await rowOn.evaluate((el) => ({ backgroundColor: getComputedStyle(el).backgroundColor })), null, 2));
   await page.mouse.move(10, 500);
 
@@ -1484,7 +1484,10 @@ test("measure sidebar-foot computed styles", async ({ page }) => {
     settings: await btnSet.getAttribute("aria-label"),
   }));
 
-  // ---- 真悬停（等 transition 落定 ≥300ms）----
+  // ---- 真悬停（等 transition 落定 ≥300ms）＋ Tip 读数 ----
+  // Tip 文案统一「各自 reload 后首枚悬停」采集：连续 hover 链路里第二枚 Tip 在
+  // Playwright 瞬移指针下偶发不开（Radix grace/skip 与瞬移指针的既有交互噪声，
+  // 单枚首悬停 100% 正常）——三个 Tip 各自独立上下文，取证稳定。
   await btnTheme.hover();
   await page.waitForTimeout(350);
   console.log("SF_HOVER_THEME:", JSON.stringify(await btnTheme.evaluate((el) => ({
@@ -1493,25 +1496,40 @@ test("measure sidebar-foot computed styles", async ({ page }) => {
   const tipTheme = page.locator('[data-slot="tooltip-content"]');
   await tipTheme.waitFor({ state: "visible", timeout: 5000 });
   console.log("SF_TIP_THEME:", JSON.stringify({ text: (await tipTheme.textContent() ?? "").trim() }));
-  await page.mouse.move(10, 300);
-  await page.waitForTimeout(250);
+  await page.mouse.move(700, 300);
+  await page.waitForTimeout(400);
 
   await btnSd.hover();
   await page.waitForTimeout(350);
   console.log("SF_HOVER_SD:", JSON.stringify(await btnSd.evaluate((el) => ({
     backgroundColor: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color,
   })), null, 2));
-  await page.waitForTimeout(350);
-  console.log("SF_TIP_SD:", JSON.stringify({ tooltipCount: await page.locator('[data-slot="tooltip-content"]').count() }));
-  await page.mouse.move(10, 300);
-  await page.waitForTimeout(250);
 
-  await btnSet.hover();
+  // 关机钮 Tip（对齐批「ShutdownButton 侧栏模式补 Tooltip」条）：独立上下文采集。
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+  const sdFresh = sidebar.getByRole("button", { name: "关闭服务", exact: true });
+  await sdFresh.hover();
+  await page.waitForTimeout(350);
+  const tipSd = page.locator('[data-slot="tooltip-content"]');
+  await tipSd.waitFor({ state: "visible", timeout: 5000 });
+  console.log("SF_TIP_SD:", JSON.stringify({ text: (await tipSd.textContent() ?? "").trim() }));
+  await page.mouse.move(700, 300);
+  await page.waitForTimeout(400);
+
+  // 设置钮 Tip：同样独立上下文。
+  await page.reload();
+  await page.getByRole("button", { name: "策略", exact: true }).click();
+  await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });
+  const setFresh = sidebar.getByRole("button", { name: "设置", exact: true });
+  await setFresh.hover();
   await page.waitForTimeout(350);
   const tipSet = page.locator('[data-slot="tooltip-content"]');
+  await tipSet.waitFor({ state: "visible", timeout: 5000 });
   console.log("SF_TIP_SET:", JSON.stringify({ text: (await tipSet.textContent() ?? "").trim() }));
-  await page.mouse.move(10, 300);
-  await page.waitForTimeout(250);
+  await page.mouse.move(700, 300);
+  await page.waitForTimeout(400);
 
   // ---- 折叠态：纵排、版本行卸载、钮仍 30×30 ----
   await sidebar.getByRole("button", { name: "收起侧栏" }).click();
@@ -1552,7 +1570,7 @@ test("measure sidebar-foot computed styles", async ({ page }) => {
   const darkTip = page.locator('[data-slot="tooltip-content"]');
   await darkTip.waitFor({ state: "visible", timeout: 5000 });
   console.log("SF_DARK_TIP_THEME:", JSON.stringify({ text: (await darkTip.textContent() ?? "").trim() }));
-  await page.mouse.move(10, 300);
+  await page.mouse.move(700, 300);
 });
 
 // 零件取证 · 侧栏版本行（sidebar-version）computed style 实测（同一 CMP_CAPTURE=1 门）。
@@ -1605,8 +1623,8 @@ test("measure sidebar-version computed styles", async ({ page }) => {
   const tipBad = page.locator('[data-slot="tooltip-content"]');
   await tipBad.waitFor({ state: "visible", timeout: 5000 });
   console.log("SV_BAD_TIP:", JSON.stringify({ text: (await tipBad.textContent() ?? "").trim() }));
-  await page.mouse.move(10, 300);
-  await page.waitForTimeout(250);
+  await page.mouse.move(700, 300);
+  await page.waitForTimeout(400);
 
   // ---- ok 态（闸放 200 → 重挂载探测通）----
   svcMode = "ok";
@@ -1622,8 +1640,8 @@ test("measure sidebar-version computed styles", async ({ page }) => {
   const tipOk = page.locator('[data-slot="tooltip-content"]');
   await tipOk.waitFor({ state: "visible", timeout: 5000 });
   console.log("SV_OK_TIP:", JSON.stringify({ text: (await tipOk.textContent() ?? "").trim() }));
-  await page.mouse.move(10, 300);
-  await page.waitForTimeout(250);
+  await page.mouse.move(700, 300);
+  await page.waitForTimeout(400);
 
   // ---- probing 态（闸延迟 3s：挂载后探测悬空——瞬态窗口实测）----
   svcMode = "slow";
@@ -1641,8 +1659,8 @@ test("measure sidebar-version computed styles", async ({ page }) => {
   await page.waitForTimeout(300);
   console.log("SV_STOPPING:", JSON.stringify(await probeDot.evaluate(dotState), null, 2));
   console.log("SV_STOPPING_ARIA:", JSON.stringify({ ariaLabel: await probeDot.getAttribute("aria-label") }));
-  await page.mouse.move(10, 300);
-  await page.waitForTimeout(250);
+  await page.mouse.move(700, 300);
+  await page.waitForTimeout(400);
 
   // ---- 折叠态：版本行整行卸载 ----
   await sidebar.getByRole("button", { name: "收起侧栏" }).click();
@@ -1782,7 +1800,7 @@ test("measure settings-endpoint-config computed styles", async ({ page }) => {
     return { color: cs.color, bd: cs.borderTopColor };
   }), null, 2));
   await page.mouse.move(5, 500);
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(400);
 
   console.log("EPC_DETAIL:", JSON.stringify(await page.evaluate(() => {
     const panel = document.querySelector('[class*="grid-cols-[340px_1fr]"]');

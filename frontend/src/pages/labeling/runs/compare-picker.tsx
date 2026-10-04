@@ -49,7 +49,7 @@ export function ComparePicker({
               aria-pressed={selected}
               disabled={primary || (!selected && compared.length >= 2)}
               onClick={() => onToggle(entry.id)}
-              className={`h-(--h-xs) min-w-[88px] shrink-0 rounded-full border px-4 text-t-sm ${primary ? "border-primary/45 bg-primary/10 font-medium text-primary" : selected ? "border-border bg-card text-foreground" : "border-border bg-secondary text-text-3"}`}
+              className={`h-(--h-xs) min-w-[88px] shrink-0 rounded-full border px-4 text-t-sm ${primary ? "border-primary/45 bg-primary/10 font-medium text-primary dark:bg-primary/26" : selected ? "border-border bg-card text-foreground" : "border-border bg-secondary text-text-3"}`}
             >
               {entry.name} · {entry.id}
             </button>

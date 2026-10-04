@@ -35,7 +35,9 @@ export function ConfigList({
               className={
                 "relative block w-full rounded-md px-3 py-2.5 text-left transition-colors " +
                 // 激活行 hover 保持蓝系（与导航同口径，2026-09-13 用户反馈）。
-                (active ? "bg-primary/10 hover:bg-primary/15" : "hover:bg-accent")
+                (active
+                  ? "bg-primary/10 hover:bg-primary/15 dark:bg-primary/26 dark:hover:bg-primary/34"
+                  : "hover:bg-accent")
               }
             >
               {active && (

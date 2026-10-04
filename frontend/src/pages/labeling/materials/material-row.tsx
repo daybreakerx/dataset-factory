@@ -48,7 +48,7 @@ export const MaterialRow = memo(function MaterialRow({
         type="button"
         aria-pressed={selected}
         onClick={() => onSelect(row)}
-        className={`flex min-w-0 flex-1 items-center gap-2 rounded-md py-2 text-left text-t-md ${selected ? "bg-primary/10" : ""} ${row.status === "missing" ? "opacity-[0.62]" : ""}`}
+        className={`flex min-w-0 flex-1 items-center gap-2 rounded-md py-2 text-left text-t-md ${selected ? "bg-primary/10 dark:bg-primary/26" : ""} ${row.status === "missing" ? "opacity-[0.62]" : ""}`}
       >
         <span className="flex h-[27px] w-9 shrink-0 items-center justify-center rounded-sm border border-border bg-muted/60 text-text-3">
           {row.media === "video" ? (

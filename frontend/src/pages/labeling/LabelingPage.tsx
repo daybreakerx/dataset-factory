@@ -410,7 +410,7 @@ export function LabelingPage({
       {error && (
         <FormError className="mx-6 mb-3 text-t-sm text-bad-ink">{error}</FormError>
       )}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-4 pb-6 lg:flex-row lg:overflow-hidden lg:px-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-4 pb-6 md:flex-row md:overflow-hidden md:px-6">
         <MaterialsPanel
           items={items}
           selection={selection}

@@ -472,7 +472,7 @@ export function PromptWorkbench({
           // N1④（2026-09-21 审计）：发送中只锁配置类操作、不锁整页——「能打字 /
           // 能挂附件 / 能切端点」是等待 125 秒时最基本的自由；sending 不再参与禁用。
           disabled={strategyBusy || promptBusy}
-          className="grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-auto lg:grid-cols-2 lg:overflow-hidden"
+          className="grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-auto md:grid-cols-2 md:overflow-hidden"
         >
           <EditorColumn
             prompts={prompts}

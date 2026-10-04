@@ -50,6 +50,10 @@ interface SidebarProps {
   page: ShellPage;
   workPage: ShellPage;
   collapsed: boolean;
+  /** 窄桌面断点（768–1023）信号：桌面常驻实例据此把品牌钮转为「打开抽屉」。 */
+  narrowDesktop?: boolean;
+  /** 品牌区是否可交互：抽屉实例传 false——品牌区降为静态图形、撤折叠职能（对齐批实例条）。 */
+  brandInteractive?: boolean;
   navigationOpen: boolean;
   settingsSection: SettingsSection;
   mode: ThemeMode;
@@ -66,6 +70,8 @@ export function Sidebar({
   page,
   workPage,
   collapsed,
+  narrowDesktop = false,
+  brandInteractive = true,
   navigationOpen,
   settingsSection,
   mode,
@@ -86,32 +92,52 @@ export function Sidebar({
     >
       {page !== "settings" && (
         <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() =>
-                  navigationOpen
-                    ? setNavigationOpen(false)
-                    : setCollapsed((value) => !value)
-                }
-                className="group flex size-8 shrink-0 items-center justify-center rounded-md bg-black hover:bg-nav-hover"
-                aria-label={collapsed ? "展开侧栏" : "收起侧栏"}
-              >
-                <img
-                  src={logo}
-                  alt=""
-                  className="size-[27px] object-contain group-hover:hidden"
-                />
-                {collapsed ? (
-                  <PanelLeftOpenIcon className="hidden size-4 group-hover:block" />
-                ) : (
-                  <PanelLeftCloseIcon className="hidden size-4 group-hover:block" />
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{collapsed ? "展开侧栏" : "收起侧栏"}</TooltipContent>
-          </Tooltip>
+          {brandInteractive ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (navigationOpen) {
+                      setNavigationOpen(false);
+                      return;
+                    }
+                    // 窄桌面（768–1023）侧栏被断点强制收起，手动展开改走抽屉
+                    //（与 <768 顶条「打开导航」钮同路）——DESIGN.md 3.5：JS 交互态归实现侧。
+                    if (narrowDesktop) {
+                      setNavigationOpen(true);
+                      return;
+                    }
+                    setCollapsed((value) => !value);
+                  }}
+                  className={cn(
+                    "group flex shrink-0 items-center justify-center rounded-md bg-black hover:bg-nav-hover",
+                    collapsed ? "size-(--h-sm)" : "size-8",
+                  )}
+                  aria-label={collapsed ? "展开侧栏" : "收起侧栏"}
+                >
+                  <img
+                    src={logo}
+                    alt=""
+                    className={cn(
+                      "object-contain group-hover:hidden",
+                      collapsed ? "size-[22px]" : "size-[27px]",
+                    )}
+                  />
+                  {collapsed ? (
+                    <PanelLeftOpenIcon className="hidden size-4 group-hover:block" />
+                  ) : (
+                    <PanelLeftCloseIcon className="hidden size-4 group-hover:block" />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{collapsed ? "展开侧栏" : "收起侧栏"}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <span className="flex size-8 shrink-0 items-center justify-center">
+              <img src={logo} alt="" className="size-[27px] object-contain" />
+            </span>
+          )}
           {!collapsed && (
             <span className="min-w-0">
               <span className="block truncate font-medium">Dataset Factory</span>
@@ -142,33 +168,36 @@ export function Sidebar({
               <p className="px-2 pt-4 pb-1 text-t-sm font-medium text-text-3">设置</p>
             )}
             {collapsed && <div className="mx-1 my-3 h-px bg-n-400" />}
-            {(
-              [
-                { key: "endpoints", label: "端点配置", icon: SettingsIcon },
-                { key: "skills", label: "技能", icon: FolderInputIcon },
-                { key: "service", label: "服务运行", icon: ActivityIcon },
-              ] as const
-            ).map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                aria-label={item.label}
-                aria-current={settingsSection === item.key ? "page" : undefined}
-                onClick={() => {
-                  setSettingsSection(item.key);
-                  setNavigationOpen(false);
-                }}
-                className={cn(
-                  "flex h-(--h-md) w-full items-center gap-3 rounded-md px-3 text-text-3 transition-colors duration-(--dur-1) hover:bg-nav-hover hover:text-text-1",
-                  collapsed && "justify-center px-0",
-                  settingsSection === item.key &&
-                    "bg-nav-active font-medium text-text-1",
-                )}
-              >
-                <item.icon className="size-4 shrink-0" />
-                {!collapsed && item.label}
-              </button>
-            ))}
+            <ul className="space-y-1">
+              {(
+                [
+                  { key: "endpoints", label: "端点配置", icon: SettingsIcon },
+                  { key: "skills", label: "技能", icon: FolderInputIcon },
+                  { key: "service", label: "服务运行", icon: ActivityIcon },
+                ] as const
+              ).map((item) => (
+                <li key={item.key}>
+                  <button
+                    type="button"
+                    aria-label={item.label}
+                    aria-current={settingsSection === item.key ? "page" : undefined}
+                    onClick={() => {
+                      setSettingsSection(item.key);
+                      setNavigationOpen(false);
+                    }}
+                    className={cn(
+                      "flex h-(--h-md) w-full items-center gap-3 rounded-md px-3 text-text-3 transition-colors duration-(--dur-1) hover:bg-nav-hover hover:text-text-1",
+                      collapsed && "justify-center px-0",
+                      settingsSection === item.key &&
+                        "bg-nav-active font-medium text-text-1",
+                    )}
+                  >
+                    <item.icon className="size-4 shrink-0" />
+                    {!collapsed && item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </>
         ) : (
           NAV_GROUPS.map((group) => (
@@ -179,7 +208,7 @@ export function Sidebar({
                 </p>
               )}
               {collapsed && <div className="mx-1 my-3 h-px bg-n-400" />}
-              <ul className="space-y-0.5">
+              <ul className="space-y-1">
                 {group.items.map((item) => {
                   const active = page === item.key;
                   return (
@@ -234,12 +263,17 @@ export function Sidebar({
           </TooltipTrigger>
           <TooltipContent>设置</TooltipContent>
         </Tooltip>
-        {!collapsed && (
-          <span className="ml-auto flex items-center gap-1.5">
-            <ServiceDot />
-            <span className="tabular-nums">{APP_VERSION}</span>
-          </span>
-        )}
+        {/* 状态点常显（折叠态也渲染、居中于纵排最下方），版本号折叠隐藏；展开态点与
+            版本号靠行尾成组（间距 8px = s-2 档）。折叠态点的 Tip 转「状态 · 版本号」。 */}
+        <span
+          className={cn(
+            "flex items-center",
+            collapsed ? "justify-center" : "ml-auto gap-2",
+          )}
+        >
+          <ServiceDot labelSuffix={collapsed ? ` · ${APP_VERSION}` : undefined} />
+          {!collapsed && <span className="tabular-nums">{APP_VERSION}</span>}
+        </span>
       </div>
     </aside>
   );

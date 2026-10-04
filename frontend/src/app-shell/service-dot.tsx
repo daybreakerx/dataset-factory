@@ -26,7 +26,12 @@ const STOPPING_TRIES = 60;
  * 「正在停止」是点上的第四个状态：UI 关闭被受理但服务还在排空请求，这段时间既不是运行中
  * 也不是不可用，如实标出来（与「关闭前会等正在进行的请求跑完」的弹窗文案同一个事实）。
  */
-export function ServiceDot(): ReactElement {
+export function ServiceDot({
+  labelSuffix = "",
+}: {
+  /** 附加在状态文案尾部的后缀（折叠态传「 · 版本号」，四态同式；aria 与 Tip 同文随动）。 */
+  labelSuffix?: string;
+}): ReactElement {
   const [state, setState] = useState<"probing" | "ok" | "stopping" | "bad">("probing");
   const refresh = useCallback(() => {
     void api.getService().then(
@@ -70,13 +75,13 @@ export function ServiceDot(): ReactElement {
     return () => window.clearInterval(timer);
   }, [stopping]);
   const label =
-    state === "ok"
+    (state === "ok"
       ? "服务运行中"
       : state === "bad"
         ? "服务不可用"
         : state === "stopping"
           ? "正在停止服务"
-          : "正在检测服务";
+          : "正在检测服务") + labelSuffix;
   const cls =
     state === "ok"
       ? "bg-ok-dot"

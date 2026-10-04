@@ -289,7 +289,7 @@ export function SkillsPanel(): ReactElement {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-auto bg-card lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-auto bg-card md:grid md:grid-cols-[340px_minmax(0,1fr)] md:overflow-hidden">
       {/* 左：列表 + 导入 */}
       <SkillList
         disabled={dirty || saving}

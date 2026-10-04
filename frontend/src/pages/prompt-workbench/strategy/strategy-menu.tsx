@@ -139,7 +139,7 @@ export function StrategyMenu({
           {entries.map((entry) => (
             <div
               key={entry.id}
-              className={`group flex items-center gap-1 rounded-md p-2 ${selected?.id === entry.id ? "bg-primary/10" : "hover:bg-accent"}`}
+              className={`group flex items-center gap-1 rounded-md p-2 ${selected?.id === entry.id ? "bg-primary/10 dark:bg-primary/26" : "hover:bg-accent"}`}
             >
               <Tip
                 label={

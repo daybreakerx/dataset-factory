@@ -201,7 +201,7 @@ export function MessageList({
                 <AttachmentThumb message={message} onPreview={onPreview} />
               )}
               {message.text !== "" && (
-                <div className="rounded-xl rounded-br-sm bg-primary/10 px-4 py-3 text-t-md wrap-anywhere whitespace-pre-wrap">
+                <div className="rounded-xl rounded-br-sm bg-primary/10 px-4 py-3 text-t-md wrap-anywhere whitespace-pre-wrap dark:bg-primary/26">
                   {message.text}
                 </div>
               )}

@@ -24,9 +24,13 @@ function DialogOverlay({
 
 function DialogContent({
   className,
+  closeClassName,
   children,
   ...props
-}: ComponentProps<typeof DialogPrimitive.Content>) {
+}: ComponentProps<typeof DialogPrimitive.Content> & {
+  /** 关闭叉钮的附加类：实例级覆盖（如侧栏抽屉实例悬停底按侧栏表面取 --nav-hover）。 */
+  closeClassName?: string;
+}) {
   return (
     <DialogPrimitive.Portal>
       <DialogOverlay />
@@ -40,7 +44,12 @@ function DialogContent({
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute top-3 right-3 flex size-(--h-sm) items-center justify-center rounded-md text-text-3 transition-colors hover:bg-accent hover:text-text-1 focus-visible:outline-none">
+        <DialogPrimitive.Close
+          className={cn(
+            "absolute top-3 right-3 flex size-(--h-sm) items-center justify-center rounded-md text-text-3 transition-colors hover:bg-accent hover:text-text-1 focus-visible:outline-none",
+            closeClassName,
+          )}
+        >
           <XIcon className="size-4" />
           <span className="sr-only">关闭</span>
         </DialogPrimitive.Close>

@@ -6,6 +6,7 @@ import { Sidebar } from "./app-shell/sidebar";
 import { Dialog, DialogContent, DialogTitle } from "./components/ui/dialog";
 import { ToastViewport } from "./components/ui/toast";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { useMediaQuery } from "./hooks/use-media-query";
 import { usePersistedState } from "./hooks/use-persisted-state";
 import { useTheme } from "./hooks/use-theme";
 import {
@@ -51,12 +52,26 @@ export function App(): ReactElement {
     isSettingsSection,
   );
   const [workPage, setWorkPage] = useState<PageKey>("prompts");
+  // 窄桌面（768–1023）断点形态：侧栏自动收起为图标条（两栏保持）——响应式顺序
+  // 「缩窄先收侧栏、再变上下布局」（对齐批「响应式断点顺序对齐」条，稿侧 §21 同口径）。
+  // 合成值不落盘：进入区间即收起，离开后恢复用户自己的折叠偏好。
+  const narrowDesktop = useMediaQuery("(min-width: 768px) and (max-width: 1023.98px)");
 
   function openSettings() {
     if (page !== "settings") setWorkPage(page);
     setPage("settings");
     setNavigationOpen(false);
   }
+
+  // 窄屏顶条页签名随页变：不显示产品名（窄屏顶条 零件稿口径；设置随当前子页变）。
+  const pageLabel =
+    page === "settings"
+      ? ({ endpoints: "端点配置", skills: "技能", service: "服务运行" } as const)[
+          settingsSection
+        ]
+      : page === "labeling"
+        ? "打标"
+        : "策略";
 
   const sidebarProps = {
     page,
@@ -77,7 +92,11 @@ export function App(): ReactElement {
     <TooltipProvider>
       <div className="flex h-full min-w-0 flex-col overflow-hidden md:flex-row">
         <div className="hidden h-full shrink-0 md:block">
-          <Sidebar {...sidebarProps} />
+          <Sidebar
+            {...sidebarProps}
+            collapsed={collapsed || narrowDesktop}
+            narrowDesktop={narrowDesktop}
+          />
         </div>
         <div className="flex shrink-0 items-center gap-3 bg-n-75 px-4 py-2 md:hidden">
           <button
@@ -91,15 +110,16 @@ export function App(): ReactElement {
           >
             <PanelLeftOpenIcon className="size-4" />
           </button>
-          <span className="truncate font-medium">Dataset Factory</span>
+          <span className="truncate font-medium">{pageLabel}</span>
         </div>
         <Dialog open={navigationOpen} onOpenChange={setNavigationOpen}>
           <DialogContent
             aria-describedby={undefined}
+            closeClassName="hover:bg-nav-hover"
             className="left-0 top-0 h-dvh w-62.5 max-w-full translate-x-0 translate-y-0 gap-0 rounded-none border-0 p-0"
           >
             <DialogTitle className="sr-only">导航</DialogTitle>
-            <Sidebar {...sidebarProps} />
+            <Sidebar {...sidebarProps} collapsed={false} brandInteractive={false} />
           </DialogContent>
         </Dialog>
         <main className="min-h-0 min-w-0 flex-1">

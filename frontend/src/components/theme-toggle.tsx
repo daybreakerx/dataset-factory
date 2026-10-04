@@ -10,8 +10,8 @@ const CYCLE: readonly ThemeMode[] = ["system", "light", "dark"];
 
 const MODE_LABEL: Record<ThemeMode, string> = {
   system: "跟随系统",
-  light: "亮色",
-  dark: "暗色",
+  light: "浅色模式",
+  dark: "深色模式",
 };
 
 function modeIcon(mode: ThemeMode) {
@@ -46,15 +46,13 @@ export function ThemeToggle({
               ? "text-text-3 hover:bg-nav-hover hover:text-text-1"
               : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           }
-          aria-label={`主题：${MODE_LABEL[mode]}，切换为${MODE_LABEL[next]}`}
+          aria-label={MODE_LABEL[mode]}
           onClick={() => onModeChange(next)}
         >
           <Icon />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>
-        主题：{MODE_LABEL[mode]}（切换为{MODE_LABEL[next]}）
-      </TooltipContent>
+      <TooltipContent>{MODE_LABEL[mode]}</TooltipContent>
     </Tooltip>
   );
 }

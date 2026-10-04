@@ -13,6 +13,7 @@ import { reportError } from "../lib/feedback";
 import { DialogShell } from "./dialog-shell";
 import { FormError } from "./form-error";
 import { Button } from "./ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export function ShutdownButton({
   expanded = false,
@@ -56,20 +57,27 @@ export function ShutdownButton({
           关闭服务
         </Button>
       ) : (
-        <Button
-          type="button"
-          variant={sidebar ? "ghost" : "outline"}
-          size="icon"
-          className={
-            sidebar
-              ? "text-bad-ink hover:bg-bad-bg hover:text-bad-ink-strong"
-              : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          }
-          aria-label="关闭服务"
-          onClick={() => setOpen(true)}
-        >
-          <PowerIcon className="size-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant={sidebar ? "ghost" : "outline"}
+              size="icon"
+              className={
+                sidebar
+                  ? // 侧栏图标态撤红改黑（「黑」的规范形态＝text-1，暗色自动翻白）、
+                    // 悬停底归侧栏族 --nav-hover，与同排钮一致（base.css §5 side-foot）。
+                    "text-text-1 hover:bg-nav-hover"
+                  : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              }
+              aria-label="关闭服务"
+              onClick={() => setOpen(true)}
+            >
+              <PowerIcon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>关闭服务</TooltipContent>
+        </Tooltip>
       )}
       <DialogShell
         open={open}
