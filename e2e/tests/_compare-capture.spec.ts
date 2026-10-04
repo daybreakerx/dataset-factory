@@ -1530,7 +1530,7 @@ test("measure sidebar-foot computed styles", async ({ page }) => {
   await sidebar.getByRole("button", { name: "展开侧栏" }).click();
   await page.waitForTimeout(400);
 
-  // ---- 暗色（dsf-theme=dark → html.dark）：侧栏底（已知差异：实现 n-75 暗 9% vs 规范 n-50）----
+  // ---- 暗色（dsf-theme=dark → html.dark）：侧栏底（2026-10-04 暗色重标后实现与规范同源＝#2b2b2b；此块只 console.log 读数、无断言）----
   // 注意：暗色下主题钮图标随 mode 变为 lucide-moon（亮色场景才是 lucide-monitor）。
   await page.evaluate(() => localStorage.setItem("dsf-theme", "dark"));
   await page.reload();
