@@ -41,7 +41,7 @@ test("策略保存、切换和对话使用同一组合，工作台匹配两栏�
   await page.getByRole("button", { name: "新建策略" }).click();
   await expect(page.getByLabel("策略名称", { exact: true })).toHaveValue("");
   await page.getByRole("button", { name: "切换策略" }).click();
-  await page.getByRole("button", { name: /E2E 详细策略.*真实往返/ }).click();
+  await page.getByRole("menuitem", { name: /E2E 详细策略.*真实往返/ }).click();
   await expect(page.getByLabel("策略名称", { exact: true })).toHaveValue("E2E 详细策略");
   await page.getByLabel("打标指令").fill("生成描述");
   await page.getByRole("button", { name: "发送", exact: true }).click();

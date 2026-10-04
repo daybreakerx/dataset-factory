@@ -4,7 +4,9 @@ import type { ComponentProps } from "react";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-t-md font-medium transition-colors duration-(--dur-1) focus-visible:outline-none disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  // 微交互（DESIGN.md 2.6）：按压 translateY(1px)——位移方向恒定恒向下（原 scale(.98)
+  // 在 30px 小钮上低于感知阈、已实测否决）；transform 并入过渡（原 transition-colors 不含）。
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-t-md font-medium transition-[color,background-color,border-color,text-decoration-color,fill,stroke,transform,box-shadow] duration-(--dur-1) focus-visible:outline-none active:translate-y-px disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -37,6 +39,16 @@ const buttonVariants = cva(
         "icon-xs": "size-(--h-xs) rounded-md p-0 [&_svg]:size-[13px]",
       },
     },
+    compoundVariants: [
+      {
+        // 无底图标钮的禁用档（base.css §17；2026-10-02 用户裁 B「不要加实底」）：
+        // 禁用只把图标压到 --n-400、底保持透明——不走 base 的 disabled:bg-muted 实底。
+        // twMerge 保后者：compound 在 cva 输出里排在 base 之后，disabled:bg 同组覆盖。
+        variant: "ghost",
+        size: ["icon", "icon-sm", "icon-lg", "icon-xs"],
+        className: "disabled:bg-transparent",
+      },
+    ],
     defaultVariants: {
       variant: "default",
       size: "default",

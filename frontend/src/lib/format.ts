@@ -28,19 +28,16 @@ export function formatBytesAuto(bytes: number): string {
 }
 
 /**
- * 注入正文字符数 → 字数文案（技能列表与策略库下拉共用一份口径）。
+ * 注入正文字符数 → 字数文案（技能列表、策略库下拉、提示词库下拉共用一份口径）。
  *
- * 千位以上折算成「万字 / k 字」，百位以下给精确值：一屏七位数会把视线占满，而用户在这里
- * 要的是「这一条要注入多少东西」的量级感；字数本身是精确算出来的，所以不加「约」。
+ * 统一折算成 **k（千字）一档**：一位小数、整数省去小数（如 16k 字、3k 字、0.9k 字）；
+ * 一律不加「约」——字数本身是精确算出来的。口径只有一份（DESIGN.md 六），
+ * 原型与实现两边都不另写一套。
  */
 export function formatChars(count: number): string {
-  if (count >= 10_000) {
-    return `${(count / 10_000).toFixed(1)} 万字`;
-  }
-  if (count >= 1_000) {
-    return `${(count / 1_000).toFixed(1)}k 字`;
-  }
-  return `${count} 字`;
+  const rounded = Math.round((count / 1000) * 10) / 10;
+  const text = Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
+  return `${text}k 字`;
 }
 
 /**

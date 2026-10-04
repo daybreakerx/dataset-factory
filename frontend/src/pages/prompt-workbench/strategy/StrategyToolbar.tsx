@@ -65,6 +65,8 @@ export function StrategyToolbar({
   });
   const mounted = useRef(true);
   const pending = useRef(false);
+  // 名字框承载块：策略库弹层的宽度下限与贴边方向基准（族宽三段式，随组件归一引入）。
+  const nameWrapRef = useRef<HTMLDivElement>(null);
   // 策略选中镜像的写入门闩：挂载首帧不写（防止空白态冲掉既有镜像），任何真实
   // 交互（新建 / 改名 / 选中等）后才落盘。见下方持久化与恢复两个 effect。
   const selectionTouched = useRef(false);
@@ -231,7 +233,10 @@ export function StrategyToolbar({
   return (
     <header className="col-span-full border-b border-border px-6 pt-6 pb-4">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <div className="relative flex min-w-0 max-w-full items-center">
+        <div
+          ref={nameWrapRef}
+          className="relative flex min-w-0 max-w-full items-center"
+        >
           <input
             aria-label="策略名称"
             placeholder="新建策略"
@@ -241,7 +246,7 @@ export function StrategyToolbar({
               selectionTouched.current = true;
               setName(event.currentTarget.value);
             }}
-            className="min-w-24 max-w-full field-sizing-content rounded-md border border-transparent bg-transparent py-1 pr-7 pl-2 text-t-2xl font-semibold hover:border-border hover:bg-card focus:border-input"
+            className="min-w-24 max-w-[380px] field-sizing-content rounded-md border border-transparent bg-transparent py-1 pr-7 pl-2 text-t-2xl font-semibold hover:border-border hover:bg-card focus:border-input focus:outline-none"
           />
           <StrategyMenu
             open={open}
@@ -250,8 +255,10 @@ export function StrategyToolbar({
             selected={selected}
             busy={busy}
             loading={loading}
+            error={error}
             locked={locked}
             switchLocked={switchLocked}
+            wrapRef={nameWrapRef}
             prompts={prompts}
             skills={skills}
             endpoints={endpoints}
@@ -282,7 +289,7 @@ export function StrategyToolbar({
         </div>
         <input
           aria-label="策略描述"
-          placeholder="描述"
+          placeholder="适用场景与写作风格"
           value={description}
           disabled={busy}
           onChange={(event) => {
@@ -331,7 +338,9 @@ export function StrategyToolbar({
       <DialogShell
         open={remove !== null}
         // 飞行期 Esc 也可关（弹窗壳稿「关掉的是界面、不撤销已发出的请求」），与其余删除弹窗一致。
-        onOpenChange={setRemove}
+        onOpenChange={(open) => {
+          if (!open) setRemove(null);
+        }}
         title={<>删除策略「{remove?.name}」？</>}
         description="已应用到工作目录的快照不受影响；被引用的提示词与 Skill 不会被删除。"
         note="此操作不可撤销"
@@ -369,7 +378,9 @@ export function StrategyToolbar({
       </DialogShell>
       <DialogShell
         open={repair !== null}
-        onOpenChange={setRepair}
+        onOpenChange={(open) => {
+          if (!open) setRepair(null);
+        }}
         title={<>重新指定「{repair?.name}」</>}
         description={repair?.missing_refs.join("；")}
         headNote={error || undefined}

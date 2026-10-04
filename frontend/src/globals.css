@@ -152,6 +152,31 @@
   }
 }
 
+/* --- 微交互（DESIGN.md 2.6；值同 base.css §6）-----------------------------
+   按压下压 1px 由 buttonVariants 承担（active:translate-y-px）；.lift＝可交互卡片
+   悬浮抬升 1px + 影升 --sh-2，与按压构成同一套「抬／压」位移语言。 */
+.lift {
+  transition:
+    transform var(--dur-1) var(--ease),
+    box-shadow var(--dur-1) var(--ease);
+}
+.lift:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--sh-2);
+}
+
+/* 所有动效包在 prefers-reduced-motion 降级里（DESIGN.md 2.6；与 base.css §16 同款口径）。
+   本块是无层声明（不在任何 @layer 里）——层叠规则里无层声明压过全部显式层，故不必用
+   !important 也能压过 @layer utilities 里的时长工具类（棘轮禁新增 biome-ignore）。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms;
+    transition-duration: 0.01ms;
+  }
+}
+
 /* --- 复选框唯一形态 .cb（2026-09-21 定形）----------------------------
    设计规范定 .cb 为复选框唯一形态（14×14、圆角 4px、选中黑底白勾、暗色自动
    翻深勾）。此份为构建内适配（值同规范）。 */

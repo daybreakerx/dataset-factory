@@ -45,8 +45,8 @@ vi.mock("../../api", async (original) => ({
 }));
 
 const PROMPTS: PromptInfo[] = [
-  { id: "p-h3-video-01", name: "h3-video", description: "视频打标" },
-  { id: "p-simple-001", name: "simple", description: "" },
+  { id: "p-h3-video-01", name: "h3-video", description: "视频打标", body_chars: 12 },
+  { id: "p-simple-001", name: "simple", description: "", body_chars: 0 },
 ];
 
 const FULL_PROMPT = {
@@ -194,7 +194,7 @@ describe("PromptWorkbench", () => {
     await waitFor(() => expect(screen.getByLabelText("名称")).toHaveValue("h3-video"));
 
     await userEvent.click(screen.getByRole("button", { name: "添加 Skill" }));
-    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "h3-skill" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: /^h3-skill/ }));
     await act(async () =>
       resolveSession({
         session_id: "old",
@@ -202,7 +202,7 @@ describe("PromptWorkbench", () => {
         messages: [{ role: "user", text: "旧对话", attachment: null }],
       }),
     );
-    expect(screen.getByRole("menuitemcheckbox", { name: "h3-skill" })).toBeChecked();
+    expect(screen.getByRole("menuitemcheckbox", { name: /^h3-skill/ })).toBeChecked();
     await userEvent.keyboard("{Escape}");
 
     expect(
@@ -273,8 +273,8 @@ describe("PromptWorkbench", () => {
 
     fireEvent.input(screen.getByLabelText("描述"), { target: { value: "新描述" } });
     // L9：策略切换锁定改为「列表照开、点了才提示」（StrategyToolbar 用例覆盖）；
-    // 这里只保留提示词切换钮的禁用断言。
-    expect(screen.getByRole("button", { name: "切换提示词" })).toBeDisabled();
+    // 2026-10-05 随族：提示词切换钮不再随未保存禁用——弹层照常打开（拦截形态改确认保存弹窗，随批 7）。
+    expect(screen.getByRole("button", { name: "切换提示词" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "切换策略" })).toBeEnabled(),
@@ -286,7 +286,7 @@ describe("PromptWorkbench", () => {
       body: "简短",
     });
     await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
-    await userEvent.click(screen.getByRole("button", { name: /^备用策略/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /^备用策略/ }));
 
     await waitFor(() => expect(screen.getByLabelText("名称")).toHaveValue("simple"));
     expect(screen.getByText("backup · model-b")).toBeInTheDocument();
@@ -303,7 +303,7 @@ describe("PromptWorkbench", () => {
     apiMock.getPrompt.mockRejectedValueOnce(new Error("提示词读取失败"));
 
     await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
-    await userEvent.click(screen.getByRole("button", { name: /^备用策略/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /^备用策略/ }));
 
     expect(await screen.findByText(/提示词读取失败/)).toBeInTheDocument();
     expect(screen.getByLabelText("名称")).toHaveValue("h3-video");
@@ -896,7 +896,7 @@ describe("策略与会话的一致性（启动恢复 v2）", () => {
 
     // 用户在工具栏再次应用同一策略（切走又切回的终点）：签名一致 → 接续而非清空
     await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
-    await userEvent.click(await screen.findByRole("button", { name: /^测试策略/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /^测试策略/ }));
 
     await expect(screen.getByText("策略会话的历史")).toBeInTheDocument();
   });

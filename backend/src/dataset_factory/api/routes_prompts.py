@@ -32,7 +32,12 @@ router = APIRouter(prefix="/api/prompts", tags=["提示词库"])
 def list_all() -> list[PromptInfo]:
     """列出全部提示词。"""
     return [
-        PromptInfo(id=item.id, name=item.name, description=item.description)
+        PromptInfo(
+            id=item.id,
+            name=item.name,
+            description=item.description,
+            body_chars=len(item.body),
+        )
         for item in list_prompts()
     ]
 
@@ -44,7 +49,12 @@ def create(request: PromptSaveRequest) -> PromptCreated:
         Prompt(name=request.name, description=request.description, body=request.body)
     )
     prompt = read_prompt(pid)
-    return PromptCreated(id=pid, name=prompt.name, description=prompt.description)
+    return PromptCreated(
+        id=pid,
+        name=prompt.name,
+        description=prompt.description,
+        body_chars=len(prompt.body),
+    )
 
 
 @router.get(
@@ -62,6 +72,7 @@ def get_one(pid: str) -> PromptFull:
         id=prompt.id,
         name=prompt.name,
         description=prompt.description,
+        body_chars=len(prompt.body),
         body=prompt.body,
     )
 

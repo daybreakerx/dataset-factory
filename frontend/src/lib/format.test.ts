@@ -55,23 +55,27 @@ describe("字节显示格式化", () => {
   });
 });
 describe("注入字数格式化", () => {
-  it("万位与千位各折一档，百位以下给精确值", () => {
+  it("统一 k（千字）一档：一位小数、整数省小数（DESIGN.md 六口径）", () => {
     expect([
       formatChars(0),
       formatChars(820),
+      formatChars(999),
       formatChars(1_000),
       formatChars(3_600),
       formatChars(9_999),
       formatChars(10_000),
       formatChars(12_400),
+      formatChars(16_000),
     ]).toEqual([
-      "0 字",
-      "820 字",
-      "1.0k 字",
+      "0k 字",
+      "0.8k 字",
+      "1k 字",
+      "1k 字",
       "3.6k 字",
-      "10.0k 字",
-      "1.0 万字",
-      "1.2 万字",
+      "10k 字",
+      "10k 字",
+      "12.4k 字",
+      "16k 字",
     ]);
   });
 });

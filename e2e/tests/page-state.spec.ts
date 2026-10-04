@@ -77,7 +77,7 @@ test.describe("页面状态保持", () => {
     await page.getByLabel("策略名称", { exact: true }).fill("E2E 状态策略");
     await page.getByRole("button", { name: "保存策略" }).click();
     await page.getByRole("button", { name: "切换策略" }).click();
-    await page.getByRole("button", { name: /^E2E 状态策略/ }).click();
+    await page.getByRole("menuitem", { name: /^E2E 状态策略/ }).click();
     await page.getByLabel("打标指令").fill("策略会话第一句");
     await page.getByRole("button", { name: "发送", exact: true }).click();
     await expect(page.getByText("E2E 假模型的打标结果").last()).toBeVisible({
@@ -99,7 +99,7 @@ test.describe("页面状态保持", () => {
 
     // 切回 → 进该策略的桶接续它的最近会话，历史回来。
     await page.getByRole("button", { name: "切换策略" }).click();
-    await page.getByRole("button", { name: /^E2E 状态策略/ }).click();
+    await page.getByRole("menuitem", { name: /^E2E 状态策略/ }).click();
     await expect(page.getByText("E2E 假模型的打标结果").last()).toBeVisible();
   });
 
@@ -120,7 +120,7 @@ test.describe("页面状态保持", () => {
     await page.getByLabel("策略名称", { exact: true }).fill("桶隔离A");
     await page.getByRole("button", { name: "保存策略" }).click();
     await page.getByRole("button", { name: "切换策略" }).click();
-    await page.getByRole("button", { name: /^桶隔离A/ }).click();
+    await page.getByRole("menuitem", { name: /^桶隔离A/ }).click();
     await page.getByLabel("打标指令").fill("A 的第一句");
     await page.getByRole("button", { name: "发送", exact: true }).click();
     await expect(page.getByText("E2E 假模型的打标结果").last()).toBeVisible({
@@ -133,7 +133,7 @@ test.describe("页面状态保持", () => {
     await page.getByLabel("策略名称", { exact: true }).fill("桶隔离B");
     await page.getByRole("button", { name: "保存策略" }).click();
     await page.getByRole("button", { name: "切换策略" }).click();
-    await page.getByRole("button", { name: /^桶隔离B/ }).click();
+    await page.getByRole("menuitem", { name: /^桶隔离B/ }).click();
     await page.getByLabel("打标指令").fill("B 的第一句");
     await page.getByRole("button", { name: "发送", exact: true }).click();
     await expect(page.getByText("E2E 假模型的打标结果").last()).toBeVisible({
@@ -142,7 +142,7 @@ test.describe("页面状态保持", () => {
 
     // 切回 A：接的是 A 桶的历史，B 的发言不串场（v2 签名错绑的回归点）。
     await page.getByRole("button", { name: "切换策略" }).click();
-    await page.getByRole("button", { name: /^桶隔离A/ }).click();
+    await page.getByRole("menuitem", { name: /^桶隔离A/ }).click();
     await expect(page.getByText("A 的第一句")).toBeVisible();
     await expect(page.getByText("B 的第一句")).not.toBeVisible();
 
@@ -155,7 +155,7 @@ test.describe("页面状态保持", () => {
       timeout: 15_000,
     });
     await page.getByRole("button", { name: "切换策略" }).click();
-    await page.getByRole("button", { name: /^桶隔离A/ }).click();
+    await page.getByRole("menuitem", { name: /^桶隔离A/ }).click();
     await expect(page.getByText("A 的第一句")).toBeVisible();
     await expect(page.getByText("草稿桶的一句话")).not.toBeVisible();
 

@@ -77,7 +77,7 @@ test.describe("提示词工作台", () => {
     await expect(page.getByLabel("名称", { exact: true })).toHaveValue("e2e-prompt");
     await page.getByRole("button", { name: "切换提示词" }).click();
     await expect(
-      page.getByRole("button", { name: "选择提示词 e2e-prompt", exact: true }),
+      page.getByRole("menuitem", { name: /^e2e-prompt/ }),
     ).toBeVisible();
   });
 });

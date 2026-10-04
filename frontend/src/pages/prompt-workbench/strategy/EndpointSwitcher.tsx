@@ -1,73 +1,102 @@
-/** 端点配置切换器（chip = 「名称 · 模型名」；页内局部选择器——选中记忆纯会话内，刷新后随策略恢复）。 */
-import { ChevronDownIcon } from "lucide-react";
+/** 端点配置切换器（chip = 「名称 · 模型」；页内局部选择器——选中记忆纯会话内，刷新后随策略恢复）。
+ *  族内实例（components/cfg-pop.tsx）：触发件＝chip、行单行「名字 · 模型」、头行钮＝去设置管理、
+ *  无未保存拦截（策略行改动作级实时保存后切换端点即提交）；取数失败落层内一行、重开即重拉。 */
+import { ChevronDownIcon, SettingsIcon } from "lucide-react";
 import type { ReactElement } from "react";
 import type { EndpointConfigSummary } from "../../../api";
+import {
+  CfgPopContent,
+  CfgPopHead,
+  CfgPopRow,
+  CfgPopRowMain,
+  CfgPopStateRow,
+} from "../../../components/cfg-pop";
 import { Button } from "../../../components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
+import { Tip } from "../../../components/ui/tooltip";
 
 export function EndpointSwitcher({
   endpoints,
   selectedId,
   disabled = false,
+  loading = false,
+  failed = false,
+  onMenuOpen,
   onSelect,
   onManage,
 }: {
   endpoints: EndpointConfigSummary[];
   /** 页内当前选中的配置 ID（空串 = 未选）；显示按 ID 现查，指向已删配置时显示未配置端点。 */
   selectedId: string;
+  /** 配置飞行中（策略应用 / 提示词保存任一）：触发件与行只失效不换装（族口径）。 */
   disabled?: boolean;
+  /** 端点列表取数中／取数失败（弹层三态行；打开即重拉的飞行态）。 */
+  loading?: boolean;
+  failed?: boolean;
+  /** 每次打开弹层重拉端点列表（打开＝重试；先例＝策略下拉）。 */
+  onMenuOpen?: () => void;
   onSelect: (cid: string) => void;
   onManage: () => void;
 }): ReactElement {
   const selected = endpoints.find((item) => item.id === selectedId);
+  // 计数不可知（首取中／取数失败）时头行只写库名，不写假计数（overlay.md 头行条）。
+  const countKnown = !failed && !(loading && endpoints.length === 0);
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="min-w-0 max-w-60 shrink px-2 text-t-md text-text-2"
-          aria-label="端点配置切换器"
-          disabled={disabled}
-        >
-          <span className="truncate">
-            {selected ? `${selected.name} · ${selected.model}` : "未配置端点"}
-          </span>
-          <ChevronDownIcon className="size-3 shrink-0" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel>端点配置</DropdownMenuLabel>
-        {endpoints.length === 0 && (
-          <DropdownMenuLabel>（还没有配置——去「管理配置」新增）</DropdownMenuLabel>
-        )}
-        {endpoints.map((item) => (
-          <DropdownMenuItem
-            key={item.name}
+    <DropdownMenu
+      onOpenChange={(next) => {
+        if (next) onMenuOpen?.();
+      }}
+    >
+      <Tip label="切换端点配置">
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="min-w-0 max-w-60 shrink gap-2 px-2 text-t-md font-medium text-text-2 enabled:hover:bg-accent enabled:hover:text-text-1 disabled:bg-transparent disabled:text-text-2 [&_svg]:size-3"
+            aria-label="端点配置切换器"
             disabled={disabled}
-            onSelect={() => onSelect(item.id)}
           >
-            <span className="flex-1 truncate">
-              {item.name} · {item.model}
+            <span className="min-w-0 truncate">
+              {selected ? `${selected.name} · ${selected.model}` : "未配置端点"}
             </span>
-            {item.id === selectedId && (
-              <span className="size-2 rounded-full bg-success" />
-            )}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={disabled} onSelect={onManage}>
-          管理配置…
-        </DropdownMenuItem>
-      </DropdownMenuContent>
+            <ChevronDownIcon className="shrink-0" />
+          </Button>
+        </DropdownMenuTrigger>
+      </Tip>
+      <CfgPopContent anchor="trigger" align="start" side="bottom">
+        <CfgPopHead
+          label={countKnown ? `端点 · 共 ${endpoints.length} 条` : "端点"}
+          action={{
+            label: "前往设置 · 端点配置",
+            icon: <SettingsIcon />,
+            onClick: onManage,
+          }}
+        />
+        <div className="max-h-80 overflow-y-auto">
+          {loading && endpoints.length === 0 ? (
+            <CfgPopStateRow>正在读取…</CfgPopStateRow>
+          ) : failed ? (
+            <CfgPopStateRow>端点读取失败</CfgPopStateRow>
+          ) : endpoints.length === 0 ? (
+            <CfgPopStateRow>还没有可用的端点</CfgPopStateRow>
+          ) : (
+            endpoints.map((item) => (
+              <CfgPopRow
+                key={item.id}
+                current={item.id === selectedId}
+                disabled={disabled}
+                onSelect={() => onSelect(item.id)}
+              >
+                <CfgPopRowMain name={`${item.name} · ${item.model}`} />
+              </CfgPopRow>
+            ))
+          )}
+        </div>
+      </CfgPopContent>
     </DropdownMenu>
   );
 }

@@ -61,6 +61,9 @@ describe("App 外壳", () => {
     render(<App />);
 
     await user.click(screen.getByRole("button", { name: "设置" }));
+    // 设置首屏 = 默认子页「端点配置」（回归钉：openSettings 曾被 onClick 直传、React 把
+    // 事件对象塞进节状态——无分支命中、内容区空白。E2E smoke 实锤过一轮）。
+    await screen.findByRole("heading", { name: "端点配置", level: 2 });
     await user.click(screen.getByRole("button", { name: "技能" }));
 
     // 设置页现在是进页面才载的分包：先等它出现，再按原样断言（断言对象与强度不变）。

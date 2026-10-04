@@ -25,7 +25,8 @@ const SettingsPage = lazy(() =>
 interface PageViewportProps {
   page: ShellPage;
   settingsSection: SettingsSection;
-  openSettings: () => void;
+  /** 去设置页；可带子页定向（族弹层「前往设置」钮用）。 */
+  openSettings: (section?: SettingsSection) => void;
   onOpenWorkbench: () => void;
 }
 

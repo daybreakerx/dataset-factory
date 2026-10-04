@@ -214,7 +214,7 @@ test("measure strategy-dropdown computed styles", async ({ page }) => {
   console.log("STRAT_ROW_WCOUNT:", JSON.stringify(await normalWcount.evaluate(TXT), null, 2));
   const normalDesc = normalRow.locator("span.truncate.text-t-xs").first();
   console.log("STRAT_ROW_DESC:", JSON.stringify(await normalDesc.evaluate(TXT), null, 2));
-  const rowIcon = normalRow.getByRole("button").nth(1);
+  const rowIcon = normalRow.getByRole("button", { name: /^复制策略/ });
   console.log("STRAT_ROW_ICON:", JSON.stringify(await rowIcon.evaluate(BOX), null, 2));
   await normalRow.hover();
   await page.waitForTimeout(150);
@@ -222,8 +222,8 @@ test("measure strategy-dropdown computed styles", async ({ page }) => {
     return { backgroundColor: getComputedStyle(el).backgroundColor };
   }), null, 2));
 
-  // 选中正常行（当前态）→ 重开量当前行与坏行
-  await normalRow.locator("button").first().click();
+  // 选中正常行（当前态）→ 重开量当前行与坏行（行已是 Radix Item，点行体即选中）
+  await normalRow.click();
   await menu.waitFor({ state: "hidden", timeout: 5000 });
   await chev.click();
   await menu.waitFor({ state: "visible", timeout: 5000 });
@@ -248,7 +248,7 @@ test("measure strategy-dropdown computed styles", async ({ page }) => {
   await page.getByLabel("策略描述").fill("取证改描述触发锁定");
   await chev.click();
   await menu.waitFor({ state: "visible", timeout: 5000 });
-  await badRowLoc.first().locator("button").first().click();
+  await badRowLoc.first().click();
   await page.waitForTimeout(300);
   const notice = page.locator('[role="status"]').last();
   if ((await notice.count()) > 0) {
@@ -339,7 +339,7 @@ test("measure prompt-dropdown computed styles", async ({ page }) => {
 
   const rows = menu.locator("div.max-h-80 > div");
   console.log("SCENE_ROWS_COUNT:", JSON.stringify({ count: await rows.count() }));
-  const row1 = rows.first();   // 首条 = 当前选中（实现侧无当前行样式，实测验证）
+  const row1 = rows.first();   // 首条 = 当前选中（族当前行 tint 强调，实测验证）
   console.log("SCENE_ROW_FIRST:", JSON.stringify(await row1.evaluate(SCENE_BOX), null, 2));
   console.log("SCENE_ROW_NAME:", JSON.stringify(await row1.locator("span.text-t-md").first().evaluate((el) => {
     const cs = getComputedStyle(el);
@@ -374,7 +374,7 @@ test("measure prompt-dropdown computed styles", async ({ page }) => {
   });
   console.log("SCENE_PANEL_POS:", JSON.stringify(pos, null, 2));
 
-  // 关闭弹层 → 制造脏态 → 箭头钮禁用行为（以实现为准的逻辑事实；顺带核保存钮 Tip 存在）
+  // 关闭弹层 → 制造脏态 → 箭头钮不随未保存禁用（2026-10-05 随族：照常打开；顺带核保存钮 Tip 存在）
   await page.keyboard.press("Escape");
   await page.getByLabel("描述", { exact: true }).fill("取证修改描述");
   await page.waitForTimeout(300);
@@ -488,7 +488,7 @@ test("measure endpoint-switcher computed styles", async ({ page }) => {
     return { popLeft: Math.round(m.left), popRight: Math.round(m.right), popTop: Math.round(m.top), chipLeft: Math.round(t.left), chipRight: Math.round(t.right), chipBottom: Math.round(t.bottom), align: Math.abs(m.right - t.right) < 2 ? "right" : (Math.abs(m.left - t.left) < 2 ? "left" : "other") };
   }), null, 2));
 
-  const headLabel = menu.locator("div").filter({ hasText: /^端点配置$/ }).last();
+  const headLabel = menu.locator("div").filter({ hasText: /^端点 · 共/ }).last();
   console.log("EP_HEAD_LABEL:", JSON.stringify(await headLabel.evaluate((el) => {
     const cs = getComputedStyle(el);
     return { text: (el.textContent ?? "").slice(0, 20), fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom };
@@ -496,20 +496,16 @@ test("measure endpoint-switcher computed styles", async ({ page }) => {
 
   const items = menu.getByRole("menuitem");
   console.log("EP_ITEMS_COUNT:", JSON.stringify({ count: await items.count() }));
-  // 选中行 = 带选中点（size-2 圆点）的行；管理项 = 「管理配置」
-  const activeDot = menu.locator("span.size-2.rounded-full");
-  console.log("EP_ACTIVE_DOT:", JSON.stringify(await activeDot.first().evaluate((el) => {
-    const cs = getComputedStyle(el);
-    return { width: cs.width, height: cs.height, backgroundColor: cs.backgroundColor, borderRadius: cs.borderRadius };
-  }), null, 2));
-  const activeRow = menu.getByRole("menuitem").filter({ has: page.locator("span.size-2") }).first();
+  // 当前行 = tint 强调行（data-current；行右绿点与「管理配置…」项已随族裁撤、管理入口改头行 settings 钮）
+  console.log("EP_DOT_ABSENT:", JSON.stringify({ dots: await menu.locator("span.size-2.rounded-full").count() }));
+  const activeRow = menu.locator('[data-current]').first();
   console.log("EP_ROW_ACTIVE:", JSON.stringify(await activeRow.evaluate(SCENE_BOX), null, 2));
   console.log("EP_ROW_ACTIVE_TEXT:", JSON.stringify(await activeRow.evaluate((el) => {
     const cs = getComputedStyle(el);
     return { text: (el.textContent ?? "").slice(0, 30), fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color };
   }), null, 2));
-  const manageItem = menu.getByRole("menuitem", { name: "管理配置…" });
-  console.log("EP_ROW_MANAGE:", JSON.stringify(await manageItem.evaluate(SCENE_BOX), null, 2));
+  const headManage = menu.getByRole("button", { name: "前往设置 · 端点配置" });
+  console.log("EP_HEAD_MANAGE:", JSON.stringify(await headManage.evaluate(SCENE_BOX), null, 2));
   const sep = menu.locator('[role="separator"]');
   if ((await sep.count()) > 0) {
     console.log("EP_SEPARATOR:", JSON.stringify(await sep.first().evaluate((el) => {
@@ -858,23 +854,19 @@ test("measure skill-picker computed styles", async ({ page }) => {
   }), null, 2));
   console.log("SKILL_HEAD_ACTIONS:", JSON.stringify({ settingsBtnCount: await menu.locator("button").count(), note: "头行动作钮位（原型有 settings 钮）" }));
 
-  const rowOn = menu.getByRole("menuitemcheckbox", { name: "取证·skill甲" });
-  const rowOff = menu.getByRole("menuitemcheckbox", { name: /取证·skill停用/ });
+  const rowOn = menu.getByRole("menuitemcheckbox", { name: /^取证·skill甲/ });
   console.log("SKILL_ROW:", JSON.stringify(await rowOn.evaluate((el) => {
     const cs = getComputedStyle(el);
     return { height: el.offsetHeight, borderRadius: cs.borderRadius, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, paddingLeft: cs.paddingLeft, paddingRight: cs.paddingRight, fontSize: cs.fontSize, color: cs.color };
   }), null, 2));
-  console.log("SKILL_ROW_DESC:", JSON.stringify({ descCount: await rowOn.locator("span").count(), note: "实现行内是否渲染 description" }));
-  const indicator = rowOn.locator("span.absolute").first();
-  console.log("SKILL_INDICATOR:", JSON.stringify(await indicator.evaluate((el) => {
+  console.log("SKILL_ROW_DESC:", JSON.stringify({ spanCount: await rowOn.locator("span").count(), note: "行内两行式（名字＋描述）＋行首 cb" }));
+  const rowCb = rowOn.locator("input.cb");
+  console.log("SKILL_ROW_CB:", JSON.stringify(await rowCb.evaluate((el) => {
     const cs = getComputedStyle(el);
-    const svg = el.querySelector("svg");
-    return { boxW: el.offsetWidth, boxH: el.offsetHeight, left: cs.left, svgW: svg ? getComputedStyle(svg).width : null, svgVisible: svg ? getComputedStyle(svg).display : null };
+    return { boxW: el.offsetWidth, boxH: el.offsetHeight, checked: (el as HTMLInputElement).checked, borderRadius: cs.borderRadius };
   }), null, 2));
-  console.log("SKILL_ROW_DISABLED:", JSON.stringify(await rowOff.evaluate((el) => {
-    const cs = getComputedStyle(el);
-    return { text: (el.textContent ?? "").slice(0, 22), opacity: cs.opacity, color: cs.color, dataDisabled: el.getAttribute("data-disabled") };
-  }), null, 2));
+  // 停用 skill 不展示（列表过滤；无禁用行、无「（已停用）」缀）
+  console.log("SKILL_DISABLED_HIDDEN:", JSON.stringify({ disabledRowCount: await menu.getByRole("menuitemcheckbox", { name: /取证·skill停用/ }).count() }));
   await rowOn.hover();
   await page.waitForTimeout(400);
   console.log("SKILL_ROW_HOVER:", JSON.stringify(await rowOn.evaluate((el) => ({ backgroundColor: getComputedStyle(el).backgroundColor })), null, 2));
@@ -882,7 +874,7 @@ test("measure skill-picker computed styles", async ({ page }) => {
 
   // 勾选两个（菜单保持打开——onSelect preventDefault）
   await rowOn.click();
-  await menu.getByRole("menuitemcheckbox", { name: "取证·skill乙" }).click();
+  await menu.getByRole("menuitemcheckbox", { name: /^取证·skill乙/ }).click();
   await page.waitForTimeout(300);
   console.log("SKILL_CHECKED_STATE:", JSON.stringify({
     menuStillOpen: await menu.isVisible(),

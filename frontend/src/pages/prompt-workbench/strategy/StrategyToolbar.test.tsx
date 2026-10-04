@@ -51,7 +51,9 @@ function mount(strict = false): void {
           prompt_id: "p-caption-01",
           skill_ids: [],
         }}
-        prompts={[{ id: "p-caption-01", name: "caption", description: "" }]}
+        prompts={[
+          { id: "p-caption-01", name: "caption", description: "", body_chars: 0 },
+        ]}
         endpoints={[]}
         skills={[]}
         locked={false}
@@ -86,11 +88,13 @@ it("StrictMode 下关闭重开菜单后忽略旧列表响应", async () => {
   await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
   await userEvent.keyboard("{Escape}");
   await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
-  await screen.findByRole("button", { name: /详细描述.*训练用/ });
+  await screen.findByRole("menuitem", { name: /详细描述.*训练用/ });
 
   await act(async () => resolveOld([]));
 
-  expect(screen.getByRole("button", { name: /详细描述.*训练用/ })).toBeInTheDocument();
+  expect(
+    screen.getByRole("menuitem", { name: /详细描述.*训练用/ }),
+  ).toBeInTheDocument();
 });
 
 it("删除失败的原因在确认弹窗内可见，重试仍使用原策略", async () => {
@@ -125,7 +129,7 @@ it("编辑策略后锁定切换：列表照开、点了才提示；保存失败�
   mount();
   await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
   await userEvent.click(
-    await screen.findByRole("button", {
+    await screen.findByRole("menuitem", {
       name: /详细描述.*训练用/,
     }),
   );
@@ -138,7 +142,7 @@ it("编辑策略后锁定切换：列表照开、点了才提示；保存失败�
   // 才就地提示原因——不再是「按钮灰掉、列表也打不开」。重开菜单点另一套策略。
   await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
   await userEvent.click(
-    await screen.findByRole("button", { name: /极简描述.*训练用/ }),
+    await screen.findByRole("menuitem", { name: /极简描述.*训练用/ }),
   );
   expect(await screen.findByText(/先点「保存」，才能切换策略/)).toBeVisible();
   // 菜单开着时外部元素被 aria-hidden（浮层陷阱），用 Escape 收起再继续。
@@ -170,8 +174,8 @@ it("失效策略进入重新指定，不应用缺失引用；删除需要二次�
   mount();
   await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
   await userEvent.click(
-    await screen.findByRole("button", {
-      name: /详细描述.*训练用.*引用缺失/,
+    await screen.findByRole("menuitem", {
+      name: /详细描述.*引用缺失.*训练用/,
     }),
   );
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
@@ -188,11 +192,12 @@ it("失效策略进入重新指定，不应用缺失引用；删除需要二次�
 it("下拉行给出注入字数，悬停可见出身三参数", async () => {
   mount();
   await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
-  const row = await screen.findByRole("button", { name: /^详细描述/ });
+  const row = await screen.findByRole("menuitem", { name: /^详细描述/ });
 
-  expect(row).toHaveTextContent("1.2 万字");
+  expect(row).toHaveTextContent("12.4k 字");
 
-  await userEvent.hover(row);
+  // 出身键值卡的 Tip 挂在行名字区（策略行语义），悬停名字即出。
+  await userEvent.hover(within(row).getByText("详细描述"));
   const tip = await screen.findByRole("tooltip");
   expect(tip).toHaveTextContent("端点");
   expect(tip).toHaveTextContent("default");
@@ -329,7 +334,9 @@ describe("策略选中的启动恢复与镜像（v2）", () => {
             prompt_id: "p-caption-01",
             skill_ids: [],
           }}
-          prompts={[{ id: "p-caption-01", name: "caption", description: "" }]}
+          prompts={[
+            { id: "p-caption-01", name: "caption", description: "", body_chars: 0 },
+          ]}
           endpoints={[]}
           skills={[]}
           locked={false}

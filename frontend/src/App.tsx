@@ -57,8 +57,12 @@ export function App(): ReactElement {
   // 合成值不落盘：进入区间即收起，离开后恢复用户自己的折叠偏好。
   const narrowDesktop = useMediaQuery("(min-width: 768px) and (max-width: 1023.98px)");
 
-  function openSettings() {
+  function openSettings(section?: SettingsSection) {
     if (page !== "settings") setWorkPage(page);
+    // 子页定向（族弹层「前往设置」钮）：带哪节落哪节，不带沿用上次。
+    // 防「当 onClick 直传」被 React 塞进事件对象：非合法节值一律忽略（set 进去会出现
+    // 没有任何分支命中的非法节、内容区空白——E2E 实锤过一轮）。
+    if (isSettingsSection(section)) setSettingsSection(section);
     setPage("settings");
     setNavigationOpen(false);
   }

@@ -2632,6 +2632,11 @@ export interface components {
          * @description POST /api/prompts 的响应体（服务端分配 ID）。
          */
         PromptCreated: {
+            /**
+             * Body Chars
+             * @description 注入正文字符数（提示词全文，即打标请求的注入量）
+             */
+            body_chars: number;
             /** Description */
             description: string;
             /**
@@ -2652,6 +2657,11 @@ export interface components {
         PromptFull: {
             /** Body */
             body: string;
+            /**
+             * Body Chars
+             * @description 注入正文字符数（提示词全文，即打标请求的注入量）
+             */
+            body_chars: number;
             /** Description */
             description: string;
             /**
@@ -2670,6 +2680,11 @@ export interface components {
          * @description 提示词条目（列表项）。
          */
         PromptInfo: {
+            /**
+             * Body Chars
+             * @description 注入正文字符数（提示词全文，即打标请求的注入量）
+             */
+            body_chars: number;
             /** Description */
             description: string;
             /**

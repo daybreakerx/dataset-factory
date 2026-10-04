@@ -293,7 +293,14 @@ def test_prompts_crud(client: TestClient) -> None:
 
     assert created.status_code == 201
     assert listing.status_code == 200
-    assert listing.json() == [{"id": pid, "name": "h3", "description": "视频打标"}]
+    assert listing.json() == [
+        {
+            "id": pid,
+            "name": "h3",
+            "description": "视频打标",
+            "body_chars": len("你是打标助手。"),
+        }
+    ]
     assert full.json()["body"] == "你是打标助手。"
     assert put_again.status_code == 204
     assert full_again.json()["body"] == "新版正文"

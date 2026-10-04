@@ -127,14 +127,15 @@ test("measure select popover computed styles", async ({ page }) => {
   console.log("SPC_CHECK:", JSON.stringify(await page.evaluate(() => {
     const cur = document.querySelector('[data-slot="select-content"] [data-state="checked"]');
     if (!cur) return null;
+    // 勾已裁撤（2026-10-05 族口径：选中行 = tint /8＋主色描边 /30，无对勾指示器）
     const wrap = cur.querySelector("span.absolute");
-    const svg = wrap?.querySelector("svg");
+    const cs = getComputedStyle(cur as HTMLElement);
     return {
-      wrapPresent: !!wrap, wrapSize: wrap ? getComputedStyle(wrap).width : null,
-      wrapRight: wrap ? getComputedStyle(wrap).right : null,
-      svgPresent: !!svg, svgSize: svg ? getComputedStyle(svg).width : null,
-      svgColor: svg ? getComputedStyle(svg).color : null,
-      svgVisible: svg ? svg.checkVisibility() : null,
+      indicatorPresent: !!wrap,
+      bg: cs.backgroundColor,
+      bd: cs.borderTopWidth + " " + cs.borderTopColor,
+      color: cs.color,
+      weight: cs.fontWeight,
     };
   }), null, 2));
 
@@ -192,7 +193,7 @@ test("measure select popover computed styles", async ({ page }) => {
       focused: cur === document.activeElement,
       bg: cs.backgroundColor, bd: cs.borderTopWidth + " " + cs.borderTopColor,
       color: cs.color, weight: cs.fontWeight,
-      checkWrapPresent: !!wrap, svgPresent: !!wrap?.querySelector("svg"),
+      indicatorPresent: !!wrap,
     };
   }), null, 2));
   await page.keyboard.press("Escape");
@@ -212,13 +213,12 @@ test("measure select popover computed styles", async ({ page }) => {
     const g = getComputedStyle(c);
     const cur = c.querySelector('[data-state="checked"]') as HTMLElement | null;
     const dis = c.querySelector("[data-disabled]") as HTMLElement | null;
-    const svg = cur?.querySelector("span.absolute svg");
     return {
       popBg: g.backgroundColor, popBd: g.borderTopColor, shadow: g.boxShadow,
       curBg: cur ? getComputedStyle(cur).backgroundColor : null,
       curColor: cur ? getComputedStyle(cur).color : null,
       disColor: dis ? getComputedStyle(dis).color : null,
-      svgColor: svg ? getComputedStyle(svg).color : null,
+      indicatorPresent: !!(cur && cur.querySelector("span.absolute")),
     };
   }), null, 2));
   await page.keyboard.press("Escape");

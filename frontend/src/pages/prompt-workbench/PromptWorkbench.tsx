@@ -16,6 +16,7 @@ import { reportError } from "../../lib/feedback";
 import {
   isWorkbenchEditorMirror,
   NEW_STRATEGY_ID,
+  type SettingsSection,
   WORKBENCH_EDITOR_KEY,
   type WorkbenchEditorMirror,
 } from "../../lib/ui-storage";
@@ -29,7 +30,8 @@ import type { Strategy } from "./strategy/use-strategies";
 export function PromptWorkbench({
   onNavigateToSettings,
 }: {
-  onNavigateToSettings: () => void;
+  /** 去设置页；可带子页定向（端点弹层「前往设置」→ 端点配置；技能弹层 → 技能）。 */
+  onNavigateToSettings: (section?: SettingsSection) => void;
 }): ReactElement {
   // ---------- 列表与编辑器 ----------
   // 当前选中的提示词 ID（发送 / 策略应用直接用它；显示名单独存草稿）。
@@ -120,8 +122,14 @@ export function PromptWorkbench({
     setPrompts,
     setSkills,
     setEndpoints,
+    promptsQuery,
+    skillsQuery,
+    endpointsQuery,
     fetchAllLists,
     reloadPrompts,
+    refreshPrompts,
+    refreshSkills,
+    refreshEndpoints,
   } = useWorkbenchLists(failEditor);
 
   // 端点选中的派生值（按 ID 现查）：选中指向已删配置（外部删除 / 策略引用悬空）时
@@ -476,8 +484,15 @@ export function PromptWorkbench({
         >
           <EditorColumn
             prompts={prompts}
+            selectedPromptId={selectedId}
+            promptsLoading={promptsQuery.loading}
+            promptsFailed={promptsQuery.failed}
             promptMenuOpen={promptMenuOpen}
-            onPromptMenuOpenChange={setPromptMenuOpen}
+            onPromptMenuOpenChange={(open) => {
+              setPromptMenuOpen(open);
+              // 打开＝重拉（族口径：失败态重开即重试；有旧数据时保旧静默）。
+              if (open) void refreshPrompts();
+            }}
             draftName={draftName}
             onDraftNameInput={(value) => {
               interactionRef.current += 1;
@@ -516,8 +531,12 @@ export function PromptWorkbench({
 
           <ChatColumn
             endpoints={endpoints}
+            endpointsLoading={endpointsQuery.loading}
+            endpointsFailed={endpointsQuery.failed}
             selectedEndpointId={selectedEndpointId}
             skills={skills}
+            skillsLoading={skillsQuery.loading}
+            skillsFailed={skillsQuery.failed}
             skillIds={skillIds}
             disabled={strategyBusy || promptBusy}
             controlsBusy={controlsBusy}
@@ -531,7 +550,10 @@ export function PromptWorkbench({
             media={media}
             sending={sending}
             onSelectEndpoint={selectEndpoint}
-            onManageEndpoints={onNavigateToSettings}
+            onEndpointsMenuOpen={() => void refreshEndpoints()}
+            onSkillsMenuOpen={() => void refreshSkills()}
+            onManageEndpoints={() => onNavigateToSettings("endpoints")}
+            onManageSkills={() => onNavigateToSettings("skills")}
             onNewSession={() => {
               interactionRef.current += 1;
               newSession();

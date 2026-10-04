@@ -1827,35 +1827,10 @@
       "PromptCreated": {
         "description": "POST /api/prompts 的响应体（服务端分配 ID）。",
         "properties": {
-          "description": {
-            "title": "Description",
-            "type": "string"
-          },
-          "id": {
-            "description": "提示词 ID（内部稳定身份，不随改名变化）",
-            "title": "Id",
-            "type": "string"
-          },
-          "name": {
-            "description": "显示名（可改、允许重名）",
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "description"
-        ],
-        "title": "PromptCreated",
-        "type": "object"
-      },
-      "PromptFull": {
-        "description": "提示词全文。",
-        "properties": {
-          "body": {
-            "title": "Body",
-            "type": "string"
+          "body_chars": {
+            "description": "注入正文字符数（提示词全文，即打标请求的注入量）",
+            "title": "Body Chars",
+            "type": "integer"
           },
           "description": {
             "title": "Description",
@@ -1876,14 +1851,23 @@
           "id",
           "name",
           "description",
-          "body"
+          "body_chars"
         ],
-        "title": "PromptFull",
+        "title": "PromptCreated",
         "type": "object"
       },
-      "PromptInfo": {
-        "description": "提示词条目（列表项）。",
+      "PromptFull": {
+        "description": "提示词全文。",
         "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "body_chars": {
+            "description": "注入正文字符数（提示词全文，即打标请求的注入量）",
+            "title": "Body Chars",
+            "type": "integer"
+          },
           "description": {
             "title": "Description",
             "type": "string"
@@ -1902,7 +1886,41 @@
         "required": [
           "id",
           "name",
-          "description"
+          "description",
+          "body_chars",
+          "body"
+        ],
+        "title": "PromptFull",
+        "type": "object"
+      },
+      "PromptInfo": {
+        "description": "提示词条目（列表项）。",
+        "properties": {
+          "body_chars": {
+            "description": "注入正文字符数（提示词全文，即打标请求的注入量）",
+            "title": "Body Chars",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "description": "提示词 ID（内部稳定身份，不随改名变化）",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "显示名（可改、允许重名）",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "body_chars"
         ],
         "title": "PromptInfo",
         "type": "object"

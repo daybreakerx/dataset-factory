@@ -160,6 +160,9 @@ class PromptInfo(BaseModel):
     id: str = Field(description="提示词 ID（内部稳定身份，不随改名变化）")
     name: str = Field(description="显示名（可改、允许重名）")
     description: str
+    body_chars: int = Field(
+        description="注入正文字符数（提示词全文，即打标请求的注入量）"
+    )
 
 
 class PromptFull(PromptInfo):

@@ -1,5 +1,5 @@
 /** 对话列：题头（端点切换 + 新会话）+ 消息流 + 错误条 + 输入区（Skill 组合内聚）。 */
-import { PlusIcon, XIcon } from "lucide-react";
+import { PlusIcon, SettingsIcon, XIcon } from "lucide-react";
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -7,18 +7,22 @@ import {
   useState,
 } from "react";
 import type { EndpointConfigSummary, SkillInfo } from "../../../api";
+import {
+  CfgPopCheckRow,
+  CfgPopContent,
+  CfgPopHead,
+  CfgPopStateRow,
+} from "../../../components/cfg-pop";
 import type { MediaPreviewTarget } from "../../../components/media-lightbox";
 import { MediaLightbox } from "../../../components/media-lightbox";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
 import {
+  Tip,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -31,8 +35,12 @@ import { MessageList } from "./MessageList";
 /** 对话列整块（工作台右列）。事件走回调 props；配置忙态由页面判定后传入。 */
 export function ChatColumn({
   endpoints,
+  endpointsLoading,
+  endpointsFailed,
   selectedEndpointId,
   skills,
+  skillsLoading,
+  skillsFailed,
   skillIds,
   disabled,
   controlsBusy,
@@ -46,7 +54,10 @@ export function ChatColumn({
   media,
   sending,
   onSelectEndpoint,
+  onEndpointsMenuOpen,
+  onSkillsMenuOpen,
   onManageEndpoints,
+  onManageSkills,
   onNewSession,
   onCopy,
   onToggleSkill,
@@ -60,9 +71,13 @@ export function ChatColumn({
   onStop,
 }: {
   endpoints: EndpointConfigSummary[];
+  endpointsLoading: boolean;
+  endpointsFailed: boolean;
   /** 端点 chip 的页内选中 ID（空串 = 未选；显示按 ID 现查）。 */
   selectedEndpointId: string;
   skills: SkillInfo[];
+  skillsLoading: boolean;
+  skillsFailed: boolean;
   skillIds: string[];
   /** 配置飞行中（策略应用 / 提示词保存任一）：端点切换器禁用。 */
   disabled: boolean;
@@ -78,7 +93,12 @@ export function ChatColumn({
   media: PendingMedia | null;
   sending: boolean;
   onSelectEndpoint: (cid: string) => void;
+  /** 每次打开端点弹层重拉列表（打开＝重试）。 */
+  onEndpointsMenuOpen: () => void;
+  /** 每次打开 Skill 库弹层重拉列表（打开＝重试）。 */
+  onSkillsMenuOpen: () => void;
   onManageEndpoints: () => void;
+  onManageSkills: () => void;
   onNewSession: () => void;
   onCopy: (message: ChatMessage) => void;
   onToggleSkill: (sid: string) => void;
@@ -93,6 +113,10 @@ export function ChatColumn({
 }): ReactElement {
   // 媒体大图预览：消息流缩略图与待发附件卡的共同出口。
   const [preview, setPreview] = useState<MediaPreviewTarget | null>(null);
+  // 停用 skill 不展示（列表过滤，2026-09-26 用户裁）；计数取展示口径、不写库内总数。
+  const visibleSkills = skills.filter((skill) => skill.enabled);
+  const skillsCountKnown =
+    !skillsFailed && !(skillsLoading && visibleSkills.length === 0);
 
   return (
     <section
@@ -105,6 +129,9 @@ export function ChatColumn({
           endpoints={endpoints}
           selectedId={selectedEndpointId}
           disabled={disabled}
+          loading={endpointsLoading}
+          failed={endpointsFailed}
+          onMenuOpen={onEndpointsMenuOpen}
           onSelect={onSelectEndpoint}
           onManage={onManageEndpoints}
         />
@@ -144,40 +171,53 @@ export function ChatColumn({
       {/* 输入区 */}
       <InputArea
         actions={
-          <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="添加 Skill">
-                    <PlusIcon />
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>添加 Skill</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent
-              side="top"
-              align="start"
-              className="max-h-60 w-64 overflow-y-auto"
-            >
-              <DropdownMenuLabel>Skill 库 · 共 {skills.length} 条</DropdownMenuLabel>
-              {skills.map((skill) => (
-                <DropdownMenuCheckboxItem
-                  key={skill.id}
-                  checked={skillIds.includes(skill.id)}
-                  disabled={!skill.enabled || controlsBusy}
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    onToggleSkill(skill.id);
-                  }}
-                >
-                  <span className="truncate">
-                    {skill.name}
-                    {skill.enabled ? "" : "（已停用）"}
-                  </span>
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
+          <DropdownMenu
+            onOpenChange={(next) => {
+              if (next) onSkillsMenuOpen();
+            }}
+          >
+            <Tip label="添加 Skill">
+              <DropdownMenuTrigger asChild>
+                {/* 2026-10-02 定形：现役无禁用条件——族形态档（加号钮禁用）住 通用件/下拉选择器.html。 */}
+                <Button variant="ghost" size="icon" aria-label="添加 Skill">
+                  <PlusIcon />
+                </Button>
+              </DropdownMenuTrigger>
+            </Tip>
+            <CfgPopContent anchor="trigger" side="top" align="start">
+              <CfgPopHead
+                label={
+                  skillsCountKnown
+                    ? `Skill 库 · 共 ${visibleSkills.length} 条`
+                    : "Skill 库"
+                }
+                action={{
+                  label: "前往设置 · 技能",
+                  icon: <SettingsIcon />,
+                  onClick: onManageSkills,
+                }}
+              />
+              <div className="max-h-80 overflow-y-auto">
+                {skillsLoading && visibleSkills.length === 0 ? (
+                  <CfgPopStateRow>正在读取…</CfgPopStateRow>
+                ) : skillsFailed ? (
+                  <CfgPopStateRow>Skill 读取失败</CfgPopStateRow>
+                ) : visibleSkills.length === 0 ? (
+                  <CfgPopStateRow>还没有可用的 Skill</CfgPopStateRow>
+                ) : (
+                  visibleSkills.map((skill) => (
+                    <CfgPopCheckRow
+                      key={skill.id}
+                      checked={skillIds.includes(skill.id)}
+                      disabled={controlsBusy}
+                      onCheckedChange={() => onToggleSkill(skill.id)}
+                      name={skill.name}
+                      desc={skill.description}
+                    />
+                  ))
+                )}
+              </div>
+            </CfgPopContent>
           </DropdownMenu>
         }
         selectedSkills={
@@ -193,6 +233,7 @@ export function ChatColumn({
                   <button
                     type="button"
                     aria-label={`移除 Skill ${label}`}
+                    className="text-text-4"
                     onClick={() => onToggleSkill(sid)}
                   >
                     <XIcon className="size-3.5" />

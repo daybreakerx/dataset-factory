@@ -1,36 +1,44 @@
 /** 提示词编辑列（区块组件）：名称与提示词库、描述、正文与字节护栏、反馈与删除确认。 */
-import { ChevronDownIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import type { ReactElement } from "react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
+import { type ReactElement, type RefObject, useRef } from "react";
 import type { PromptInfo } from "../../../api";
+import {
+  CfgNameChevron,
+  CfgPopContent,
+  CfgPopHead,
+  CfgPopRow,
+  CfgPopRowIconButton,
+  CfgPopRowMain,
+  CfgPopStateRow,
+} from "../../../components/cfg-pop";
 import { DialogShell } from "../../../components/dialog-shell";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
-import {
-  Tip,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "../../../components/ui/tooltip";
+import { Tip } from "../../../components/ui/tooltip";
 import type { Feedback } from "../../../lib/feedback";
-import { formatBytes } from "../../../lib/format";
+import { formatBytes, formatChars } from "../../../lib/format";
 import { BodyEditor } from "./BodyEditor";
 
 /** 基础提示词的字节护栏（对齐 Codex project_doc_max_bytes，后端同值校验）。 */
 const PROMPT_BYTE_BUDGET = 32 * 1024;
 
-/** 提示词库下拉弹层（本列私有件）：切换触发件＋库列表＋新建入口。 */
+/** 提示词库下拉弹层（本列私有件）：切换触发件＋库列表＋新建入口。族内实例（cfg-pop）——
+ *  弹层壳／头行／行／三态行随 components/cfg-pop.tsx；触发件随族不再随未保存禁用
+ *  （2026-10-05 随组件归一；点非当前行的拦截形态改确认保存弹窗，见对齐批）。 */
 function PromptMenu({
   open,
   onOpenChange,
   prompts,
-  promptDirty,
+  selectedPromptId,
+  loading,
+  failed,
+  wrapRef,
   onNew,
   onSelect,
   onDelete,
@@ -38,84 +46,78 @@ function PromptMenu({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   prompts: PromptInfo[];
-  promptDirty: boolean;
+  /** 当前编辑的提示词 ID（当前行 tint 强调的判据；空串＝新建草稿、无当前行）。 */
+  selectedPromptId: string;
+  loading: boolean;
+  failed: boolean;
+  /** 名字框承载块：弹层宽下限与贴边方向的基准（族宽三段式）。 */
+  wrapRef: RefObject<HTMLDivElement | null>;
   onNew: () => void;
   onSelect: (name: string) => void;
   onDelete: (name: string) => void;
 }): ReactElement {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // 计数不可知（首取中／取数失败）时头行只写库名，不写假计数（overlay.md 头行条）。
+  const countKnown = !failed && !(loading && prompts.length === 0);
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute right-0 size-6"
-          aria-label="切换提示词"
-          disabled={promptDirty}
-        >
-          <ChevronDownIcon />
-        </Button>
+        <CfgNameChevron ref={triggerRef} label="切换提示词" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-80 max-w-[calc(100vw-32px)]">
-        <div className="flex items-center justify-between px-2 py-1 text-t-xs text-text-4">
-          <span>提示词库 · 共 {prompts.length} 条</span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="新建提示词"
-                onClick={onNew}
-              >
-                <PlusIcon />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>新建提示词</TooltipContent>
-          </Tooltip>
-        </div>
+      <CfgPopContent
+        wrapRef={wrapRef}
+        triggerRef={triggerRef}
+        align="start"
+        side="bottom"
+      >
+        <CfgPopHead
+          label={countKnown ? `提示词库 · 共 ${prompts.length} 条` : "提示词库"}
+          action={{
+            label: "新建提示词",
+            icon: <PlusIcon />,
+            onClick: onNew,
+          }}
+        />
         <div className="max-h-80 overflow-y-auto">
-          {prompts.map((prompt) => (
-            <div
-              key={prompt.name}
-              className="flex items-center gap-1 rounded-md p-2 hover:bg-accent"
-            >
-              <button
-                type="button"
-                className="min-w-0 flex-1 text-left"
-                aria-label={`选择提示词 ${prompt.name}`}
-                onClick={() => onSelect(prompt.name)}
+          {loading && prompts.length === 0 ? (
+            <CfgPopStateRow>正在读取…</CfgPopStateRow>
+          ) : failed ? (
+            <CfgPopStateRow>提示词读取失败</CfgPopStateRow>
+          ) : prompts.length === 0 ? (
+            <CfgPopStateRow>还没有可用的提示词</CfgPopStateRow>
+          ) : (
+            prompts.map((prompt) => (
+              <CfgPopRow
+                key={prompt.id}
+                current={prompt.id === selectedPromptId}
+                onSelect={() => onSelect(prompt.name)}
               >
-                <span className="block truncate text-t-md font-medium">
-                  {prompt.name}
-                </span>
-                <span className="block truncate text-t-xs text-n-500">
-                  {prompt.description}
-                </span>
-              </button>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-bad-ink"
-                    aria-label={`删除提示词 ${prompt.name}`}
-                    onClick={() => onDelete(prompt.name)}
-                  >
-                    <Trash2Icon />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>删除</TooltipContent>
-              </Tooltip>
-            </div>
-          ))}
+                <CfgPopRowMain
+                  name={prompt.name}
+                  count={formatChars(prompt.body_chars)}
+                  desc={prompt.description}
+                />
+                <CfgPopRowIconButton
+                  danger
+                  label={`删除提示词 ${prompt.name}`}
+                  tip="删除"
+                  icon={<Trash2Icon />}
+                  onClick={() => onDelete(prompt.name)}
+                />
+              </CfgPopRow>
+            ))
+          )}
         </div>
-      </DropdownMenuContent>
+      </CfgPopContent>
     </DropdownMenu>
   );
 }
 
 export function EditorColumn({
   prompts,
+  selectedPromptId,
+  promptsLoading,
+  promptsFailed,
   promptMenuOpen,
   onPromptMenuOpenChange,
   draftName,
@@ -137,6 +139,11 @@ export function EditorColumn({
   onDeleteConfirm,
 }: {
   prompts: PromptInfo[];
+  /** 当前编辑的提示词 ID（弹层当前行判据；空串＝新建草稿）。 */
+  selectedPromptId: string;
+  /** 提示词库取数中／取数失败（弹层三态行；打开即重拉的飞行态）。 */
+  promptsLoading: boolean;
+  promptsFailed: boolean;
   promptMenuOpen: boolean;
   onPromptMenuOpenChange: (open: boolean) => void;
   draftName: string;
@@ -161,6 +168,8 @@ export function EditorColumn({
   const bodyBytes = new TextEncoder().encode(draftBody).length;
   const byteOver = bodyBytes > PROMPT_BYTE_BUDGET;
   const bodySize = formatBytes(bodyBytes, "KiB", 1);
+  // 名字框承载块：提示词库弹层的宽度下限与贴边方向基准（族宽三段式）。
+  const nameWrapRef = useRef<HTMLDivElement>(null);
 
   return (
     <section
@@ -170,20 +179,26 @@ export function EditorColumn({
       <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-border bg-card px-6 py-4">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="text-t-sm text-text-3">提示词</span>
-          <div className="relative flex min-w-0 max-w-full items-center">
+          <div
+            ref={nameWrapRef}
+            className="relative flex min-w-0 max-w-full items-center"
+          >
             <input
               id="prompt-name"
               aria-label="名称"
               value={draftName}
               placeholder="新建提示词"
-              className="min-w-24 max-w-full field-sizing-content rounded-md border border-transparent bg-transparent py-1 pr-7 pl-1 text-t-xl font-medium hover:border-input focus:border-n-400"
+              className="min-w-24 max-w-[380px] field-sizing-content rounded-md border border-transparent bg-transparent py-1 pr-7 pl-1 text-t-xl font-medium hover:border-input focus:border-n-400 focus:outline-none"
               onInput={(event) => onDraftNameInput(event.currentTarget.value)}
             />
             <PromptMenu
               open={promptMenuOpen}
               onOpenChange={onPromptMenuOpenChange}
               prompts={prompts}
-              promptDirty={promptDirty}
+              selectedPromptId={selectedPromptId}
+              loading={promptsLoading}
+              failed={promptsFailed}
+              wrapRef={nameWrapRef}
               onNew={onNewDraft}
               onSelect={onSelectPrompt}
               onDelete={onDeletePromptRequest}
@@ -208,6 +223,8 @@ export function EditorColumn({
           </Label>
           <Input
             id="prompt-desc"
+            aria-label="描述"
+            placeholder="介绍提示词"
             value={draftDescription}
             onInput={(event) => onDraftDescriptionInput(event.currentTarget.value)}
           />

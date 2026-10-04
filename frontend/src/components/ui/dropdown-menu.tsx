@@ -1,20 +1,76 @@
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { CheckIcon } from "lucide-react";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactElement } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 import { cn } from "../../lib/utils";
 
-const DropdownMenu = DropdownMenuPrimitive.Root;
+/** 弹层状态（族键盘范式用）：open＝展开态（聚焦落点 effect 的触发源）；
+ *  requestClose＝关窗请求（Tab／Shift+Tab＝关菜单、焦点移出）——Root 侧提供、Content 侧消费。 */
+const DropdownMenuStateContext = createContext<{
+  open: boolean;
+  requestClose: () => void;
+} | null>(null);
+
+/** 族键盘范式（components/overlay.md「生命周期」2026-10-04 选择器范式）：Root 补一层
+ *  受控/非受控桥，让 Content 能在 Tab 时主动请求关闭（Radix Content 拿不到 Root 的 setter）。 */
+function DropdownMenu({
+  open,
+  defaultOpen,
+  onOpenChange,
+  children,
+  ...props
+}: ComponentProps<typeof DropdownMenuPrimitive.Root>): ReactElement {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen ?? false);
+  const isControlled = open !== undefined;
+  const isOpen = isControlled ? open : uncontrolledOpen;
+  const handleOpenChange = (next: boolean): void => {
+    if (!isControlled) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
+  return (
+    <DropdownMenuStateContext.Provider
+      value={{ open: isOpen, requestClose: () => handleOpenChange(false) }}
+    >
+      <DropdownMenuPrimitive.Root
+        open={isOpen}
+        onOpenChange={handleOpenChange}
+        {...props}
+      >
+        {children}
+      </DropdownMenuPrimitive.Root>
+    </DropdownMenuStateContext.Provider>
+  );
+}
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
 function DropdownMenuContent({
   className,
   sideOffset = 4,
+  onKeyDown,
+  children,
   ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+}: ComponentProps<typeof DropdownMenuPrimitive.Content>): ReactElement {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const menuState = useContext(DropdownMenuStateContext);
+  const open = menuState?.open ?? false;
+  useEffect(() => {
+    // 选择器范式①：开层后焦点落「当前项」（无当前项落首个可用项；全无选项时兜底聚焦容器，
+    // Esc 与键盘导航照常可用）。挂「open 翻真」而非挂载——本组件随实例常驻、Content 才随开层挂；
+    // Radix 默认先聚焦容器，本效果随后把焦点挪到目标行。
+    if (!open) return;
+    const content = contentRef.current;
+    if (content === null) return;
+    const target =
+      content.querySelector<HTMLElement>(
+        '[role="menuitem"][data-current]:not([data-disabled])',
+      ) ?? content.querySelector<HTMLElement>('[role="menuitem"]:not([data-disabled])');
+    (target ?? content).focus({ preventScroll: true });
+  }, [open]);
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
+        ref={contentRef}
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
@@ -22,8 +78,20 @@ function DropdownMenuContent({
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
+        onKeyDown={(event) => {
+          onKeyDown?.(event);
+          if (event.defaultPrevented) return;
+          if (event.key === "Tab") {
+            // 选择器范式④：Tab／Shift+Tab＝关菜单、焦点移出——焦点回触发件由 Radix 关闭时
+            // 自动完成，再按 Tab 继续按页内顺序走（不再困在弹层里）。
+            event.preventDefault();
+            menuState?.requestClose();
+          }
+        }}
         {...props}
-      />
+      >
+        {children}
+      </DropdownMenuPrimitive.Content>
     </DropdownMenuPrimitive.Portal>
   );
 }
@@ -49,8 +117,12 @@ function DropdownMenuItem({
 function DropdownMenuCheckboxItem({
   className,
   children,
+  withIndicator = true,
   ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+}: ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem> & {
+  /** 行首对勾指示器：族多选勾选行（.cb 复选框为信号）不取——族规则「无对勾」（overlay.md）。 */
+  withIndicator?: boolean;
+}) {
   return (
     <DropdownMenuPrimitive.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
@@ -61,11 +133,13 @@ function DropdownMenuCheckboxItem({
       )}
       {...props}
     >
-      <span className="absolute left-2 flex size-3.5 items-center justify-center">
-        <DropdownMenuPrimitive.ItemIndicator>
-          <CheckIcon className="size-4" />
-        </DropdownMenuPrimitive.ItemIndicator>
-      </span>
+      {withIndicator && (
+        <span className="absolute left-2 flex size-3.5 items-center justify-center">
+          <DropdownMenuPrimitive.ItemIndicator>
+            <CheckIcon className="size-4" />
+          </DropdownMenuPrimitive.ItemIndicator>
+        </span>
+      )}
       {children}
     </DropdownMenuPrimitive.CheckboxItem>
   );

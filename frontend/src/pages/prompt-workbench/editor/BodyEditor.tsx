@@ -16,7 +16,7 @@ export function BodyEditor({
         className="min-h-0 w-full resize-none bg-transparent p-3 font-sans text-t-md leading-(--lh-loose) focus-visible:outline-none"
         value={value}
         onInput={(event) => onChange(event.currentTarget.value)}
-        placeholder="你是……"
+        placeholder="你是一个打标助手"
       />
     </div>
   );
