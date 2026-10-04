@@ -87,7 +87,7 @@ export function App(): ReactElement {
               setCollapsed(false);
               setNavigationOpen(true);
             }}
-            className="flex size-(--h-md) shrink-0 items-center justify-center rounded-md text-text-3 hover:bg-nav-hover"
+            className="flex size-(--h-md) shrink-0 items-center justify-center rounded-md text-text-3 transition-colors duration-(--dur-1) hover:bg-nav-hover hover:text-text-1"
           >
             <PanelLeftOpenIcon className="size-4" />
           </button>
