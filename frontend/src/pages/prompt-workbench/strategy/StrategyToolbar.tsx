@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "../../../components/ui/select";
 import { Tip } from "../../../components/ui/tooltip";
+import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
 import { reportError } from "../../../lib/feedback";
 import {
   isStrategySelection,
@@ -75,6 +76,11 @@ export function StrategyToolbar({
   const [repair, setRepair] = useState<Strategy | null>(null);
   // 创建成功反馈：原地转无底绿色对勾、三秒自动消失（保存钮稿 策略行实例）。
   const [createdFlash, setCreatedFlash] = useState(false);
+  // ---------- 新建策略草稿 × 点其他策略行的确认弹窗（未保存确认弹窗稿 形态约定行） ----------
+  const [draftSwitchOpen, setDraftSwitchOpen] = useState(false);
+  const [draftSwitchError, setDraftSwitchError] = useState("");
+  const [draftSwitchBusy, setDraftSwitchBusy] = useState(false);
+  const [draftSwitchTarget, setDraftSwitchTarget] = useState<Strategy | null>(null);
   const [bindings, setBindings] = useState<References>({
     endpoint_id: "",
     prompt_id: "",
@@ -278,7 +284,19 @@ export function StrategyToolbar({
     queueAutoSave("edit");
   };
 
-  const choose = async (entry: Strategy): Promise<void> => {
+  /** 应用某个策略的通用簿记（choose 与新建草稿弹窗的保存路共用）。 */
+  const applyStrategy = async (entry: Strategy): Promise<void> => {
+    await onSelect(entry);
+    if (!mounted.current) return;
+    setSelected(entry);
+    setName(entry.name);
+    setDescription(entry.description);
+    setOpen(false);
+  };
+
+  /** 切换执行主体（草稿判定之后的全部分流）：choose 与草稿弹窗放弃路共用——
+   *  放弃路在清空草稿的同一拍调用，不能回走 choose（闭包里还是清空前的状态）。 */
+  const performSwitch = async (entry: Strategy): Promise<void> => {
     if (pending.current || loading) return;
     if (!entry.available) {
       setBindings({
@@ -291,9 +309,6 @@ export function StrategyToolbar({
       return;
     }
     if (locked) return;
-    // 新建态有草稿（名称/描述已填、尚未落库）：切走即丢草稿——维持旧实现的拦截
-    // 保守处理；拦截形态（静默／弹窗兜底／允许切走）稿未承载，呈用户裁决。
-    if (selected === null && (name !== "" || description !== "")) return;
     if (promptDirty) {
       // 提示词跨行锁（保存钮稿「切换策略锁定」）：拦截形态随 提示词下拉 件——
       // 上层弹「未保存确认弹窗」，保存或放弃后经 pendingSwitch 放行继续切换。
@@ -307,16 +322,24 @@ export function StrategyToolbar({
     try {
       await autoSaveChainRef.current;
       await operate(async () => {
-        await onSelect(entry);
-        if (!mounted.current) return;
-        setSelected(entry);
-        setName(entry.name);
-        setDescription(entry.description);
-        setOpen(false);
+        await applyStrategy(entry);
       });
     } finally {
       suppressAutoSaveRef.current = false;
     }
+  };
+
+  const choose = (entry: Strategy): void => {
+    // 新建态有草稿（名称/描述已填、尚未落库）：切走即丢草稿——起「未保存确认弹窗」
+    // 兜底（未保存确认弹窗稿 形态约定行；2026-10-05 用户裁，替代静默拦）。
+    if (selected === null && (name !== "" || description !== "")) {
+      setOpen(false);
+      setDraftSwitchTarget(entry);
+      setDraftSwitchError("");
+      setDraftSwitchOpen(true);
+      return;
+    }
+    void performSwitch(entry);
   };
 
   // 弹窗放行后的继续切换（one-shot）：门闩防 StrictMode 双跑。
@@ -347,6 +370,82 @@ export function StrategyToolbar({
         if (mounted.current) setCreatedFlash(false);
       }, 3000);
     });
+  };
+
+  /** 新建草稿弹窗「保存修改」（primary）＝创建该策略（弹窗内红字拦前端校验；
+   *  后端业务错误也进弹窗红字、环境类走浮层）→ 成功后继续切到目标行。 */
+  const confirmDraftSwitch = async (): Promise<void> => {
+    if (draftSwitchBusy) return;
+    if (name.trim() === "") {
+      setDraftSwitchError("请填写策略名称");
+      return;
+    }
+    if (!references.prompt_id || !references.endpoint_id) {
+      setDraftSwitchError("请先选择端点和提示词");
+      return;
+    }
+    const target = draftSwitchTarget;
+    pending.current = true;
+    setBusy(true);
+    setDraftSwitchBusy(true);
+    setError("");
+    try {
+      const entry = await api.createStrategy({
+        name: name.trim(),
+        description,
+        ...references,
+      });
+      if (!mounted.current) return;
+      selectionTouched.current = true;
+      remember(entry);
+      setSelected(entry);
+      setName(entry.name);
+      setDescription(entry.description);
+      onStrategySaved(entry);
+      setCreatedFlash(true);
+      window.setTimeout(() => {
+        if (mounted.current) setCreatedFlash(false);
+      }, 3000);
+      setDraftSwitchOpen(false);
+      setDraftSwitchError("");
+      setDraftSwitchTarget(null);
+      // 创建成功继续切换目标行（直接走簿记，不经 choose——它会被 pending 挡掉）。
+      if (target !== null) await applyStrategy(target);
+    } catch (err) {
+      if (!mounted.current) return;
+      const text = reportError(err);
+      if (text !== null) setDraftSwitchError(text);
+    } finally {
+      pending.current = false;
+      if (mounted.current) {
+        setBusy(false);
+        setDraftSwitchBusy(false);
+      }
+    }
+  };
+
+  /** 弹窗「放弃修改」（secondary）＝丢弃新建草稿 → 继续切换目标行。 */
+  const discardDraftSwitch = (): void => {
+    if (draftSwitchBusy) return;
+    const target = draftSwitchTarget;
+    setSelected(null);
+    setName("");
+    setDescription("");
+    setCreatedFlash(false);
+    setDraftSwitchOpen(false);
+    setDraftSwitchError("");
+    setDraftSwitchTarget(null);
+    // 清空后直接走切换主体（不复走 choose——同一拍闭包里还是清空前的草稿态，
+    // 会把草稿弹窗再拉起来）。
+    if (target !== null) void performSwitch(target);
+  };
+
+  /** 叉号／Esc：关弹窗、留在新建态（草稿原样保留）。 */
+  const closeDraftSwitch = (open: boolean): void => {
+    if (open) return;
+    setDraftSwitchOpen(false);
+    setDraftSwitchError("");
+    setDraftSwitchTarget(null);
   };
 
   return (
@@ -526,6 +625,14 @@ export function StrategyToolbar({
           </FormError>
         )}
       </DialogShell>
+      <UnsavedConfirmDialog
+        open={draftSwitchOpen}
+        onOpenChange={closeDraftSwitch}
+        flight={draftSwitchBusy}
+        error={draftSwitchError}
+        onSave={() => void confirmDraftSwitch()}
+        onDiscard={discardDraftSwitch}
+      />
       <DialogShell
         open={repair !== null}
         onOpenChange={(open) => {

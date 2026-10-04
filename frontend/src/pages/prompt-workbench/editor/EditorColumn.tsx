@@ -90,7 +90,11 @@ function PromptMenu({
               <CfgPopRow
                 key={prompt.id}
                 current={prompt.id === selectedPromptId}
-                onSelect={() => onSelect(prompt.name)}
+                onSelect={() => {
+                  // 点当前行＝无实质变化，随 Radix 选中默认关层即可（2026-10-05 用户裁）。
+                  if (prompt.id === selectedPromptId) return;
+                  onSelect(prompt.name);
+                }}
               >
                 <CfgPopRowMain
                   name={prompt.name}

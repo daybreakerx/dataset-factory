@@ -88,7 +88,6 @@ export function PromptWorkbench({
     send,
     stopGeneration,
     newSession,
-    clearConversation,
     attachBucket,
     assignActiveSession,
     toggleSkill,
@@ -166,7 +165,7 @@ export function PromptWorkbench({
   const selectedEndpoint = endpoints.find((item) => item.id === selectedEndpointId);
 
   const selectPrompt = useCallback(
-    async (pid: string, options?: { resetSession?: boolean }): Promise<void> => {
+    async (pid: string): Promise<void> => {
       const request = ++promptRequestRef.current;
       const interaction = interactionRef.current;
       try {
@@ -183,12 +182,8 @@ export function PromptWorkbench({
         setSavedPrompt(full);
         setIsNewDraft(false);
         setEditorFeedback(null);
-        if (options?.resetSession === true) {
-          // 切提示词 = 下一轮换 system 底座（N1 同源③）：旧对话接着新配置只会
-          // 让产出来源混乱——直接清空（桶不变，下轮发送的新会话仍记在当前桶名下；
-          // 切回原提示词后的接续靠切桶，不靠签名猜测）。
-          clearConversation();
-        }
+        // 切提示词不清会话（2026-10-05 用户裁，N1③ 随之撤除）：会话记录跟随策略桶
+        // （会话归属 v3），提示词只是下一轮生成的底座——换底座不动消息流。
       } catch (err) {
         if (
           request !== promptRequestRef.current ||
@@ -198,7 +193,7 @@ export function PromptWorkbench({
         failEditor(err);
       }
     },
-    [clearConversation, failEditor],
+    [failEditor],
   );
 
   useEffect(
@@ -418,7 +413,7 @@ export function PromptWorkbench({
   ): Promise<void> => {
     if (target.kind === "prompt") {
       interactionRef.current += 1;
-      await selectPrompt(target.name, { resetSession: true });
+      await selectPrompt(target.name);
       return;
     }
     setPendingStrategySwitch(target.strategy);
@@ -645,7 +640,7 @@ export function PromptWorkbench({
                 return;
               }
               interactionRef.current += 1;
-              void selectPrompt(name, { resetSession: true });
+              void selectPrompt(name);
             }}
             onDeletePromptRequest={(name) => {
               setDeleteName(name);

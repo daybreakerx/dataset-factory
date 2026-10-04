@@ -6,8 +6,8 @@
 import type { ReactElement } from "react";
 import { TooltipProvider } from "../../components/ui/tooltip";
 import type { SettingsSection } from "../../lib/ui-storage";
+import type { PanelUnsavedActions } from "../../lib/unsaved-actions";
 import { cn } from "../../lib/utils";
-import type { PanelUnsavedActions } from "./endpoints/EndpointConfigPanel";
 import { EndpointConfigPanel } from "./endpoints/EndpointConfigPanel";
 import { ServicePanel } from "./service/ServicePanel";
 import { SkillsPanel } from "./skills/SkillsPanel";

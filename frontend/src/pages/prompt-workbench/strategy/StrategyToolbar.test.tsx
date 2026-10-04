@@ -86,6 +86,9 @@ function mount(
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  // 镜像与选中态走 localStorage：新建草稿等用例会写入，不清会让下一个用例的
+  // boot 认领到上一条的策略（用例间状态泄漏）。
+  localStorage.clear();
   mocks.listStrategies.mockResolvedValue([strategy]);
   // 认领是尽力而为：默认「没有会话」（404 形状的 reject），认领链静默收摊。
   mocks.latestSession.mockRejectedValue(new Error("404 no session"));
@@ -274,6 +277,76 @@ it("新建态渲染创建钮：名称空禁用，填名后点创建提交 create
     }),
   );
   expect(await screen.findByLabelText("已创建")).toBeInTheDocument();
+});
+
+it("新建态有草稿点其他策略行：起确认弹窗，保存路＝创建该策略后切到目标行", async () => {
+  const second: components["schemas"]["StrategyView"] = {
+    ...strategy,
+    id: "a2",
+    name: "极简描述",
+  };
+  mocks.listStrategies.mockResolvedValue([strategy, second]);
+  const created: components["schemas"]["StrategyView"] = {
+    ...strategy,
+    id: "a3",
+    name: "草稿策略",
+  };
+  mocks.createStrategy.mockResolvedValue(created);
+  mount();
+  await waitFor(() => expect(mocks.listStrategies).toHaveBeenCalled());
+
+  // 弄出新建态草稿（名称已填未落库）。
+  fireEvent.change(screen.getByLabelText("策略名称"), {
+    target: { value: "草稿策略" },
+  });
+  await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: /极简描述/ }));
+
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText("当前有未保存编辑，是否保存。")).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole("button", { name: "保存修改" }));
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  // 保存路＝创建草稿策略，再继续切到目标行。
+  await waitFor(() =>
+    expect(mocks.createStrategy).toHaveBeenCalledWith({
+      name: "草稿策略",
+      description: "",
+      endpoint_id: "e-default-x1",
+      prompt_id: "p-caption-01",
+      skill_ids: [],
+    }),
+  );
+  expect(select).toHaveBeenCalledTimes(1);
+  await waitFor(() =>
+    expect(screen.getByLabelText("策略名称")).toHaveValue("极简描述"),
+  );
+});
+
+it("新建态有草稿点其他策略行：放弃路丢弃草稿直接切换", async () => {
+  const second: components["schemas"]["StrategyView"] = {
+    ...strategy,
+    id: "a2",
+    name: "极简描述",
+  };
+  mocks.listStrategies.mockResolvedValue([strategy, second]);
+  mount();
+  await waitFor(() => expect(mocks.listStrategies).toHaveBeenCalled());
+
+  fireEvent.change(screen.getByLabelText("策略名称"), {
+    target: { value: "草稿策略" },
+  });
+  await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: /极简描述/ }));
+
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: "放弃修改" }));
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(mocks.createStrategy).not.toHaveBeenCalled();
+  await waitFor(() =>
+    expect(screen.getByLabelText("策略名称")).toHaveValue("极简描述"),
+  );
 });
 
 it("失效策略进入重新指定，不应用缺失引用；删除需要二次确认", async () => {
