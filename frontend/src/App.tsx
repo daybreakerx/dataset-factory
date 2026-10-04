@@ -115,7 +115,9 @@ export function App(): ReactElement {
         <Dialog open={navigationOpen} onOpenChange={setNavigationOpen}>
           <DialogContent
             aria-describedby={undefined}
-            closeClassName="hover:bg-nav-hover"
+            // 抽屉叉钮＝弹窗壳关闭钮的抽屉实例位（稿 侧栏展收：绝对定位上/右各 12），
+            // 悬停底按侧栏表面取 --nav-hover（压过壳通用 --accent 白底档）。
+            closeClassName="top-3 right-3 hover:bg-nav-hover"
             className="left-0 top-0 h-dvh w-62.5 max-w-full translate-x-0 translate-y-0 gap-0 rounded-none border-0 p-0"
           >
             <DialogTitle className="sr-only">导航</DialogTitle>

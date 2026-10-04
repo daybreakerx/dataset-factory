@@ -18,6 +18,8 @@ export type DialogAction = {
   variant?: ComponentProps<typeof Button>["variant"];
   size?: ComponentProps<typeof Button>["size"];
   disabled?: boolean;
+  /** 覆盖壳级 flight（实例稿口径分叉时用：关机弹窗飞行期只锁确认钮、取消照常可点）。 */
+  flight?: boolean;
   onClick: () => void;
 };
 
@@ -27,7 +29,9 @@ export type DialogShellProps = {
   /** 标准头行。头行有类名/布局分叉的弹窗不传，由 children 自组以保持现状 DOM。 */
   title?: ReactNode;
   description?: ReactNode;
-  /** 页脚左备注槽（现状形态：mr-auto self-center text-t-sm text-text-1）。 */
+  /** 失败行落标题右侧（稿 .modal-head-note，正文是表单字段的弹窗用；单行省略＋即时播报）。 */
+  headNote?: ReactNode;
+  /** 页脚左备注槽（稿 .modal-note：mr-auto、13px 正文色，如「此操作不可撤销」）。 */
   note?: ReactNode;
   /** 页脚中段自由位，渲染在备注槽与取消钮之间。 */
   footerExtra?: ReactNode;
@@ -37,6 +41,13 @@ export type DialogShellProps = {
   confirm?: DialogAction;
   /** 自由页脚（多钮状态机等）；传入时整行替换 cancel/confirm/note 组合。 */
   footer?: ReactNode;
+  /**
+   * 飞行期（提交已发出、回包前）：提交与取消两钮一并「只失效不换装」——
+   * aria-disabled ＋掐掉点击（外观与就绪态同形，不进灰阶）；Esc 与关闭钮照常可退出。
+   */
+  flight?: boolean;
+  /** 关闭叉钮的随态 Tip（破坏性弹窗飞行期「关闭不等于撤销删除」，未提交传空不出气泡）。 */
+  closeTip?: ReactNode;
   /** 透传 DialogContent；宽度、max-h、overflow 等壳面差异由调用方按现状值传入，本层不发明档位。 */
   className?: string;
   children?: ReactNode;
@@ -48,19 +59,25 @@ export type DialogShellProps = {
  * 渲染与手写 Dialog 结构逐元素相同（零新增 DOM）：标准头行（title/description）、
  * 主体 children、可选页脚（note 备注槽＋cancel/confirm 动作对，或自由 footer）。
  * 头行或页脚有形态分叉的弹窗不传对应 props、由 children 自组，现状结构原样保留；
- * 壳面宽度与滚动经 className 透传。弹窗视觉归一（宽度档、备注槽、飞行期钮态等）
- * 尚未施工，届时改这一处全站生效。
+ * 壳面宽度与滚动经 className 透传。
+ *
+ * 壳级口径（components/overlay.md 弹窗条）：点内容之外（含点遮罩）不关闭——
+ * 在本层拦掉 Radix 的 onInteractOutside，一处改全族生效；窄屏侧栏抽屉不走本件
+ * （App.tsx 直接用 Dialog），其「点遮罩关闭」保持现状。
  */
 export function DialogShell({
   open,
   onOpenChange,
   title,
   description,
+  headNote,
   note,
   footerExtra,
   cancel,
   confirm,
   footer,
+  flight,
+  closeTip,
   className,
   children,
 }: DialogShellProps) {
@@ -70,12 +87,32 @@ export function DialogShell({
     footerExtra !== undefined ||
     cancel !== undefined ||
     confirm !== undefined;
+  // 飞行期「只失效不换装」在下方两枚 Button 上落实：不挂 disabled（那条会换灰阶），
+  // 挂 aria-disabled ＋掐掉 onClick（键盘 Enter 路径一并拦），外观同形；
+  // 实例可用 action.flight 覆盖壳级（关机弹窗飞行期只锁确认钮——稿 底部钮组）。
+  const inFlight = (action: DialogAction): boolean => action.flight ?? flight ?? false;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={className}>
+      <DialogContent
+        className={className}
+        closeTip={closeTip}
+        onInteractOutside={(event) => event.preventDefault()}
+      >
         {title !== undefined && (
           <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
+            {headNote !== undefined ? (
+              <div className="flex min-h-(--h-md) items-center gap-3">
+                <DialogTitle>{title}</DialogTitle>
+                <span
+                  role="alert"
+                  className="min-w-0 flex-1 truncate text-t-sm text-bad-ink"
+                >
+                  {headNote}
+                </span>
+              </div>
+            ) : (
+              <DialogTitle>{title}</DialogTitle>
+            )}
             {description !== undefined && (
               <DialogDescription>{description}</DialogDescription>
             )}
@@ -87,7 +124,7 @@ export function DialogShell({
         ) : hasStandardFooter ? (
           <DialogFooter>
             {note !== undefined && (
-              <span className="mr-auto self-center text-t-sm text-text-1">{note}</span>
+              <span className="mr-auto self-center text-t-md text-text-1">{note}</span>
             )}
             {footerExtra}
             {cancel !== undefined && (
@@ -95,8 +132,10 @@ export function DialogShell({
                 type="button"
                 variant={cancel.variant ?? "outline"}
                 size={cancel.size}
-                disabled={cancel.disabled}
-                onClick={cancel.onClick}
+                disabled={inFlight(cancel) ? undefined : cancel.disabled}
+                aria-disabled={inFlight(cancel) || undefined}
+                className={inFlight(cancel) ? "pointer-events-none" : undefined}
+                onClick={inFlight(cancel) ? undefined : cancel.onClick}
               >
                 {cancel.label}
               </Button>
@@ -106,8 +145,10 @@ export function DialogShell({
                 type="button"
                 variant={confirm.variant ?? "default"}
                 size={confirm.size}
-                disabled={confirm.disabled}
-                onClick={confirm.onClick}
+                disabled={inFlight(confirm) ? undefined : confirm.disabled}
+                aria-disabled={inFlight(confirm) || undefined}
+                className={inFlight(confirm) ? "pointer-events-none" : undefined}
+                onClick={inFlight(confirm) ? undefined : confirm.onClick}
               >
                 {confirm.label}
               </Button>

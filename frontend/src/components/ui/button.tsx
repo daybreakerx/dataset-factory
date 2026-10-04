@@ -12,6 +12,10 @@ const buttonVariants = cva(
           "bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-press",
         destructive: "bg-transparent text-bad-ink hover:bg-bad-bg",
         "destructive-fill": "bg-bad-ink text-on-ink hover:bg-bad-ink-strong",
+        // 红字描边钮（稿 base.css §7 .btn--danger-text）：确认弹窗里的破坏性动作——
+        // 静止态轮廓与取消钮同档（--input），红只作语义信号不铺面积。
+        "danger-text":
+          "border border-input bg-card text-bad-ink hover:border-n-400 hover:bg-bad-ink/6 active:bg-bad-ink/12",
         "destructive-soft": "bg-bad-ink-soft text-on-ink hover:bg-bad-ink-strong",
         outline:
           "border border-input bg-card hover:bg-accent hover:text-accent-foreground",

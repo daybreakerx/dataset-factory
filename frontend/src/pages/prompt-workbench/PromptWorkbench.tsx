@@ -510,6 +510,7 @@ export function PromptWorkbench({
             deleteDialogOpen={deleteDialogOpen}
             onDeleteDialogOpenChange={setDeleteDialogOpen}
             deleteName={deleteName}
+            deleteBusy={promptBusy}
             onDeleteConfirm={() => void deleteSelected()}
           />
 

@@ -89,16 +89,18 @@ export function ShutdownButton({
         }}
         title="关闭服务？"
         description="关闭前会等正在进行的请求跑完，不会中断生成；会话数据已实时保存、不受影响。"
-        cancel={{ label: "取消", onClick: () => setOpen(false) }}
+        flight={busy}
+        cancel={{ label: "取消", flight: false, onClick: () => setOpen(false) }}
         confirm={{
           label: "关闭服务",
-          variant: "destructive-fill",
-          disabled: busy,
+          variant: "danger-text",
           onClick: () => void shutdown(),
         }}
       >
         {error !== null && (
-          <FormError className="text-t-sm text-destructive">{error}</FormError>
+          <FormError data-dialog-error className="text-t-sm text-bad-ink">
+            {error}
+          </FormError>
         )}
       </DialogShell>
     </>

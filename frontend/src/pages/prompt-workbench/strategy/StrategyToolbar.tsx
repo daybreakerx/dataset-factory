@@ -2,6 +2,7 @@ import { type ReactElement, useEffect, useRef, useState } from "react";
 import type { EndpointConfigSummary, PromptInfo, SkillInfo } from "../../../api";
 import { api } from "../../../api";
 import { DialogShell } from "../../../components/dialog-shell";
+import { FormError } from "../../../components/form-error";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import {
@@ -329,21 +330,20 @@ export function StrategyToolbar({
       )}
       <DialogShell
         open={remove !== null}
-        onOpenChange={(value) => {
-          if (!value && !busy) setRemove(null);
-        }}
+        // 飞行期 Esc 也可关（弹窗壳稿「关掉的是界面、不撤销已发出的请求」），与其余删除弹窗一致。
+        onOpenChange={setRemove}
         title={<>删除策略「{remove?.name}」？</>}
-        description="删除库中的组合清单，已应用到工作目录的批次与产物保持不变。"
+        description="已应用到工作目录的快照不受影响；被引用的提示词与 Skill 不会被删除。"
+        note="此操作不可撤销"
+        flight={busy}
+        closeTip={busy ? "关闭不等于撤销删除" : ""}
         cancel={{
           label: "取消",
-          variant: "outline",
-          disabled: busy,
           onClick: () => setRemove(null),
         }}
         confirm={{
           label: "删除",
-          variant: "destructive-fill",
-          disabled: busy,
+          variant: "danger-text",
           onClick: () =>
             void operate(async () => {
               if (!remove) return;
@@ -362,27 +362,26 @@ export function StrategyToolbar({
         }}
       >
         {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <FormError data-dialog-error className="text-t-sm text-bad-ink">
+            {error}
+          </FormError>
         )}
       </DialogShell>
       <DialogShell
         open={repair !== null}
-        onOpenChange={(value) => {
-          if (!value && !busy) setRepair(null);
-        }}
+        onOpenChange={setRepair}
         title={<>重新指定「{repair?.name}」</>}
         description={repair?.missing_refs.join("；")}
+        headNote={error || undefined}
+        flight={busy}
+        closeTip={busy ? "关闭不等于撤销删除" : ""}
         cancel={{
           label: "取消",
-          variant: "outline",
-          disabled: busy,
           onClick: () => setRepair(null),
         }}
         confirm={{
           label: "重新指定",
-          disabled: busy || !bindings.endpoint_id || !bindings.prompt_id,
+          disabled: !bindings.endpoint_id || !bindings.prompt_id,
           onClick: () =>
             void operate(async () => {
               if (!repair) return;
@@ -393,11 +392,6 @@ export function StrategyToolbar({
             }),
         }}
       >
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
         <div className="grid gap-2 text-t-sm">
           端点
           {/* L12（2026-09-21 审计）：全站唯一的原生 select 破口 → Radix Select。 */}

@@ -21,19 +21,20 @@ test.describe("界面冒烟", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "打开导航" }).click();
     const navigation = page.getByRole("dialog", { name: "导航" });
-    await navigation.getByRole("button", { name: "主题：跟随系统，切换为亮色" }).click();
-    await navigation.getByRole("button", { name: "主题：亮色，切换为暗色" }).click();
+    // 主题钮可及名随态三选一（批2 对齐「Tip 显示当前状态」）：跟随系统 → 浅色模式 → 深色模式。
+    await navigation.getByRole("button", { name: "跟随系统", exact: true }).click();
+    await navigation.getByRole("button", { name: "浅色模式", exact: true }).click();
     await expect(page.locator("html")).toHaveClass(/dark/);
     await navigation.getByRole("button", { name: "打标", exact: true }).click();
     await page.getByRole("button", { name: "打开导航" }).click();
-    await expect(navigation.getByRole("button", { name: "主题：暗色，切换为跟随系统" })).toBeVisible();
+    await expect(navigation.getByRole("button", { name: "深色模式", exact: true })).toBeVisible();
     await navigation.getByRole("button", { name: "打标", exact: true }).click();
     await page.setViewportSize({ width: 1280, height: 720 });
-    await expect(page.getByRole("button", { name: "主题：暗色，切换为跟随系统" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "深色模式", exact: true })).toBeVisible();
     await page.emulateMedia({ colorScheme: "dark" });
     await page.emulateMedia({ colorScheme: "light" });
     await expect(page.locator("html")).toHaveClass(/dark/);
-    await page.getByRole("button", { name: "主题：暗色，切换为跟随系统" }).click();
+    await page.getByRole("button", { name: "深色模式", exact: true }).click();
     await expect(page.locator("html")).not.toHaveClass(/dark/);
     await page.emulateMedia({ colorScheme: "dark" });
     await expect(page.locator("html")).toHaveClass(/dark/);

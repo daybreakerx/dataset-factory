@@ -52,6 +52,7 @@ export function ImportDialog({
     <DialogShell
       open={open}
       onOpenChange={onOpenChange}
+      className="w-[min(560px,calc(100vw-48px))]"
       title="导入 Skill 包"
       description="agentskills.io 标准"
     >

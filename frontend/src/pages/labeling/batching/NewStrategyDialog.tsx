@@ -194,7 +194,7 @@ export function NewStrategyDialog({
         onClick: () => void create(),
       }}
     >
-      <DialogHeader className="flex-row flex-wrap items-baseline gap-3 pr-8">
+      <DialogHeader className="flex-row flex-wrap items-baseline gap-3 pr-[42px]">
         <DialogTitle>新增策略</DialogTitle>
         <DialogDescription className="min-w-0 break-all">
           工作目录：{title}

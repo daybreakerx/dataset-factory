@@ -59,8 +59,9 @@ test("策略保存、切换和对话使用同一组合，工作台匹配两栏�
   expect(await body.evaluate((element) => getComputedStyle(element).fontSize)).toBe("13px");
   expect(await body.evaluate((element) => getComputedStyle(element).lineHeight)).toBe("22.75px");
   await page.screenshot({ path: testInfo.outputPath("workbench-light.png"), fullPage: true });
-  await page.getByRole("button", { name: /主题：/ }).click();
-  await page.getByRole("button", { name: /主题：/ }).click();
+  // 主题钮可及名随态三选一（批2 改名），连点两次在循环里走两步。
+  await page.getByRole("button", { name: /跟随系统|浅色模式|深色模式/ }).click();
+  await page.getByRole("button", { name: /跟随系统|浅色模式|深色模式/ }).click();
   await page.screenshot({ path: testInfo.outputPath("workbench-dark.png"), fullPage: true });
   await page.getByRole("button", { name: "收起侧栏" }).click();
   await page.setViewportSize({ width: 390, height: 844 });

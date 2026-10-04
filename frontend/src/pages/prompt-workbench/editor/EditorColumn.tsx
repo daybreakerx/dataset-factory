@@ -133,6 +133,7 @@ export function EditorColumn({
   deleteDialogOpen,
   onDeleteDialogOpenChange,
   deleteName,
+  deleteBusy,
   onDeleteConfirm,
 }: {
   prompts: PromptInfo[];
@@ -153,6 +154,8 @@ export function EditorColumn({
   deleteDialogOpen: boolean;
   onDeleteDialogOpenChange: (open: boolean) => void;
   deleteName: string;
+  /** 删除请求飞行期：弹窗两钮只失效不换装＋关闭钮随态 Tip。 */
+  deleteBusy: boolean;
   onDeleteConfirm: () => void;
 }): ReactElement {
   const bodyBytes = new TextEncoder().encode(draftBody).length;
@@ -235,11 +238,14 @@ export function EditorColumn({
         open={deleteDialogOpen}
         onOpenChange={onDeleteDialogOpenChange}
         title={<>删除提示词「{deleteName}」？</>}
-        description="将连同其历史备份一起移除。此操作不可撤销。"
+        description="该提示词将被删除；引用它的策略会变为不可用，可重新指定或删除。"
+        note="此操作不可撤销"
+        flight={deleteBusy}
+        closeTip={deleteBusy ? "关闭不等于撤销删除" : ""}
         cancel={{ label: "取消", onClick: () => onDeleteDialogOpenChange(false) }}
         confirm={{
           label: "删除",
-          variant: "destructive-fill",
+          variant: "danger-text",
           onClick: onDeleteConfirm,
         }}
       />

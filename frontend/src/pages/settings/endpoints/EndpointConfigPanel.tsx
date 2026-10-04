@@ -6,7 +6,7 @@
  */
 
 import type { ReactElement } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EndpointTestResult } from "../../../api";
 import { api, errorMessage } from "../../../api";
 import { type Feedback, reportError } from "../../../lib/feedback";
@@ -35,6 +35,11 @@ export function EndpointConfigPanel(): ReactElement {
   const [draftKey, setDraftKey] = useState("");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // 删除飞行期与失败行：提交后回包前两钮只失效不换装；业务错误就地进弹窗
+  // （弹窗保持打开），连接类失败由 reportError 改走浮层（稿 弹窗壳「环境类失败」）。
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const deletingRef = useRef(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<EndpointTestResult | null>(null);
   // 高级参数区（默认折叠）：模型通用参数（表单 ⇄ JSON）+ 本项目传输参数（仅表单）。
@@ -262,6 +267,12 @@ export function EndpointConfigPanel(): ReactElement {
   };
 
   const remove = async (): Promise<void> => {
+    if (deletingRef.current) {
+      return;
+    }
+    deletingRef.current = true;
+    setDeleting(true);
+    setDeleteError("");
     try {
       await api.deleteEndpoint(selected);
       setDeleteDialogOpen(false);
@@ -269,8 +280,15 @@ export function EndpointConfigPanel(): ReactElement {
       setSelected("");
       await reload();
     } catch (err) {
-      setDeleteDialogOpen(false);
-      failFeedback(err);
+      // 业务错误就地进弹窗（弹窗保持打开、可改可重试）；连接类失败 reportError
+      // 已改走浮层提示（返回 null），不在此重复铺面板反馈。
+      const text = reportError(err);
+      if (text !== null) {
+        setDeleteError(text);
+      }
+    } finally {
+      deletingRef.current = false;
+      setDeleting(false);
     }
   };
 
@@ -330,8 +348,15 @@ export function EndpointConfigPanel(): ReactElement {
 
       <DeleteDialog
         open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
+        onOpenChange={(value) => {
+          setDeleteDialogOpen(value);
+          if (!value) {
+            setDeleteError("");
+          }
+        }}
         target={selected}
+        flight={deleting}
+        error={deleteError}
         onConfirm={() => void remove()}
       />
     </div>

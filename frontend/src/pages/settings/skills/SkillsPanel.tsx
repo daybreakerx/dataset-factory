@@ -40,6 +40,11 @@ export function SkillsPanel(): ReactElement {
     nameDraft !== null;
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // 删除飞行期与失败行：提交后回包前两钮只失效不换装；业务错误就地进弹窗
+  // （弹窗保持打开），连接类失败由 reportError 改走浮层（稿 弹窗壳「环境类失败」）。
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const deletingRef = useRef(false);
   const [importing, setImporting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [readingDrop, setReadingDrop] = useState(false);
@@ -212,9 +217,12 @@ export function SkillsPanel(): ReactElement {
   };
 
   const remove = async (): Promise<void> => {
-    if (selected === "") {
+    if (selected === "" || deletingRef.current) {
       return;
     }
+    deletingRef.current = true;
+    setDeleting(true);
+    setDeleteError("");
     try {
       await api.deleteSkill(selected);
       setDeleteDialogOpen(false);
@@ -222,8 +230,14 @@ export function SkillsPanel(): ReactElement {
       setSelected("");
       await reload();
     } catch (err) {
-      setDeleteDialogOpen(false);
-      fail(err);
+      // 业务错误就地进弹窗（弹窗保持打开）；连接类失败 reportError 已改走浮层。
+      const text = reportError(err);
+      if (text !== null) {
+        setDeleteError(text);
+      }
+    } finally {
+      deletingRef.current = false;
+      setDeleting(false);
     }
   };
 
@@ -374,8 +388,15 @@ export function SkillsPanel(): ReactElement {
       )}
       <DeleteDialog
         open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
+        onOpenChange={(value) => {
+          setDeleteDialogOpen(value);
+          if (!value) {
+            setDeleteError("");
+          }
+        }}
         target={selected}
+        flight={deleting}
+        error={deleteError}
         onConfirm={() => void remove()}
       />
     </div>

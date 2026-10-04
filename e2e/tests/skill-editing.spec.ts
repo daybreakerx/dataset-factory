@@ -43,8 +43,9 @@ test("技能拖入、正文与描述写回经真实接口保存并刷新恢复",
   expect(saved).toContain("license: MIT");
   await expect(editor).toHaveValue(saved);
   await page.screenshot({ path: testInfo.outputPath("skill-light.png") });
-  await page.getByRole("button", { name: /主题：/ }).click();
-  await page.getByRole("button", { name: /主题：/ }).click();
+  // 主题钮可及名随态三选一（批2 改名），连点两次在循环里走两步。
+  await page.getByRole("button", { name: /跟随系统|浅色模式|深色模式/ }).click();
+  await page.getByRole("button", { name: /跟随系统|浅色模式|深色模式/ }).click();
   await page.screenshot({ path: testInfo.outputPath("skill-dark.png") });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("button", { name: "打开导航" })).toBeVisible();
