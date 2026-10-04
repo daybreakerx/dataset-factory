@@ -27,16 +27,10 @@ export function SettingsPage({
     <TooltipProvider>
       <div className="flex h-full min-h-0 flex-col">
         <div className="flex min-h-0 flex-1 flex-col p-6">
-          {/* 端点 / 技能子页：面板吃满剩余高度、左右两栏各自内部滚动（2026-09-13 用户反馈
-              ——此前右侧滚动会带动左侧列表一起滚）；服务子页是内容流，保持整区滚动。
-              内容区全宽＋四边 24、页题下距 16（两子页归一，DESIGN.md 3.4 主线）。 */}
+          {/* 端点 / 技能 / 运行日志子页：面板吃满剩余高度（运行日志子页 2026-10-05 改版
+              合并整面板后与其他两子页同构）、左右两栏／单列各自内部滚动。 */}
           <section
-            className={cn(
-              "min-w-0 flex-1",
-              section === "service"
-                ? "overflow-y-auto"
-                : "flex min-h-0 flex-col overflow-hidden",
-            )}
+            className={cn("min-w-0 flex-1", "flex min-h-0 flex-col overflow-hidden")}
             aria-label="设置内容区"
           >
             {section === "endpoints" && (
@@ -63,7 +57,7 @@ export function SettingsPage({
             )}
             {section === "service" && (
               <>
-                <h2 className="mb-4 text-t-2xl font-semibold">服务运行</h2>
+                <h2 className="mb-4 text-t-2xl font-semibold">运行日志</h2>
                 <ServicePanel />
               </>
             )}

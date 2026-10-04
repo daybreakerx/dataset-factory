@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EndpointConfigSummary, SkillInfo } from "../../api";
 import { SettingsPage } from "./SettingsPage";
+import { parseLogLevel } from "./service/ServicePanel";
 
 // 设置页测试只关心「交互 → 调了哪个 API → 界面状态对不对」，api 层整体 mock 掉。
 // 注意查询唯一性：选中的名称同时出现在列表行与详情标题里，断言一律用 label / 唯一文本。
@@ -23,6 +24,8 @@ const apiMock = vi.hoisted(() => ({
   readSkillFile: vi.fn(),
   saveSkillFile: vi.fn(),
   listDirectory: vi.fn(),
+  getService: vi.fn(),
+  getServiceLogs: vi.fn(),
 }));
 
 // 部分 mock：只替掉 api 对象，ApiError / errorMessage 用真货——错误分档要靠真类的 kind 字段判。
@@ -87,6 +90,18 @@ beforeEach(() => {
   apiMock.listSkills.mockResolvedValue(SKILLS);
   apiMock.listSkillFiles.mockResolvedValue(SKILL_FILES);
   apiMock.readSkillFile.mockResolvedValue({ path: "SKILL.md", content: SKILL_MD });
+  apiMock.getService.mockResolvedValue({
+    version: "0.1.0",
+    host: "127.0.0.1",
+    port: 8000,
+    started_at: new Date(Date.now() - 134 * 60_000).toISOString(),
+    log_file: "",
+  });
+  apiMock.getServiceLogs.mockResolvedValue({
+    path: "run.log",
+    exists: true,
+    content: "",
+  });
 });
 
 describe("SettingsPage · 连接·端点配置", () => {
@@ -794,5 +809,44 @@ describe("SettingsPage · 能力·技能", () => {
       expect(apiMock.importSkillFile).toHaveBeenCalledExactlyOnceWith(file),
     );
     expect(await screen.findByText(/已导入「dropped」/)).toBeInTheDocument();
+  });
+});
+
+describe("SettingsPage · 服务·运行日志", () => {
+  it("改名与头行：页题「运行日志」、状态行＋监听信息＋筛选＋图标刷新钮；无关机钮", async () => {
+    render(<SettingsPage section="service" />);
+
+    expect(screen.getByText("运行日志")).toBeInTheDocument();
+    expect(await screen.findByText("服务运行中")).toBeInTheDocument();
+    expect(
+      screen.getByText(/监听 127\.0\.0\.1:8000 · 已运行 2 小时 14 分/),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("日志级别")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "刷新" })).toBeInTheDocument();
+    // 本页无关机钮（2026-10-05 用户裁）：关机入口只剩侧栏底部钮组图标钮。
+    expect(screen.queryByRole("button", { name: "关闭服务" })).not.toBeInTheDocument();
+  });
+
+  it("日志区：倒序显示最新在顶（文件序正序反转）", async () => {
+    apiMock.getServiceLogs.mockResolvedValue({
+      path: "run.log",
+      exists: true,
+      content:
+        "2026-10-05 04:00:00,000 INFO [-] a: 第一行\n2026-10-05 04:01:00,000 WARNING [-] b: 警告行\n2026-10-05 04:02:00,000 ERROR [-] c: 报错行",
+    });
+    render(<SettingsPage section="service" />);
+
+    const errorLine = await screen.findByText(/报错行/);
+    const box = errorLine.closest("div") as HTMLElement;
+    const text = box.textContent ?? "";
+    expect(text.indexOf("报错行")).toBeLessThan(text.indexOf("警告行"));
+    expect(text.indexOf("警告行")).toBeLessThan(text.indexOf("第一行"));
+  });
+
+  it("级别解析：WARNING→警告档、ERROR/CRITICAL→报错档、INFO→信息档", async () => {
+    expect(parseLogLevel("2026-10-05 04:01:00,000 WARNING [-] b: 警告")).toBe("warn");
+    expect(parseLogLevel("2026-10-05 04:02:00,000 ERROR [-] c: 报错")).toBe("bad");
+    expect(parseLogLevel("2026-10-05 04:02:00,000 CRITICAL [-] c: 致命")).toBe("bad");
+    expect(parseLogLevel("2026-10-05 04:00:00,000 INFO [-] a: 信息")).toBe("info");
   });
 });

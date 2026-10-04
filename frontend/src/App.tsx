@@ -143,7 +143,7 @@ export function App(): ReactElement {
   // 窄屏顶条页签名随页变：不显示产品名（窄屏顶条 零件稿口径；设置随当前子页变）。
   const pageLabel =
     page === "settings"
-      ? ({ endpoints: "端点配置", skills: "技能", service: "服务运行" } as const)[
+      ? ({ endpoints: "端点配置", skills: "技能", service: "运行日志" } as const)[
           settingsSection
         ]
       : page === "labeling"

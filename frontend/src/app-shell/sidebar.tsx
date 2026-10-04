@@ -176,7 +176,7 @@ export function Sidebar({
                 [
                   { key: "endpoints", label: "端点配置", icon: SettingsIcon },
                   { key: "skills", label: "技能", icon: FolderInputIcon },
-                  { key: "service", label: "服务运行", icon: ActivityIcon },
+                  { key: "service", label: "运行日志", icon: ActivityIcon },
                 ] as const
               ).map((item) => (
                 <li key={item.key}>

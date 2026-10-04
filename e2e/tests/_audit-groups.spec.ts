@@ -274,15 +274,15 @@ test.describe("分组取证", () => {
     }
   });
 
-  test("组 7 · 服务运行与批次概览、导出", async ({ page }) => {
+  test("组 7 · 运行日志与批次概览、导出", async ({ page }) => {
     mkdirSync(OUT, { recursive: true });
     await page.setViewportSize(VIEW);
     await stubApi(page, []);
     await page.goto("/");
     await page.waitForFunction(() => document.fonts.status === "loaded");
 
-    await gotoSettings(page, "服务运行");
-    await shot(page, "g7-设置-服务运行-整屏");
+    await gotoSettings(page, "运行日志");
+    await shot(page, "g7-设置-运行日志-整屏");
 
     await gotoLabeling(page);
     // 批次概览：先展开（点「校验素材完整性」逼出报告区），再截
