@@ -129,6 +129,49 @@ describe("SettingsPage · 连接·端点配置", () => {
     );
   });
 
+  it("同名配置按 ID 寻址：两套同显示名都能分别选中并保存到各自的 id", async () => {
+    const first: EndpointConfigSummary = {
+      id: "e-dup-a",
+      name: "同名",
+      base_url: "https://a/v1",
+      model: "model-a",
+      api_format: "openai-chat-completions",
+      has_api_key: true,
+      request_params: {},
+    };
+    const second: EndpointConfigSummary = {
+      id: "e-dup-b",
+      name: "同名",
+      base_url: "https://b/v1",
+      model: "model-b",
+      api_format: "openai-chat-completions",
+      has_api_key: false,
+      request_params: {},
+    };
+    apiMock.listEndpoints.mockResolvedValue([first, second]);
+    apiMock.updateEndpoint.mockResolvedValue(second);
+    render(<SettingsPage />);
+
+    await waitFor(() => screen.getAllByText("同名"));
+    // 显示名可重名：两行同名并存，第二行选中后保存落到第二套的 id（而非按名 404）。
+    const rows = screen.getAllByRole("button", { name: "同名" });
+    expect(rows).toHaveLength(2);
+    await userEvent.click(rows[1] as HTMLElement);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Base URL")).toHaveValue("https://b/v1"),
+    );
+    await userEvent.clear(screen.getByLabelText("模型名称"));
+    await userEvent.type(screen.getByLabelText("模型名称"), "model-b2");
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      expect(apiMock.updateEndpoint).toHaveBeenCalledWith(
+        "e-dup-b",
+        expect.objectContaining({ model: "model-b2" }),
+      );
+    });
+  });
+
   it("列表三态：空库显示「未配置模型」（不拿取数中顶空态）", async () => {
     apiMock.listEndpoints.mockResolvedValue([]);
     render(<SettingsPage />);
@@ -169,7 +212,7 @@ describe("SettingsPage · 连接·端点配置", () => {
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() => {
-      expect(apiMock.updateEndpoint).toHaveBeenCalledWith("default", {
+      expect(apiMock.updateEndpoint).toHaveBeenCalledWith("e-default-x1", {
         base_url: "https://a/v1",
         model: "model-a2",
         api_format: "openai-chat-completions",
@@ -202,7 +245,7 @@ describe("SettingsPage · 连接·端点配置", () => {
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() => {
-      expect(apiMock.updateEndpoint).toHaveBeenCalledWith("default", {
+      expect(apiMock.updateEndpoint).toHaveBeenCalledWith("e-default-x1", {
         base_url: "https://a/v1",
         model: "model-a",
         api_format: "openai-chat-completions",
@@ -265,7 +308,7 @@ describe("SettingsPage · 连接·端点配置", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "删除" }));
 
     await waitFor(() => {
-      expect(apiMock.deleteEndpoint).toHaveBeenCalledWith("default");
+      expect(apiMock.deleteEndpoint).toHaveBeenCalledWith("e-default-x1");
     });
   });
 });
@@ -291,7 +334,7 @@ describe("SettingsPage · 端点配置·测试连接", () => {
       base_url: "https://a/v1",
       model: "model-a",
       api_format: "openai-chat-completions",
-      name: "default",
+      id: "e-default-x1",
     });
   });
 
@@ -412,7 +455,7 @@ describe("SettingsPage · 端点配置·高级参数", () => {
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() => {
-      expect(apiMock.updateEndpoint).toHaveBeenCalledWith("tuned", {
+      expect(apiMock.updateEndpoint).toHaveBeenCalledWith("e-tuned-x111", {
         base_url: "https://t/v1",
         model: "model-t",
         api_format: "openai-chat-completions",

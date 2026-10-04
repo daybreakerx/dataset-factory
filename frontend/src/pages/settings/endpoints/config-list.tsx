@@ -49,12 +49,12 @@ export function ConfigList({
         </div>
       ) : (
         endpoints.map((item) => {
-          const active = item.name === selected;
+          const active = item.id === selected;
           return (
             <button
-              key={item.name}
+              key={item.id}
               type="button"
-              onClick={() => onPick(item.name)}
+              onClick={() => onPick(item.id)}
               aria-current={active ? "true" : undefined}
               className={
                 "block w-full rounded-md border px-3 py-2 text-left transition-colors " +

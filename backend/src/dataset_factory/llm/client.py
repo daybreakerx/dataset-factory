@@ -323,7 +323,7 @@ def probe_endpoint(config: EndpointConfig) -> ProbeResult:
     except LLMError as exc:
         return ProbeResult(ok=False, message=str(exc), latency_ms=ms_since(start))
     return ProbeResult(
-        ok=True, message="连接成功，模型应答正常。", latency_ms=ms_since(start)
+        ok=True, message="连接成功，模型应答正常", latency_ms=ms_since(start)
     )
 
 

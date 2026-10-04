@@ -55,6 +55,8 @@ type ConfigFormProps = {
   onKeyInput: (value: string) => void;
   feedback: Feedback | null;
   canSave: boolean;
+  /** 保存请求飞行期（瞬态）：只失效不换装，不进 disabled 条件。 */
+  saving: boolean;
   onSave: () => void;
   onDelete: () => void;
   testing: boolean;
@@ -92,6 +94,7 @@ export function ConfigForm({
   onKeyInput,
   feedback,
   canSave,
+  saving,
   onSave,
   onDelete,
   testing,
@@ -155,6 +158,9 @@ export function ConfigForm({
             variant={cleanDisabled ? "ghost" : "default"}
             className="ml-auto"
             disabled={saveDisabled}
+            // 保存飞行＝瞬态只失效不换装：外观与就绪态同形、不进 disabled 条件
+            //（重入由面板 savingRef 守卫掐住），程序化失效信号与 DialogShell flight 同式。
+            aria-disabled={saving || undefined}
             onClick={onSave}
           >
             {creating ? "创建" : "保存"}
@@ -249,7 +255,7 @@ export function ConfigForm({
 
       <TestConnection
         testing={testing}
-        disabled={testing || draftBaseUrl.trim() === "" || draftModel.trim() === ""}
+        disabled={draftBaseUrl.trim() === "" || draftModel.trim() === ""}
         result={testResult}
         onTest={onTest}
       />

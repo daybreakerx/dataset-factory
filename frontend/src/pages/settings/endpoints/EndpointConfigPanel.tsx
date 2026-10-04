@@ -10,7 +10,7 @@
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EndpointConfigSummary, EndpointTestResult } from "../../../api";
-import { api, errorMessage } from "../../../api";
+import { api } from "../../../api";
 import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
 import { useVscrollColumn } from "../../../components/vscroll";
 import { type Feedback, reportError } from "../../../lib/feedback";
@@ -31,7 +31,7 @@ import { DeleteDialog } from "./delete-dialog";
 import { useEndpointConfigs } from "./use-endpoint-configs";
 
 /** 离开动作（弹窗放行后继续执行的目标）。 */
-type LeaveAction = { kind: "pick"; name: string } | { kind: "create" };
+type LeaveAction = { kind: "pick"; id: string } | { kind: "create" };
 
 export function EndpointConfigPanel({
   onSettingsDirtyChange,
@@ -42,6 +42,8 @@ export function EndpointConfigPanel({
   /** 注册保存／回退接口供壳层弹窗三路行为调用；卸载时注销。 */
   onRegisterActions?: (actions: PanelUnsavedActions | null) => void;
 }): ReactElement {
+  // 选中句柄＝配置 id（兑现「显示名可重名」口径：显示名只用于渲染与文案，
+  // 增删改测一律按 id 寻址——对齐批「端点面板改按 ID 寻址」条）。
   const [selected, setSelected] = useState<string>("");
   const [creating, setCreating] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -59,6 +61,7 @@ export function EndpointConfigPanel({
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [testing, setTesting] = useState(false);
+  const testingRef = useRef(false);
   const [testResult, setTestResult] = useState<EndpointTestResult | null>(null);
   // 高级参数区（默认折叠）：模型通用参数（表单 ⇄ JSON）+ 本项目传输参数（仅表单）。
   const [advOpen, setAdvOpen] = useState(false);
@@ -90,12 +93,12 @@ export function EndpointConfigPanel({
 
   useEffect(() => {
     void reload().then((list) => {
-      // 默认选中第一套（无激活机制，不挑「当前使用」的）。
-      setSelected(list[0]?.name ?? "");
+      // 默认选中第一套（无激活机制，不挑「当前使用」的）；句柄取 id。
+      setSelected(list[0]?.id ?? "");
     });
   }, [reload]);
 
-  const current = endpoints.find((item) => item.name === selected);
+  const current = endpoints.find((item) => item.id === selected);
 
   /** 把详情草稿回填为某套配置的落盘值（高级参数一并）；选中变化与「放弃修改」共用。 */
   const resetDraftFrom = useCallback((config: EndpointConfigSummary): void => {
@@ -170,8 +173,8 @@ export function EndpointConfigPanel({
       advTransport.max_retries !== "");
   const leaveGuard = dirty || creatingDirty;
 
-  const performPick = (name: string): void => {
-    setSelected(name);
+  const performPick = (id: string): void => {
+    setSelected(id);
     setCreating(false);
     setFeedback(null);
     setTestResult(null);
@@ -210,7 +213,7 @@ export function EndpointConfigPanel({
   const requestLeave = (action: LeaveAction): void => {
     if (saving) return;
     if (!leaveGuard) {
-      if (action.kind === "pick") performPick(action.name);
+      if (action.kind === "pick") performPick(action.id);
       else performStartCreate();
       return;
     }
@@ -221,7 +224,7 @@ export function EndpointConfigPanel({
 
   /** 弹窗放行后的目标动作。 */
   const runLeaveAction = (action: LeaveAction): void => {
-    if (action.kind === "pick") performPick(action.name);
+    if (action.kind === "pick") performPick(action.id);
     else performStartCreate();
   };
 
@@ -297,21 +300,25 @@ export function EndpointConfigPanel({
   };
 
   const testConnection = async (): Promise<void> => {
+    // 键盘路径守卫（data-loading 的 pointer-events 管不到 Enter 重触发）。
+    if (testingRef.current) return;
+    testingRef.current = true;
     setTesting(true);
     setTestResult(null);
     try {
-      // 高级参数一起随探测发出（A1：测试连接回显实际参数——思考开关带上没有、
-      // 透传写对没有，一眼可见）；本地校验不过就不带参数，仍测连通性。
+      // 高级参数一起随探测发出（思考开关带上没有、透传写对没有，后端一并校验）；
+      // 本地校验不过就不带参数，仍测连通性。
       const adv = collectAdvParams({
         form: advForm,
         transport: advTransport,
         json: advJson,
       });
+      // 身份字段＝id（契约 EndpointTestRequest.id）：显示名可重名，按名寻址已在案退役。
       const result = await api.testEndpoint({
         base_url: draftBaseUrl,
         model: draftModel,
         api_format: draftFormat,
-        ...(creating ? {} : { name: selected }),
+        ...(creating ? {} : { id: selected }),
         ...(draftKey.trim() === "" ? {} : { api_key: draftKey }),
         ...(adv.error === null && Object.keys(adv.params).length > 0
           ? { request_params: adv.params }
@@ -319,8 +326,14 @@ export function EndpointConfigPanel({
       });
       setTestResult(result);
     } catch (err) {
-      setTestResult({ ok: false, message: errorMessage(err), latency_ms: 0 });
+      // 传输层失败先过分流：连接类（network/timeout）走浮层、不落结果字（浮层已承接）；
+      // 业务类才落成本行结果字（ok:false）。
+      const text = reportError(err);
+      if (text !== null) {
+        setTestResult({ ok: false, message: text, latency_ms: 0 });
+      }
     } finally {
+      testingRef.current = false;
       setTesting(false);
     }
   };
@@ -353,10 +366,10 @@ export function EndpointConfigPanel({
         });
         setFeedback({ kind: "success", text: `已创建配置「${created.name}」` });
         setCreating(false);
-        setSelected(created.name);
+        setSelected(created.id);
       } else {
         const nextName = draftName.trim();
-        const renamed = nextName !== selected;
+        const renamed = current !== undefined && nextName !== current.name;
         const updated = await api.updateEndpoint(selected, {
           base_url: draftBaseUrl,
           model: draftModel,
@@ -370,12 +383,12 @@ export function EndpointConfigPanel({
         setFeedback({
           kind: "success",
           text: renamed
-            ? `已改名并保存：「${selected}」→「${updated.name}」`
+            ? `已改名并保存：「${current?.name}」→「${updated.name}」`
             : `已保存「${updated.name}」的更改`,
         });
-        // 先把选中切到新名再刷新：目录已改名，旧名在新列表里已不存在。
+        // 先把选中切到新 id 再刷新：目录已改名，旧 id 在新列表里已不存在。
         if (renamed) {
-          setSelected(updated.name);
+          setSelected(updated.id);
         }
       }
       setDraftKey("");
@@ -395,13 +408,14 @@ export function EndpointConfigPanel({
     if (deletingRef.current) {
       return;
     }
+    const targetName = current?.name ?? "";
     deletingRef.current = true;
     setDeleting(true);
     setDeleteError("");
     try {
       await api.deleteEndpoint(selected);
       setDeleteDialogOpen(false);
-      setFeedback({ kind: "success", text: `已删除配置「${selected}」` });
+      setFeedback({ kind: "success", text: `已删除配置「${targetName}」` });
       setSelected("");
       await reload();
     } catch (err) {
@@ -447,7 +461,7 @@ export function EndpointConfigPanel({
         loading={loading}
         loadError={loadError}
         selected={selected}
-        onPick={(name) => requestLeave({ kind: "pick", name })}
+        onPick={(id) => requestLeave({ kind: "pick", id })}
         onStartCreate={() => requestLeave({ kind: "create" })}
       />
 
@@ -473,6 +487,7 @@ export function EndpointConfigPanel({
             onKeyInput={setDraftKey}
             feedback={feedback}
             canSave={canSave}
+            saving={saving}
             onSave={() => void save()}
             onDelete={() => setDeleteDialogOpen(true)}
             testing={testing}
@@ -514,7 +529,7 @@ export function EndpointConfigPanel({
             setDeleteError("");
           }
         }}
-        target={selected}
+        target={current?.name ?? selected}
         flight={deleting}
         error={deleteError}
         onConfirm={() => void remove()}
