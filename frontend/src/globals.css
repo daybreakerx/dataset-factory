@@ -253,3 +253,63 @@
   background: hsl(var(--n-300));
   background-clip: content-box;
 }
+
+/* --- 竖向列内滚自绘滚动条（base.css §20 竖向版，取值 1:1）------------------
+   列内滚区（设置页两子页左右列）隐藏原生滚动条且不占布局宽——占位滚动条出现与否
+   会改变列内容宽，贴行尾元素随状态横跳（17px 级实锤）；自绘部件（拇指条＋上下步进
+   钮）由 useVscrollColumn 挂到最近定位祖先，悬停所在列或部件自身才显示、不溢出
+   整组不渲染。上下渐隐不启用（列内滚上下边缘是表单内容，与横滚 chips 条场景不同）。 */
+.vthumb,
+.vbtn {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-1) var(--ease);
+  z-index: 2;
+}
+.vthumb {
+  width: 4px;
+  border-radius: var(--r-full);
+  background: hsl(var(--muted-foreground) / 0.35);
+  cursor: grab;
+}
+.vthumb:active {
+  cursor: grabbing;
+}
+.vbtn {
+  width: 12px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: var(--r-xs);
+  color: hsl(var(--muted-foreground) / 0.55);
+  cursor: pointer;
+}
+.vbtn svg {
+  width: 10px;
+  height: 10px;
+  display: block;
+}
+.vbtn--up svg {
+  transform: rotate(180deg);
+}
+.vbtn:hover {
+  background: hsl(var(--muted-foreground) / 0.12);
+  color: hsl(var(--muted-foreground) / 0.85);
+}
+.vthumb.hov,
+.vbtn.hov {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* 列内滚区隐藏原生滚动条（挂自绘滚动条的列随用随挂本类） */
+.vscroll-y {
+  scrollbar-width: none;
+}
+.vscroll-y::-webkit-scrollbar {
+  display: none;
+}

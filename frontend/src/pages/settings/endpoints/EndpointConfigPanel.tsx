@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { EndpointConfigSummary, EndpointTestResult } from "../../../api";
 import { api, errorMessage } from "../../../api";
 import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
+import { useVscrollColumn } from "../../../components/vscroll";
 import { type Feedback, reportError } from "../../../lib/feedback";
 import type { PanelUnsavedActions } from "../../../lib/unsaved-actions";
 import {
@@ -85,13 +86,7 @@ export function EndpointConfigPanel({
   const [unsavedBusy, setUnsavedBusy] = useState(false);
   const [leaveAction, setLeaveAction] = useState<LeaveAction | null>(null);
 
-  /** 失败分流：连接类失败改弹浮层（不占界面位置），后端返回的业务错误仍就地展示。 */
-  const failFeedback = useCallback((err: unknown): void => {
-    const text = reportError(err);
-    if (text !== null) setFeedback({ kind: "error", text });
-  }, []);
-
-  const { endpoints, reload } = useEndpointConfigs(failFeedback);
+  const { endpoints, loading, loadError, reload } = useEndpointConfigs();
 
   useEffect(() => {
     void reload().then((list) => {
@@ -427,6 +422,7 @@ export function EndpointConfigPanel({
 
   // ---------- 壳层接口：dirty 上报＋保存／回退注册（ref 桥保证壳层拿到最新闭包） ----------
   const actionsRef = useRef<PanelUnsavedActions | null>(null);
+  const detailRef = useVscrollColumn<HTMLDivElement>();
   actionsRef.current = {
     save: () => save(),
     revert: revertDraft,
@@ -445,20 +441,26 @@ export function EndpointConfigPanel({
   useEffect(() => () => onSettingsDirtyChange?.(false), [onSettingsDirtyChange]);
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[340px_1fr] overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+    <div className="relative grid h-full min-h-0 grid-cols-[280px_minmax(0,1fr)] overflow-hidden rounded-lg border border-border bg-card shadow-(--sh-1)">
       <ConfigList
         endpoints={endpoints}
+        loading={loading}
+        loadError={loadError}
         selected={selected}
         onPick={(name) => requestLeave({ kind: "pick", name })}
         onStartCreate={() => requestLeave({ kind: "create" })}
       />
 
-      {/* 右：详情 */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto border-l border-border p-5">
+      {/* 右：详情（列内滚、自绘竖向滚动条；内距 24/32——两子页归一值） */}
+      <div
+        ref={detailRef}
+        className="vscroll-y flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto border-l border-border px-8 py-6"
+      >
         {creating || current !== undefined ? (
           <ConfigForm
             creating={creating}
             current={current}
+            clean={!dirty}
             draftName={draftName}
             onNameInput={setDraftName}
             draftBaseUrl={draftBaseUrl}
@@ -489,7 +491,7 @@ export function EndpointConfigPanel({
             onThinkingChange={onThinkingChange}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-t-md text-muted-foreground">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-t-sm text-text-3">
             左侧选择一套配置，或「添加配置」新建。
           </div>
         )}

@@ -20,7 +20,7 @@ export function TestConnection({
 }: TestConnectionProps): ReactElement {
   return (
     <>
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-3">
         <Button
           type="button"
           variant="accent"

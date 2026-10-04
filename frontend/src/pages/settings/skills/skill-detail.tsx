@@ -1,15 +1,7 @@
-/** 能力 · 技能 · 右列详情（名字框、描述、包内容胶囊、内容预览、放弃/保存）。 */
-import {
-  CopyIcon,
-  FileTextIcon,
-  ImageIcon,
-  SaveIcon,
-  Trash2Icon,
-  Undo2Icon,
-} from "lucide-react";
+/** 能力 · 技能 · 右列详情（头行：名字框＋删除钮＋保存钮；描述、包内容胶囊、内容预览）。 */
+import { CopyIcon, FileTextIcon, ImageIcon, Trash2Icon } from "lucide-react";
 import type { ReactElement } from "react";
 import type { SkillFileInfo, SkillInfo } from "../../../api";
-import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import {
@@ -86,11 +78,11 @@ type SkillDetailProps = {
   /** 描述草稿：null = 未改动（null 化判断在面板回调里）。 */
   descriptionDraft: string | null;
   onDescriptionChange: (value: string) => void;
-  onRevert: () => void;
   onSave: () => void;
 };
 
-/** 右列：可编辑名字框与描述、包内容胶囊行、内容预览与放弃/保存钮。 */
+/** 右列：详情头行（可编辑名字框＋删除钮＋保存钮——启停章与底部操作条随两子页归一撤除，
+ *  启停只由左列开关表达、放弃路走未保存确认弹窗）＋描述横排字段＋包内容胶囊＋内容预览。 */
 export function SkillDetail({
   current,
   nameDraft,
@@ -106,40 +98,45 @@ export function SkillDetail({
   onPreviewChange,
   descriptionDraft,
   onDescriptionChange,
-  onRevert,
   onSave,
 }: SkillDetailProps): ReactElement {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex items-center gap-2">
+      <div className="flex min-h-(--h-lg) items-center gap-2">
         <input
           aria-label="技能名称"
           value={nameDraft ?? current.name}
           disabled={saving || loadingPreview}
           onChange={(event) => onNameChange(event.currentTarget.value)}
-          className="min-w-15 max-w-105 field-sizing-content rounded-md border border-transparent bg-transparent px-1 py-0.5 text-t-xl font-medium hover:border-border hover:bg-card focus:border-input"
+          className="min-w-24 max-w-[380px] w-fit shrink-[1] basis-auto field-sizing-content -ml-[calc(var(--s-1)+1px)] rounded-md border border-transparent bg-transparent p-1 text-t-xl font-semibold text-foreground hover:border-input focus:border-n-400 focus:outline-none"
         />
-        <Badge variant={current.enabled ? "success" : "muted"}>
-          {current.enabled ? "已启用" : "已停用"}
-        </Badge>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="删除技能"
-              className="ml-auto"
-              // dirty 态删除钮可点（2026-10-01 用户裁「都准备删除了还管什么保存没保存」）——
-              // dirty 不再禁删，直接走删除确认弹窗；禁用只留瞬态飞行档。
-              disabled={saving || loadingPreview}
-              onClick={onDelete}
-            >
-              <Trash2Icon className="text-bad-ink" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>删除技能</TooltipContent>
-        </Tooltip>
+        <Tip label="删除技能">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="删除技能"
+            // dirty 态删除钮可点（2026-10-01 用户裁「都准备删除了还管什么保存没保存」）——
+            // dirty 不再禁删，直接走删除确认弹窗；禁用只留瞬态飞行档。
+            disabled={saving || loadingPreview}
+            onClick={onDelete}
+            // 静止中性、悬停红底红字（.set-head-del 同款，与端点详情头行同构）。
+            className="hover:bg-bad-ink/12 hover:text-bad-ink"
+          >
+            <Trash2Icon />
+          </Button>
+        </Tip>
+        <Tip label={dirty ? "" : "没有未保存的修改"}>
+          <Button
+            type="button"
+            variant={dirty ? "default" : "ghost"}
+            className="ml-auto"
+            disabled={!dirty || saving || loadingPreview}
+            onClick={onSave}
+          >
+            保存
+          </Button>
+        </Tip>
       </div>
       <label htmlFor="skill-description" className="flex items-center gap-3 text-t-sm">
         <span className="shrink-0 text-muted-foreground">描述</span>
@@ -182,22 +179,6 @@ export function SkillDetail({
           />
         </div>
       )}
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" disabled={!dirty || saving} onClick={onRevert}>
-          <Undo2Icon />
-          放弃更改
-        </Button>
-        <Tip label={dirty ? "" : "没有未保存的修改"}>
-          <Button
-            variant={dirty ? "default" : "ghost"}
-            disabled={!dirty || saving || loadingPreview}
-            onClick={onSave}
-          >
-            <SaveIcon />
-            保存更改
-          </Button>
-        </Tip>
-      </div>
     </div>
   );
 }

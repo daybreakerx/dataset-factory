@@ -57,7 +57,7 @@ export function AdvParamsSection({
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-t-md font-medium transition-colors hover:bg-accent"
+        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-t-md font-medium transition-colors hover:bg-accent"
       >
         <ChevronDownIcon
           className={cn(
@@ -137,7 +137,7 @@ export function AdvParamsSection({
             <Textarea
               aria-label="模型通用参数 JSON"
               spellCheck={false}
-              className="min-h-[110px] text-t-sm"
+              className="min-h-[112px] text-t-sm"
               value={json}
               placeholder={`{
   "temperature": 0.7,

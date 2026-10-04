@@ -119,10 +119,25 @@ describe("SettingsPage · 连接·端点配置", () => {
       expect(screen.getByLabelText("Base URL")).toHaveValue("https://a/v1");
     });
     expect(screen.getByText("backup")).toBeInTheDocument();
-    expect(screen.getByLabelText("名称")).toHaveValue("default");
-    expect(screen.getByLabelText("名称")).toBeEnabled();
+    expect(screen.getByLabelText("配置名称")).toHaveValue("default");
+    expect(screen.getByLabelText("配置名称")).toBeEnabled();
     expect(screen.getByLabelText("模型名称")).toHaveValue("model-a");
     expect(screen.getByText("已配置")).toBeInTheDocument();
+  });
+
+  it("列表三态：空库显示「未配置模型」（不拿取数中顶空态）", async () => {
+    apiMock.listEndpoints.mockResolvedValue([]);
+    render(<SettingsPage />);
+
+    expect(await screen.findByText("未配置模型")).toBeInTheDocument();
+  });
+
+  it("列表三态：取数失败显示固定失败句，后端原文不进界面", async () => {
+    apiMock.listEndpoints.mockRejectedValue(new Error("boom 业务错误"));
+    render(<SettingsPage />);
+
+    expect(await screen.findByText("配置读取失败")).toBeInTheDocument();
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
   });
 
   it("保存更改：不带密钥调 updateEndpoint（后端沿用已存密钥）", async () => {
@@ -132,7 +147,7 @@ describe("SettingsPage · 连接·端点配置", () => {
     await waitFor(() => screen.getByLabelText("Base URL"));
     await userEvent.clear(screen.getByLabelText("模型名称"));
     await userEvent.type(screen.getByLabelText("模型名称"), "model-a2");
-    await userEvent.click(screen.getByRole("button", { name: "保存更改" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() => {
       expect(apiMock.updateEndpoint).toHaveBeenCalledWith("default", {
@@ -163,9 +178,9 @@ describe("SettingsPage · 连接·端点配置", () => {
     render(<SettingsPage />);
 
     await waitFor(() => screen.getByLabelText("Base URL"));
-    await userEvent.clear(screen.getByLabelText("名称"));
-    await userEvent.type(screen.getByLabelText("名称"), "renamed");
-    await userEvent.click(screen.getByRole("button", { name: "保存更改" }));
+    await userEvent.clear(screen.getByLabelText("配置名称"));
+    await userEvent.type(screen.getByLabelText("配置名称"), "renamed");
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() => {
       expect(apiMock.updateEndpoint).toHaveBeenCalledWith("default", {
@@ -179,7 +194,7 @@ describe("SettingsPage · 连接·端点配置", () => {
     expect(
       await screen.findByText("已改名并保存：「default」→「renamed」"),
     ).toBeInTheDocument();
-    expect(await screen.findByLabelText("名称")).toHaveValue("renamed");
+    expect(await screen.findByLabelText("配置名称")).toHaveValue("renamed");
   });
 
   it("添加配置：创建后给出成功反馈", async () => {
@@ -202,11 +217,11 @@ describe("SettingsPage · 连接·端点配置", () => {
 
     await waitFor(() => screen.getByLabelText("Base URL"));
     await userEvent.click(screen.getByRole("button", { name: "添加配置" }));
-    await userEvent.type(screen.getByLabelText("名称"), "new-one");
+    await userEvent.type(screen.getByLabelText("配置名称"), "new-one");
     await userEvent.type(screen.getByLabelText("Base URL"), "https://n/v1");
     await userEvent.type(screen.getByLabelText("模型名称"), "m");
     await userEvent.type(screen.getByLabelText("API 密钥"), "sk-new-key"); // pragma: allowlist secret —— 测试假密钥
-    await userEvent.click(screen.getByRole("button", { name: "创建配置" }));
+    await userEvent.click(screen.getByRole("button", { name: "创建" }));
 
     await waitFor(() => {
       expect(apiMock.createEndpoint).toHaveBeenCalledWith({
@@ -226,7 +241,7 @@ describe("SettingsPage · 连接·端点配置", () => {
     render(<SettingsPage />);
 
     await waitFor(() => screen.getByLabelText("Base URL"));
-    await userEvent.click(screen.getByRole("button", { name: "删除" }));
+    await userEvent.click(screen.getByRole("button", { name: "删除配置" }));
     const dialog = screen.getByRole("dialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "删除" }));
 
@@ -244,7 +259,7 @@ describe("SettingsPage · 端点配置·测试连接", () => {
       latency_ms: 412,
     });
     render(<SettingsPage />);
-    await screen.findByText("model-a");
+    await screen.findByText("default");
 
     await userEvent.click(screen.getByRole("button", { name: "测试连接" }));
 
@@ -268,7 +283,7 @@ describe("SettingsPage · 端点配置·测试连接", () => {
       latency_ms: 120,
     });
     render(<SettingsPage />);
-    await screen.findByText("model-a");
+    await screen.findByText("default");
 
     await userEvent.click(screen.getByRole("button", { name: "测试连接" }));
 
@@ -340,7 +355,7 @@ describe("SettingsPage · 端点配置·高级参数", () => {
     const json = screen.getByLabelText("模型通用参数 JSON");
 
     fireEvent.input(json, { target: { value: "{oops" } });
-    await userEvent.click(screen.getByRole("button", { name: "保存更改" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     expect(apiMock.updateEndpoint).not.toHaveBeenCalled();
     expect(await screen.findByText(/JSON 写法无效/)).toBeInTheDocument();
@@ -375,7 +390,7 @@ describe("SettingsPage · 端点配置·高级参数", () => {
     await userEvent.clear(screen.getByLabelText("temperature"));
     await userEvent.type(screen.getByLabelText("temperature"), "0.8");
     await userEvent.type(screen.getByLabelText(/timeout_seconds/), "240");
-    await userEvent.click(screen.getByRole("button", { name: "保存更改" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() => {
       expect(apiMock.updateEndpoint).toHaveBeenCalledWith("tuned", {
@@ -397,6 +412,17 @@ describe("SettingsPage · 能力·技能", () => {
     render(<SettingsPage section="skills" />);
     await waitFor(() => screen.getByLabelText("启用 h3-skill"));
   }
+
+  it("列表三态：空库显示「Skill 库为空」；取数失败显示固定失败句", async () => {
+    apiMock.listSkills.mockResolvedValue([]);
+    render(<SettingsPage section="skills" />);
+    expect(await screen.findByText("Skill 库为空")).toBeInTheDocument();
+
+    apiMock.listSkills.mockRejectedValue(new Error("boom 业务错误"));
+    render(<SettingsPage section="skills" />);
+    expect(await screen.findByText("技能读取失败")).toBeInTheDocument();
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
+  });
 
   it("列表行：状态开关 + 状态徽章；点开关调 setSkillEnabled（停用 ≠ 删除）", async () => {
     await openSkills();
@@ -598,7 +624,7 @@ describe("SettingsPage · 能力·技能", () => {
       target: { value: "新的描述" },
     });
     expect(screen.getByRole("button", { name: "references/detail.md" })).toBeDisabled();
-    await userEvent.click(screen.getByRole("button", { name: "保存更改" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     expect(await screen.findByText(/文件已被修改/)).toBeInTheDocument();
     expect(editor).toHaveValue("新的正文");
@@ -607,9 +633,9 @@ describe("SettingsPage · 能力·技能", () => {
       original_content: "# Example\n按格式输出 caption。",
       description: "新的描述",
     });
-    await userEvent.click(screen.getByRole("button", { name: "保存更改" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(editor).toHaveValue("保存后的正文"));
-    expect(screen.getByRole("button", { name: "保存更改" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
   });
 
   it("改名称：先按原名存正文、再改名，选中项与列表跟到新名", async () => {
@@ -622,9 +648,9 @@ describe("SettingsPage · 能力·技能", () => {
     await openSkills();
 
     const nameField = await screen.findByLabelText("技能名称");
-    expect(screen.getByRole("button", { name: "保存更改" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
     fireEvent.change(nameField, { target: { value: "h3-caption" } });
-    await userEvent.click(screen.getByRole("button", { name: "保存更改" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     // 改名必须排在存内容之后：改名会重写 frontmatter，先改名就让刚读的基线失效（PUT 400）。
     expect(apiMock.saveSkillFile).toHaveBeenCalledWith("h3-skill", "SKILL.md", {
@@ -648,21 +674,25 @@ describe("SettingsPage · 能力·技能", () => {
     fireEvent.change(await screen.findByLabelText("技能名称"), {
       target: { value: "old-skill" },
     });
-    await userEvent.click(screen.getByRole("button", { name: "保存更改" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     expect(await screen.findByText(/已有同名 skill/)).toBeInTheDocument();
     expect(screen.getByLabelText("技能名称")).toHaveValue("old-skill");
     expect(screen.getByLabelText("启用 h3-skill")).toBeInTheDocument();
   });
 
-  it("放弃技能草稿恢复内容并解锁文件切换", async () => {
+  it("放弃路：dirty 起未保存确认弹窗，放弃修改后内容回退、文件切换解锁", async () => {
     await openSkills();
     const editor = await screen.findByLabelText("技能文件内容");
     await waitFor(() => expect(editor).toHaveValue("# Example\n按格式输出 caption。"));
 
     fireEvent.change(editor, { target: { value: "未保存" } });
-    await userEvent.click(screen.getByRole("button", { name: "放弃更改" }));
+    // 放弃更改钮随操作条撤除：回退唯一入口＝未保存确认弹窗「放弃修改」。
+    await userEvent.click(screen.getByRole("button", { name: /old-skill/ }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "放弃修改" }));
 
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(editor).toHaveValue("# Example\n按格式输出 caption。");
     expect(screen.getByRole("button", { name: "references/detail.md" })).toBeEnabled();
   });

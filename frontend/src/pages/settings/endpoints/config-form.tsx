@@ -1,9 +1,9 @@
 /**
- * 连接 · 端点配置 · 详情表单（右列）：头行（题名 / 删除钮）、五个字段
- * （名称 / Base URL / API 格式 / 模型名称 / API 密钥）、反馈条、测试连接行、
- * 高级参数折叠区与页脚动作行。展示层——草稿状态与命令回调由面板传入。
+ * 连接 · 端点配置 · 详情表单（右列）：头行（名字框〔配置名可编辑〕＋删除钮＋保存钮）、
+ * 四个字段（Base URL / API 格式 / 模型名称 / API 密钥——原「名称」字段行随头行名字框化
+ * 整撤）、反馈条、测试连接行与高级参数折叠区。展示层——草稿状态与命令回调由面板传入。
  */
-import { LockIcon } from "lucide-react";
+import { LockIcon, Trash2Icon } from "lucide-react";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 import type { EndpointConfigSummary, EndpointTestResult } from "../../../api";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../components/ui/select";
+import { Tip } from "../../../components/ui/tooltip";
 import type { Feedback } from "../../../lib/feedback";
 import type { AdvJsonState, ThinkingMode } from "./adv-params";
 import { AdvParamsSection } from "./adv-params-section";
@@ -39,6 +40,8 @@ type ConfigFormProps = {
   creating: boolean;
   /** 当前选中的配置（回填与占位来源；创建态为 undefined）。 */
   current: EndpointConfigSummary | undefined;
+  /** 编辑态草稿是否干净（与落盘值一致）——净态保存钮退 ghost 并禁用。 */
+  clean: boolean;
   draftName: string;
   onNameInput: (value: string) => void;
   draftBaseUrl: string;
@@ -75,6 +78,7 @@ type ConfigFormProps = {
 export function ConfigForm({
   creating,
   current,
+  clean,
   draftName,
   onNameInput,
   draftBaseUrl,
@@ -104,39 +108,53 @@ export function ConfigForm({
   thinking,
   onThinkingChange,
 }: ConfigFormProps): ReactElement {
+  // 保存钮两态禁用（components/button.md 编辑类保存钮脏态纪律）：净态退 ghost 并禁用
+  // （Tip「没有未保存的修改」）；三必填任一为空灰阶禁用（Tip 点名缺什么）——创建态仅后者。
+  const cleanDisabled = !creating && clean;
+  const saveDisabled = creating ? !canSave : cleanDisabled || !canSave;
+  const saveTip = cleanDisabled
+    ? "没有未保存的修改"
+    : canSave
+      ? ""
+      : "请填写名称、Base URL 和模型名称";
   return (
-    <div className="mx-auto w-full max-w-xl space-y-4">
-      <div className="flex items-center gap-2">
-        <h3 className="text-t-lg font-semibold">
-          {creating ? "添加配置" : current?.name}
-        </h3>
+    <div className="flex w-full min-w-0 flex-col gap-3">
+      <div className="flex min-h-(--h-lg) items-center gap-2">
+        <input
+          aria-label="配置名称"
+          value={draftName}
+          placeholder={creating ? "新建配置" : undefined}
+          onInput={(event) => onNameInput(event.currentTarget.value)}
+          className="min-w-24 max-w-[380px] w-fit shrink-[1] basis-auto field-sizing-content -ml-[calc(var(--s-1)+1px)] rounded-md border border-transparent bg-transparent p-1 text-t-xl font-semibold text-foreground hover:border-input focus:border-n-400 focus:outline-none"
+        />
         {!creating && (
+          <Tip label="删除配置">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="删除配置"
+              onClick={onDelete}
+              // 静止中性、悬停红底红字（.set-head-del 同款——红色留给悬停提示与确认弹窗）。
+              className="hover:bg-bad-ink/12 hover:text-bad-ink"
+            >
+              <Trash2Icon />
+            </Button>
+          </Tip>
+        )}
+        <Tip label={saveTip}>
           <Button
             type="button"
-            variant="destructive"
-            size="sm"
+            variant={cleanDisabled ? "ghost" : "default"}
             className="ml-auto"
-            onClick={onDelete}
+            disabled={saveDisabled}
+            onClick={onSave}
           >
-            删除
+            {creating ? "创建" : "保存"}
           </Button>
-        )}
+        </Tip>
       </div>
 
-      <div className="space-y-1">
-        <Label htmlFor="endpoint-name">名称</Label>
-        <Input
-          id="endpoint-name"
-          value={draftName}
-          placeholder="如 siliconflow"
-          onInput={(event) => onNameInput(event.currentTarget.value)}
-        />
-        <p className="text-t-sm text-muted-foreground">
-          {creating
-            ? "即数据目录名，创建后也可再改。"
-            : "名称可改（数据目录随之改名）；历史跑批里记录的仍是当时的名称。"}
-        </p>
-      </div>
       <div className="space-y-1">
         <Label htmlFor="endpoint-base-url">Base URL</Label>
         <Input
@@ -231,13 +249,6 @@ export function ConfigForm({
         thinking={thinking}
         onThinkingChange={onThinkingChange}
       />
-
-      <div className="flex items-center gap-2 border-t border-border pt-4">
-        <span className="flex-1" />
-        <Button type="button" disabled={!canSave} onClick={onSave}>
-          {creating ? "创建配置" : "保存更改"}
-        </Button>
-      </div>
     </div>
   );
 }

@@ -26,9 +26,9 @@ test("技能拖入、正文与描述写回经真实接口保存并刷新恢复",
   await expect(editor).toHaveValue(content);
   await editor.fill(`${content}Updated instructions\n`);
   await page.getByLabel("技能描述").fill("Updated description");
-  await page.getByRole("button", { name: "保存更改" }).click();
-  await expect(page.getByRole("button", { name: "保存更改" })).toBeDisabled();
-  // 「保存更改」按钮变灰只代表前端认为写完了，落盘与登记是服务端另一回事：直接 GET 一次
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.getByRole("button", { name: "保存" })).toBeDisabled();
+  // 「保存」按钮变灰只代表前端认为写完了，落盘与登记是服务端另一回事：直接 GET 一次
   // 会在写可见之前读到旧内容（Linux runner 上实弹过一次）。改成轮询到内容落地再断言。
   let saved = "";
   await expect
@@ -54,7 +54,7 @@ test("技能拖入、正文与描述写回经真实接口保存并刷新恢复",
   expect(editorBounds!.width).toBeGreaterThan(280);
   expect(editorBounds!.x).toBeGreaterThanOrEqual(0);
   expect(editorBounds!.x + editorBounds!.width).toBeLessThanOrEqual(390);
-  for (const name of ["导入 Skill", "保存更改", "放弃更改"]) {
+  for (const name of ["导入 Skill", "保存"]) {
     const bounds = await page.getByRole("button", { name, exact: true }).boundingBox();
     expect(bounds).not.toBeNull();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);

@@ -1739,7 +1739,7 @@ test("measure settings-endpoint-config computed styles", async ({ page }) => {
 
   // 亮色逐项
   console.log("EPC_PANEL:", JSON.stringify(await page.evaluate(() => {
-    const panel = document.querySelector('[class*="grid-cols-[340px_1fr]"]');
+    const panel = document.querySelector('[class*="grid-cols-[280px_minmax"]');
     if (!panel) return null;
     const cs = getComputedStyle(panel);
     const h2 = document.querySelector('[data-testid="page-settings"] h2');
@@ -1750,28 +1750,20 @@ test("measure settings-endpoint-config computed styles", async ({ page }) => {
     };
   }), null, 2));
   console.log("EPC_LIST:", JSON.stringify(await page.evaluate(() => {
-    const panel = document.querySelector('[class*="grid-cols-[340px_1fr]"]');
+    const panel = document.querySelector('[class*="grid-cols-[280px_minmax"]');
     const col = panel?.children[0] as HTMLElement | undefined;
     if (!col) return null;
     const head = col.children[0] as HTMLElement;
     const h = head.querySelector("h3");
-    const cnt = head.querySelector("span");
     const cur = col.querySelector('button[aria-current="true"]');
-    const bar = cur?.querySelector("span[aria-hidden]");
     const name = cur?.querySelector("span.truncate");
-    const model = cur?.querySelector("span.block");
-    const dot = cur?.querySelector("span.size-2");
-    const add = Array.from(col.querySelectorAll("button")).find((b) => b.textContent?.includes("添加配置"));
+    const add = Array.from(col.querySelectorAll("button")).find((b) => b.getAttribute("aria-label")?.includes("添加配置"));
     const g = (el: HTMLElement) => getComputedStyle(el);
     return {
       listPad: g(col).padding, headPt: g(head).paddingTop, headPb: g(head).paddingBottom, headPl: g(head).paddingLeft, headGap: g(head).columnGap,
       title: h ? [g(h).fontSize, g(h).fontWeight, g(h).color] : null,
-      count: cnt ? [g(cnt).fontSize, g(cnt).color] : null,
       curBg: cur ? g(cur).backgroundColor : null, curRadius: cur ? g(cur).borderRadius : null, curPad: cur ? g(cur).padding : null,
-      bar: bar ? [g(bar).width, g(bar).backgroundColor, g(bar).borderRadius] : null,
       name: name ? [g(name).fontSize, g(name).fontWeight, g(name).color] : null,
-      model: model ? [g(model).fontSize, g(model).color, g(model).paddingLeft] : null,
-      dot: dot ? [g(dot).width, g(dot).backgroundColor] : null,
       add: add ? [g(add).borderStyle, g(add).color, g(add).padding] : null,
     };
   }), null, 2));
@@ -1853,13 +1845,12 @@ test("measure settings-endpoint-config computed styles", async ({ page }) => {
     const sum = tog.querySelector("span");
     return { pad: g.padding, weight: g.fontWeight, size: g.fontSize, gap: g.columnGap, radius: g.borderRadius, chev: svg ? getComputedStyle(svg).width + "/" + getComputedStyle(svg).color : null, sum: sum ? [getComputedStyle(sum).fontSize, getComputedStyle(sum).fontWeight, getComputedStyle(sum).color] : null };
   }), null, 2));
-  console.log("EPC_FOOT:", JSON.stringify(await page.evaluate(() => {
-    // 页脚提示行（「切换设为当前使用…」）随激活机制退役：按「border-t 行内含保存钮」定位。
-    const foot = Array.from(document.querySelectorAll("div")).find((d) => d.querySelector("button") && d.textContent?.includes("保存更改") && d.className.includes("border-t"));
-    if (!foot) return null;
-    const g = getComputedStyle(foot);
-    const save = Array.from(foot.querySelectorAll("button")).find((b) => b.textContent?.includes("保存"));
-    return { pt: g.paddingTop, bt: g.borderTopWidth + " " + g.borderTopColor, gap: g.columnGap, save: save ? [save.offsetHeight, getComputedStyle(save).backgroundColor, getComputedStyle(save).color, getComputedStyle(save).borderRadius, save.textContent] : null };
+  console.log("EPC_HEAD_SAVE:", JSON.stringify(await page.evaluate(() => {
+    // 头行保存钮（两子页归一：保存进详情头行行尾，原页脚动作行随操作条撤除退役）。
+    const save = Array.from(document.querySelectorAll("button[data-slot=button]")).find((b) => b.textContent?.trim() === "保存");
+    if (!save) return null;
+    const g = getComputedStyle(save);
+    return { h: save.offsetHeight, bg: g.backgroundColor, color: g.color, disabled: (save as HTMLButtonElement).disabled };
   }), null, 2));
 
   // 高级参数展开态

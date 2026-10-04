@@ -11,6 +11,7 @@ import { api } from "../../../api";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
 import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
+import { useVscrollColumn } from "../../../components/vscroll";
 import { type Feedback, reportError } from "../../../lib/feedback";
 import { formatBytes } from "../../../lib/format";
 import type { PanelUnsavedActions } from "../../../lib/unsaved-actions";
@@ -75,7 +76,7 @@ export function SkillsPanel({
     if (text !== null) setFeedback({ kind: "error", text });
   }, []);
 
-  const { skills, reload: fetchSkills } = useSkills(fail);
+  const { skills, loading, loadError, reload: fetchSkills } = useSkills();
 
   const reload = useCallback(async (): Promise<void> => {
     const list = await fetchSkills();
@@ -413,6 +414,7 @@ export function SkillsPanel({
 
   // ---------- 壳层接口：dirty 上报＋保存／回退注册（ref 桥保证壳层拿到最新闭包） ----------
   const actionsRef = useRef<PanelUnsavedActions | null>(null);
+  const detailRef = useVscrollColumn<HTMLDivElement>();
   actionsRef.current = {
     save: () => save(),
     revert: revertDraft,
@@ -431,10 +433,12 @@ export function SkillsPanel({
   useEffect(() => () => onSettingsDirtyChange?.(false), [onSettingsDirtyChange]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-auto bg-card md:grid md:grid-cols-[340px_minmax(0,1fr)] md:overflow-hidden">
+    <div className="relative flex h-full min-h-0 flex-col overflow-auto rounded-lg border border-border bg-card shadow-(--sh-1) md:grid md:grid-cols-[280px_minmax(0,1fr)] md:overflow-hidden">
       {/* 左：列表 + 导入 */}
       <SkillList
         skills={skills}
+        loading={loading}
+        loadError={loadError}
         selected={selected}
         toggling={toggling}
         onToggle={(skill) => void toggle(skill)}
@@ -461,8 +465,11 @@ export function SkillsPanel({
         onDrop={(transfer) => void drop(transfer)}
       />
 
-      {/* 右：详情 + 包内容预览 */}
-      <div className="flex min-w-0 shrink-0 flex-1 flex-col border-t border-border p-4 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l lg:px-8 lg:py-6">
+      {/* 右：详情 + 包内容预览（列内滚、自绘竖向滚动条；内距 24/32——两子页归一值） */}
+      <div
+        ref={detailRef}
+        className="vscroll-y flex min-w-0 shrink-0 flex-1 flex-col border-t border-border p-4 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l lg:px-8 lg:py-6"
+      >
         {!importOpen && feedback !== null && (
           <Alert variant={feedback.kind === "error" ? "destructive" : "success"}>
             <AlertDescription>{feedback.text}</AlertDescription>
@@ -488,11 +495,10 @@ export function SkillsPanel({
             onDescriptionChange={(value) =>
               setDescriptionDraft(value === current.description ? null : value)
             }
-            onRevert={revertDraft}
             onSave={() => void save()}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-t-md text-muted-foreground">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-t-sm text-text-3">
             左侧选择一个技能查看详情与包内容。
           </div>
         )}
