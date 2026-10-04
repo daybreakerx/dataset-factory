@@ -15,7 +15,9 @@ describe("错误呈现分流", () => {
     vi.useFakeTimers();
   });
   afterEach(() => {
-    vi.advanceTimersByTime(5_000);
+    // 放完「驻留 5s ＋ 出场淡出兜底」的全程计时——驻留到点先进淡出态、真摘在兜底时限，
+    // 只放 5s 会把淡出中的遗留条带进下一个用例（浮层清单是模块级状态、跨用例不清就串味）。
+    vi.advanceTimersByTime(6_000);
     vi.useRealTimers();
   });
 
