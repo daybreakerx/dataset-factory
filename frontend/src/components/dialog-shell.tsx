@@ -100,19 +100,19 @@ export function DialogShell({
       >
         {title !== undefined && (
           <DialogHeader>
-            {headNote !== undefined ? (
-              <div className="flex min-h-(--h-md) items-center gap-3">
-                <DialogTitle>{title}</DialogTitle>
+            {/* 标题行随稿 .modal-head：min-h 30（--h-md，关闭钮同高）内垂直居中——
+                标题与右上角 × 钮中轴对齐、正文起点与稿逐像素同（描述顶 = 16+30+8）。 */}
+            <div className="flex min-h-(--h-md) items-center gap-3">
+              <DialogTitle>{title}</DialogTitle>
+              {headNote !== undefined && (
                 <span
                   role="alert"
                   className="min-w-0 flex-1 truncate text-t-sm text-bad-ink"
                 >
                   {headNote}
                 </span>
-              </div>
-            ) : (
-              <DialogTitle>{title}</DialogTitle>
-            )}
+              )}
+            </div>
             {description !== undefined && (
               <DialogDescription>{description}</DialogDescription>
             )}

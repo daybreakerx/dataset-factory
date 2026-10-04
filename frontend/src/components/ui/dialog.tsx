@@ -101,7 +101,9 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-t-xl font-medium", className)}
+      // 行高随稿 .modal-title 取 --lh-base（16px × 1.55 ≈ 24.8 盒高）——全站 t-xl 的
+      // lh-tight 映射在弹窗标题这里被稿显式覆盖；标题行的 30px 居中在 DialogShell 组合。
+      className={cn("text-t-xl font-medium leading-(--lh-base)", className)}
       {...props}
     />
   );
