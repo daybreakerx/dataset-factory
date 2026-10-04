@@ -182,7 +182,12 @@ it("创建失败保留名称并释放重试按钮", async () => {
   const user = userEvent.setup();
   vi.mocked(api.createDirectory).mockRejectedValue(new Error("没有写入权限"));
   render(<DirectoryPicker allowCreate onClose={vi.fn()} onSelect={vi.fn()} />);
-  await user.click(await screen.findByRole("button", { name: "新建目录" }));
+  // 新建目录钮挂 Tip 且 boot 期先以禁用态挂载：清单落位解禁时 Tip 的禁用包裹层拆装、
+  // 按钮节点重挂——挂载期捕获的节点会失效，等解禁后现查现点。
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "新建目录" })).toBeEnabled(),
+  );
+  await user.click(screen.getByRole("button", { name: "新建目录" }));
   await user.type(screen.getByRole("textbox", { name: "目录名称" }), "new-parent");
 
   await user.click(screen.getByRole("button", { name: "创建" }));

@@ -15,7 +15,8 @@ const TooltipTrigger = TooltipPrimitive.Trigger;
 
 function TooltipContent({
   className,
-  sideOffset = 6,
+  // 间距 8（触发件与气泡之间，overlay.md tip 段，2026-10-02 用户裁「贴合取 8」）。
+  sideOffset = 8,
   children,
   ...props
 }: ComponentProps<typeof TooltipPrimitive.Content>) {
@@ -25,7 +26,9 @@ function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          "z-50 w-fit max-w-[320px] rounded-md border bg-popover px-3 py-2 text-t-sm text-popover-foreground shadow-md",
+          // 影取浮层族档 --sh-3（与 cfg-pop／modal 同值，不用 Tailwind 默认 shadow-md）；
+          // select-none＝气泡是纯展示层，文字不可选（overlay.md tip 段行为④）。
+          "z-50 w-fit max-w-[320px] rounded-md border bg-popover px-3 py-2 text-t-sm text-popover-foreground shadow-(--sh-3) select-none",
           "data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95",
           className,
         )}
@@ -37,10 +40,18 @@ function TooltipContent({
   );
 }
 
+/** 禁用控件收不到指针事件（项目的禁用态 CSS 带 pointer-events: none），气泡直接挂在
+ * 它身上永远不弹——触发器必须包在外层中性 span 上（对齐批「禁用控件上的 tip」条）。
+ * 原生元素与本项目 Button 的 disabled 都写在 props 上，按 props 正判即可覆盖全部现役禁用场景。 */
+function isDisabledChild(child: ReactElement): boolean {
+  return (child.props as { disabled?: boolean }).disabled === true;
+}
+
 /** 悬停气泡提示（全站提示形态规范）：替代原生 title，避免系统直角灰框。
  * 自带 Provider：页面会被单独渲染（组件测试 / 弹窗复用），不能依赖外壳的 Provider。
  * label 为空串 / null 时直接返回 children——禁用原因这类动态 label 在「可点」态
- * 不该残留一只空气泡（「原型有气泡、实现什么都没有」的反向兜底）。 */
+ * 不该残留一只空气泡（「原型有气泡、实现什么都没有」的反向兜底）。
+ * 子元素带 disabled 时先包一层中性 span 当触发器（禁用控件收不到指针事件，见上）。 */
 function Tip({ label, children }: { label: ReactNode; children: ReactElement }) {
   if (label === "" || label === null || label === undefined) {
     return children;
@@ -48,7 +59,13 @@ function Tip({ label, children }: { label: ReactNode; children: ReactElement }) 
   return (
     <TooltipProvider delayDuration={320}>
       <Tooltip>
-        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        {isDisabledChild(children) ? (
+          <TooltipTrigger asChild>
+            <span className="inline-flex">{children}</span>
+          </TooltipTrigger>
+        ) : (
+          <TooltipTrigger asChild>{children}</TooltipTrigger>
+        )}
         <TooltipContent>{label}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
