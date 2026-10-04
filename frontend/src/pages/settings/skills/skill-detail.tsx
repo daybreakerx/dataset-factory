@@ -1,5 +1,5 @@
 /** 能力 · 技能 · 右列详情（头行：名字框＋删除钮＋保存钮；描述、包内容胶囊、内容预览）。 */
-import { CopyIcon, FileTextIcon, ImageIcon, Trash2Icon } from "lucide-react";
+import { FileTextIcon, ImageIcon, Trash2Icon } from "lucide-react";
 import type { ReactElement } from "react";
 import type { SkillFileInfo, SkillInfo } from "../../../api";
 import { Button } from "../../../components/ui/button";
@@ -29,7 +29,8 @@ function SkillFileChip({
       disabled={disabled || !entry.previewable}
       onClick={() => onSelect(entry.path)}
       className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-full border px-3 py-1 text-t-sm transition-colors [overflow-wrap:anywhere]",
+        // chip 族字色档：普通胶囊 text-2（选中转主色、禁用灰字删除线各归各档）。
+        "inline-flex max-w-full items-center gap-1 rounded-full border px-3 py-1 text-t-sm text-text-2 transition-colors [overflow-wrap:anywhere]",
         entry.previewable
           ? "border-border bg-card hover:bg-accent"
           : "cursor-not-allowed border-border bg-muted text-n-400 line-through",
@@ -43,7 +44,7 @@ function SkillFileChip({
       ) : entry.path.startsWith("assets/") ? (
         <ImageIcon className="size-3" />
       ) : (
-        <CopyIcon className="size-3" />
+        <FileTextIcon className="size-3" />
       )}
       {entry.path}
     </button>
@@ -150,7 +151,7 @@ export function SkillDetail({
       </label>
 
       <div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1">
           {files.map((entry) => (
             <SkillFileChip
               key={entry.path}
@@ -175,7 +176,7 @@ export function SkillDetail({
             value={previewContent}
             disabled={saving || loadingPreview}
             onChange={(event) => onPreviewChange(event.currentTarget.value)}
-            className="min-h-40 w-full flex-1 resize-y rounded-md border border-input bg-card px-4 py-3 font-sans text-t-sm leading-(--lh-loose) hover:border-n-400 focus:border-n-400"
+            className="min-h-40 w-full flex-1 resize-none rounded-md border border-input bg-card p-3 font-sans text-t-md leading-(--lh-loose) hover:border-n-400 focus:border-n-400 focus:outline-none"
           />
         </div>
       )}

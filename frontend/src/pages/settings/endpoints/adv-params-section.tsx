@@ -1,4 +1,4 @@
-/** 连接 · 端点配置 · 高级参数折叠区（思考模式 + 模型通用参数表单⇄JSON + 本项目传输参数）。 */
+/** 连接 · 端点配置 · 高级参数折叠区（思考模式 + 模型通用参数表单⇄JSON + 传输参数）。 */
 import { ChevronDownIcon } from "lucide-react";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { Input } from "../../../components/ui/input";
@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../components/ui/select";
-import { Textarea } from "../../../components/ui/textarea";
 import { cn } from "../../../lib/utils";
 import type { AdvJsonState, ThinkingMode } from "./adv-params";
 
@@ -37,7 +36,9 @@ type AdvParamsSectionProps = {
   onThinkingChange: (mode: ThinkingMode) => void;
 };
 
-/** 折叠区本体：默认收起，展开后三段（思考模式 / 模型通用参数 / 传输参数）。 */
+/** 折叠区本体：默认收起，展开后三段（思考模式 / 模型通用参数 / 传输参数）。
+ *  触发行摘要、思考模式长说明与「模型通用参数」小节题均随裁撤除（对齐批）；
+ *  JSON 框归多行正文编辑区族＝.mdwrap＞.md（白底描边壳在外、内部只管排版）。 */
 export function AdvParamsSection({
   open,
   onToggle,
@@ -67,48 +68,30 @@ export function AdvParamsSection({
           aria-hidden
         />
         高级参数（可选）
-        <span className="text-t-xs font-normal text-muted-foreground">
-          思考模式 / temperature / top_p / max_tokens / 超时 / 重试 / extra_body——留空 =
-          端点默认值
-        </span>
       </button>
       {open && (
         <div className="space-y-4 border-t border-border px-3 py-3">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <Label htmlFor="adv-thinking" className="shrink-0 text-t-sm font-medium">
-                思考模式
-              </Label>
-              <Select
-                value={thinking}
-                onValueChange={(value) => onThinkingChange(value as ThinkingMode)}
-              >
-                <SelectTrigger id="adv-thinking" className="w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {THINKING_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-t-xs text-muted-foreground">
-              关闭思考可显著加快推理型模型的响应。对话试标与跑批共用这一个值——
-              只影响新请求与**新建**的批次；已有批次想换参数，请新建一个批次
-              （快照冻结在应用时刻）。开关走 SiliconFlow / DashScope 官方的顶层
-              enable_thinking 参数，仅部分模型支持（Qwen3.x、DeepSeek-V3.2+、 GLM、Kimi
-              等）；不支持的模型会收到端点 400 报错，拨回「跟随模型
-              默认」即可恢复。其他厂商字段（如 reasoning_effort）可直接手写进 下方 JSON
-              的 extra_body。
-            </p>
+          <div className="flex items-center gap-3">
+            <Label htmlFor="adv-thinking" className="shrink-0 text-t-sm font-medium">
+              思考模式
+            </Label>
+            <Select
+              value={thinking}
+              onValueChange={(value) => onThinkingChange(value as ThinkingMode)}
+            >
+              <SelectTrigger id="adv-thinking" className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {THINKING_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
-            <p className="text-t-sm font-medium">
-              模型通用参数（JSON，与表单双向同步——可直接从厂商文档粘贴）
-            </p>
             <div className="grid grid-cols-3 gap-2">
               {(["temperature", "top_p", "max_tokens"] as const).map((key) => (
                 <div key={key} className="space-y-1">
@@ -124,29 +107,27 @@ export function AdvParamsSection({
                     step={key === "max_tokens" ? "1" : "any"}
                     inputMode={key === "max_tokens" ? "numeric" : "decimal"}
                     value={form[key]}
-                    placeholder={
-                      key === "max_tokens"
-                        ? "留空使用端点默认，或输入正整数（如 1024）"
-                        : "留空使用端点默认，或输入 0 以上的数值"
-                    }
+                    placeholder="留空使用端点默认"
                     onInput={(event) => onFormField(key, event.currentTarget.value)}
                   />
                 </div>
               ))}
             </div>
-            <Textarea
-              aria-label="模型通用参数 JSON"
-              spellCheck={false}
-              className="min-h-[112px] text-t-sm"
-              value={json}
-              placeholder={`{
+            <div className="flex min-h-[112px] overflow-hidden rounded-md border border-input bg-card">
+              <textarea
+                aria-label="模型通用参数 JSON"
+                spellCheck={false}
+                className="min-h-0 w-full flex-1 resize-none bg-transparent p-3 font-sans text-t-md leading-(--lh-loose) placeholder:text-n-400 focus-visible:outline-none"
+                value={json}
+                placeholder={`{
   "temperature": 0.7,
   "top_p": 0.9,
   "max_tokens": 1024,
   "extra_body": { "top_k": 50 }
 }`}
-              onInput={(event) => onJsonInput(event.currentTarget.value)}
-            />
+                onInput={(event) => onJsonInput(event.currentTarget.value)}
+              />
+            </div>
             <p
               role="status"
               className={cn(
@@ -160,9 +141,7 @@ export function AdvParamsSection({
             </p>
           </div>
           <div className="space-y-2">
-            <p className="text-t-sm font-medium">
-              本项目传输参数（仅表单，不提供 JSON）
-            </p>
+            <p className="text-t-sm font-medium">传输参数</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label
@@ -177,7 +156,7 @@ export function AdvParamsSection({
                   step="any"
                   inputMode="decimal"
                   value={transport.timeout_seconds}
-                  placeholder="留空 = 120 秒（内置默认）"
+                  placeholder="留空 = 120 秒"
                   onInput={(event) => {
                     // 先取值再进更新函数：React 的事件对象在更新器执行时已失效。
                     const value = event.currentTarget.value;
@@ -201,7 +180,7 @@ export function AdvParamsSection({
                   step="1"
                   inputMode="numeric"
                   value={transport.max_retries}
-                  placeholder="留空 = 2 次（内置默认）"
+                  placeholder="留空 = 2 次"
                   onInput={(event) => {
                     const value = event.currentTarget.value;
                     setTransport((current) => ({

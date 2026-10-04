@@ -107,14 +107,18 @@ test.describe("打标全链路", () => {
 });
 
 test.describe("设置页", () => {
-  test("端点配置详情：Base URL 与密钥来源正确显示（默认进连接子页）", async ({ page }) => {
+  test("端点配置详情：Base URL 与密钥占位正确显示（默认进连接子页）", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "设置", exact: true }).click();
 
     // 页面保活：策略页常驻 DOM（隐藏），「名称」标签两页都有——按页容器取作用域。
     const settings = page.getByTestId("page-settings");
     await expect(settings.getByLabel("Base URL")).toHaveValue(/fake-llm\/v1$/);
-    await expect(settings.getByText("已配置")).toBeVisible();
+    // 「这套配没配密钥」只由密钥框占位表达（状态行与锁图标安全行整撤）。
+    await expect(settings.getByLabel("API 密钥")).toHaveAttribute(
+      "placeholder",
+      "留空即沿用已配置密钥",
+    );
     // 名称可编辑（2026-09-23 起：改名后端 PUT new_name 支持）；头行名字框 aria＝「配置名称」。
     await expect(settings.getByLabel("配置名称", { exact: true })).toBeEnabled();
   });

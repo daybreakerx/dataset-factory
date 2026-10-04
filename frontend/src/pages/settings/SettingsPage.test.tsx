@@ -122,7 +122,11 @@ describe("SettingsPage · 连接·端点配置", () => {
     expect(screen.getByLabelText("配置名称")).toHaveValue("default");
     expect(screen.getByLabelText("配置名称")).toBeEnabled();
     expect(screen.getByLabelText("模型名称")).toHaveValue("model-a");
-    expect(screen.getByText("已配置")).toBeInTheDocument();
+    // 「这套配没配密钥」只由密钥框占位表达（状态行与锁图标安全行整撤）。
+    expect(screen.getByLabelText("API 密钥")).toHaveAttribute(
+      "placeholder",
+      "留空即沿用已配置密钥",
+    );
   });
 
   it("列表三态：空库显示「未配置模型」（不拿取数中顶空态）", async () => {
@@ -138,6 +142,21 @@ describe("SettingsPage · 连接·端点配置", () => {
 
     expect(await screen.findByText("配置读取失败")).toBeInTheDocument();
     expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
+  });
+
+  it("密钥框内嵌尾随钮：有输入才出现，点击切明文与 aria 随态", async () => {
+    render(<SettingsPage />);
+
+    await waitFor(() => screen.getByLabelText("Base URL"));
+    const key = screen.getByLabelText("API 密钥");
+    // 空框不出钮——避免误读成「点它能查回已存密钥」。
+    expect(screen.queryByRole("button", { name: "显示密钥" })).not.toBeInTheDocument();
+
+    await userEvent.type(key, "sk-x");
+    expect(screen.getByRole("button", { name: "显示密钥" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "显示密钥" }));
+    expect(key).toHaveAttribute("type", "text");
+    expect(screen.getByRole("button", { name: "隐藏密钥" })).toBeInTheDocument();
   });
 
   it("保存更改：不带密钥调 updateEndpoint（后端沿用已存密钥）", async () => {

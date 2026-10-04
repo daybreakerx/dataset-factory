@@ -3,8 +3,9 @@
  * 四个字段（Base URL / API 格式 / 模型名称 / API 密钥——原「名称」字段行随头行名字框化
  * 整撤）、反馈条、测试连接行与高级参数折叠区。展示层——草稿状态与命令回调由面板传入。
  */
-import { LockIcon, Trash2Icon } from "lucide-react";
+import { EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
+import { useEffect, useState } from "react";
 import type { EndpointConfigSummary, EndpointTestResult } from "../../../api";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
@@ -108,6 +109,12 @@ export function ConfigForm({
   thinking,
   onThinkingChange,
 }: ConfigFormProps): ReactElement {
+  // 密钥明文切换只作用于本次输入：框被清空（保存成功回空、换选中回填、放弃修改）
+  // 即复位为隐藏——已存密钥永不回显，切换态不能跨清空残留。
+  const [showKey, setShowKey] = useState(false);
+  useEffect(() => {
+    if (draftKey === "") setShowKey(false);
+  }, [draftKey]);
   // 保存钮两态禁用（components/button.md 编辑类保存钮脏态纪律）：净态退 ghost 并禁用
   // （Tip「没有未保存的修改」）；三必填任一为空灰阶禁用（Tip 点名缺什么）——创建态仅后者。
   const cleanDisabled = !creating && clean;
@@ -198,29 +205,40 @@ export function ConfigForm({
       </div>
       <div className="space-y-1">
         <Label htmlFor="endpoint-api-key">API 密钥</Label>
-        <Input
-          id="endpoint-api-key"
-          type="password"
-          value={draftKey}
-          placeholder={
-            !creating && (current?.has_api_key ?? false)
-              ? "留空 = 沿用已配置密钥"
-              : "请输入密钥"
-          }
-          onInput={(event) => onKeyInput(event.currentTarget.value)}
-        />
-        <p className="flex items-center gap-1.5 text-t-sm text-muted-foreground">
-          {(current?.has_api_key ?? draftKey.trim() !== "") && (
-            <span className="size-2 rounded-full bg-success" aria-hidden />
+        <div className="relative">
+          <Input
+            id="endpoint-api-key"
+            type={showKey ? "text" : "password"}
+            value={draftKey}
+            placeholder={
+              !creating && (current?.has_api_key ?? false)
+                ? "留空即沿用已配置密钥"
+                : "请输入密钥"
+            }
+            onInput={(event) => onKeyInput(event.currentTarget.value)}
+            className="pr-8"
+          />
+          {draftKey !== "" && (
+            // 内嵌尾随钮（components/form.md「输入框内嵌尾随钮」）：图标示「当前状态」
+            //（隐藏态＝斜线眼睛、可见态＝正眼睛）；只切本次输入的明文，已存密钥永不回显；
+            // 空框不出钮（避免误读成「能查回已存密钥」）；不写 autocomplete（浏览器
+            // 记住并复用密钥是实益）。
+            <Tip label={showKey ? "隐藏密钥" : "显示密钥"}>
+              <button
+                type="button"
+                aria-label={showKey ? "隐藏密钥" : "显示密钥"}
+                onClick={() => setShowKey((visible) => !visible)}
+                className="absolute top-1/2 right-3 flex size-6 -translate-y-1/2 items-center justify-center rounded-xs text-muted-foreground transition-colors hover:bg-accent hover:text-text-1"
+              >
+                {showKey ? (
+                  <EyeIcon className="size-4" />
+                ) : (
+                  <EyeOffIcon className="size-4" />
+                )}
+              </button>
+            </Tip>
           )}
-          {(current?.has_api_key ?? false)
-            ? "已配置"
-            : "未配置——可之后补配，或用环境变量 DSF_API_KEY 兜底"}
-        </p>
-        <p className="flex items-center gap-1.5 text-t-sm text-muted-foreground">
-          <LockIcon className="size-3" /> 密钥写入该配置的 credentials
-          文件，界面不回显、接口不返回内容。
-        </p>
+        </div>
       </div>
 
       {feedback !== null && (
