@@ -1,9 +1,9 @@
+import { CheckIcon } from "lucide-react";
 import { type ReactElement, useEffect, useRef, useState } from "react";
 import type { EndpointConfigSummary, PromptInfo, SkillInfo } from "../../../api";
 import { api } from "../../../api";
 import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
-import { Alert, AlertDescription } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import {
   Select,
@@ -31,16 +31,24 @@ export function StrategyToolbar({
   skills,
   endpoints,
   locked,
+  promptDirty,
   onSelect,
   onNewStrategy,
   onStrategySaved,
   onRestored,
+  onSwitchWhileDirty,
+  pendingSwitch,
+  onPendingSwitchHandled,
+  onEndpointSaveError,
 }: {
   references: References;
   prompts: PromptInfo[];
   skills: SkillInfo[];
   endpoints: EndpointConfigSummary[];
+  /** 瞬态忙类锁（发送／保存飞行／切策略飞行）：点策略行静默拦——口径不变。 */
   locked: boolean;
+  /** 提示词侧有未保存改动：点非当前策略行不再就地拦截，改上抛由上层弹「未保存确认弹窗」兜底（对齐批「提示词切换未保存拦截」条）。 */
+  promptDirty: boolean;
   onSelect: (strategy: Strategy) => Promise<void>;
   /** 点「新建策略」时回调：换桶语义，工作域据此进 __new__ 桶（会话归属 v3）。 */
   onNewStrategy: () => void;
@@ -48,16 +56,25 @@ export function StrategyToolbar({
   onStrategySaved: (strategy: Strategy) => void;
   /** 启动恢复认领了策略时回调：端点 chip 锚定该策略冻结的端点（随跳同语义）。 */
   onRestored: (strategy: Strategy) => void;
+  /** 提示词 dirty 时点了非当前策略行：上层起确认弹窗（保存／放弃后放行）。 */
+  onSwitchWhileDirty: (strategy: Strategy) => void;
+  /** 弹窗放行（保存或放弃完成）后的继续切换请求；执行完回调清空。 */
+  pendingSwitch: Strategy | null;
+  onPendingSwitchHandled: () => void;
+  /** 选端点触发的自动保存失败落点（对齐批「端点切换弹层 · chip 触发的保存失败行」）：
+   *  文字落右栏对话头行 chip 右侧槽；空串＝清（下一次保存成功即清）。 */
+  onEndpointSaveError: (text: string) => void;
 }): ReactElement {
   const [open, setOpen] = useState(false);
-  const { entries, loading, error, setEntries, setError, fetchList } =
-    useStrategies(open);
+  const { entries, loading, error, setEntries, setError } = useStrategies(open);
   const [selected, setSelected] = useState<Strategy | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [remove, setRemove] = useState<Strategy | null>(null);
   const [repair, setRepair] = useState<Strategy | null>(null);
+  // 创建成功反馈：原地转无底绿色对勾、三秒自动消失（保存钮稿 策略行实例）。
+  const [createdFlash, setCreatedFlash] = useState(false);
   const [bindings, setBindings] = useState<References>({
     endpoint_id: "",
     prompt_id: "",
@@ -72,6 +89,19 @@ export function StrategyToolbar({
   const selectionTouched = useRef(false);
   // 启动恢复的一次性门闩：镜像认领 + 签名认领只试一轮，之后交给用户。
   const selectionResolved = useRef(false);
+  // ---------- 动作级实时保存（保存钮稿 策略行实例，2026-10-04 裁） ----------
+  // 切策略流程会更新 references（选策略 → 应用它的引用）；置位期间引用 effect
+  // 不触发自动保存——保存的时机归切换流程自身，否则中间帧会拿旧 selected 误存。
+  const suppressAutoSaveRef = useRef(false);
+  // 自动保存串行链：连续动作（失焦保存未回包又选端点）排队执行、不丢保存；
+  // choose 前也等它落定，避免「编辑保存」与「切换」竞态。
+  const autoSaveChainRef = useRef<Promise<void>>(Promise.resolve());
+  // refs 与「selected/name/description」的镜像 ref：effect 与串行链回调里读最新值，
+  // 不进闭包（deps 也因此收窄到真正触发时机）。
+  const refsRef = useRef(references);
+  refsRef.current = references;
+  const editRef = useRef({ selected, name, description });
+  editRef.current = { selected, name, description };
 
   useEffect(() => {
     mounted.current = true;
@@ -175,8 +205,81 @@ export function StrategyToolbar({
       if (mounted.current) setBusy(false);
     }
   };
+
+  // 与选中策略现值一致则无需保存（引用 effect 会因对象引用变化触发，内容未必变）。
+  const sameAsSelected = (nm: string, ds: string, refs: References): boolean => {
+    const sel = editRef.current.selected;
+    if (sel === null) return false;
+    return (
+      nm === sel.name &&
+      ds === sel.description &&
+      refs.endpoint_id === sel.endpoint_id &&
+      refs.prompt_id === sel.prompt_id &&
+      JSON.stringify(refs.skill_ids) === JSON.stringify(sel.skill_ids)
+    );
+  };
+
+  const runAutoSave = async (source: "endpoint" | "edit"): Promise<void> => {
+    if (!mounted.current) return;
+    const { selected: sel, name: nm, description: ds } = editRef.current;
+    const refs = refsRef.current;
+    // 名称空不发请求（保存钮稿：前端校验拦中间态）；新建态无自动保存——显式走创建钮。
+    if (sel === null || nm.trim() === "") return;
+    if (sameAsSelected(nm.trim(), ds, refs)) return;
+    try {
+      const entry = await api.updateStrategy(sel.id, {
+        name: nm.trim(),
+        description: ds,
+        ...refs,
+      });
+      if (!mounted.current) return;
+      selectionTouched.current = true;
+      remember(entry);
+      setSelected(entry);
+      setName(entry.name);
+      setDescription(entry.description);
+      setError("");
+      // 保存成功清两处失败行（策略行槽与 chip 槽——「下一次保存成功即清」）。
+      onEndpointSaveError("");
+    } catch (err) {
+      if (!mounted.current) return;
+      const text = reportError(err);
+      if (text === null) return; // 环境类：浮层已承接
+      if (source === "endpoint") onEndpointSaveError(text);
+      else setError(text);
+    }
+  };
+  const queueAutoSave = (source: "endpoint" | "edit"): void => {
+    autoSaveChainRef.current = autoSaveChainRef.current.then(() => runAutoSave(source));
+  };
+
+  // 引用动作级实时保存：选端点／选提示词／勾或取消 Skill 各触发一次（保存钮稿）。
+  // 名称描述的编辑由失焦/回车显式触发，不在这里（打字过程不发请求）。
+  // 失败落点跟触发源走：端点变化 → chip 槽（对话头行）；其余 → 策略行槽。
+  const prevEndpointRef = useRef(references.endpoint_id);
+  const queueRef = useRef<(source: "endpoint" | "edit") => void>(() => {});
+  queueRef.current = queueAutoSave;
+  useEffect(() => {
+    const endpointChanged = prevEndpointRef.current !== references.endpoint_id;
+    prevEndpointRef.current = references.endpoint_id;
+    if (suppressAutoSaveRef.current) return;
+    if (editRef.current.selected === null) return;
+    queueRef.current(endpointChanged ? "endpoint" : "edit");
+  }, [references]);
+
+  // 名称描述编辑完成（失焦或回车）：名称清空且选中策略在场 → 回退旧名（保存钮稿
+  // 「清空后失焦＝回退旧名」），否则走实时保存。新建态无回退对象，交给创建钮。
+  const flushNameEdit = (): void => {
+    const sel = editRef.current.selected;
+    if (sel !== null && name.trim() === "") {
+      setName(sel.name);
+      return;
+    }
+    queueAutoSave("edit");
+  };
+
   const choose = async (entry: Strategy): Promise<void> => {
-    if (pending.current || locked || loading) return;
+    if (pending.current || loading) return;
     if (!entry.available) {
       setBindings({
         endpoint_id: entry.endpoint_id,
@@ -187,46 +290,62 @@ export function StrategyToolbar({
       setOpen(false);
       return;
     }
-    await operate(async () => {
-      await onSelect(entry);
-      if (!mounted.current) return;
-      setSelected(entry);
-      setName(entry.name);
-      setDescription(entry.description);
+    if (locked) return;
+    // 新建态有草稿（名称/描述已填、尚未落库）：切走即丢草稿——维持旧实现的拦截
+    // 保守处理；拦截形态（静默／弹窗兜底／允许切走）稿未承载，呈用户裁决。
+    if (selected === null && (name !== "" || description !== "")) return;
+    if (promptDirty) {
+      // 提示词跨行锁（保存钮稿「切换策略锁定」）：拦截形态随 提示词下拉 件——
+      // 上层弹「未保存确认弹窗」，保存或放弃后经 pendingSwitch 放行继续切换。
       setOpen(false);
-    });
+      onSwitchWhileDirty(entry);
+      return;
+    }
+    // 切换前等在途编辑保存落定（打开弹层即失焦保存，可能与切行竞态）；
+    // suppress 罩住整个窗口：切换引发的 references 变化不走自动保存。
+    suppressAutoSaveRef.current = true;
+    try {
+      await autoSaveChainRef.current;
+      await operate(async () => {
+        await onSelect(entry);
+        if (!mounted.current) return;
+        setSelected(entry);
+        setName(entry.name);
+        setDescription(entry.description);
+        setOpen(false);
+      });
+    } finally {
+      suppressAutoSaveRef.current = false;
+    }
   };
-  const dirty =
-    selected !== null &&
-    (name !== selected.name ||
-      description !== selected.description ||
-      references.endpoint_id !== selected.endpoint_id ||
-      references.prompt_id !== selected.prompt_id ||
-      JSON.stringify(references.skill_ids) !== JSON.stringify(selected.skill_ids));
-  // 有东西可保存 = 已选策略有改动，或正在编辑一份尚未落库的新策略（新建流程不能被「无改动」禁用）。
-  const actionable =
-    dirty || (selected === null && (name !== "" || description !== ""));
-  const switchLocked =
-    locked ||
-    busy ||
-    dirty ||
-    (selected === null && (name !== "" || description !== ""));
-  const save = (): void => {
+
+  // 弹窗放行后的继续切换（one-shot）：门闩防 StrictMode 双跑。
+  const chooseRef = useRef(choose);
+  chooseRef.current = choose;
+  const handledSwitchRef = useRef<Strategy | null>(null);
+  useEffect(() => {
+    if (pendingSwitch === null || handledSwitchRef.current === pendingSwitch) return;
+    handledSwitchRef.current = pendingSwitch;
+    onPendingSwitchHandled();
+    void chooseRef.current(pendingSwitch);
+  }, [pendingSwitch, onPendingSwitchHandled]);
+
+  const create = (): void => {
     void operate(async () => {
       const body = { name: name.trim(), description, ...references };
-      const entry = selected
-        ? await api.updateStrategy(selected.id, body)
-        : await api.createStrategy(body);
+      const entry = await api.createStrategy(body);
       if (!mounted.current) return;
       remember(entry);
       setSelected(entry);
       setName(entry.name);
       setDescription(entry.description);
       // 新落库的策略：把当前草稿桶的会话改挂到它名下（会话归属 v3——保存前聊的
-      // 就是「这个策略」的对话，落库即认领；改存量策略不动归属）。
-      if (selected === null) {
-        onStrategySaved(entry);
-      }
+      // 就是「这个策略」的对话，落库即认领）。
+      onStrategySaved(entry);
+      setCreatedFlash(true);
+      window.setTimeout(() => {
+        if (mounted.current) setCreatedFlash(false);
+      }, 3000);
     });
   };
 
@@ -241,10 +360,18 @@ export function StrategyToolbar({
             aria-label="策略名称"
             placeholder="新建策略"
             value={name}
+            maxLength={100}
             disabled={busy}
             onChange={(event) => {
               selectionTouched.current = true;
               setName(event.currentTarget.value);
+            }}
+            onBlur={flushNameEdit}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                flushNameEdit();
+              }
             }}
             className="min-w-24 max-w-[380px] field-sizing-content rounded-md border border-transparent bg-transparent py-1 pr-7 pl-2 text-t-2xl font-semibold hover:border-border hover:bg-card focus:border-input focus:outline-none"
           />
@@ -256,8 +383,6 @@ export function StrategyToolbar({
             busy={busy}
             loading={loading}
             error={error}
-            locked={locked}
-            switchLocked={switchLocked}
             wrapRef={nameWrapRef}
             prompts={prompts}
             skills={skills}
@@ -268,6 +393,7 @@ export function StrategyToolbar({
               setSelected(null);
               setName("");
               setDescription("");
+              setCreatedFlash(false);
               setOpen(false);
               // 新建 = 离开当前配置（换底座）：会话清空，与切策略同语义。
               onNewStrategy();
@@ -296,45 +422,69 @@ export function StrategyToolbar({
             selectionTouched.current = true;
             setDescription(event.currentTarget.value);
           }}
+          onBlur={() => queueAutoSave("edit")}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              queueAutoSave("edit");
+            }
+          }}
           className="min-w-24 max-w-full field-sizing-content rounded-md border border-transparent bg-transparent px-2 py-1 text-t-md text-text-3 hover:border-border hover:bg-card focus:border-input"
         />
-        <span className="hidden flex-1 sm:block" />
-        <Tip label={actionable ? "" : "没有未保存的修改"}>
-          <Button
-            size="sm"
-            variant={actionable ? "default" : "ghost"}
-            aria-label="保存策略"
-            disabled={
-              busy ||
-              locked ||
-              !actionable ||
-              !name.trim() ||
-              !references.prompt_id ||
-              !references.endpoint_id
-            }
-            onClick={save}
-          >
-            保存
-          </Button>
-        </Tip>
+        {error !== "" && remove === null && repair === null && (
+          // 行内失败槽（保存钮稿「失败提示行」；与切换／复制失败同槽共用）：
+          // note-inline--bad 等价类——单行省略＋悬停给全文；下一次保存成功即清。
+          <Tip label={error}>
+            <span
+              role="alert"
+              className="min-w-[200px] max-w-full truncate text-t-sm text-bad-ink"
+            >
+              {error}
+            </span>
+          </Tip>
+        )}
+        {createdFlash ? (
+          // 创建成功的原地反馈（保存钮稿「创建 · 成功」）：无底绿色对勾、读屏播报、
+          // 三秒自动消失。放在 selected 条件外——创建成功即选中（selected 已更新），
+          // 对勾仍要驻留三秒。
+          <CheckIcon
+            aria-label="已创建"
+            role="status"
+            className="size-4 shrink-0 text-ok-ink"
+          />
+        ) : (
+          selected === null && (
+            // 显式创建（保存钮稿「创建态」）：仅新建策略态渲染，占原保存钮位置。
+            <>
+              <span className="hidden flex-1 sm:block" />
+              <Tip
+                label={
+                  name.trim() === ""
+                    ? "请填写策略名称"
+                    : !references.prompt_id || !references.endpoint_id
+                      ? "请先选择端点和提示词"
+                      : ""
+                }
+              >
+                <Button
+                  size="sm"
+                  disabled={
+                    !name.trim() || !references.prompt_id || !references.endpoint_id
+                  }
+                  aria-disabled={busy || undefined}
+                  className={busy ? "pointer-events-none" : undefined}
+                  onClick={() => {
+                    if (busy) return;
+                    create();
+                  }}
+                >
+                  创建
+                </Button>
+              </Tip>
+            </>
+          )
+        )}
       </div>
-      {error && !remove && !repair && (
-        <Alert variant="destructive" className="mt-2">
-          <AlertDescription>{error}</AlertDescription>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              void operate(async () => {
-                const list = await fetchList();
-                if (mounted.current) setEntries(list);
-              })
-            }
-          >
-            刷新策略库
-          </Button>
-        </Alert>
-      )}
       <DialogShell
         open={remove !== null}
         // 飞行期 Esc 也可关（弹窗壳稿「关掉的是界面、不撤销已发出的请求」），与其余删除弹窗一致。
@@ -370,7 +520,7 @@ export function StrategyToolbar({
             }),
         }}
       >
-        {error && (
+        {error !== "" && (
           <FormError data-dialog-error className="text-t-sm text-bad-ink">
             {error}
           </FormError>

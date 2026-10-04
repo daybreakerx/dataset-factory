@@ -1,11 +1,12 @@
 import { PanelLeftOpenIcon } from "lucide-react";
-import type { ReactElement } from "react";
-import { useState } from "react";
+import type { Dispatch, ReactElement, SetStateAction } from "react";
+import { useCallback, useRef, useState } from "react";
 import { PageViewport } from "./app-shell/page-viewport";
 import { Sidebar } from "./app-shell/sidebar";
 import { Dialog, DialogContent, DialogTitle } from "./components/ui/dialog";
 import { ToastViewport } from "./components/ui/toast";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { UnsavedConfirmDialog } from "./components/unsaved-confirm-dialog";
 import { useMediaQuery } from "./hooks/use-media-query";
 import { usePersistedState } from "./hooks/use-persisted-state";
 import { useTheme } from "./hooks/use-theme";
@@ -17,6 +18,7 @@ import {
   SHELL_SIDEBAR_COLLAPSED_KEY,
   type ShellPage,
 } from "./lib/ui-storage";
+import type { PanelUnsavedActions } from "./lib/unsaved-actions";
 import { ChatSessionProvider } from "./session/chat-session";
 
 /** 设置节恢复守卫：localStorage 里的 JSON 不可信，畸形值回退默认节。 */
@@ -57,6 +59,77 @@ export function App(): ReactElement {
   // 合成值不落盘：进入区间即收起，离开后恢复用户自己的折叠偏好。
   const narrowDesktop = useMediaQuery("(min-width: 768px) and (max-width: 1023.98px)");
 
+  // ---------- 设置页未保存拦截（dirty 语义改写＋切页确认弹窗，2026-10-04 裁） ----------
+  // 面板 dirty 上提一跳（面板 → SettingsPage → 本层），只拦设置子侧栏切子页——
+  // 主侧栏切顶级页不触发（顶层三页 Activity 保活、切走编辑不丢）；关闭服务不弹
+  // 本弹窗（dirty×关机走「关机确认弹窗 dirty 态」的合并一窗）。
+  const [settingsDirty, setSettingsDirty] = useState(false);
+  const settingsActionsRef = useRef<PanelUnsavedActions | null>(null);
+  const [unsavedOpen, setUnsavedOpen] = useState(false);
+  const [unsavedError, setUnsavedError] = useState("");
+  const [unsavedBusy, setUnsavedBusy] = useState(false);
+  const [pendingSection, setPendingSection] = useState<SettingsSection | null>(null);
+
+  const guardSettingsSection: Dispatch<SetStateAction<SettingsSection>> = useCallback(
+    (next) => {
+      const target = typeof next === "function" ? next(settingsSection) : next;
+      if (target === settingsSection) return;
+      if (settingsDirty) {
+        setPendingSection(target);
+        setUnsavedError("");
+        setUnsavedOpen(true);
+        return;
+      }
+      setSettingsSection(target);
+    },
+    [settingsSection, settingsDirty, setSettingsSection],
+  );
+
+  const bindSettingsActions = useCallback((actions: PanelUnsavedActions | null) => {
+    settingsActionsRef.current = actions;
+  }, []);
+
+  /** 弹窗「保存修改」（primary）：保存成功 → 切子页；业务失败 → 弹窗红字保持打开；
+   *  环境类 → 浮层已提示、弹窗保持打开无红字（未保存确认弹窗稿）。 */
+  const confirmUnsavedSave = async (): Promise<void> => {
+    if (pendingSection === null || unsavedBusy) return;
+    const target = pendingSection;
+    setUnsavedBusy(true);
+    try {
+      const result = await (settingsActionsRef.current?.save() ??
+        Promise.resolve({ ok: false, error: "" }));
+      if (!result.ok) {
+        if (result.error !== "") setUnsavedError(result.error);
+        return;
+      }
+      setUnsavedOpen(false);
+      setUnsavedError("");
+      setPendingSection(null);
+      setSettingsSection(target);
+    } finally {
+      setUnsavedBusy(false);
+    }
+  };
+
+  /** 弹窗「放弃修改」（secondary）：回退修改 → 切子页。 */
+  const discardUnsaved = (): void => {
+    if (pendingSection === null || unsavedBusy) return;
+    const target = pendingSection;
+    settingsActionsRef.current?.revert();
+    setUnsavedOpen(false);
+    setUnsavedError("");
+    setPendingSection(null);
+    setSettingsSection(target);
+  };
+
+  /** 叉号／Esc：关弹窗、留在当前子页不动作（dirty 原状保持）。 */
+  const closeUnsaved = (open: boolean): void => {
+    if (open) return;
+    setUnsavedOpen(false);
+    setUnsavedError("");
+    setPendingSection(null);
+  };
+
   function openSettings(section?: SettingsSection) {
     if (page !== "settings") setWorkPage(page);
     // 子页定向（族弹层「前往设置」钮）：带哪节落哪节，不带沿用上次。
@@ -84,10 +157,11 @@ export function App(): ReactElement {
     navigationOpen,
     settingsSection,
     mode,
+    settingsDirty,
     setPage,
     setCollapsed,
     setNavigationOpen,
-    setSettingsSection,
+    setSettingsSection: guardSettingsSection,
     setMode,
     openSettings,
   };
@@ -139,10 +213,21 @@ export function App(): ReactElement {
               settingsSection={settingsSection}
               openSettings={openSettings}
               onOpenWorkbench={() => setPage("prompts")}
+              onSettingsDirtyChange={setSettingsDirty}
+              onRegisterActions={bindSettingsActions}
             />
           </ChatSessionProvider>
         </main>
       </div>
+      {/* 设置页未保存确认弹窗（壳级）：子侧栏切子页 dirty 时的兜底——三路行为随稿。 */}
+      <UnsavedConfirmDialog
+        open={unsavedOpen}
+        onOpenChange={closeUnsaved}
+        flight={unsavedBusy}
+        error={unsavedError}
+        onSave={() => void confirmUnsavedSave()}
+        onDiscard={discardUnsaved}
+      />
       {/* 浮层提示挂在外壳唯一一处：连接类失败在各页面投递，渲染出口只留一个。 */}
       <ToastViewport />
     </TooltipProvider>

@@ -4240,7 +4240,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorDetail"];
                 };
             };
-            /** @description 提示词超出 32 KiB 字节护栏 */
+            /** @description 提示词超出 32k 字符护栏 */
             413: {
                 headers: {
                     [name: string]: unknown;

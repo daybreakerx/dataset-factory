@@ -12,7 +12,6 @@ import {
   CfgPopStateRow,
 } from "../../../components/cfg-pop";
 import { DialogShell } from "../../../components/dialog-shell";
-import { Alert, AlertDescription } from "../../../components/ui/alert";
 import { Button } from "../../../components/ui/button";
 import {
   DropdownMenu,
@@ -22,11 +21,12 @@ import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Tip } from "../../../components/ui/tooltip";
 import type { Feedback } from "../../../lib/feedback";
-import { formatBytes, formatChars } from "../../../lib/format";
+import { formatChars } from "../../../lib/format";
 import { BodyEditor } from "./BodyEditor";
 
-/** 基础提示词的字节护栏（对齐 Codex project_doc_max_bytes，后端同值校验）。 */
-const PROMPT_BYTE_BUDGET = 32 * 1024;
+/** 基础提示词的正文护栏：32000 字符（32k 字，2026-10-04 裁 KiB 字节 → k 字符口径——
+ *  展示与护栏同一口径，后端同值校验）。 */
+const PROMPT_CHAR_BUDGET = 32_000;
 
 /** 提示词库下拉弹层（本列私有件）：切换触发件＋库列表＋新建入口。族内实例（cfg-pop）——
  *  弹层壳／头行／行／三态行随 components/cfg-pop.tsx；触发件随族不再随未保存禁用
@@ -165,9 +165,10 @@ export function EditorColumn({
   deleteBusy: boolean;
   onDeleteConfirm: () => void;
 }): ReactElement {
-  const bodyBytes = new TextEncoder().encode(draftBody).length;
-  const byteOver = bodyBytes > PROMPT_BYTE_BUDGET;
-  const bodySize = formatBytes(bodyBytes, "KiB", 1);
+  // 正文按码点计数（Array.from＝Python len 同口径；.length 的 UTF-16 代理对会把
+  // emoji 计成 2，与后端字符校验对不上）。
+  const bodyChars = Array.from(draftBody).length;
+  const charOver = bodyChars > PROMPT_CHAR_BUDGET;
   // 名字框承载块：提示词库弹层的宽度下限与贴边方向基准（族宽三段式）。
   const nameWrapRef = useRef<HTMLDivElement>(null);
 
@@ -204,13 +205,42 @@ export function EditorColumn({
               onDelete={onDeletePromptRequest}
             />
           </div>
+          {charOver ? (
+            // 超预算提示行（保存钮稿提示词行实例；warn 持续态——超限即现、降回即消）。
+            <span
+              role="status"
+              className="min-w-[200px] max-w-full truncate text-t-sm text-warn-ink"
+            >
+              正文超过 32k 字，请精简后保存。
+            </span>
+          ) : editorFeedback !== null ? (
+            editorFeedback.kind === "error" ? (
+              // 保存失败（后端真话原文直排；role=alert；持续到下一次操作）。
+              <Tip label={editorFeedback.text}>
+                <span
+                  role="alert"
+                  className="min-w-[200px] max-w-full truncate text-t-sm text-bad-ink"
+                >
+                  {editorFeedback.text}
+                </span>
+              </Tip>
+            ) : (
+              // 保存成功「已保存」（三秒自灭由状态层 timer 清除；role=status）。
+              <span
+                role="status"
+                className="min-w-[200px] max-w-full truncate text-t-sm text-ok-ink"
+              >
+                {editorFeedback.text}
+              </span>
+            )
+          ) : null}
           <span className="flex-1" />
           <Tip label={promptDirty ? "" : "没有未保存的修改"}>
             <Button
               type="button"
               size="sm"
               variant={promptDirty ? "default" : "ghost"}
-              disabled={byteOver || !promptDirty}
+              disabled={charOver || !promptDirty}
               onClick={onSave}
             >
               保存
@@ -233,23 +263,14 @@ export function EditorColumn({
           <div className="mb-2 flex items-baseline gap-2">
             <span className="text-t-md font-medium text-foreground">正文</span>
             <span
-              className={`text-t-xs font-medium tabular-nums ${byteOver ? "text-bad-ink" : "text-muted-foreground"}`}
+              className={`text-t-xs font-medium tabular-nums ${charOver ? "text-bad-ink" : "text-muted-foreground"}`}
             >
-              {bodySize} / 32 KiB
+              {formatChars(bodyChars)} / 32k 字
             </span>
           </div>
           <BodyEditor value={draftBody} onChange={onDraftBodyChange} />
         </div>
       </div>
-
-      {editorFeedback !== null && (
-        <Alert
-          variant={editorFeedback.kind === "error" ? "destructive" : "success"}
-          className="mt-3"
-        >
-          <AlertDescription>{editorFeedback.text}</AlertDescription>
-        </Alert>
-      )}
 
       <DialogShell
         open={deleteDialogOpen}

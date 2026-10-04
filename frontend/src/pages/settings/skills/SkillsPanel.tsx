@@ -10,8 +10,10 @@ import type { SkillFileInfo, SkillImportResponse, SkillInfo } from "../../../api
 import { api } from "../../../api";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
 import { Alert, AlertDescription } from "../../../components/ui/alert";
+import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
 import { type Feedback, reportError } from "../../../lib/feedback";
 import { formatBytes } from "../../../lib/format";
+import type { PanelUnsavedActions } from "../../../lib/unsaved-actions";
 import { DeleteDialog } from "./delete-dialog";
 import { ImportDialog } from "./import-dialog";
 import { SkillDetail } from "./skill-detail";
@@ -19,7 +21,15 @@ import { readSkillDrop } from "./skill-drop";
 import { SkillList } from "./skill-list";
 import { useSkills } from "./use-skills";
 
-export function SkillsPanel(): ReactElement {
+export function SkillsPanel({
+  onSettingsDirtyChange,
+  onRegisterActions,
+}: {
+  /** dirty 变化上报（壳层拦设置子侧栏切子页；卸载时上报 false）。 */
+  onSettingsDirtyChange?: (dirty: boolean) => void;
+  /** 注册保存／回退接口供壳层弹窗三路行为调用；卸载时注销。 */
+  onRegisterActions?: (actions: PanelUnsavedActions | null) => void;
+}): ReactElement {
   const [selected, setSelected] = useState("");
   const [files, setFiles] = useState<SkillFileInfo[]>([]);
   const [previewPath, setPreviewPath] = useState("");
@@ -38,6 +48,13 @@ export function SkillsPanel(): ReactElement {
     previewContent !== originalContent ||
     descriptionDraft !== null ||
     nameDraft !== null;
+  // ---------- 未保存确认弹窗（面板内离开动作的兜底） ----------
+  const [unsavedOpen, setUnsavedOpen] = useState(false);
+  const [unsavedError, setUnsavedError] = useState("");
+  const [unsavedBusy, setUnsavedBusy] = useState(false);
+  const [leaveAction, setLeaveAction] = useState<
+    { kind: "pick"; name: string } | { kind: "preview"; path: string } | null
+  >(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   // 删除飞行期与失败行：提交后回包前两钮只失效不换装；业务错误就地进弹窗
@@ -123,7 +140,14 @@ export function SkillsPanel(): ReactElement {
   const current = skills.find((item) => item.name === selected);
 
   const pick = (name: string): void => {
-    if (dirty || saving) return;
+    if (saving || savePending.current) return;
+    // dirty 时点其他行：由未保存确认弹窗兜底（dirty 语义改写——动作照常可点）。
+    if (dirty) {
+      setLeaveAction({ kind: "pick", name });
+      setUnsavedError("");
+      setUnsavedOpen(true);
+      return;
+    }
     setSelected(name);
     setFeedback(null);
   };
@@ -242,7 +266,14 @@ export function SkillsPanel(): ReactElement {
   };
 
   const openPreview = async (path: string): Promise<void> => {
-    if (selected === "" || dirty || savePending.current) {
+    if (selected === "" || savePending.current) {
+      return;
+    }
+    // dirty 时点另一枚胶囊：由未保存确认弹窗兜底（稿＝照常可点）。
+    if (dirty) {
+      setLeaveAction({ kind: "preview", path });
+      setUnsavedError("");
+      setUnsavedOpen(true);
       return;
     }
     const generation = ++previewGeneration.current;
@@ -261,12 +292,82 @@ export function SkillsPanel(): ReactElement {
     }
   };
 
-  const save = async (): Promise<void> => {
-    if (savePending.current || loadingPreview || !dirty) return;
+  /** 回退未保存修改（「放弃修改」路）：详情回填落盘值。 */
+  const revertDraft = (): void => {
+    setPreviewContent(originalContent);
+    setDescriptionDraft(null);
+    setNameDraft(null);
+  };
+
+  /** 弹窗放行后的目标动作。 */
+  const runLeaveAction = async (
+    action: NonNullable<typeof leaveAction>,
+  ): Promise<void> => {
+    if (action.kind === "pick") {
+      setSelected(action.name);
+      setFeedback(null);
+      return;
+    }
+    const generation = ++previewGeneration.current;
+    setLoadingPreview(true);
+    try {
+      const content = await api.readSkillFile(selected, action.path);
+      if (generation !== previewGeneration.current) return;
+      setPreviewPath(action.path);
+      setPreviewContent(content.content);
+      setOriginalContent(content.content);
+      setDescriptionDraft(null);
+    } catch (err) {
+      if (generation === previewGeneration.current) fail(err);
+    } finally {
+      if (generation === previewGeneration.current) setLoadingPreview(false);
+    }
+  };
+
+  const confirmLeaveSave = async (): Promise<void> => {
+    if (leaveAction === null || unsavedBusy) return;
+    const action = leaveAction;
+    setUnsavedBusy(true);
+    try {
+      const result = await save();
+      if (!result.ok) {
+        if (result.error !== "") setUnsavedError(result.error);
+        return;
+      }
+      setUnsavedOpen(false);
+      setUnsavedError("");
+      setLeaveAction(null);
+      await runLeaveAction(action);
+    } finally {
+      setUnsavedBusy(false);
+    }
+  };
+
+  const discardLeave = (): void => {
+    if (leaveAction === null || unsavedBusy) return;
+    const action = leaveAction;
+    revertDraft();
+    setUnsavedOpen(false);
+    setUnsavedError("");
+    setLeaveAction(null);
+    void runLeaveAction(action);
+  };
+
+  const closeLeave = (open: boolean): void => {
+    if (open) return;
+    setUnsavedOpen(false);
+    setUnsavedError("");
+    setLeaveAction(null);
+  };
+
+  const save = async (): Promise<{ ok: boolean; error: string }> => {
+    if (savePending.current || loadingPreview || !dirty) {
+      return { ok: false, error: "" };
+    }
     const nextName = (nameDraft ?? selected).trim();
     if (nextName === "") {
       setFeedback({ kind: "error", text: "名称不能为空；请填写技能名称。" });
-      return;
+      return { ok: false, error: "名称不能为空；请填写技能名称。" };
     }
     const renamed = nextName !== selected;
     savePending.current = true;
@@ -278,7 +379,9 @@ export function SkillsPanel(): ReactElement {
         original_content: originalContent,
         ...(descriptionDraft !== null ? { description: descriptionDraft } : {}),
       });
-      if (generation !== previewGeneration.current) return;
+      if (generation !== previewGeneration.current) {
+        return { ok: false, error: "" };
+      }
       setPreviewContent(result.content);
       setOriginalContent(result.content);
       setDescriptionDraft(null);
@@ -294,19 +397,43 @@ export function SkillsPanel(): ReactElement {
         text: renamed ? `已保存并改名为「${nextName}」` : "已保存",
       });
       await reload();
+      return { ok: true, error: "" };
     } catch (err) {
-      if (generation === previewGeneration.current) fail(err);
+      if (generation === previewGeneration.current) {
+        const text = reportError(err);
+        if (text !== null) fail(err);
+        return { ok: false, error: text ?? "" };
+      }
+      return { ok: false, error: "" };
     } finally {
       savePending.current = false;
       setSaving(false);
     }
   };
 
+  // ---------- 壳层接口：dirty 上报＋保存／回退注册（ref 桥保证壳层拿到最新闭包） ----------
+  const actionsRef = useRef<PanelUnsavedActions | null>(null);
+  actionsRef.current = {
+    save: () => save(),
+    revert: revertDraft,
+  };
+  useEffect(() => {
+    onRegisterActions?.({
+      save: () =>
+        actionsRef.current?.save() ?? Promise.resolve({ ok: false, error: "" }),
+      revert: () => actionsRef.current?.revert(),
+    });
+    return () => onRegisterActions?.(null);
+  }, [onRegisterActions]);
+  useEffect(() => {
+    onSettingsDirtyChange?.(dirty);
+  }, [dirty, onSettingsDirtyChange]);
+  useEffect(() => () => onSettingsDirtyChange?.(false), [onSettingsDirtyChange]);
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-auto bg-card md:grid md:grid-cols-[340px_minmax(0,1fr)] md:overflow-hidden">
       {/* 左：列表 + 导入 */}
       <SkillList
-        disabled={dirty || saving}
         skills={skills}
         selected={selected}
         toggling={toggling}
@@ -361,11 +488,7 @@ export function SkillsPanel(): ReactElement {
             onDescriptionChange={(value) =>
               setDescriptionDraft(value === current.description ? null : value)
             }
-            onRevert={() => {
-              setPreviewContent(originalContent);
-              setDescriptionDraft(null);
-              setNameDraft(null);
-            }}
+            onRevert={revertDraft}
             onSave={() => void save()}
           />
         ) : (
@@ -374,6 +497,15 @@ export function SkillsPanel(): ReactElement {
           </div>
         )}
       </div>
+
+      <UnsavedConfirmDialog
+        open={unsavedOpen}
+        onOpenChange={closeLeave}
+        flight={unsavedBusy}
+        error={unsavedError}
+        onSave={() => void confirmLeaveSave()}
+        onDiscard={discardLeave}
+      />
 
       {pickingPath && (
         <DirectoryPicker

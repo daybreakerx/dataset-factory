@@ -18,8 +18,8 @@ export type Strategy = components["schemas"]["StrategyView"];
  * 依赖变化级联（旧响应迟到不覆盖新清单，见 StrictMode 用例）。
  *
  * @param open - 策略库下拉的展开态，重拉时机跟着它走。
- * @returns 列表与查询生命周期状态；setEntries / setError 供命令后的清单与错误维护，
- *          fetchList 供「刷新策略库」按钮走工具条自身的飞行守卫。
+ * @returns 列表与查询生命周期状态；setEntries / setError 供命令后的清单与错误维护
+ *          （错误同时承担工具条行内失败槽与弹窗内失败行的文字源）。
  */
 export function useStrategies(open: boolean): {
   entries: Strategy[];
@@ -27,7 +27,6 @@ export function useStrategies(open: boolean): {
   error: string;
   setEntries: Dispatch<SetStateAction<Strategy[]>>;
   setError: Dispatch<SetStateAction<string>>;
-  fetchList: () => Promise<Strategy[]>;
 } {
   const [entries, setEntries] = useState<Strategy[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +60,5 @@ export function useStrategies(open: boolean): {
     };
   }, [open]);
 
-  const fetchList = (): Promise<Strategy[]> => api.listStrategies();
-
-  return { entries, loading, error, setEntries, setError, fetchList };
+  return { entries, loading, error, setEntries, setError };
 }

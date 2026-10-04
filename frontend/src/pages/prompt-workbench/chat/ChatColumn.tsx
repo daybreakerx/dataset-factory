@@ -38,6 +38,7 @@ export function ChatColumn({
   endpointsLoading,
   endpointsFailed,
   selectedEndpointId,
+  endpointSaveError,
   skills,
   skillsLoading,
   skillsFailed,
@@ -75,6 +76,8 @@ export function ChatColumn({
   endpointsFailed: boolean;
   /** 端点 chip 的页内选中 ID（空串 = 未选；显示按 ID 现查）。 */
   selectedEndpointId: string;
+  /** 选端点触发的策略自动保存失败行（chip 右侧槽；下一次保存成功即清，空串＝无）。 */
+  endpointSaveError: string;
   skills: SkillInfo[];
   skillsLoading: boolean;
   skillsFailed: boolean;
@@ -135,6 +138,18 @@ export function ChatColumn({
           onSelect={onSelectEndpoint}
           onManage={onManageEndpoints}
         />
+        {endpointSaveError !== "" && (
+          // chip 触发的保存失败行（端点切换弹层稿「chip 触发的保存失败」格）：
+          // 落 chip 右侧弹性空白、保底宽 200px、chip 让位；单行省略＋悬停给全文。
+          <Tip label={endpointSaveError}>
+            <span
+              role="alert"
+              className="min-w-[200px] max-w-full truncate text-t-sm text-bad-ink"
+            >
+              {endpointSaveError}
+            </span>
+          </Tip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

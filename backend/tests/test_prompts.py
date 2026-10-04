@@ -1,6 +1,6 @@
 """单元测试：prompts 提示词库。
 
-覆盖 md/frontmatter 解析、CRUD、_history 滚动备份、32 KiB 护栏、ID 身份与显示名
+覆盖 md/frontmatter 解析、CRUD、_history 滚动备份、32k 字符护栏、ID 身份与显示名
 解耦、旧版数据读时迁移、原子写崩溃安全。全部离线、用 temp_data_root fixture 把
 数据根隔离到临时目录，绝不碰真实 ~/.dataset_factory。
 """
@@ -184,8 +184,8 @@ def test_save_same_display_name_creates_independent_entry(temp_data_root: Path) 
 
 
 def test_save_oversized_raises_and_writes_nothing(temp_data_root: Path) -> None:
-    """超过 32 KiB → PromptTooLargeError，且不落盘、不建条目。"""
-    huge = "x" * (32 * 1024 + 1)
+    """正文超过 32k 字符 → PromptTooLargeError，且不落盘、不建条目。"""
+    huge = "x" * (32_000 + 1)
 
     with pytest.raises(PromptTooLargeError, match="超过上限"):
         save_prompt(Prompt(name="big", description="", body=huge))

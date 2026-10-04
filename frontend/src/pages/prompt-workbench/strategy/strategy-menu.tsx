@@ -1,8 +1,10 @@
 /** 策略库下拉弹层（区块组件）：切换触发件＋策略列表＋新建／复制／删除入口。
  *  族内实例——弹层壳／头行／行／三态行住 components/cfg-pop.tsx（对齐批「下拉弹层族
- *  实现侧组件归一」）；实例只带文案与数据差异（族规则 components/overlay.md）。 */
+ *  实现侧组件归一」）；实例只带文案与数据差异（族规则 components/overlay.md）。
+ *  切换锁定（提示词 dirty / 瞬态忙）的拦截在上层 choose 里裁决：dirty 走未保存确认
+ *  弹窗（对齐批「提示词切换未保存拦截」条）、忙类静默——层内不再就地提示。 */
 import { CopyIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import { type ReactElement, type RefObject, useRef, useState } from "react";
+import { type ReactElement, type RefObject, useRef } from "react";
 import type { EndpointConfigSummary, PromptInfo, SkillInfo } from "../../../api";
 import {
   CfgNameChevron,
@@ -65,8 +67,6 @@ export function StrategyMenu({
   busy,
   loading,
   error,
-  locked,
-  switchLocked,
   wrapRef,
   prompts,
   skills,
@@ -83,8 +83,6 @@ export function StrategyMenu({
   busy: boolean;
   loading: boolean;
   error: string;
-  locked: boolean;
-  switchLocked: boolean;
   /** 名字框承载块：弹层宽下限与贴边方向的基准（族宽三段式，见 cfg-pop.tsx）。 */
   wrapRef: RefObject<HTMLDivElement | null>;
   prompts: PromptInfo[];
@@ -95,9 +93,6 @@ export function StrategyMenu({
   onCopy: (entry: Strategy) => void;
   onRemove: (entry: Strategy) => void;
 }): ReactElement {
-  // L9：锁定状态下点了非当前项 → 在列表内给出原因（不弹全局 toast，就地可见）。
-  // 拦截形态 2026-10-04 已改口径为「确认保存弹窗」（随对齐批施工），本块为过渡形态。
-  const [switchNotice, setSwitchNotice] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   // 计数不可知（首取中／取数失败）时头行只写库名，不写假计数（overlay.md 头行条）。
   const countKnown = error === "" && !(loading && entries.length === 0);
@@ -105,9 +100,8 @@ export function StrategyMenu({
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
-        {/* 2026-09-21 定形：未保存时列表照常打开、选中非当前项时才提示——「点不动但看不见
-            有什么」改成「点得动但会告诉你」；2026-10-05 随族触发件不再随未保存禁用
-            （点非当前行的拦截形态改确认保存弹窗，见对齐批）。 */}
+        {/* 2026-09-21 定形：列表照常打开、拦截在选中非当前项时由上层裁决；
+            2026-10-05 随族触发件不再随未保存禁用，dirty 拦截改确认保存弹窗（见对齐批）。 */}
         <CfgNameChevron ref={triggerRef} label="切换策略" />
       </DropdownMenuTrigger>
       <CfgPopContent
@@ -116,25 +110,15 @@ export function StrategyMenu({
         align="start"
         side="bottom"
       >
-        {switchNotice !== null && (
-          <div
-            role="status"
-            className="rounded-md bg-warn-bg px-2 py-1.5 text-t-xs text-warn-ink"
-          >
-            {switchNotice}
-          </div>
-        )}
         <CfgPopHead
           label={countKnown ? `策略库 · 共 ${entries.length} 条` : "策略库"}
           action={{
             label: "新建策略",
-            // Tip 随态（2026-09-25 定稿；理由随实时保存更新 2026-10-04）：locked＝提示词侧
-            // 跨行锁（持续禁用、走灰阶档+Tip）；busy／loading＝瞬态飞行期，只失效不换装、
-            // 不配原因 Tip（2026-09-25「飞行期不配原因说明」口径）。
-            tip: locked ? "提示词有未保存的改动，请先保存提示词" : "新建策略",
+            // 实时保存改版后提示词 dirty 不再锁新建（进入新建态不动提示词草稿）；
+            // busy／loading＝瞬态飞行期，只失效不换装、不配原因 Tip。
+            tip: "新建策略",
             icon: <PlusIcon />,
             onClick: onNew,
-            disabled: locked,
             inert: busy || loading,
           }}
         />
@@ -152,15 +136,7 @@ export function StrategyMenu({
                 current={selected?.id === entry.id}
                 bad={!entry.available}
                 disabled={busy || loading}
-                onSelect={(event) => {
-                  if (switchLocked && selected?.id !== entry.id) {
-                    // L9：锁着的时候点了要说清为什么——就地提示要留在层内
-                    // （preventDefault 阻止 Radix 的选中即关层；拦截形态随批 7 改确认保存弹窗）。
-                    event.preventDefault();
-                    setSwitchNotice("当前有未保存的改动——先点「保存」，才能切换策略。");
-                    return;
-                  }
-                  setSwitchNotice(null);
+                onSelect={() => {
                   onChoose(entry);
                 }}
               >

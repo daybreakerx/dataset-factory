@@ -57,6 +57,8 @@ interface SidebarProps {
   navigationOpen: boolean;
   settingsSection: SettingsSection;
   mode: ThemeMode;
+  /** 设置页两面板有未保存修改（壳层上提）：关机确认弹窗 dirty 态的警告行判据。 */
+  settingsDirty?: boolean;
   setPage: Dispatch<SetStateAction<ShellPage>>;
   setCollapsed: Dispatch<SetStateAction<boolean>>;
   setNavigationOpen: Dispatch<SetStateAction<boolean>>;
@@ -75,6 +77,7 @@ export function Sidebar({
   navigationOpen,
   settingsSection,
   mode,
+  settingsDirty = false,
   setPage,
   setCollapsed,
   setNavigationOpen,
@@ -247,7 +250,7 @@ export function Sidebar({
           collapsed ? "flex-col" : "px-4",
         )}
       >
-        <ShutdownButton sidebar />
+        <ShutdownButton sidebar dirty={settingsDirty} />
         <ThemeToggle sidebar mode={mode} onModeChange={setMode} />
         <Tooltip>
           <TooltipTrigger asChild>

@@ -6,6 +6,7 @@
 import type { ReactElement } from "react";
 import { Activity, lazy, Suspense, useEffect, useState } from "react";
 import type { SettingsSection, ShellPage } from "../lib/ui-storage";
+import type { PanelUnsavedActions } from "../lib/unsaved-actions";
 import { PromptWorkbench } from "../pages/prompt-workbench/PromptWorkbench";
 
 /**
@@ -28,6 +29,10 @@ interface PageViewportProps {
   /** 去设置页；可带子页定向（族弹层「前往设置」钮用）。 */
   openSettings: (section?: SettingsSection) => void;
   onOpenWorkbench: () => void;
+  /** 设置页面板 dirty 上报（设置子侧栏切子页的离开拦截）。 */
+  onSettingsDirtyChange?: (dirty: boolean) => void;
+  /** 设置面板保存／回退接口注册（壳层未保存确认弹窗三路行为）。 */
+  onRegisterActions?: (actions: PanelUnsavedActions | null) => void;
 }
 
 /** 页面视口：三页保活渲染（切页隐藏不卸载），页面实例的挂载边界在此决定。 */
@@ -36,6 +41,8 @@ export function PageViewport({
   settingsSection,
   openSettings,
   onOpenWorkbench,
+  onSettingsDirtyChange,
+  onRegisterActions,
 }: PageViewportProps): ReactElement {
   // 首访挂载（visited）：没进过的页不渲染 Activity——首屏零额外成本；进过的页实例
   // 隐藏常驻（切页即隐藏不卸载，状态、DOM、滚动位置全保留）。初始集合含恢复出的
@@ -69,7 +76,11 @@ export function PageViewport({
         <Activity mode={page === "settings" ? "visible" : "hidden"}>
           <Suspense fallback={null}>
             <div className="h-full overflow-y-auto" data-testid="page-settings">
-              <SettingsPage section={settingsSection} />
+              <SettingsPage
+                section={settingsSection}
+                onSettingsDirtyChange={onSettingsDirtyChange}
+                onRegisterActions={onRegisterActions}
+              />
             </div>
           </Suspense>
         </Activity>

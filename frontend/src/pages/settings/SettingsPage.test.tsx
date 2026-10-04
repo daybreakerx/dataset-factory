@@ -667,6 +667,27 @@ describe("SettingsPage · 能力·技能", () => {
     expect(screen.getByRole("button", { name: "references/detail.md" })).toBeEnabled();
   });
 
+  it("dirty 时点其他技能行：起未保存确认弹窗，放弃修改后完成切换", async () => {
+    await openSkills();
+    // 弄脏详情（改描述），再点另一行——dirty 语义改写：动作照常可点、由弹窗兜底。
+    fireEvent.change(await screen.findByLabelText("技能描述"), {
+      target: { value: "新的描述" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /old-skill/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("当前有未保存编辑，是否保存。"),
+    ).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "放弃修改" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    // 切换完成：详情已落到另一技能（放弃的描述草稿随切换消失）。
+    await waitFor(() =>
+      expect(screen.getByLabelText("技能名称")).toHaveValue("old-skill"),
+    );
+  });
+
   it("拖入单文件通过导入接口提交一次并显示结果", async () => {
     apiMock.importSkillFile.mockResolvedValue({ name: "dropped", total_bytes: 12 });
     await openSkills();

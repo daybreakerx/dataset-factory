@@ -130,7 +130,9 @@ export function SkillDetail({
               size="icon"
               aria-label="删除技能"
               className="ml-auto"
-              disabled={dirty || saving || loadingPreview}
+              // dirty 态删除钮可点（2026-10-01 用户裁「都准备删除了还管什么保存没保存」）——
+              // dirty 不再禁删，直接走删除确认弹窗；禁用只留瞬态飞行档。
+              disabled={saving || loadingPreview}
               onClick={onDelete}
             >
               <Trash2Icon className="text-bad-ink" />

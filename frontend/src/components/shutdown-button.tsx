@@ -2,7 +2,9 @@
  * 页头「关闭服务」按钮 + 确认弹窗（F6）。
  *
  * 确认后调停机接口：服务把手头请求做完再退出，会话数据已实时落盘。图标态用于页头，
- * 文字态用于设置页「服务运行」子页的状态卡。
+ * 文字态用于设置页「服务运行」子页的状态卡。dirty（设置页两面板有未保存修改，壳层
+ * 上提的值）时弹窗正文句下加一行警告「有未保存的修改，关闭后将丢失。」——确认即关机
+ * 不保存；非 dirty 不出该行、弹窗其余形态不变（关机确认弹窗 dirty 态「合并一窗」）。
  */
 import { PowerIcon } from "lucide-react";
 import type { ReactElement } from "react";
@@ -18,9 +20,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 export function ShutdownButton({
   expanded = false,
   sidebar = false,
+  dirty = false,
 }: {
   expanded?: boolean;
   sidebar?: boolean;
+  /** 设置页两面板有未保存修改（App 壳层上提）：弹窗加警告行，确认即关机、不保存。 */
+  dirty?: boolean;
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -97,6 +102,13 @@ export function ShutdownButton({
           onClick: () => void shutdown(),
         }}
       >
+        {dirty && (
+          // 警告行（稿 base.css §13 .modal-warn 等价）：与 .modal-error 同构、warn 语义色；
+          // 说的对象是界面未保存编辑（正文句说的是会话数据，并读不冲突）。
+          <span className="block text-t-sm text-warn-ink">
+            有未保存的修改，关闭后将丢失。
+          </span>
+        )}
         {error !== null && (
           <FormError data-dialog-error className="text-t-sm text-bad-ink">
             {error}

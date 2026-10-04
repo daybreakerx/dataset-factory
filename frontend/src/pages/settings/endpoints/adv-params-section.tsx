@@ -152,7 +152,7 @@ export function AdvParamsSection({
               className={cn(
                 "text-t-sm",
                 state.kind === "invalid" && "text-destructive",
-                state.kind === "ignored" && "text-amber-600 dark:text-amber-500",
+                state.kind === "ignored" && "text-warn-ink",
                 state.kind === "ok" && "text-muted-foreground",
               )}
             >

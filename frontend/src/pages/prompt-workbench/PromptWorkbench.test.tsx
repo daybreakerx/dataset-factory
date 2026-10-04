@@ -347,7 +347,7 @@ describe("PromptWorkbench", () => {
     expect(screen.getByLabelText("正文（Markdown）")).toHaveValue(FULL_PROMPT.body);
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
-    expect(await screen.findByText("已保存提示词「renamed」")).toBeInTheDocument();
+    expect(await screen.findByText("已保存")).toBeInTheDocument();
     expect(apiMock.renamePrompt).toHaveBeenCalledTimes(1);
     expect(apiMock.savePrompt).toHaveBeenLastCalledWith("p-h3-video-01", {
       name: "renamed",
@@ -443,7 +443,7 @@ describe("PromptWorkbench", () => {
         body: "新的正文",
       });
     });
-    expect(await screen.findByText("已保存提示词「new-prompt」")).toBeInTheDocument();
+    expect(await screen.findByText("已保存")).toBeInTheDocument();
   });
 
   it("发送：labelStream 请求携带选中的基础提示词与端点，流式渲染后上屏终稿与模型 meta", async () => {

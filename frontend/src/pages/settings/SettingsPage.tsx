@@ -7,14 +7,21 @@ import type { ReactElement } from "react";
 import { TooltipProvider } from "../../components/ui/tooltip";
 import type { SettingsSection } from "../../lib/ui-storage";
 import { cn } from "../../lib/utils";
+import type { PanelUnsavedActions } from "./endpoints/EndpointConfigPanel";
 import { EndpointConfigPanel } from "./endpoints/EndpointConfigPanel";
 import { ServicePanel } from "./service/ServicePanel";
 import { SkillsPanel } from "./skills/SkillsPanel";
 
 export function SettingsPage({
   section = "endpoints",
+  onSettingsDirtyChange,
+  onRegisterActions,
 }: {
   section?: SettingsSection;
+  /** 面板 dirty 上报（设置子侧栏切子页的离开拦截；两面板只有一席在场）。 */
+  onSettingsDirtyChange?: (dirty: boolean) => void;
+  /** 面板保存／回退接口注册（壳层未保存确认弹窗的三路行为）。 */
+  onRegisterActions?: (actions: PanelUnsavedActions | null) => void;
 }): ReactElement {
   return (
     <TooltipProvider>
@@ -35,7 +42,10 @@ export function SettingsPage({
               <>
                 <h2 className="mb-3 shrink-0 text-t-2xl font-semibold">端点配置</h2>
                 <div className="min-h-0 flex-1">
-                  <EndpointConfigPanel />
+                  <EndpointConfigPanel
+                    onSettingsDirtyChange={onSettingsDirtyChange}
+                    onRegisterActions={onRegisterActions}
+                  />
                 </div>
               </>
             )}
@@ -43,7 +53,10 @@ export function SettingsPage({
               <>
                 <h2 className="mb-4 shrink-0 text-t-2xl font-semibold">技能</h2>
                 <div className="min-h-0 flex-1">
-                  <SkillsPanel />
+                  <SkillsPanel
+                    onSettingsDirtyChange={onSettingsDirtyChange}
+                    onRegisterActions={onRegisterActions}
+                  />
                 </div>
               </>
             )}

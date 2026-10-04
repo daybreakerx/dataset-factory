@@ -15,8 +15,6 @@ import {
 import { formatChars } from "../../../lib/format";
 
 type SkillListProps = {
-  /** 有未保存修改或保存中时整列禁用（面板计算）。 */
-  disabled: boolean;
   skills: SkillInfo[];
   selected: string;
   toggling: boolean;
@@ -25,9 +23,10 @@ type SkillListProps = {
   onImport: () => void;
 };
 
-/** 左列：每行带启停开关、注入字数与描述；顶部搜索框按名称或描述过滤。 */
+/** 左列：每行带启停开关、注入字数与描述；顶部搜索框按名称或描述过滤。
+ *  dirty 时整列照常可点——离开动作由未保存确认弹窗兜底（dirty 语义改写，
+ *  原「dirty 时整列禁用」拦截退役）。 */
 export function SkillList({
-  disabled,
   skills,
   selected,
   toggling,
@@ -47,7 +46,7 @@ export function SkillList({
         );
 
   return (
-    <fieldset disabled={disabled} className="flex min-w-0 shrink-0 flex-col lg:min-h-0">
+    <fieldset className="flex min-w-0 shrink-0 flex-col lg:min-h-0">
       <div className="flex flex-wrap items-center gap-2 px-4 pt-6 pb-2 lg:px-6">
         <h3 className="text-t-sm font-medium text-muted-foreground">技能列表</h3>
         <span className="text-t-sm text-muted-foreground">{skills.length} 个</span>

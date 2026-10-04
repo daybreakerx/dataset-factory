@@ -70,12 +70,13 @@ test.describe("页面状态保持", () => {
     await page.getByLabel("名称", { exact: true }).fill("状态保持策略提示词");
     await page.getByLabel("正文（Markdown）").fill("客观描述可见画面。");
     await page.getByRole("button", { name: "保存", exact: true }).click();
-    await expect(page.getByText(/已保存提示词/)).toBeVisible();
+    await expect(page.getByText("已保存", { exact: true })).toBeVisible();
     // 策略保存冻结端点、对话请求显式携带端点（全局激活退役）：先在 chip 选中种子端点。
     await page.getByRole("button", { name: "端点配置切换器" }).click();
     await page.getByRole("menu").getByRole("menuitem", { name: /^default/ }).click();
     await page.getByLabel("策略名称", { exact: true }).fill("E2E 状态策略");
-    await page.getByRole("button", { name: "保存策略" }).click();
+    // 实时保存改版（2026-10-04 裁）：新建走「创建」钮，撤了「保存策略」。
+    await page.getByRole("button", { name: "创建", exact: true }).click();
     await page.getByRole("button", { name: "切换策略" }).click();
     await page.getByRole("menuitem", { name: /^E2E 状态策略/ }).click();
     await page.getByLabel("打标指令").fill("策略会话第一句");
@@ -111,14 +112,17 @@ test.describe("页面状态保持", () => {
     await page.getByLabel("名称", { exact: true }).fill("归属隔离提示词");
     await page.getByLabel("正文（Markdown）").fill("客观描述可见画面。");
     await page.getByRole("button", { name: "保存", exact: true }).click();
-    await expect(page.getByText(/已保存提示词/)).toBeVisible();
+    await expect(page.getByText("已保存", { exact: true })).toBeVisible();
     // 策略保存冻结端点、对话请求显式携带端点（全局激活退役）：先在 chip 选中种子端点。
     await page.getByRole("button", { name: "端点配置切换器" }).click();
     await page.getByRole("menu").getByRole("menuitem", { name: /^default/ }).click();
 
-    // 策略 A：保存 → 应用 → 发言。
+    // 策略 A：新建 → 填名 → 创建 → 应用 → 发言。（boot 可能认领了上条 test 的策略——
+    // 「创建」钮只在新建态渲染，先显式点「新建策略」离开选中态；实时保存改版后无保存钮。）
+    await page.getByRole("button", { name: "切换策略" }).click();
+    await page.getByRole("button", { name: "新建策略" }).click();
     await page.getByLabel("策略名称", { exact: true }).fill("桶隔离A");
-    await page.getByRole("button", { name: "保存策略" }).click();
+    await page.getByRole("button", { name: "创建", exact: true }).click();
     await page.getByRole("button", { name: "切换策略" }).click();
     await page.getByRole("menuitem", { name: /^桶隔离A/ }).click();
     await page.getByLabel("打标指令").fill("A 的第一句");
@@ -131,7 +135,7 @@ test.describe("页面状态保持", () => {
     await page.getByRole("button", { name: "切换策略" }).click();
     await page.getByRole("button", { name: "新建策略" }).click();
     await page.getByLabel("策略名称", { exact: true }).fill("桶隔离B");
-    await page.getByRole("button", { name: "保存策略" }).click();
+    await page.getByRole("button", { name: "创建", exact: true }).click();
     await page.getByRole("button", { name: "切换策略" }).click();
     await page.getByRole("menuitem", { name: /^桶隔离B/ }).click();
     await page.getByLabel("打标指令").fill("B 的第一句");

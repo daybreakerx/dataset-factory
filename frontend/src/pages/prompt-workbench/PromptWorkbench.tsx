@@ -10,6 +10,7 @@ import {
 } from "react";
 import { api } from "../../api";
 import { TooltipProvider } from "../../components/ui/tooltip";
+import { UnsavedConfirmDialog } from "../../components/unsaved-confirm-dialog";
 import { usePersistedState } from "../../hooks/use-persisted-state";
 import type { Feedback } from "../../lib/feedback";
 import { reportError } from "../../lib/feedback";
@@ -52,6 +53,20 @@ export function PromptWorkbench({
   const [promptMenuOpen, setPromptMenuOpen] = useState(false);
   const [promptBusy, setPromptBusy] = useState(false);
   const [strategyBusy, setStrategyBusy] = useState(false);
+  // 未保存确认弹窗（提示词切换／策略切换的 dirty 拦截形态，对齐批两件）：target 记
+  // 放行后要继续的动作；error 只收业务错误（环境类走浮层、弹窗保持打开）。
+  const [unsavedOpen, setUnsavedOpen] = useState(false);
+  const [unsavedTarget, setUnsavedTarget] = useState<
+    { kind: "prompt"; name: string } | { kind: "strategy"; strategy: Strategy } | null
+  >(null);
+  const [unsavedError, setUnsavedError] = useState("");
+  const [unsavedBusy, setUnsavedBusy] = useState(false);
+  // 弹窗放行后的继续切策略请求（StrategyToolbar one-shot 消费）。
+  const [pendingStrategySwitch, setPendingStrategySwitch] = useState<Strategy | null>(
+    null,
+  );
+  // 选端点触发的策略自动保存失败（右栏对话头行 chip 右侧槽；下一次保存成功即清）。
+  const [endpointSaveError, setEndpointSaveError] = useState("");
   // 端点 chip 的页内选中（ADR 2026-09-30「全局当前使用」退役）：纯会话内记忆、
   // 刷新复位——复位不是回默认值，而是随启动恢复的策略锚回它冻结的端点；
   // 没有策略选中时为空（chip 显示未配置端点，选端点属于新建组合的一部分）。
@@ -95,6 +110,20 @@ export function PromptWorkbench({
   // 本轮保存已成功 rename 过的显示名（重试保存时防重复 rename；成功后清空）。
   const renamedToRef = useRef<string | null>(null);
   const interactionRef = useRef(0);
+  // 保存飞行期的草稿镜像：成功回写前对比「飞行期用户是否又改了名称」——改过则
+  // 保留用户输入，不拿起飞时刻的快照覆盖（飞行同形化连带：编辑列解冻后可输入）。
+  const draftMirrorRef = useRef({
+    name: draftName,
+    description: draftDescription,
+    body: draftBody,
+  });
+  draftMirrorRef.current = {
+    name: draftName,
+    description: draftDescription,
+    body: draftBody,
+  };
+  // 「已保存」成功反馈的三秒自灭 timer（保存钮稿二轮裁：自灭条不常驻）。
+  const saveFeedbackTimerRef = useRef(0);
 
   // 编辑器状态镜像（跨重启）：选中提示词 + 未保存草稿合一键，恢复即视为
   // 最近一次用户意图。列表装载时按镜像分流（见下方启动分流）；镜像指向已删除的
@@ -176,6 +205,7 @@ export function PromptWorkbench({
     () => () => {
       promptRequestRef.current += 1;
       interactionRef.current += 1;
+      window.clearTimeout(saveFeedbackTimerRef.current);
     },
     [],
   );
@@ -303,13 +333,15 @@ export function PromptWorkbench({
     setEditorFeedback(null);
   };
 
-  /** 保存草稿：名称改动过 = 先重命名（改文件名）再写内容，旧名不再保留。 */
-  const saveDraft = async (): Promise<void> => {
-    if (savingPromptRef.current) return;
+  /** 保存草稿：名称改动过 = 先重命名（改文件名）再写内容，旧名不再保留。
+   *  返回结果供「未保存确认弹窗」的保存路判定去留（业务错误文字随返回落弹窗内；
+   *  环境类 error 为空串——浮层已承接）。 */
+  const saveDraft = async (): Promise<{ ok: boolean; error: string }> => {
+    if (savingPromptRef.current) return { ok: false, error: "" };
     const name = draftName.trim();
     if (name === "") {
       setEditorFeedback({ kind: "error", text: "名称不能为空；请填写提示词名称。" });
-      return;
+      return { ok: false, error: "名称不能为空；请填写提示词名称。" };
     }
     savingPromptRef.current = true;
     setPromptBusy(true);
@@ -339,17 +371,97 @@ export function PromptWorkbench({
       }
       setIsNewDraft(false);
       setSelectedId(pid);
-      setDraftName(name);
+      // 飞行期名称未再改才回显落盘值（trim）；改过则保留用户输入（不覆盖）。
+      if (draftMirrorRef.current.name === draftName) {
+        setDraftName(name);
+      }
       renamedToRef.current = null;
       setSavedPrompt({ id: pid, name, description: draftDescription, body: draftBody });
-      setEditorFeedback({ kind: "success", text: `已保存提示词「${name}」` });
+      // 成功反馈＝无槽文案「已保存」＋三秒自动消失（保存钮稿提示词行实例二轮裁）。
+      setEditorFeedback({ kind: "success", text: "已保存" });
+      window.clearTimeout(saveFeedbackTimerRef.current);
+      saveFeedbackTimerRef.current = window.setTimeout(() => {
+        setEditorFeedback((current) => (current?.kind === "success" ? null : current));
+      }, 3000);
       await reloadPrompts();
+      return { ok: true, error: "" };
     } catch (err) {
-      failEditor(err);
+      const text = reportError(err);
+      if (text !== null) setEditorFeedback({ kind: "error", text });
+      // 环境类（text === null）：浮层已承接，error 留空——弹窗保持打开、不进红字。
+      return { ok: false, error: text ?? "" };
     } finally {
       savingPromptRef.current = false;
       setPromptBusy(false);
     }
+  };
+
+  /** 回退未保存草稿（未保存确认弹窗「放弃修改」路）：编辑器回填落盘值；
+   *  新建草稿没有落盘值，清回空白。随后由放行动作继续（切换会覆盖回填值）。 */
+  const revertDraft = (): void => {
+    interactionRef.current += 1;
+    if (isNewDraft) {
+      setDraftName("");
+      setDraftDescription("");
+      setDraftBody("");
+      setSavedPrompt({ id: "", name: "", description: "", body: "" });
+      return;
+    }
+    setDraftName(savedPrompt.name);
+    setDraftDescription(savedPrompt.description);
+    setDraftBody(savedPrompt.body);
+  };
+
+  /** 放行动作：弹窗「保存修改」成功或「放弃修改」后，继续用户原本要做的切换。 */
+  const runUnsavedTarget = async (
+    target: NonNullable<typeof unsavedTarget>,
+  ): Promise<void> => {
+    if (target.kind === "prompt") {
+      interactionRef.current += 1;
+      await selectPrompt(target.name, { resetSession: true });
+      return;
+    }
+    setPendingStrategySwitch(target.strategy);
+  };
+
+  /** 弹窗「保存修改」（primary）：保存成功 → 关弹窗继续切换；业务失败 → 正文区
+   *  新开一行红字、弹窗保持打开；环境类 → 浮层已提示、弹窗保持打开无红字（稿）。 */
+  const confirmUnsavedSave = async (): Promise<void> => {
+    if (unsavedTarget === null || unsavedBusy) return;
+    const target = unsavedTarget;
+    setUnsavedBusy(true);
+    try {
+      const result = await saveDraft();
+      if (!result.ok) {
+        if (result.error !== "") setUnsavedError(result.error);
+        return;
+      }
+      setUnsavedOpen(false);
+      setUnsavedError("");
+      setUnsavedTarget(null);
+      await runUnsavedTarget(target);
+    } finally {
+      setUnsavedBusy(false);
+    }
+  };
+
+  /** 弹窗「放弃修改」（secondary）：回退草稿 → 关弹窗继续切换。 */
+  const discardUnsaved = (): void => {
+    if (unsavedTarget === null || unsavedBusy) return;
+    const target = unsavedTarget;
+    revertDraft();
+    setUnsavedOpen(false);
+    setUnsavedError("");
+    setUnsavedTarget(null);
+    void runUnsavedTarget(target);
+  };
+
+  /** 叉号／Esc：关弹窗、留在原地不动作（dirty 原状保持，修改不丢）。 */
+  const closeUnsaved = (open: boolean): void => {
+    if (open) return;
+    setUnsavedOpen(false);
+    setUnsavedError("");
+    setUnsavedTarget(null);
   };
 
   const deleteSelected = async (): Promise<void> => {
@@ -444,7 +556,16 @@ export function PromptWorkbench({
           prompts={prompts}
           skills={skills}
           endpoints={endpoints}
-          locked={promptDirty || controlsBusy}
+          locked={controlsBusy}
+          promptDirty={promptDirty}
+          onSwitchWhileDirty={(strategy) => {
+            setUnsavedTarget({ kind: "strategy", strategy });
+            setUnsavedError("");
+            setUnsavedOpen(true);
+          }}
+          pendingSwitch={pendingStrategySwitch}
+          onPendingSwitchHandled={() => setPendingStrategySwitch(null)}
+          onEndpointSaveError={setEndpointSaveError}
           onSelect={async (strategy) => {
             interactionRef.current += 1;
             const request = ++promptRequestRef.current;
@@ -479,7 +600,9 @@ export function PromptWorkbench({
         <fieldset
           // N1④（2026-09-21 审计）：发送中只锁配置类操作、不锁整页——「能打字 /
           // 能挂附件 / 能切端点」是等待 125 秒时最基本的自由；sending 不再参与禁用。
-          disabled={strategyBusy || promptBusy}
+          // promptBusy（保存飞行）随「提示词行保存飞行同形化」条撤出冻结——瞬态禁用
+          // 一律只失效不换装，fieldset 连锁会让按钮命中 :disabled 换灰（保存钮稿）。
+          disabled={strategyBusy}
           className="grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-auto md:grid-cols-2 md:overflow-hidden"
         >
           <EditorColumn
@@ -511,8 +634,17 @@ export function PromptWorkbench({
             promptDirty={promptDirty}
             onNewDraft={startNewDraft}
             onSelectPrompt={(name) => {
-              interactionRef.current += 1;
               setPromptMenuOpen(false);
+              const targetId = prompts.find((p) => p.name === name)?.id ?? "";
+              // 脏态点非当前行：关弹层、起未保存确认弹窗（保存／放弃后继续切换）——
+              // 对齐批「提示词切换未保存拦截」条；当前行与非脏态保持直通。
+              if (promptDirty && targetId !== selectedId) {
+                setUnsavedTarget({ kind: "prompt", name });
+                setUnsavedError("");
+                setUnsavedOpen(true);
+                return;
+              }
+              interactionRef.current += 1;
               void selectPrompt(name, { resetSession: true });
             }}
             onDeletePromptRequest={(name) => {
@@ -534,6 +666,7 @@ export function PromptWorkbench({
             endpointsLoading={endpointsQuery.loading}
             endpointsFailed={endpointsQuery.failed}
             selectedEndpointId={selectedEndpointId}
+            endpointSaveError={endpointSaveError}
             skills={skills}
             skillsLoading={skillsQuery.loading}
             skillsFailed={skillsQuery.failed}
@@ -573,6 +706,14 @@ export function PromptWorkbench({
             onStop={stopGeneration}
           />
         </fieldset>
+        <UnsavedConfirmDialog
+          open={unsavedOpen}
+          onOpenChange={closeUnsaved}
+          flight={unsavedBusy}
+          error={unsavedError}
+          onSave={() => void confirmUnsavedSave()}
+          onDiscard={discardUnsaved}
+        />
       </div>
     </TooltipProvider>
   );

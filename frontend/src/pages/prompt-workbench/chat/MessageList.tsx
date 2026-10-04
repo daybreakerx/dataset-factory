@@ -185,7 +185,7 @@ export function MessageList({
     <div
       role="log"
       aria-label="消息流"
-      className="min-h-0 flex-1 space-y-4 overflow-y-auto py-1"
+      className="min-h-0 flex-1 space-y-4 overflow-y-auto px-0.5 py-1"
     >
       {messages.length === 0 && (
         <p className="mt-8 text-center text-t-sm text-text-4">

@@ -83,7 +83,7 @@ def get_one(pid: str) -> PromptFull:
     responses={
         400: {"model": ErrorDetail, "description": "显示名不合法"},
         404: {"model": ErrorDetail, "description": "提示词不存在"},
-        413: {"model": ErrorDetail, "description": "提示词超出 32 KiB 字节护栏"},
+        413: {"model": ErrorDetail, "description": "提示词超出 32k 字符护栏"},
     },
 )
 def save(pid: str, request: PromptSaveRequest) -> Response:

@@ -17,18 +17,18 @@ test("策略保存、切换和对话使用同一组合，工作台匹配两栏�
   // L9（2026-09-21 审计）：锁定改为「列表照开、点了才提示」——触发钮不再禁用。
   await expect(page.getByRole("button", { name: "切换策略" })).toBeEnabled();
   await page.getByRole("button", { name: "保存", exact: true }).click();
-  await expect(page.getByText("已保存提示词「strategy-workbench-prompt」")).toBeVisible();
+  await expect(page.getByText("已保存", { exact: true })).toBeVisible();
   // 策略保存冻结端点、对话请求显式携带端点（全局激活退役）：先在 chip 选中种子端点。
   await page.getByRole("button", { name: "端点配置切换器" }).click();
   await page.getByRole("menu").getByRole("menuitem", { name: /^default/ }).click();
   await page.getByLabel("策略名称", { exact: true }).fill("E2E 详细策略");
   await page.getByLabel("策略描述", { exact: true }).fill("真实往返");
-  // 「切换策略」触发钮从不禁用（L9：列表照开、点了才提示），toBeEnabled 同步不了
-  // 保存请求——直接等 createStrategy 的 POST 响应落地，GET 清单才不与它赛跑。
+  // 实时保存改版（2026-10-04 裁）：新建走「创建」钮、撤了「保存策略」；
+  // POST /api/strategies 的等待照旧——createStrategy 还是这个端点。
   const strategyCreated = page.waitForResponse(
     (resp) => resp.url().endsWith("/api/strategies") && resp.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "保存策略" }).click();
+  await page.getByRole("button", { name: "创建", exact: true }).click();
   await strategyCreated;
   await expect(page.getByRole("button", { name: "切换策略" })).toBeEnabled();
   const response = await request.get("/api/strategies");

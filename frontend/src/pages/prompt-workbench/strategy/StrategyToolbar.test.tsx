@@ -7,7 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StrictMode } from "react";
+import { type ComponentProps, StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { components } from "../../../api-types.gen";
 import { TooltipProvider } from "../../../components/ui/tooltip";
@@ -42,29 +42,47 @@ const strategy: components["schemas"]["StrategyView"] = {
 };
 const select = vi.fn<() => Promise<void>>();
 const onRestored = vi.fn<(strategy: components["schemas"]["StrategyView"]) => void>();
-function mount(strict = false): void {
+const onSwitchWhileDirty =
+  vi.fn<(strategy: components["schemas"]["StrategyView"]) => void>();
+const onPendingSwitchHandled = vi.fn<() => void>();
+
+function buildProps(overrides?: {
+  promptDirty?: boolean;
+  pendingSwitch?: components["schemas"]["StrategyView"] | null;
+}): ComponentProps<typeof StrategyToolbar> {
+  return {
+    references: {
+      endpoint_id: "e-default-x1",
+      prompt_id: "p-caption-01",
+      skill_ids: [],
+    },
+    prompts: [{ id: "p-caption-01", name: "caption", description: "", body_chars: 0 }],
+    endpoints: [],
+    skills: [],
+    locked: false,
+    promptDirty: false,
+    onSelect: select,
+    onStrategySaved: vi.fn(),
+    onNewStrategy: () => {},
+    onRestored,
+    onSwitchWhileDirty,
+    pendingSwitch: null,
+    onPendingSwitchHandled,
+    onEndpointSaveError: vi.fn(),
+    ...overrides,
+  };
+}
+
+function mount(
+  strict = false,
+  overrides?: Parameters<typeof buildProps>[0],
+): ReturnType<typeof render> {
   const content = (
     <TooltipProvider>
-      <StrategyToolbar
-        references={{
-          endpoint_id: "e-default-x1",
-          prompt_id: "p-caption-01",
-          skill_ids: [],
-        }}
-        prompts={[
-          { id: "p-caption-01", name: "caption", description: "", body_chars: 0 },
-        ]}
-        endpoints={[]}
-        skills={[]}
-        locked={false}
-        onSelect={select}
-        onStrategySaved={vi.fn()}
-        onNewStrategy={() => {}}
-        onRestored={onRestored}
-      />
+      <StrategyToolbar {...buildProps(overrides)} />
     </TooltipProvider>
   );
-  render(strict ? <StrictMode>{content}</StrictMode> : content);
+  return render(strict ? <StrictMode>{content}</StrictMode> : content);
 }
 beforeEach(() => {
   vi.resetAllMocks();
@@ -73,6 +91,8 @@ beforeEach(() => {
   mocks.latestSession.mockRejectedValue(new Error("404 no session"));
   select.mockResolvedValue(undefined);
   onRestored.mockClear();
+  onSwitchWhileDirty.mockClear();
+  onPendingSwitchHandled.mockClear();
 });
 
 it("StrictMode 下关闭重开菜单后忽略旧列表响应", async () => {
@@ -116,54 +136,144 @@ it("删除失败的原因在确认弹窗内可见，重试仍使用原策略", a
   expect(mocks.deleteStrategy).toHaveBeenNthCalledWith(2, "a1");
 });
 
-it("编辑策略后锁定切换：列表照开、点了才提示；保存失败保留草稿，重试成功才解锁", async () => {
-  const second: components["schemas"]["StrategyView"] = {
-    ...strategy,
-    id: "a2",
-    name: "极简描述",
-  };
-  mocks.listStrategies.mockResolvedValue([strategy, second]);
-  mocks.updateStrategy
-    .mockRejectedValueOnce(new Error("写入失败"))
-    .mockResolvedValueOnce({ ...strategy, name: "新名字" });
+it("动作级实时保存：名称失焦即提交 updateStrategy，成功反馈不占用行内槽", async () => {
+  mocks.updateStrategy.mockResolvedValue({ ...strategy, name: "新名字" });
   mount();
+  // 先选中策略（无镜像认领，boot 后为新建态——点菜单行选中）。
   await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
   await userEvent.click(
-    await screen.findByRole("menuitem", {
-      name: /详细描述.*训练用/,
-    }),
+    await screen.findByRole("menuitem", { name: /详细描述.*训练用/ }),
   );
   await waitFor(() =>
     expect(screen.getByLabelText("策略名称")).toHaveValue("详细描述"),
   );
 
   fireEvent.change(screen.getByLabelText("策略名称"), { target: { value: "新名字" } });
-  // 2026-09-21 定形：锁定时列表照常打开，选中**非当前项**
-  // 才就地提示原因——不再是「按钮灰掉、列表也打不开」。重开菜单点另一套策略。
+  fireEvent.blur(screen.getByLabelText("策略名称"));
+
+  await waitFor(() =>
+    expect(mocks.updateStrategy).toHaveBeenCalledWith("a1", {
+      name: "新名字",
+      description: "训练用",
+      endpoint_id: "e-default-x1",
+      prompt_id: "p-caption-01",
+      skill_ids: [],
+    }),
+  );
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("名称清空后失焦回退旧名，不发保存请求", async () => {
+  mount();
+  await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
+  await userEvent.click(
+    await screen.findByRole("menuitem", { name: /详细描述.*训练用/ }),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("策略名称")).toHaveValue("详细描述"),
+  );
+
+  fireEvent.change(screen.getByLabelText("策略名称"), { target: { value: "" } });
+  fireEvent.blur(screen.getByLabelText("策略名称"));
+
+  expect(screen.getByLabelText("策略名称")).toHaveValue("详细描述");
+  expect(mocks.updateStrategy).not.toHaveBeenCalled();
+});
+
+it("保存失败的业务错误进行内槽（单行红字），下一次保存成功即清", async () => {
+  mocks.updateStrategy
+    .mockRejectedValueOnce(new Error("写入失败"))
+    .mockResolvedValue(strategy);
+  mount();
+  await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
+  await userEvent.click(
+    await screen.findByRole("menuitem", { name: /详细描述.*训练用/ }),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("策略名称")).toHaveValue("详细描述"),
+  );
+
+  fireEvent.change(screen.getByLabelText("策略名称"), { target: { value: "新名字" } });
+  fireEvent.blur(screen.getByLabelText("策略名称"));
+  expect(await screen.findByRole("alert")).toHaveTextContent("写入失败");
+
+  fireEvent.change(screen.getByLabelText("策略名称"), { target: { value: "新名字2" } });
+  fireEvent.blur(screen.getByLabelText("策略名称"));
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+});
+
+it("提示词 dirty 时点非当前策略行：切换上抛由上层弹窗兜底，不直接切换", async () => {
+  const second: components["schemas"]["StrategyView"] = {
+    ...strategy,
+    id: "a2",
+    name: "极简描述",
+  };
+  mocks.listStrategies.mockResolvedValue([strategy, second]);
+  mount(undefined, { promptDirty: true });
   await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
   await userEvent.click(
     await screen.findByRole("menuitem", { name: /极简描述.*训练用/ }),
   );
-  expect(await screen.findByText(/先点「保存」，才能切换策略/)).toBeVisible();
-  // 菜单开着时外部元素被 aria-hidden（浮层陷阱），用 Escape 收起再继续。
-  await userEvent.keyboard("{Escape}");
 
-  await userEvent.click(screen.getByRole("button", { name: "保存策略" }));
-  expect(await screen.findByText("写入失败")).toBeInTheDocument();
-  expect(screen.getByLabelText("策略名称")).toHaveValue("新名字");
-  await userEvent.click(screen.getByRole("button", { name: "保存策略" }));
+  await waitFor(() => expect(onSwitchWhileDirty).toHaveBeenCalledWith(second));
+  expect(select).not.toHaveBeenCalled();
+});
+
+it("弹窗放行后经 pendingSwitch 继续切换（one-shot 消费）", async () => {
+  const second: components["schemas"]["StrategyView"] = {
+    ...strategy,
+    id: "a2",
+    name: "极简描述",
+  };
+  mocks.listStrategies.mockResolvedValue([strategy, second]);
+  const view = mount();
+  await userEvent.click(screen.getByRole("button", { name: "切换策略" }));
+  await userEvent.click(
+    await screen.findByRole("menuitem", { name: /详细描述.*训练用/ }),
+  );
+  await waitFor(() =>
+    expect(screen.getByLabelText("策略名称")).toHaveValue("详细描述"),
+  );
+  expect(select).toHaveBeenCalledTimes(1);
+
+  view.rerender(
+    <TooltipProvider>
+      <StrategyToolbar {...buildProps({ pendingSwitch: second })} />
+    </TooltipProvider>,
+  );
+
+  await waitFor(() => expect(select).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(onPendingSwitchHandled).toHaveBeenCalled());
+});
+
+it("新建态渲染创建钮：名称空禁用，填名后点创建提交 createStrategy 并转对勾", async () => {
+  const created: components["schemas"]["StrategyView"] = {
+    ...strategy,
+    id: "a3",
+    name: "产品特写风格",
+  };
+  mocks.createStrategy.mockResolvedValue(created);
+  mount();
+  await waitFor(() => expect(mocks.listStrategies).toHaveBeenCalled());
+
+  const create = screen.getByRole("button", { name: "创建" });
+  expect(create).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("策略名称"), {
+    target: { value: "产品特写风格" },
+  });
+  expect(screen.getByRole("button", { name: "创建" })).toBeEnabled();
+  await userEvent.click(screen.getByRole("button", { name: "创建" }));
 
   await waitFor(() =>
-    expect(screen.getByRole("button", { name: "切换策略" })).toBeEnabled(),
+    expect(mocks.createStrategy).toHaveBeenCalledWith({
+      name: "产品特写风格",
+      description: "",
+      endpoint_id: "e-default-x1",
+      prompt_id: "p-caption-01",
+      skill_ids: [],
+    }),
   );
-  expect(mocks.updateStrategy).toHaveBeenLastCalledWith("a1", {
-    name: "新名字",
-    description: "训练用",
-    endpoint_id: "e-default-x1",
-    prompt_id: "p-caption-01",
-    skill_ids: [],
-  });
-  expect(select).toHaveBeenCalledTimes(1);
+  expect(await screen.findByLabelText("已创建")).toBeInTheDocument();
 });
 
 it("失效策略进入重新指定，不应用缺失引用；删除需要二次确认", async () => {
@@ -328,23 +438,7 @@ describe("策略选中的启动恢复与镜像（v2）", () => {
     );
     render(
       <TooltipProvider>
-        <StrategyToolbar
-          references={{
-            endpoint_id: "e-default-x1",
-            prompt_id: "p-caption-01",
-            skill_ids: [],
-          }}
-          prompts={[
-            { id: "p-caption-01", name: "caption", description: "", body_chars: 0 },
-          ]}
-          endpoints={[]}
-          skills={[]}
-          locked={false}
-          onSelect={select}
-          onStrategySaved={vi.fn()}
-          onNewStrategy={onNewStrategy}
-          onRestored={vi.fn()}
-        />
+        <StrategyToolbar {...buildProps()} onNewStrategy={onNewStrategy} />
       </TooltipProvider>,
     );
     await waitFor(() =>

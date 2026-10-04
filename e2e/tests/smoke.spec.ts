@@ -73,7 +73,7 @@ test.describe("提示词工作台", () => {
     await page.getByLabel("正文（Markdown）").fill("你是打标助手（E2E）");
     await page.getByRole("button", { name: "保存", exact: true }).click();
 
-    await expect(page.getByText("已保存提示词「e2e-prompt」")).toBeVisible();
+    await expect(page.getByText("已保存", { exact: true })).toBeVisible();
     await expect(page.getByLabel("名称", { exact: true })).toHaveValue("e2e-prompt");
     await page.getByRole("button", { name: "切换提示词" }).click();
     await expect(
@@ -91,7 +91,7 @@ test.describe("打标全链路", () => {
     await page.getByLabel("名称", { exact: true }).fill("e2e-label-prompt");
     await page.getByLabel("正文（Markdown）").fill("你是打标助手");
     await page.getByRole("button", { name: "保存", exact: true }).click();
-    await expect(page.getByText("已保存提示词「e2e-label-prompt」")).toBeVisible();
+    await expect(page.getByText("已保存", { exact: true })).toBeVisible();
 
     // 请求显式携带端点（全局激活退役）：发送前在 chip 选中种子端点 default。
     await page.getByRole("button", { name: "端点配置切换器" }).click();

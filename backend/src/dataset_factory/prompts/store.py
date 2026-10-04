@@ -5,7 +5,7 @@ frontmatter 的 name = 显示名（可改、允许重名）——「改名 = 改
 文件名永不动，引用（策略 / 会话设置 / 快照）一律存 ID（2026-09-23 ID 化，与策略库同构）。
 保存时若已存在，先把旧版**复制**进 `_history/<ID>.<时间戳>.md`（不是移动——保证当前
 条目任何时刻都在、崩溃安全），按时间戳命名、并把该条目的历史裁到最近 N 版，再原子写
-新版；单条序列化后卡 32 KiB 字节护栏。错误口径：单条读写（保存 / 读取 / 改名 / 删除）
+新版；单条正文卡 32k 字符护栏（与前端 meter 同一口径）。错误口径：单条读写（保存 / 读取 / 改名 / 删除）
 fail loud，给可操作错误；**列表（list_prompts）对单个损坏条目宽容降级**（2026-09-14
 用户定夺）——坏文件以「文件损坏：…」条目照常进列表，其余不受影响。
 **存量迁移**：读侧发现旧版条目（文件名不合 ID 形状）即惰性升级——补 frontmatter name
@@ -37,9 +37,7 @@ from .model import PROMPT_ID_RE, Prompt, dump_prompt, parse_prompt
 _PROMPTS_DIRNAME = "prompts"
 _HISTORY_DIRNAME = "_history"
 _SUFFIX = ".md"
-_MAX_ENTRY_BYTES = (
-    32 * 1024
-)  # 单条提示词字节上限，对齐 Codex project_doc_max_bytes；可调。
+_MAX_BODY_CHARS = 32_000  # 单条正文 32k 字护栏（2026-10-04 裁：KiB 字节 → k 字符，与前端 meter 同口径）。
 #: 写者与写者之间的等待上限：临界区只有「复制旧版 + 原子写」，毫秒级，10 秒只用于诊断卡死。
 _EDIT_LOCK_TIMEOUT_SECONDS = 10.0
 
@@ -233,7 +231,7 @@ def save_prompt(prompt: Prompt) -> str:
     """保存（新建或覆盖）一条提示词；覆盖前把旧版复制进 _history/ 滚动备份。
 
     id 缺省（空串）或不是 ID 形状（损坏条目经编辑器自愈的路径）时分配新 ID；显示名
-    非空即可（允许重名）。卡 32 KiB 字节上限（超限即拒，不落盘、不建目录）；库目录
+    非空即可（允许重名）。正文卡 32k 字符上限（超限即拒，不落盘、不建目录）；库目录
     不存在则创建；若目标已存在，先把它复制进 `_history/<ID>.<时间戳>.md` 并把该条目
     历史裁到最近 N 版，再原子写新版——原子写保证条目要么是旧版要么是新版，绝不会是
     写了一半的损坏文件。
@@ -246,7 +244,7 @@ def save_prompt(prompt: Prompt) -> str:
 
     Raises:
         PromptNameError: 显示名非法。
-        PromptTooLargeError: 序列化后超过 32 KiB。
+        PromptTooLargeError: 正文超过 32k 字符。
         PromptError: 目录 / 备份 / 写入等底层失败，或内容含 UTF-8 无法编码的字符。
     """
     display = _validate_display_name(prompt.name)
@@ -262,15 +260,16 @@ def save_prompt(prompt: Prompt) -> str:
         Prompt(id=pid, name=display, description=prompt.description, body=prompt.body)
     )
     try:
-        size = len(text.encode("utf-8"))
+        text.encode("utf-8")
     except UnicodeEncodeError as exc:
         raise PromptError(
             f"提示词 {display!r} 含 UTF-8 无法编码的字符（{exc.reason}）；请检查内容。"
         ) from exc
-    if size > _MAX_ENTRY_BYTES:
+    body_chars = len(prompt.body)
+    if body_chars > _MAX_BODY_CHARS:
         raise PromptTooLargeError(
-            f"提示词 {display!r} 序列化后有 {size} 字节，超过上限 "
-            f"{_MAX_ENTRY_BYTES} 字节（32 KiB）；请精简正文。"
+            f"提示词 {display!r} 正文共 {body_chars} 字，超过上限 "
+            f"{_MAX_BODY_CHARS} 字（32k 字）；请精简正文。"
         )
     directory = _prompts_dir()
     path = directory / f"{pid}{_SUFFIX}"

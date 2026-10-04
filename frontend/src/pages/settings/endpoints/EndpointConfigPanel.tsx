@@ -3,13 +3,17 @@
  * 草稿与反馈状态、命令回调（保存 / 创建 / 删除 / 测试连接）住这里；
  * 展示块拆在同目录：config-list / config-form（内嵌 test-connection 与高级参数
  * 折叠区）/ delete-dialog；列表查询收拢在 use-endpoint-configs（命令类留调用点）。
+ * dirty 离开动作（切行 / 进创建态）由未保存确认弹窗兜底（未保存确认弹窗稿），
+ * 壳层切子页的拦截经 onSettingsDirtyChange / onRegisterActions 上提（SettingsPage → App）。
  */
 
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { EndpointTestResult } from "../../../api";
+import type { EndpointConfigSummary, EndpointTestResult } from "../../../api";
 import { api, errorMessage } from "../../../api";
+import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
 import { type Feedback, reportError } from "../../../lib/feedback";
+import type { PanelUnsavedActions } from "../../../lib/unsaved-actions";
 import {
   type AdvJsonState,
   collectAdvParams,
@@ -25,7 +29,18 @@ import { ConfigList } from "./config-list";
 import { DeleteDialog } from "./delete-dialog";
 import { useEndpointConfigs } from "./use-endpoint-configs";
 
-export function EndpointConfigPanel(): ReactElement {
+/** 离开动作（弹窗放行后继续执行的目标）。 */
+type LeaveAction = { kind: "pick"; name: string } | { kind: "create" };
+
+export function EndpointConfigPanel({
+  onSettingsDirtyChange,
+  onRegisterActions,
+}: {
+  /** dirty 变化上报（壳层拦设置子侧栏切子页；卸载时上报 false）。 */
+  onSettingsDirtyChange?: (dirty: boolean) => void;
+  /** 注册保存／回退接口供壳层弹窗三路行为调用；卸载时注销。 */
+  onRegisterActions?: (actions: PanelUnsavedActions | null) => void;
+}): ReactElement {
   const [selected, setSelected] = useState<string>("");
   const [creating, setCreating] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -40,6 +55,8 @@ export function EndpointConfigPanel(): ReactElement {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const deletingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<EndpointTestResult | null>(null);
   // 高级参数区（默认折叠）：模型通用参数（表单 ⇄ JSON）+ 本项目传输参数（仅表单）。
@@ -62,6 +79,11 @@ export function EndpointConfigPanel(): ReactElement {
   // enable_thinking 走——JSON 是唯一事实，三态控件只是它的可视化快捷键（手写
   // reasoning_effort 等其他厂商字段仍走 JSON 的 extra_body）。
   const [thinking, setThinking] = useState<ThinkingMode>("default");
+  // ---------- 未保存确认弹窗（面板内离开动作的兜底） ----------
+  const [unsavedOpen, setUnsavedOpen] = useState(false);
+  const [unsavedError, setUnsavedError] = useState("");
+  const [unsavedBusy, setUnsavedBusy] = useState(false);
+  const [leaveAction, setLeaveAction] = useState<LeaveAction | null>(null);
 
   /** 失败分流：连接类失败改弹浮层（不占界面位置），后端返回的业务错误仍就地展示。 */
   const failFeedback = useCallback((err: unknown): void => {
@@ -80,21 +102,18 @@ export function EndpointConfigPanel(): ReactElement {
 
   const current = endpoints.find((item) => item.name === selected);
 
-  // 选中变化（或保存后列表刷新）时把详情回填为落盘值；创建态保留空白草稿。
-  useEffect(() => {
-    if (creating || current === undefined) {
-      return;
-    }
-    setDraftName(current.name);
-    setDraftBaseUrl(current.base_url);
-    setDraftFormat(current.api_format);
-    setDraftModel(current.model);
+  /** 把详情草稿回填为某套配置的落盘值（高级参数一并）；选中变化与「放弃修改」共用。 */
+  const resetDraftFrom = useCallback((config: EndpointConfigSummary): void => {
+    setDraftName(config.name);
+    setDraftBaseUrl(config.base_url);
+    setDraftFormat(config.api_format);
+    setDraftModel(config.model);
     setDraftKey("");
-    // 高级参数区同样回填落盘值；折叠态复位（换一套配置重新看）。
+    // 高级参数区同样回填落盘值。
     // ?? {} 是运行时防御：契约里 request_params 必填，但「旧后端进程 + 新页面」的
     // 热升级窗口里响应可能没有这个字段（实机白屏事故的根因，2026-09-13）——缺字段
     // 按未设置处理，绝不让详情页崩树。
-    const params = current.request_params ?? {};
+    const params = config.request_params ?? {};
     const text = (value: number | null | undefined): string =>
       value === null || value === undefined ? "" : String(value);
     setAdvForm({
@@ -110,8 +129,18 @@ export function EndpointConfigPanel(): ReactElement {
     setAdvJson(nextJson);
     setThinking(thinkingOfJson(nextJson));
     setAdvState({ kind: "ok", text: "已同步" });
+  }, []);
+
+  // 选中变化（或保存后列表刷新）时把详情回填为落盘值；创建态保留空白草稿。
+  useEffect(() => {
+    if (creating || current === undefined) {
+      return;
+    }
+    resetDraftFrom(current);
+    // 高级参数区折叠态复位（换一套配置重新看）。
     setAdvOpen(false);
   }, [
+    resetDraftFrom,
     creating,
     current?.name,
     current?.base_url,
@@ -120,14 +149,40 @@ export function EndpointConfigPanel(): ReactElement {
     current,
   ]);
 
-  const pick = (name: string): void => {
+  // dirty：详情草稿与落盘值任一不同（名称／Base URL／模型／API 格式／密钥输入／高级参数）。
+  const advParams = current?.request_params ?? {};
+  const advText = (value: number | null | undefined): string =>
+    value === null || value === undefined ? "" : String(value);
+  const dirty =
+    current !== undefined &&
+    (draftName !== current.name ||
+      draftBaseUrl !== current.base_url ||
+      draftModel !== current.model ||
+      draftFormat !== current.api_format ||
+      draftKey.trim() !== "" ||
+      advJson !== paramsToJson(advParams) ||
+      advTransport.timeout_seconds !== advText(advParams.timeout_seconds) ||
+      advTransport.max_retries !== advText(advParams.max_retries));
+  // 创建态草稿有输入同样算 dirty（离开即丢）。
+  const creatingDirty =
+    creating &&
+    (draftName !== "" ||
+      draftBaseUrl !== "" ||
+      draftModel !== "" ||
+      draftKey.trim() !== "" ||
+      advJson !== "{}" ||
+      advTransport.timeout_seconds !== "" ||
+      advTransport.max_retries !== "");
+  const leaveGuard = dirty || creatingDirty;
+
+  const performPick = (name: string): void => {
     setSelected(name);
     setCreating(false);
     setFeedback(null);
     setTestResult(null);
   };
 
-  const startCreate = (): void => {
+  const performStartCreate = (): void => {
     setCreating(true);
     setSelected("");
     setDraftName("");
@@ -143,6 +198,72 @@ export function EndpointConfigPanel(): ReactElement {
     setAdvOpen(false);
     setFeedback(null);
     setTestResult(null);
+  };
+
+  /** 回退未保存修改（「放弃修改」路）：详情回填落盘值；创建态清回空白。 */
+  const revertDraft = (): void => {
+    if (creating || current === undefined) {
+      performStartCreate();
+      return;
+    }
+    resetDraftFrom(current);
+    setFeedback(null);
+    setTestResult(null);
+  };
+
+  /** dirty 时的离开动作：起确认弹窗（保存／放弃后继续）；飞行期静默拦。 */
+  const requestLeave = (action: LeaveAction): void => {
+    if (saving) return;
+    if (!leaveGuard) {
+      if (action.kind === "pick") performPick(action.name);
+      else performStartCreate();
+      return;
+    }
+    setLeaveAction(action);
+    setUnsavedError("");
+    setUnsavedOpen(true);
+  };
+
+  /** 弹窗放行后的目标动作。 */
+  const runLeaveAction = (action: LeaveAction): void => {
+    if (action.kind === "pick") performPick(action.name);
+    else performStartCreate();
+  };
+
+  const confirmLeaveSave = async (): Promise<void> => {
+    if (leaveAction === null || unsavedBusy) return;
+    const action = leaveAction;
+    setUnsavedBusy(true);
+    try {
+      const result = await save();
+      if (!result.ok) {
+        if (result.error !== "") setUnsavedError(result.error);
+        return;
+      }
+      setUnsavedOpen(false);
+      setUnsavedError("");
+      setLeaveAction(null);
+      runLeaveAction(action);
+    } finally {
+      setUnsavedBusy(false);
+    }
+  };
+
+  const discardLeave = (): void => {
+    if (leaveAction === null || unsavedBusy) return;
+    const action = leaveAction;
+    revertDraft();
+    setUnsavedOpen(false);
+    setUnsavedError("");
+    setLeaveAction(null);
+    runLeaveAction(action);
+  };
+
+  const closeLeave = (open: boolean): void => {
+    if (open) return;
+    setUnsavedOpen(false);
+    setUnsavedError("");
+    setLeaveAction(null);
   };
 
   /** 模型通用参数表单输入 → 同步刷新 JSON（标准键取表单值，非标准键从既有 JSON 带走）。 */
@@ -209,7 +330,8 @@ export function EndpointConfigPanel(): ReactElement {
     }
   };
 
-  const save = async (): Promise<void> => {
+  const save = async (): Promise<{ ok: boolean; error: string }> => {
+    if (savingRef.current) return { ok: false, error: "" };
     const key = draftKey.trim();
     // 高级参数先本地校验（JSON 语法 / 数值合法性），不过关就拦下——不给后端扔必错的请求。
     const adv = collectAdvParams({
@@ -219,8 +341,10 @@ export function EndpointConfigPanel(): ReactElement {
     });
     if (adv.error !== null) {
       setFeedback({ kind: "error", text: adv.error });
-      return;
+      return { ok: false, error: adv.error };
     }
+    savingRef.current = true;
+    setSaving(true);
     try {
       if (creating) {
         const created = await api.createEndpoint({
@@ -261,8 +385,14 @@ export function EndpointConfigPanel(): ReactElement {
       }
       setDraftKey("");
       await reload();
+      return { ok: true, error: "" };
     } catch (err) {
-      failFeedback(err);
+      const text = reportError(err);
+      if (text !== null) setFeedback({ kind: "error", text });
+      return { ok: false, error: text ?? "" };
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
@@ -295,13 +425,32 @@ export function EndpointConfigPanel(): ReactElement {
   const canSave =
     draftName.trim() !== "" && draftBaseUrl.trim() !== "" && draftModel.trim() !== "";
 
+  // ---------- 壳层接口：dirty 上报＋保存／回退注册（ref 桥保证壳层拿到最新闭包） ----------
+  const actionsRef = useRef<PanelUnsavedActions | null>(null);
+  actionsRef.current = {
+    save: () => save(),
+    revert: revertDraft,
+  };
+  useEffect(() => {
+    onRegisterActions?.({
+      save: () =>
+        actionsRef.current?.save() ?? Promise.resolve({ ok: false, error: "" }),
+      revert: () => actionsRef.current?.revert(),
+    });
+    return () => onRegisterActions?.(null);
+  }, [onRegisterActions]);
+  useEffect(() => {
+    onSettingsDirtyChange?.(leaveGuard);
+  }, [leaveGuard, onSettingsDirtyChange]);
+  useEffect(() => () => onSettingsDirtyChange?.(false), [onSettingsDirtyChange]);
+
   return (
     <div className="grid h-full min-h-0 grid-cols-[340px_1fr] overflow-hidden rounded-lg border border-border bg-card shadow-sm">
       <ConfigList
         endpoints={endpoints}
         selected={selected}
-        onPick={pick}
-        onStartCreate={startCreate}
+        onPick={(name) => requestLeave({ kind: "pick", name })}
+        onStartCreate={() => requestLeave({ kind: "create" })}
       />
 
       {/* 右：详情 */}
@@ -345,6 +494,15 @@ export function EndpointConfigPanel(): ReactElement {
           </div>
         )}
       </div>
+
+      <UnsavedConfirmDialog
+        open={unsavedOpen}
+        onOpenChange={closeLeave}
+        flight={unsavedBusy}
+        error={unsavedError}
+        onSave={() => void confirmLeaveSave()}
+        onDiscard={discardLeave}
+      />
 
       <DeleteDialog
         open={deleteDialogOpen}
