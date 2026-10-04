@@ -6,3 +6,6 @@ GET /api/endpoints
 GET /api/sessions/latest
 GET /api/prompts/p-1
 GET /api/prompts/p-1
+PUT /api/strategies/st1
+PUT /api/strategies/st1
+PUT /api/strategies/st1

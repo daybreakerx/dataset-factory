@@ -7,3 +7,6 @@ GET /api/sessions/latest
 GET /api/prompts/p-1
 GET /api/prompts/p-1
 GET /api/sessions/s-hist/attachments/alpha.png
+PUT /api/strategies/st1
+PUT /api/strategies/st1
+PUT /api/strategies/st1
