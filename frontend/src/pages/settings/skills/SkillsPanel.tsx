@@ -480,8 +480,10 @@ export function SkillsPanel({
         content: previewContent,
         original_content: originalContent,
         // 坏包必须带 description（后端靠它走「重建 frontmatter」分支即修复）；健康包
-        // 只在改动时带（不吞用户没动过的值）。
-        ...(descriptionDraft !== null || fixable
+        // 只在改动时带（不吞用户没动过的值）。两者都只随 SKILL.md 保存——后端对
+        // 非 SKILL.md 路径携带 description 一律 400（描述只能通过 SKILL.md 保存），
+        // 且 dirty 时切预览必先经未保存弹窗（保存或放弃都会清草稿），此处草稿恒空。
+        ...(previewPath === "SKILL.md" && (descriptionDraft !== null || fixable)
           ? { description: descriptionDraft ?? descriptionDefault }
           : {}),
       });
@@ -560,6 +562,8 @@ export function SkillsPanel({
         variant="ghost"
         size="icon-sm"
         aria-label="展开列表"
+        aria-expanded={peek}
+        aria-controls="skill-list"
         onMouseEnter={() => openPeek(false)}
         onClick={() => openPeek(true)}
         className={peek ? "invisible" : undefined}

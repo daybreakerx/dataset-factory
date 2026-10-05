@@ -495,6 +495,8 @@ export function EndpointConfigPanel({
         variant="ghost"
         size="icon-sm"
         aria-label="展开列表"
+        aria-expanded={peek}
+        aria-controls="endpoint-list"
         onMouseEnter={() => openPeek(false)}
         onClick={() => openPeek(true)}
         className={peek ? "invisible" : undefined}

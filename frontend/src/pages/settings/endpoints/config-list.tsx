@@ -45,6 +45,7 @@ export function ConfigList({
     // biome-ignore lint/a11y/noStaticElementInteractions: 暂展层是浮出列表列（不整层可点），接指针只为「移出即收」这一收出口
     <div
       ref={listRef}
+      id="endpoint-list"
       onMouseLeave={peek ? onPeekLeave : undefined}
       className={
         narrow && !peek

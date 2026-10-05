@@ -96,6 +96,7 @@ export function SkillList({
 
   return (
     <fieldset
+      id="skill-list"
       onMouseLeave={peek ? onPeekLeave : undefined}
       className={
         narrow && !peek
