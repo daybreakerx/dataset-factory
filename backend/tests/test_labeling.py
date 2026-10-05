@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Iterator, Sequence
 from pathlib import Path
 from typing import cast
 
@@ -295,6 +295,72 @@ def test_label_stream_blank_caption_persists_reasoning_partial(
     partial = snapshot.messages[-1]
     assert (partial.role, partial.text, partial.partial) == ("assistant", "", True)
     assert partial.reasoning == "这张图是一只猫。帽子是红色的，"
+
+
+def test_label_stream_client_disconnect_persists_partial_with_stop_reason(
+    temp_data_root: Path,
+) -> None:
+    """客户端断连（停止钮 / 关页）半截也落盘：partial=True ＋ 原因档「已停止」。
+
+    此前引擎只接 LLMError，GeneratorExit（生成器被 close）直接穿透、半截全丢
+    （2026-10-04 「客户端断连半截不落盘」修复）。
+    """
+
+    class _SlowCompleter(FakeCompleter):
+        def stream(self, messages: Sequence[Message]) -> Iterator[StreamDelta]:
+            self.calls.append(list(messages))
+            yield StreamDelta(kind="content", text="已收到的半截")
+            yield StreamDelta(kind="content", text="不应到达的第二帧")
+
+    completer = _SlowCompleter()
+    _save_prompt("h3", "你是打标助手。")
+    engine = LabelingEngine(completer, _MODEL)
+
+    generator: Generator[StreamStarted | StreamDelta | StreamFinished, None, None] = (
+        engine.label_stream(prompt_id="h3", instruction="描述它")
+    )
+    started = next(generator)
+    assert isinstance(started, StreamStarted)
+    next(generator)  # 首个 content delta 已收到
+    generator.close()  # 模拟客户端断连 → 引擎内 GeneratorExit
+
+    snapshot = engine.restore(started.session_id)
+    partial = snapshot.messages[-1]
+    assert (partial.role, partial.partial) == ("assistant", True)
+    assert partial.text == "已收到的半截"
+    assert partial.partial_reason == "已停止"
+
+
+def test_label_stream_mid_stream_error_persists_reason_with_exception_text(
+    temp_data_root: Path,
+) -> None:
+    """断流 / 超时（LLMError）落盘的半截带原因＝异常原文（中断标签分两档的异常档）。"""
+
+    class _BrokenCompleter(FakeCompleter):
+        def stream(self, messages: Sequence[Message]) -> Iterator[StreamDelta]:
+            self.calls.append(list(messages))
+            yield StreamDelta(kind="content", text="半截正文")
+            raise LLMError("上游连接中断")
+
+    completer = _BrokenCompleter()
+    _save_prompt("h3", "你是打标助手。")
+    engine = LabelingEngine(completer, _MODEL)
+
+    started: list[StreamStarted] = []
+
+    def _drain() -> None:
+        for event in engine.label_stream(prompt_id="h3", instruction="描述它"):
+            if isinstance(event, StreamStarted):
+                started.append(event)
+
+    with pytest.raises(LLMError, match="上游连接中断"):
+        _drain()
+
+    snapshot = engine.restore(started[0].session_id)
+    partial = snapshot.messages[-1]
+    assert partial.partial is True
+    assert partial.text == "半截正文"
+    assert partial.partial_reason == "上游连接中断"
 
 
 def test_label_stream_fully_empty_raises_without_partial(

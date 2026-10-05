@@ -48,6 +48,9 @@ class MessageEvent:
             失败轮的已有产出也留痕，会话历史不整条消失）；正常终稿恒 False 且不写盘。
         elapsed_ms: 可选，本轮整轮耗时毫秒（V7：恢复历史后仍能看到「一轮多久」）。
         reasoning_ms: 可选，本轮思考耗时毫秒（V7：思考开关的仪表盘）。
+        partial_reason: 可选，半截回复的中断原因（partial=True 时有意义）：手动停止＝
+            「已停止」，断流 / 超时＝异常原文；供界面在中断标签上区分两档（2026-10-04
+            「中断标签改无底彩字＋分两档」裁）。
     """
 
     ts: str
@@ -58,6 +61,7 @@ class MessageEvent:
     partial: bool = False
     elapsed_ms: int | None = None
     reasoning_ms: int | None = None
+    partial_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -118,6 +122,8 @@ def dump_event(event: SessionEvent) -> str:
             obj["elapsed_ms"] = event.elapsed_ms
         if event.reasoning_ms is not None:
             obj["reasoning_ms"] = event.reasoning_ms
+        if event.partial_reason is not None:
+            obj["partial_reason"] = event.partial_reason
     elif isinstance(event, EnvelopeEvent):
         obj = {
             "type": _TYPE_ENVELOPE,
@@ -172,6 +178,7 @@ def _parse_message(data: dict[str, object], ts: str) -> MessageEvent:
     partial = data.get("partial", False)
     elapsed_ms = data.get("elapsed_ms")
     reasoning_ms = data.get("reasoning_ms")
+    partial_reason = data.get("partial_reason")
     if not isinstance(role, str):
         raise SessionEventError("message 事件缺少合法的 role（字符串）字段。")
     if not isinstance(text, str):
@@ -186,6 +193,10 @@ def _parse_message(data: dict[str, object], ts: str) -> MessageEvent:
         raise SessionEventError("message 事件的 elapsed_ms 字段应是整数或不出现。")
     if reasoning_ms is not None and not isinstance(reasoning_ms, int):
         raise SessionEventError("message 事件的 reasoning_ms 字段应是整数或不出现。")
+    if partial_reason is not None and not isinstance(partial_reason, str):
+        raise SessionEventError(
+            "message 事件的 partial_reason 字段应是字符串或不出现。"
+        )
     return MessageEvent(
         ts=ts,
         role=role,
@@ -195,6 +206,7 @@ def _parse_message(data: dict[str, object], ts: str) -> MessageEvent:
         partial=partial,
         elapsed_ms=elapsed_ms,
         reasoning_ms=reasoning_ms,
+        partial_reason=partial_reason,
     )
 
 

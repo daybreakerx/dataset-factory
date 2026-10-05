@@ -115,6 +115,17 @@ class HistoryMessageView(BaseModel):
     reasoning_ms: int | None = Field(
         default=None, description="本轮思考耗时毫秒（缺省 null）"
     )
+    partial_reason: str | None = Field(
+        default=None,
+        description=(
+            "半截回复的中断原因（partial=true 时有意义）：手动停止＝「已停止」、"
+            "断流 / 超时＝异常原文；正常终稿为 null"
+        ),
+    )
+    ts: str | None = Field(
+        default=None,
+        description="会话事件时间戳（UTC ISO 8601；界面 meta 行的时钟数据源）",
+    )
 
 
 class ServiceStatus(BaseModel):

@@ -2291,6 +2291,11 @@ export interface components {
              */
             partial: boolean;
             /**
+             * Partial Reason
+             * @description 半截回复的中断原因（partial=true 时有意义）：手动停止＝「已停止」、断流 / 超时＝异常原文；正常终稿为 null
+             */
+            partial_reason?: string | null;
+            /**
              * Reasoning
              * @description 助手消息的思考过程全文（流式打标落盘；无思考为 null）
              */
@@ -2304,6 +2309,11 @@ export interface components {
             role: string;
             /** Text */
             text: string;
+            /**
+             * Ts
+             * @description 会话事件时间戳（UTC ISO 8601；界面 meta 行的时钟数据源）
+             */
+            ts?: string | null;
         };
         /**
          * ImportAccepted

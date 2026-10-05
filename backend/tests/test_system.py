@@ -249,7 +249,12 @@ def test_session_recovery_over_real_http(
     data = snapshot.json()
     assert data["session_id"] == session_id
     assert data["settings"]["prompt_id"] == pid
-    assert data["messages"][-1] == {
+    # ts 是落盘时刻的动态值，单拿出来断言「在场且非空」；其余字段整字典对拍。
+    last_message = dict(data["messages"][-1])
+    ts = last_message.pop("ts")
+    assert isinstance(ts, str)
+    assert ts != ""
+    assert last_message == {
         "role": "assistant",
         "text": "第二轮回复",
         "attachment": None,
@@ -259,6 +264,8 @@ def test_session_recovery_over_real_http(
         "partial": False,
         "elapsed_ms": None,
         "reasoning_ms": None,
+        # 2026-10-04「中断标签分两档」：中断原因随事件持久化；非流式终稿恒为 null。
+        "partial_reason": None,
     }
 
 

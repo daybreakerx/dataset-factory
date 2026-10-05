@@ -1,5 +1,12 @@
 /** 输入区：打标指令文本框 + 附件选择 + 视频抽帧参数 + 发送/停止一体钮。 */
-import { ArrowUpIcon, FilmIcon, PaperclipIcon, SquareIcon, XIcon } from "lucide-react";
+import {
+  ArrowUpIcon,
+  FilmIcon,
+  PaperclipIcon,
+  PlayIcon,
+  SquareIcon,
+  XIcon,
+} from "lucide-react";
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -14,7 +21,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "../../../components/ui/tooltip";
-import { formatBytesAuto } from "../../../lib/format";
+import { durationBadge, formatBytesAuto } from "../../../lib/format";
+import { cn } from "../../../lib/utils";
 import type { PendingMedia } from "../../../session/types";
 
 /** MIME → 简短类型标注（待发附件卡信息行；原型口径：JPG · 842 KB 这类一眼可读的摘要）。 */
@@ -70,11 +78,18 @@ export function InputArea({
   selectedSkills?: ReactNode;
 }): ReactElement {
   const fileInput = useRef<HTMLInputElement>(null);
+  const dur =
+    media !== null && media.kind === "video" ? durationBadge(media.durationSec) : null;
   return (
     <div className="mt-auto pt-4">
       <div className="rounded-xl border border-input bg-card p-2 focus-within:border-n-400">
         {media !== null && (
-          <div className="mb-1 flex max-w-full items-center gap-2 rounded-lg border border-border bg-muted/40 p-1 text-t-sm">
+          <div
+            className={cn(
+              "relative mb-1 flex w-fit max-w-full items-center gap-2 rounded-lg border border-border bg-muted/40 p-1 text-t-sm",
+              media.kind === "video" && "pr-2",
+            )}
+          >
             <button
               type="button"
               aria-label={`预览 ${media.name}`}
@@ -91,70 +106,100 @@ export function InputArea({
               }
             >
               {media.kind === "image" ? (
-                <img
-                  className="size-10 rounded-sm object-cover"
-                  src={media.dataUrl}
-                  alt={`待打标图片 ${media.name}`}
-                />
+                <span className="relative flex size-10 items-center justify-center overflow-hidden rounded-lg bg-muted">
+                  <img
+                    className="size-full object-cover"
+                    src={media.dataUrl}
+                    alt={`待打标图片 ${media.name}`}
+                  />
+                </span>
               ) : media.posterUrl !== undefined ? (
-                <img
-                  className="size-10 rounded-sm object-cover"
-                  src={media.posterUrl}
-                  alt={`待打标视频 ${media.name}`}
-                />
+                <span className="relative flex size-10 items-center justify-center overflow-hidden rounded-lg bg-muted">
+                  <img
+                    className="size-full object-cover"
+                    src={media.posterUrl}
+                    alt={`待打标视频 ${media.name}`}
+                  />
+                  <span className="absolute flex size-4 items-center justify-center rounded-sm bg-black/58 text-white">
+                    <PlayIcon className="size-2.5" />
+                  </span>
+                  {dur !== null && (
+                    <span className="absolute right-0.5 bottom-0.5 rounded-sm bg-black/58 px-1 text-[10px] leading-4 text-white">
+                      {dur}
+                    </span>
+                  )}
+                </span>
               ) : (
-                <FilmIcon className="size-10 rounded-sm bg-muted p-2" />
+                <span className="relative flex size-10 items-center justify-center overflow-hidden rounded-lg bg-muted text-muted-foreground">
+                  <FilmIcon className="size-6" />
+                  {dur !== null && (
+                    <span className="absolute right-0.5 bottom-0.5 rounded-sm bg-black/58 px-1 text-[10px] leading-4 text-white">
+                      {dur}
+                    </span>
+                  )}
+                </span>
               )}
             </button>
-            <div className="min-w-0 flex-1">
-              <div className="truncate">{media.name}</div>
+            <div className="flex min-w-0 flex-col gap-1">
+              <div className="max-w-[172px] truncate">{media.name}</div>
               <div className="text-t-xs text-muted-foreground">
                 {mimeLabel(media.mime)} · {formatBytesAuto(media.byteSize)}
               </div>
               {media.kind === "video" && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <label className="flex items-center gap-1">
-                    fps
-                    <input
-                      type="number"
-                      min={1}
-                      max={10}
-                      step={1}
-                      value={media.fps}
-                      onChange={(event) =>
-                        onMediaFpsChange(Number(event.currentTarget.value))
-                      }
-                      className="h-(--h-xs) w-12 rounded-md border border-input bg-card px-1 text-t-sm"
-                      aria-label="视频抽帧 fps"
-                    />
-                  </label>
-                  <label className="flex items-center gap-1">
-                    帧上限
-                    <input
-                      type="number"
-                      min={1}
-                      max={256}
-                      value={media.maxFrames}
-                      onChange={(event) =>
-                        onMediaMaxFramesChange(Number(event.currentTarget.value))
-                      }
-                      className="h-(--h-xs) w-12 rounded-md border border-input bg-card px-1 text-t-sm"
-                      aria-label="视频抽帧帧数上限"
-                    />
-                  </label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <label className="flex items-center gap-1 text-muted-foreground">
+                        fps
+                        <input
+                          type="number"
+                          min={1}
+                          max={10}
+                          step={1}
+                          value={media.fps}
+                          onChange={(event) =>
+                            onMediaFpsChange(Number(event.currentTarget.value))
+                          }
+                          className="h-(--h-xs) w-12 rounded-md border border-input bg-card px-1 text-t-sm"
+                          aria-label="视频抽帧 fps"
+                        />
+                      </label>
+                    </TooltipTrigger>
+                    <TooltipContent>每秒抽帧数：动作越快需要的 fps 越高</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <label className="flex items-center gap-1 text-muted-foreground">
+                        帧上限
+                        <input
+                          type="number"
+                          min={1}
+                          max={256}
+                          value={media.maxFrames}
+                          onChange={(event) =>
+                            onMediaMaxFramesChange(Number(event.currentTarget.value))
+                          }
+                          className="h-(--h-xs) w-12 rounded-md border border-input bg-card px-1 text-t-sm"
+                          aria-label="视频抽帧帧数上限"
+                        />
+                      </label>
+                    </TooltipTrigger>
+                    <TooltipContent>单条视频最多抽多少帧</TooltipContent>
+                  </Tooltip>
                 </div>
               )}
             </div>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
+                {/* 右上角角标圆钮：视觉 16／热区 24（::before 外扩，热区越出可见边界）。 */}
+                <button
+                  type="button"
                   aria-label="移除附件"
                   onClick={onClearMedia}
+                  className="absolute top-[-6px] right-[-6px] flex size-4 cursor-pointer items-center justify-center rounded-full border border-card bg-n-900/72 p-0 text-background before:absolute before:inset-[-5px] before:rounded-full before:content-[''] hover:bg-n-900"
                 >
-                  <XIcon />
-                </Button>
+                  <XIcon className="size-[9px]" aria-hidden />
+                </button>
               </TooltipTrigger>
               <TooltipContent>移除附件</TooltipContent>
             </Tooltip>

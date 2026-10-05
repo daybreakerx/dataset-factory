@@ -448,7 +448,7 @@ describe("PromptWorkbench", () => {
     expect(await screen.findByText("已保存")).toBeInTheDocument();
   });
 
-  it("发送：labelStream 请求携带选中的基础提示词与端点，流式渲染后上屏终稿与模型 meta", async () => {
+  it("发送：labelStream 请求携带选中的基础提示词与端点，流式渲染后上屏终稿与耗时 meta", async () => {
     renderWorkbench();
 
     await waitFor(() => {
@@ -476,7 +476,8 @@ describe("PromptWorkbench", () => {
       );
     });
     expect(await screen.findByText("打标结果 caption")).toBeInTheDocument();
-    expect(screen.getByText(/model-a · \d+\.\d+ 秒/)).toBeInTheDocument();
+    // meta 行只带耗时（模型名住顶栏 chip，2026-09-25 用户裁去模型名）。
+    expect(screen.getByText(/\d+\.\d+ 秒/)).toBeInTheDocument();
   });
 
   it("发送：流式增量在思考过程区与正文区逐段渲染，done 后上屏终稿", async () => {

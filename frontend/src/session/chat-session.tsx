@@ -23,7 +23,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { ApiError, api } from "../api";
+import { ApiError, api, errorMessage } from "../api";
 import { reportError } from "../lib/feedback";
 import {
   chatInstructionKey,
@@ -31,7 +31,7 @@ import {
   readStoredString,
   writeStoredJson,
 } from "../lib/ui-storage";
-import type { ChatMessage, PendingMedia } from "./types";
+import { type ChatMessage, PARTIAL_STOPPED_REASON, type PendingMedia } from "./types";
 import { type ChatRestoreState, useSessionRestore } from "./use-session-restore";
 
 /** 抽视频首帧与时长（L26/V8）：本地 <video> 解码，失败静默降级为图标（不打扰发送）。 */
@@ -264,8 +264,13 @@ export function ChatSessionProvider({
       let reasoningText = "";
       let contentText = "";
       let firstContentAt: number | null = null;
-      /** 断流 / 报错 / 主动停止：已收到的半截也留痕（B5 + N1 同源①），不整段丢弃。 */
-      const keepPartial = (): void => {
+      /**
+       * 断流 / 报错 / 主动停止：已收到的半截也留痕（B5 + N1 同源①），不整段丢弃。
+       *
+       * 中断原因与 meta 数据随消息带出（对齐批：手动停止＝「已停止」、异常透传原因；
+       * 时钟与耗时同终稿口径在停止时刻定格），中断标签据此分两档、meta 行不再缺时钟耗时。
+       */
+      const keepPartial = (reason: string): void => {
         if (contentText === "" && reasoningText === "") {
           return;
         }
@@ -277,6 +282,17 @@ export function ChatSessionProvider({
             partial: true,
             text: contentText,
             attachment: null,
+            partial_reason: reason,
+            createdAt: new Date(),
+            durationSeconds: Math.round((Date.now() - startedAt) / 1000),
+            ...(firstContentAt !== null
+              ? {
+                  reasoningSeconds: Math.max(
+                    1,
+                    Math.round((firstContentAt - startedAt) / 1000),
+                  ),
+                }
+              : {}),
             ...(reasoningText === "" ? {} : { reasoning: reasoningText }),
           },
         ]);
@@ -346,16 +362,19 @@ export function ChatSessionProvider({
                 setStreaming(null);
               },
               onError: (message) => {
-                keepPartial();
+                keepPartial(message);
                 setChatErrorState(message);
               },
             },
             controller.signal,
           );
         } catch (err) {
-          keepPartial();
-          // 用户主动停止不当失败展示（停止本身就是那轮的结局）。
-          if (!controller.signal.aborted) {
+          // 用户主动停止不当失败展示（停止本身就是那轮的结局）：中断标签走琥珀档；
+          // 其余异常透传原因进红档（网络类 reportError 只发浮层，原因仍留在标签上）。
+          if (controller.signal.aborted) {
+            keepPartial(PARTIAL_STOPPED_REASON);
+          } else {
+            keepPartial(errorMessage(err));
             setChatErrorState(reportError(err) ?? "");
           }
         } finally {
@@ -374,7 +393,11 @@ export function ChatSessionProvider({
     abortRef.current?.abort();
   }, []);
 
-  /** 清空当前会话（Q4 改名）：只清内存与界面——旧会话仍完整保存在磁盘上。 */
+  /**
+   * 新建会话（Q4 改名）：只清内存与界面。旧会话不再承诺长期保留——滚动保留机制
+   * （会话归属 v3）下，同桶下一轮 done 帧落盘时后端 _retain_bucket 删同桶旧会话、
+   * 每桶至多一份。
+   */
   const newSession = useCallback((): void => {
     userActedRef.current += 1;
     mediaRequestRef.current += 1;

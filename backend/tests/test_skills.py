@@ -516,9 +516,11 @@ def test_import_unconvertible_text_rejects_whole_pack(
 
     source = _make_source(tmp_path, "---\nname: bad-enc\ndescription: d\n---\n正文\n")
     (source / "references" / "weird.md").write_bytes(b"\x87\x54\x87\x55")
-    monkeypatch.setattr(
-        skill_store.charset_normalizer, "from_bytes", lambda _data: _FakeResult()
-    )
+
+    def _fake_from_bytes(_data: bytes) -> _FakeResult:
+        return _FakeResult()
+
+    monkeypatch.setattr(skill_store.charset_normalizer, "from_bytes", _fake_from_bytes)
 
     with pytest.raises(SkillFormatError, match="另存为 UTF-8"):
         import_skill(source)

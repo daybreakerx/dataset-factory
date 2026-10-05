@@ -213,9 +213,66 @@ describe("MessageList AI 整框结构（原型 v20 .ai-box）", () => {
         onPreview={noop}
       />,
     );
-    expect(screen.getByText(/未完成 · 生成中断/)).toBeInTheDocument();
+    expect(screen.getByText("生成中断 · 仅保留已收到的部分")).toBeInTheDocument();
     const summary = screen.getByText("思考过程").closest("details");
     expect(summary?.querySelector(".mx-3\\.5")).toBeNull();
+  });
+
+  it("中断标签分两档：手动停止琥珀「已停止」，异常红字透传原因（无底彩字）", () => {
+    render(
+      <MessageList
+        messages={[
+          msg({
+            role: "assistant",
+            text: "手动停的半截",
+            partial: true,
+            partial_reason: "已停止",
+          }),
+          msg({
+            id: 1,
+            role: "assistant",
+            text: "异常断的半截",
+            partial: true,
+            partial_reason: "连接超时",
+          }),
+        ]}
+        streaming={null}
+        waitSeconds={0}
+        copiedId={null}
+        onCopy={noop}
+        onPreview={noop}
+      />,
+    );
+    expect(screen.getByText("已停止 · 仅保留已收到的部分")).toBeInTheDocument();
+    expect(
+      screen.getByText("生成中断 · 连接超时，仅保留已收到的部分"),
+    ).toBeInTheDocument();
+  });
+
+  it("历史消息带后端 ts：meta 行时钟按本地时区显示（UTC ISO → 本地）", () => {
+    render(
+      <MessageList
+        messages={[
+          msg({
+            role: "assistant",
+            text: "历史回复",
+            ts: "2026-10-05T06:32:00Z",
+            elapsed_ms: 2400,
+          }),
+        ]}
+        streaming={null}
+        waitSeconds={0}
+        copiedId={null}
+        onCopy={noop}
+        onPreview={noop}
+      />,
+    );
+    const expected = new Date("2026-10-05T06:32:00Z").toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    expect(screen.getByText(expected)).toBeInTheDocument();
+    expect(screen.getByText("2.4 秒")).toBeInTheDocument();
   });
 });
 
@@ -235,7 +292,7 @@ describe("MessageList 流式状态收敛", () => {
     expect(screen.queryByText(/生成中 · 已用时/)).not.toBeInTheDocument();
   });
 
-  it("正文已到：气泡 + meta 行「生成中 · 已用时 · 字数」，占位行消失", () => {
+  it("正文已到：气泡 + 计量行「生成中 · 已用时」（无字数），占位行消失", () => {
     render(
       <MessageList
         messages={[]}
@@ -247,7 +304,23 @@ describe("MessageList 流式状态收敛", () => {
       />,
     );
     expect(screen.queryByText(/响应中 · 已用时/)).not.toBeInTheDocument();
-    expect(screen.getByText(/生成中 · 已用时 7s · 2 字/)).toBeInTheDocument();
+    expect(screen.getByText("生成中 · 已用时 7s")).toBeInTheDocument();
     expect(screen.getByText(/半截/)).toBeInTheDocument();
+  });
+
+  it("思考流入、正文未到：状态行消失，思考头时间槽累加计时", () => {
+    render(
+      <MessageList
+        messages={[]}
+        streaming={{ reasoning: "想", content: "" }}
+        waitSeconds={12}
+        copiedId={null}
+        onCopy={noop}
+        onPreview={noop}
+      />,
+    );
+    expect(screen.queryByText(/响应中 · 已用时/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/生成中 · 已用时/)).not.toBeInTheDocument();
+    expect(screen.getByText(/已思考 12/)).toBeInTheDocument();
   });
 });

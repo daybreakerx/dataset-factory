@@ -156,14 +156,14 @@ export function ChatColumn({
               type="button"
               variant="ghost"
               size="icon-sm"
-              aria-label="清空当前会话"
+              aria-label="新建会话"
               className="ml-auto"
               onClick={onNewSession}
             >
               <PlusIcon />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>清空当前会话（旧会话仍保存在磁盘上）</TooltipContent>
+          <TooltipContent>新建会话</TooltipContent>
         </Tooltip>
       </div>
 

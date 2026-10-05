@@ -437,6 +437,7 @@ def append_message(
     partial: bool = False,
     elapsed_ms: int | None = None,
     reasoning_ms: int | None = None,
+    partial_reason: str | None = None,
 ) -> None:
     """往会话追加一条消息事件（append-only，写后 fsync 确保落盘再返回）。
 
@@ -449,6 +450,7 @@ def append_message(
         partial: 可选，True = 断流 / 报错时落盘的半截助手回复（B5）。
         elapsed_ms: 可选，本轮整轮耗时毫秒（V7）。
         reasoning_ms: 可选，本轮思考耗时毫秒（V7）。
+        partial_reason: 可选，半截回复的中断原因（手动停止＝「已停止」、异常＝原文）。
 
     Raises:
         SessionIdError: id 非法。
@@ -467,6 +469,7 @@ def append_message(
             partial=partial,
             elapsed_ms=elapsed_ms,
             reasoning_ms=reasoning_ms,
+            partial_reason=partial_reason,
         ),
     )
 

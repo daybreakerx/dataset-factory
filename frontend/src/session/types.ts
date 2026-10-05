@@ -1,6 +1,13 @@
 /** 提示词工作台跨文件共享的数据形状。 */
 import type { HistoryMessageView } from "../api";
 
+/**
+ * 手动停止的中断原因（`partial_reason` 的停止档，与后端契约同文）：写入侧
+ * （chat-session 的 abort 分支）与读取侧（MessageList 的中断标签分档）共用一份，
+ * 避免两处各写一个魔法串漂移。
+ */
+export const PARTIAL_STOPPED_REASON = "已停止";
+
 /** 待发送的附件（图片或视频，一期单素材/次）：原始文件名 + data URL + 视频抽帧参数。 */
 export interface PendingMedia {
   name: string;

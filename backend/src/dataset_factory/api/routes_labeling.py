@@ -311,6 +311,8 @@ def _snapshot_response(snapshot: SessionSnapshot) -> SessionSnapshotResponse:
                 partial=item.partial,
                 elapsed_ms=item.elapsed_ms,
                 reasoning_ms=item.reasoning_ms,
+                partial_reason=item.partial_reason,
+                ts=item.ts,
             )
             for item in snapshot.messages
         ],

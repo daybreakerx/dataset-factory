@@ -11,9 +11,9 @@ import { type ReactElement, useState } from "react";
 import type { MediaPreviewTarget } from "../../../components/media-lightbox";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
-import { formatDuration } from "../../../lib/format";
+import { durationBadge, formatDuration } from "../../../lib/format";
 import logo from "../../../logo-speed-d.png";
-import type { ChatMessage } from "../../../session/types";
+import { type ChatMessage, PARTIAL_STOPPED_REASON } from "../../../session/types";
 
 /** 视频扩展名清单（与后端 MIME 映射同源：llm/messages.py 的 VIDEO_MIME_BY_SUFFIX）：历史消息只带文件名，靠它认素材类型。 */
 const VIDEO_EXTENSIONS = [".mp4", ".m4v", ".mov", ".webm", ".avi", ".mkv"];
@@ -21,15 +21,6 @@ const VIDEO_EXTENSIONS = [".mp4", ".m4v", ".mov", ".webm", ".avi", ".mkv"];
 function isVideoAttachment(name: string): boolean {
   const lowered = name.toLowerCase();
   return VIDEO_EXTENSIONS.some((extension) => lowered.endsWith(extension));
-}
-
-/** 秒数 → `0:08` 形态的时长角标（视频封面右上角）。 */
-function durationBadge(seconds: number | undefined): string | null {
-  if (seconds === undefined || !Number.isFinite(seconds)) return null;
-  const total = Math.max(0, Math.round(seconds));
-  const minutes = Math.floor(total / 60);
-  const rest = total % 60;
-  return `${minutes}:${String(rest).padStart(2, "0")}`;
 }
 
 /** AI 回复的整框（原型 v20 `.ai-box`）：白底无边框、大圆角 + 左下角 4px，思考与正文同框。 */
@@ -46,6 +37,8 @@ function AiBox({ children }: { children: React.ReactNode }): ReactElement {
  *
  * 流式期间恒展开（N1③），结束后收起可回看；与正文之间的横线由 AiBox 内容层
  * 按「两侧都有内容」显式渲染，这里不画——仅思考无正文的半截消息不出悬空线。
+ * 时间槽：思考期由调用方传累加秒数（2026-09-25 用户裁「计时进思考头时间槽」），
+ * 结束后传入定格值。
  */
 function Thinking({
   reasoning,
@@ -67,7 +60,7 @@ function Thinking({
           aria-hidden
         />
         <span className="font-medium">思考过程</span>
-        {seconds !== undefined && !streaming ? (
+        {seconds !== undefined ? (
           <span className="ml-auto tabular-nums">
             已思考 {formatDuration(seconds * 1000)}
           </span>
@@ -96,6 +89,22 @@ function VideoThumbFrame({ src }: { src: string }): ReactElement {
       aria-hidden
       onError={() => setFailed(true)}
       className="pointer-events-none size-full object-cover"
+    />
+  );
+}
+
+/** 图片加载失败的图标回退（与视频侧胶片回退同款、同 20px／text-3）：历史消息的附件文件已不在时 src 失效，落图标而非浏览器破图。 */
+function ImageThumbFrame({ src }: { src: string }): ReactElement {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <ImageIcon className="size-5 text-text-3" />;
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      onError={() => setFailed(true)}
+      className="size-full object-cover"
     />
   );
 }
@@ -152,7 +161,7 @@ function AttachmentThumb({
             <FilmIcon className="size-5 text-text-3" />
           )
         ) : src !== undefined ? (
-          <img src={src} alt="" className="size-full object-cover" />
+          <ImageThumbFrame src={src} />
         ) : (
           <ImageIcon className="size-5 text-text-3" />
         )}
@@ -163,6 +172,21 @@ function AttachmentThumb({
         )}
       </button>
     </Tip>
+  );
+}
+
+/**
+ * meta 行的时钟：本轮新消息用客户端 createdAt，历史消息用后端事件 ts（UTC ISO 8601，
+ * Date 解析后按本地时区显示）；两路共用同一份 locale 形态。无效时间戳不出时钟。
+ */
+function Clock({ message }: { message: ChatMessage }): ReactElement | null {
+  const at =
+    message.createdAt ?? (message.ts != null ? new Date(message.ts) : undefined);
+  if (at === undefined || Number.isNaN(at.getTime())) return null;
+  return (
+    <span>
+      {at.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
+    </span>
   );
 }
 
@@ -188,8 +212,8 @@ export function MessageList({
       className="min-h-0 flex-1 space-y-4 overflow-y-auto px-0.5 py-1"
     >
       {messages.length === 0 && (
-        <p className="mt-8 text-center text-t-sm text-text-4">
-          暂无消息。旧会话仍保存在磁盘上，本页只显示最近一次会话。
+        <p className="mt-8 text-center text-t-sm text-text-3">
+          暂无消息。本页只显示最近一次会话。
         </p>
       )}
       {messages.map((message) =>
@@ -210,7 +234,7 @@ export function MessageList({
         ) : (
           <div key={message.id} className="flex items-start">
             <span
-              className="mt-0.5 mr-3 flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-black"
+              className="mt-0.5 mr-3 flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md bg-black"
               aria-hidden
             >
               <img src={logo} className="size-5 object-contain" alt="" />
@@ -249,26 +273,30 @@ export function MessageList({
                 );
               })()}
               <div className="mt-2 flex flex-wrap items-center gap-3 text-t-sm text-muted-foreground">
-                {message.partial === true && (
-                  <span className="rounded-sm bg-amber-100 px-1.5 py-0.5 text-t-xs text-amber-700">
-                    未完成 · 生成中断，只保留已收到的部分
-                  </span>
-                )}
-                {(message.model !== undefined ||
-                  message.durationSeconds !== undefined ||
-                  message.elapsed_ms !== null) && (
-                  <span className="min-w-0 truncate">
-                    {[
-                      message.model,
-                      message.durationSeconds !== undefined
-                        ? formatDuration(message.durationSeconds * 1000)
-                        : message.elapsed_ms !== null &&
-                            message.elapsed_ms !== undefined
-                          ? formatDuration(message.elapsed_ms)
-                          : null,
-                    ]
-                      .filter((part) => part !== null && part !== undefined)
-                      .join(" · ")}
+                {message.partial === true &&
+                  (message.partial_reason === PARTIAL_STOPPED_REASON ? (
+                    // 手动停止＝用户自己的动作、非失败：琥珀档（2026-10-04 用户裁）。
+                    <span className="shrink-0 text-t-xs text-warn-ink">
+                      已停止 · 仅保留已收到的部分
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-t-xs text-bad-ink">
+                      {message.partial_reason
+                        ? `生成中断 · ${message.partial_reason}，仅保留已收到的部分`
+                        : // 旧数据无中断原因：不硬凑原因段。
+                          "生成中断 · 仅保留已收到的部分"}
+                    </span>
+                  ))}
+                <Clock message={message} />
+                {(message.durationSeconds !== undefined ||
+                  (message.elapsed_ms !== null &&
+                    message.elapsed_ms !== undefined)) && (
+                  <span>
+                    {message.durationSeconds !== undefined
+                      ? formatDuration(message.durationSeconds * 1000)
+                      : message.elapsed_ms !== null && message.elapsed_ms !== undefined
+                        ? formatDuration(message.elapsed_ms)
+                        : null}
                   </span>
                 )}
                 <Tip label={copiedId === message.id ? "已复制" : "复制"}>
@@ -281,14 +309,6 @@ export function MessageList({
                     {copiedId === message.id ? <CheckIcon /> : <CopyIcon />}
                   </Button>
                 </Tip>
-                {message.createdAt !== undefined && (
-                  <span className="ml-auto">
-                    {message.createdAt.toLocaleTimeString("zh-CN", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                )}
               </div>
             </div>
           </div>
@@ -297,36 +317,39 @@ export function MessageList({
       {streaming !== null && (
         <div className="flex items-start">
           <span
-            className="mt-0.5 mr-3 flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-black"
+            className="mt-0.5 mr-3 flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md bg-black"
             aria-hidden
           >
             <img src={logo} className="size-5 object-contain" alt="" />
           </span>
           <div className="min-w-0 flex-1">
             <AiBox>
-              <Thinking reasoning={streaming.reasoning} streaming={true} />
+              {/* 思考期计时进思考头时间槽累加（2026-09-25 用户裁）：正文未到时传累加秒数。 */}
+              <Thinking
+                reasoning={streaming.reasoning}
+                streaming={true}
+                seconds={streaming.content === "" ? waitSeconds : undefined}
+              />
               {streaming.reasoning !== "" && streaming.content !== "" && (
                 <div className="mx-3.5 h-px bg-border" aria-hidden />
               )}
               {streaming.content === "" ? (
-                // 首个增量到达前的唯一状态行（N1② + 状态收敛：此时 meta 行不出现）。
-                <div className="px-4 py-3 text-t-md text-text-4 tabular-nums">
-                  响应中 · 已用时 {waitSeconds}s
-                </div>
+                // 状态行仅「响应中」（尚无任何增量）阶段存在（N1②）；思考流入后
+                // 计时交给思考头时间槽，此行消失。
+                streaming.reasoning === "" && (
+                  <div className="px-4 py-3 text-t-md text-text-4 tabular-nums">
+                    响应中 · 已用时 {waitSeconds}s
+                  </div>
+                )
               ) : (
                 <div className="px-4 py-3 text-t-md wrap-anywhere whitespace-pre-wrap">
                   {streaming.content}
-                  {/* 流式光标用静态样式（L14：全站唯一持续动画是 .dot--run 的呼吸点） */}
-                  <span
-                    className="ml-0.5 inline-block h-[14px] w-[7px] bg-primary align-[-2px]"
-                    aria-hidden
-                  />
                 </div>
               )}
             </AiBox>
             {streaming.content !== "" && (
               <div className="mt-2 text-t-sm text-text-4 tabular-nums">
-                生成中 · 已用时 {waitSeconds}s · {streaming.content.length} 字
+                生成中 · 已用时 {waitSeconds}s
               </div>
             )}
           </div>

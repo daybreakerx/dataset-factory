@@ -17,9 +17,10 @@ JSON 的来回转换收敛在本模块（sessions 只把
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
@@ -106,6 +107,43 @@ def _require_caption(caption: str) -> None:
         raise LLMError("模型返回了空白描述；请重试或调整输入。")
 
 
+def _append_stream_partial(
+    session_id: str,
+    content_parts: list[str],
+    reasoning_parts: list[str],
+    *,
+    reason: str,
+    start: float,
+    llm_start: float,
+) -> None:
+    """把流式中已收到的半截回复落盘（partial=True ＋ 中断原因）。
+
+    中断原因随事件持久化（2026-10-04「中断标签分两档」）：手动停止＝「已停止」、
+    断流 / 超时＝异常原文；无任何已收内容（正文与思考皆空）时不写空事件。
+
+    Args:
+        session_id: 会话 id。
+        content_parts: 流式期间已收到的正文片段（原地 join，不修改）。
+        reasoning_parts: 流式期间已收到的思考片段。
+        reason: 中断原因文案。
+        start: 本轮起点 perf_counter（elapsed_ms 用）。
+        llm_start: LLM 流式起点 perf_counter（reasoning_ms 用）。
+    """
+    partial_text = "".join(content_parts)
+    partial_reasoning = "".join(reasoning_parts)
+    if partial_text or partial_reasoning:
+        append_message(
+            session_id,
+            "assistant",
+            partial_text,
+            reasoning=partial_reasoning or None,
+            partial=True,
+            elapsed_ms=int(ms_since(start)),
+            reasoning_ms=int(ms_since(llm_start)),
+            partial_reason=reason,
+        )
+
+
 @dataclass(frozen=True)
 class SessionSettings:
     """一个会话的当前设置（从最后一条 settings 事件折叠而来）。
@@ -131,6 +169,9 @@ class HistoryMessage:
         partial: True = 断流 / 报错时落盘的半截回复（B5；界面标注「未完成」）。
         elapsed_ms: 本轮整轮耗时毫秒（V7；恢复历史后仍可显示）。
         reasoning_ms: 本轮思考耗时毫秒（V7；思考开关的仪表盘）。
+        partial_reason: 半截回复的中断原因（手动停止＝「已停止」、异常＝原文；2026-10-04
+            「中断标签分两档」随事件持久化）。
+        ts: 事件时间戳（ISO 8601；界面 meta 行的时钟数据源，2026-10-05 接入）。
     """
 
     role: str
@@ -140,6 +181,8 @@ class HistoryMessage:
     partial: bool = False
     elapsed_ms: int | None = None
     reasoning_ms: int | None = None
+    partial_reason: str | None = None
+    ts: str | None = None
 
 
 @dataclass(frozen=True)
@@ -377,7 +420,7 @@ class LabelingEngine:
         video_fps: int = 2,
         video_max_frames: int = 16,
         strategy_id: str | None = None,
-    ) -> Iterator[StreamStarted | StreamDelta | StreamFinished]:
+    ) -> Generator[StreamStarted | StreamDelta | StreamFinished, None, None]:
         """流式跑一轮打标：先落信封 → 逐段产出增量 → 终稿落盘，事件序列返回给调用方。
 
         与 label() 共用同一套准备（校验 / 事件落盘 / 组装），区别只在模型调用方式：
@@ -492,24 +535,36 @@ class LabelingEngine:
             # 已收到的内容，此前只活在浏览器内存里（前端 keepPartial 即时结算），
             # 刷新 / 重启即丢（2026-09-23 用户实测曝光）。
             _require_caption(caption)
-        except LLMError:
+        except LLMError as exc:
             # 2026-09-21 定案：断流 / 超时的半截回复也落盘并标 partial——
             # 会话历史不因失败整条消失（失败不丢历史、
             # append-only）；重发那句话也不会变成两条重复 user 气泡。
             # 上方空稿护栏的 raise 也走这里（2026-09-23 起）：纯思考零正文的半截
-            # 同样落 partial，不再只活在浏览器内存里。
-            partial_text = "".join(content_parts)
-            partial_reasoning = "".join(reasoning_parts)
-            if partial_text or partial_reasoning:
-                append_message(
-                    session_id,
-                    "assistant",
-                    partial_text,
-                    reasoning=partial_reasoning or None,
-                    partial=True,
-                    elapsed_ms=int(ms_since(start)),
-                    reasoning_ms=int(ms_since(llm_start)),
-                )
+            # 同样落 partial，不再只活在浏览器内存里。中断原因随事件带回（2026-10-04
+            # 「中断标签分两档」：异常档＝异常原文）。
+            _append_stream_partial(
+                session_id,
+                content_parts,
+                reasoning_parts,
+                reason=str(exc),
+                start=start,
+                llm_start=llm_start,
+            )
+            raise
+        except (GeneratorExit, asyncio.CancelledError):
+            # 客户端断连（停止钮 / 关页）＝生成器被关闭（GeneratorExit）或任务取消：
+            # 半截同样落盘（2026-10-04 「客户端断连半截不落盘」修复——此前只接
+            # LLMError，BaseException 直接穿透）；原因档「已停止」。落盘后必须原样
+            # re-raise：GeneratorExit / CancelledError 是 BaseException，吞掉会破坏
+            # 生成器关闭协议与任务取消语义。
+            _append_stream_partial(
+                session_id,
+                content_parts,
+                reasoning_parts,
+                reason="已停止",
+                start=start,
+                llm_start=llm_start,
+            )
             raise
         # 思考过程随终稿一起落盘（2026-09-20 用户定夺，2026-09-21 用户再次确认）：
         # 恢复会话可回看；回放下一轮请求装配仍只取正文，思考不进请求。
@@ -701,6 +756,8 @@ class LabelingEngine:
                 partial=event.partial,
                 elapsed_ms=event.elapsed_ms,
                 reasoning_ms=event.reasoning_ms,
+                partial_reason=event.partial_reason,
+                ts=event.ts,
             )
             for event in events
             if isinstance(event, MessageEvent) and event.role in ("user", "assistant")

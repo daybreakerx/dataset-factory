@@ -254,7 +254,7 @@ export function EditorColumn({
           </Tip>
         </div>
         <div className="mt-4">
-          <Label htmlFor="prompt-desc" className="mb-2 block">
+          <Label htmlFor="prompt-desc" className="mb-1 block">
             描述
           </Label>
           <Input
@@ -266,7 +266,7 @@ export function EditorColumn({
           />
         </div>
         <div className="mt-4 flex min-h-0 flex-1 flex-col">
-          <div className="mb-2 flex items-baseline gap-2">
+          <div className="mb-1 flex items-baseline gap-2">
             <span className="text-t-md font-medium text-foreground">正文</span>
             <span
               className={`text-t-xs font-medium tabular-nums ${charOver ? "text-bad-ink" : "text-muted-foreground"}`}

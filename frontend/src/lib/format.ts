@@ -60,3 +60,17 @@ export function formatDuration(ms: number): string {
   }
   return rest === 0 ? `${minutes} 分` : `${minutes} 分 ${rest} 秒`;
 }
+
+/**
+ * 视频时长秒数 → 时长角标串（`0:08` 形态，分:秒、秒两位补零）。
+ *
+ * 待发附件卡与已发消息的视频缩略图共用同一份口径；时长拿不到（undefined 或
+ * 非有限数）时返回 null，调用方据此不渲染角标。
+ */
+export function durationBadge(seconds: number | undefined): string | null {
+  if (seconds === undefined || !Number.isFinite(seconds)) return null;
+  const total = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(total / 60);
+  const rest = total % 60;
+  return `${minutes}:${String(rest).padStart(2, "0")}`;
+}

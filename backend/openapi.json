@@ -1234,6 +1234,18 @@
             "title": "Partial",
             "type": "boolean"
           },
+          "partial_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "半截回复的中断原因（partial=true 时有意义）：手动停止＝「已停止」、断流 / 超时＝异常原文；正常终稿为 null",
+            "title": "Partial Reason"
+          },
           "reasoning": {
             "anyOf": [
               {
@@ -1265,6 +1277,18 @@
           "text": {
             "title": "Text",
             "type": "string"
+          },
+          "ts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "会话事件时间戳（UTC ISO 8601；界面 meta 行的时钟数据源）",
+            "title": "Ts"
           }
         },
         "required": [
