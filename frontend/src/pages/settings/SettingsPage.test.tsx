@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { EndpointConfigSummary, SkillInfo } from "../../api";
+import { ApiError, type EndpointConfigSummary, type SkillInfo } from "../../api";
 import { getToastSnapshot } from "../../lib/toast";
 import { SettingsPage } from "./SettingsPage";
 import { parseLogLevel } from "./service/ServicePanel";
@@ -320,6 +320,30 @@ describe("SettingsPage · 连接·端点配置", () => {
       });
     });
     expect(await screen.findByText("已创建配置「new-one」")).toBeInTheDocument();
+  });
+
+  it("创建失败且后端指认名称字段：错误进头行槽＋名字框挂 aria-invalid 并关联到槽", async () => {
+    apiMock.listEndpoints.mockResolvedValue(ENDPOINTS);
+    apiMock.createEndpoint.mockRejectedValue(
+      new ApiError("http", "配置名不能为空；请填写名称。", 400, null, "name"),
+    );
+    render(<SettingsPage />);
+
+    await waitFor(() => screen.getByLabelText("Base URL"));
+    await userEvent.click(screen.getByRole("button", { name: "添加配置" }));
+    await userEvent.type(screen.getByLabelText("配置名称"), "dup");
+    await userEvent.type(screen.getByLabelText("Base URL"), "https://n/v1");
+    await userEvent.type(screen.getByLabelText("模型名称"), "m");
+    await userEvent.click(screen.getByRole("button", { name: "创建" }));
+
+    expect(await screen.findByText("配置名不能为空；请填写名称。")).toBeInTheDocument();
+    const name = screen.getByLabelText("配置名称");
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    const describedBy = name.getAttribute("aria-describedby");
+    expect(describedBy).not.toBeNull();
+    expect(document.getElementById(describedBy ?? "")?.textContent).toContain(
+      "配置名不能为空",
+    );
   });
 
   it("删除：确认对话框内的删除钮才真正调 deleteEndpoint", async () => {

@@ -28,6 +28,7 @@ from ..labeling import (
 )
 from ..llm import (
     ConfigError,
+    ConfigNameError,
     ConfigNotFoundError,
     ImageTooLargeError,
     LLMError,
@@ -305,11 +306,22 @@ def _problem_handler(
     return handler
 
 
-def _detail_handler(status_code: int) -> Callable[[Request, Exception], JSONResponse]:
-    """一期端点的简形处理器：域异常消息进 detail、状态码按 ``_ERROR_MAP`` 分类。"""
+def _detail_handler(
+    status_code: int, field: str | None = None
+) -> Callable[[Request, Exception], JSONResponse]:
+    """一期端点的简形处理器：域异常消息进 detail、状态码按 ``_ERROR_MAP`` 分类。
+
+    Args:
+        status_code: 该类异常对应的 HTTP 状态码。
+        field: 字段级错误标记（None＝操作级错误，响应体 field 为 null；非 None＝
+            detail 指向该字段，供前端把错误精确挂到对应输入框上——aria-invalid
+            程序化关联，对齐批批 18 裁）。
+    """
 
     def handler(request: Request, exc: Exception) -> JSONResponse:
-        return JSONResponse(status_code=status_code, content={"detail": str(exc)})
+        # field 恒带（操作级为 null）：响应体形状与 ErrorDetail 契约逐字段一致。
+        body: dict[str, str | None] = {"detail": str(exc), "field": field}
+        return JSONResponse(status_code=status_code, content=body)
 
     return handler
 
@@ -319,5 +331,7 @@ def _register_error_handlers(app: FastAPI) -> None:
     for status_code, exc_types in _ERROR_MAP:
         for exc_type in exc_types:
             app.add_exception_handler(exc_type, _detail_handler(status_code))
+    # 字段级错误（MRO 就近匹配、子类优先于基类，见 _ERROR_MAP 头注）：带 field 标记。
+    app.add_exception_handler(ConfigNameError, _detail_handler(400, field="name"))
     for rule in _PROBLEM_RULES:
         app.add_exception_handler(rule.exc, _problem_handler(rule))

@@ -27,18 +27,22 @@ export class ApiError extends Error {
   readonly kind: "timeout" | "network" | "http";
   /** 后端中间件写在 X-Request-ID 响应头里的请求 id；拿它去后端日志里串一整条链。 */
   readonly requestId: string | null;
+  /** 字段级错误标记：后端指认 detail 属于哪个输入字段（如 name）；操作级 / 环境类为 null。 */
+  readonly field: string | null;
 
   constructor(
     kind: ApiError["kind"],
     message: string,
     status: number | null,
     requestId: string | null,
+    field: string | null = null,
   ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.kind = kind;
     this.requestId = requestId;
+    this.field = field;
   }
 }
 
@@ -68,6 +72,22 @@ export function extractDetail(data: unknown, status: number): string {
     }
   }
   return `HTTP ${status}`;
+}
+
+/**
+ * 从后端错误响应里取出字段级标记（ErrorDetail.field）。
+ *
+ * 后端指认「这句错误属于哪个输入字段」（如 name）时返回该字段名；操作级错误、
+ * 无该键或类型不对都返回 null——调用方据它决定要不要把错误精确挂到输入框上。
+ */
+export function extractErrorField(data: unknown): string | null {
+  if (data !== null && typeof data === "object" && "field" in data) {
+    const field: unknown = (data as { field: unknown }).field;
+    if (typeof field === "string") {
+      return field;
+    }
+  }
+  return null;
 }
 
 /**
@@ -142,6 +162,7 @@ export async function request<T>(
       `${extractDetail(data, response.status)}${suffix}`,
       response.status,
       requestId,
+      extractErrorField(data),
     );
   }
   return data as T;

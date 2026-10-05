@@ -189,8 +189,7 @@ export function SkillsPanel({
     skillMdRescue.description === undefined;
 
   // 头行消息槽内容（一槽一消息、互斥替换）：保存被拦（bad）／保存成功（ok）＞ 损坏档常态
-  // （warn／bad）。assembly-failed（包体组装失败等）的槽文案稿未承载——不占槽，原因走列表
-  // 图标 Tip（挂账呈报）。
+  // （warn／bad）。assembly-failed 的槽文案原稿未承载，2026-10-05 挂账裁决补固定句（bad 档）。
   let headNote: {
     kind: "ok" | "warn" | "bad";
     text: string;
@@ -210,6 +209,11 @@ export function SkillsPanel({
           current.damage_file === "" || current.damage_file === "SKILL.md"
             ? "SKILL.md 不是 UTF-8 编码，请在编辑器中另存为 UTF-8"
             : `${current.damage_file} 不是 UTF-8 编码，请在编辑器中另存为 UTF-8`,
+      };
+    } else if (current.damage_kind === "assembly-failed") {
+      headNote = {
+        kind: "bad",
+        text: "技能包组装失败：包内文件读不完整，请检查后重新导入。",
       };
     }
   }

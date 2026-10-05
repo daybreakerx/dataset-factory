@@ -533,17 +533,18 @@ def test_endpoints_create_duplicate_display_name_allowed(client: TestClient) -> 
 
 
 def test_endpoints_create_invalid_name_400(client: TestClient) -> None:
-    """显示名非法（纯空白）：400（路径分隔符等约束随 ID 化取消）。"""
+    """显示名非法（纯空白）：400＋字段级标记 field=name（前端据此标红名字框）。"""
     response = client.post(
         "/api/endpoints",
         json={"name": "   ", "base_url": "https://a/v1", "model": "m"},
     )
 
     assert response.status_code == 400
+    assert response.json()["field"] == "name"
 
 
 def test_endpoints_create_unsupported_format_400(client: TestClient) -> None:
-    """API 格式不支持：400，消息说明当前仅支持什么。"""
+    """API 格式不支持：400，消息说明当前仅支持什么（操作级错误、无字段标记）。"""
     response = client.post(
         "/api/endpoints",
         json={
@@ -556,6 +557,7 @@ def test_endpoints_create_unsupported_format_400(client: TestClient) -> None:
 
     assert response.status_code == 400
     assert "暂未支持" in response.json()["detail"]
+    assert response.json()["field"] is None
 
 
 def test_endpoints_create_without_key(client: TestClient) -> None:
@@ -667,6 +669,7 @@ def test_endpoints_rename_new_name_invalid_400(client: TestClient) -> None:
     )
 
     assert response.status_code == 400
+    assert response.json()["field"] == "name"
     names = [item["name"] for item in client.get("/api/endpoints").json()]
     assert names == ["prod"]
 

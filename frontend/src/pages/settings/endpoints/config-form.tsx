@@ -141,12 +141,18 @@ export function ConfigForm({
     : canSave
       ? ""
       : "请填写名称、Base URL 和模型名称";
+  // 名称字段级失败（后端 field=name 指认）：名字框挂 aria-invalid 并程序化关联到
+  // 本行消息槽（DESIGN.md 七 9；操作级错误不得预设 aria-invalid——ARIA21）。
+  const nameInvalid = feedback?.field === "name";
+  const headMsgId = "endpoint-head-msg";
   return (
     <div className="flex w-full min-w-0 flex-col gap-3">
       <div className="flex min-h-(--h-lg) items-center gap-2">
         {headLeading}
         <input
           aria-label="配置名称"
+          aria-invalid={nameInvalid || undefined}
+          aria-describedby={nameInvalid ? headMsgId : undefined}
           value={draftName}
           placeholder={creating ? "新建配置" : undefined}
           onInput={(event) => onNameInput(event.currentTarget.value)}
@@ -177,6 +183,7 @@ export function ConfigForm({
             role="alert"
             kind={FEEDBACK_KIND[feedback.kind]}
             text={feedback.text}
+            id={headMsgId}
           />
         )}
         <Tip label={saveTip}>

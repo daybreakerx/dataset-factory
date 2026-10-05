@@ -16,7 +16,7 @@ import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
 import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
 import { useVscrollColumn } from "../../../components/vscroll";
-import { type Feedback, reportError } from "../../../lib/feedback";
+import { errorField, type Feedback, reportError } from "../../../lib/feedback";
 import { toast } from "../../../lib/toast";
 import type { PanelUnsavedActions } from "../../../lib/unsaved-actions";
 import { cn } from "../../../lib/utils";
@@ -424,7 +424,10 @@ export function EndpointConfigPanel({
       return { ok: true, error: "" };
     } catch (err) {
       const text = reportError(err);
-      if (text !== null) setFeedback({ kind: "error", text });
+      // 字段级标记随反馈带回（后端指认 detail 属于名字框时，config-form 挂 aria-invalid）。
+      if (text !== null) {
+        setFeedback({ kind: "error", text, field: errorField(err) ?? undefined });
+      }
       return { ok: false, error: text ?? "" };
     } finally {
       savingRef.current = false;

@@ -15,6 +15,7 @@ frontmatter name 当目录名）即惰性升级——目录改名为新 ID、`_s
 
 from __future__ import annotations
 
+import codecs
 import json
 import os
 import re
@@ -25,7 +26,6 @@ from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import cast
 
-import charset_normalizer
 import yaml
 from filelock import Timeout
 
@@ -239,10 +239,12 @@ def _load_entries() -> dict[str, Path]:
 def _normalize_file_bytes(rel: str, data: bytes) -> tuple[bytes, str | None]:
     """把一个包内文件的字节内容归一化成 UTF-8（2026-09-30 用户裁「导入时归一化」）。
 
-    判别与分档（2026-10-01 用户裁细）：UTF-8 严格解码成功＝已是 UTF-8，原样返回；
-    失败后**无 NUL 字节**且 charset-normalizer 能给出解码方案＝文本，转码写回（返回
-    原编码供导入反馈计数）；探测不出（``best()`` 为 None）＝真二进制，按字节原样复制；
-    判定为文本但转不成 UTF-8 ＝ 整包拒导入（点名文件＋修法）。
+    判别与分档（2026-10-05 用户裁「只认 BOM 类可靠信号」——charset-normalizer 探测
+    会把 GBK 误判成 cp949、转出另一种语言的乱码且原字节不可恢复，故不再猜码）：
+    UTF-8 严格解码成功＝已是 UTF-8，原样返回；带 UTF-16/32 BOM＝编码有可靠标记，
+    按标记解码后转成 UTF-8（返回原编码供导入反馈计数）；其余（无 BOM 的非 UTF-8，
+    含真二进制）一律原样保留——文本文件由 not-utf8 损坏档承接「另存为 UTF-8」修法，
+    SKILL.md 本身读不出文本则整包拒导入（见 ``import_skill``）。
 
     Args:
         rel: 包内相对路径（错误文案点名用）。
@@ -250,9 +252,6 @@ def _normalize_file_bytes(rel: str, data: bytes) -> tuple[bytes, str | None]:
 
     Returns:
         (归一化后的字节, 原编码或 None＝未发生转码)。
-
-    Raises:
-        SkillFormatError: 判定为文本但转不成 UTF-8。
     """
     try:
         data.decode("utf-8")
@@ -260,28 +259,28 @@ def _normalize_file_bytes(rel: str, data: bytes) -> tuple[bytes, str | None]:
         pass
     else:
         return data, None
-    if b"\x00" in data:
-        return data, None
-    match = charset_normalizer.from_bytes(data).best()
-    if match is None:
-        return data, None
-    try:
-        return match.output(), match.encoding
-    except UnicodeError as exc:
-        raise SkillFormatError(
-            f"{rel} 的文本内容（探测编码 {match.encoding}）转不成 UTF-8；"
-            "请用编辑器另存为 UTF-8 后重试。"
-        ) from exc
+    # UTF-32 LE 的 BOM 以 UTF-16 LE 的 BOM 为前缀，先试长的防误判；带 BOM 解码时
+    # Python 编解码器自动识别字节序并剥掉 BOM。BOM 在但内容转不成（截断/伪 BOM）＝
+    # 信号不可信，同样原样保留，交给 not-utf8 损坏档。
+    for bom, codec in (
+        (codecs.BOM_UTF32_LE, "utf-32"),
+        (codecs.BOM_UTF32_BE, "utf-32"),
+        (codecs.BOM_UTF16_LE, "utf-16"),
+        (codecs.BOM_UTF16_BE, "utf-16"),
+    ):
+        if data.startswith(bom):
+            try:
+                return data.decode(codec).encode("utf-8"), codec.upper()
+            except UnicodeError:
+                break
+    return data, None
 
 
 def _normalize_package_dir(root: Path) -> list[tuple[str, str]]:
     """把目录包里全部文件就地归一化成 UTF-8（目录导入路线；发布前在临时目录里做）。
 
     Returns:
-        发生转码的文件清单（包内相对路径 → 探测出的原编码）。
-
-    Raises:
-        SkillFormatError: 判定为文本但转不成 UTF-8（整包拒导入）。
+        发生转码的文件清单（包内相对路径 → 原编码，只认带 BOM 的 UTF-16/32）。
     """
     transcoded: list[tuple[str, str]] = []
     for path in sorted(root.rglob("*"), key=lambda p: p.as_posix()):
@@ -300,9 +299,10 @@ def import_skill(source: Path) -> SkillImport:
 
     源必须是一个含 SKILL.md 的目录；显示名与说明取自 SKILL.md frontmatter，包落到
     新分配的 `skills/<ID>/`（同显示名可并存——身份是 ID，不再拒绝重名）。复制走
-    「临时名 + os.replace」的目录级原子导入，崩溃不留半个包。导入时把包内文本文件
-    统一转码成 UTF-8（二进制原样复制）；**frontmatter 坏不再拒导入**——照常入库为
-    「损坏行」（占位名「技能已损坏」），损坏原因随响应带给前端警告条（2026-10-01 用户裁）。
+    「临时名 + os.replace」的目录级原子导入，崩溃不留半个包。导入时只把带 BOM 的
+    UTF-16/32 文件转成 UTF-8（其余一律原样复制，2026-10-05 用户裁「只认 BOM 类可靠
+    信号」）；**frontmatter 坏不再拒导入**——照常入库为「损坏行」（占位名「技能已
+    损坏」），损坏原因随响应带给前端警告条（2026-10-01 用户裁）。
 
     Args:
         source: 源 skill 目录（含 SKILL.md，可含 references/ 等子目录）。
@@ -312,7 +312,7 @@ def import_skill(source: Path) -> SkillImport:
 
     Raises:
         SkillSourceError: 源不是目录（路径填错）。
-        SkillFormatError: 源缺 SKILL.md，或文本文件转不成 UTF-8。
+        SkillFormatError: 源缺 SKILL.md，或 SKILL.md 不是合法 UTF-8 文本。
         SkillError: 库目录 / 复制准备失败。
     """
     if not source.is_dir():
@@ -348,8 +348,8 @@ def import_skill(source: Path) -> SkillImport:
         skill_md_text = _read_text(dest / _SKILL_MD, package_hint=_SKILL_MD)
         name, description = parse_skill_frontmatter(skill_md_text)
     except SkillNotUtf8Error as exc:
-        # SKILL.md 本身非 UTF-8 且探测不出可靠转码——文本都读不出，拒（与「文本转不成
-        # UTF-8 就拒」同一档；二进制判别已在前置归一化里处理，走到这里即坏到底）。
+        # SKILL.md 本身非 UTF-8 且无 BOM 可靠信号——文本都读不出，拒（修复动作明确：
+        # 去编辑器另存 UTF-8 再导；包内其它文件的非 UTF-8 走 not-utf8 损坏档，不拦整包）。
         raise SkillFormatError(
             f"{_SKILL_MD} 不是合法 UTF-8 文本；请用编辑器另存为 UTF-8 后重试。"
         ) from exc
@@ -375,9 +375,10 @@ def import_skill(source: Path) -> SkillImport:
 def import_skill_files(files: Mapping[str, bytes]) -> SkillImport:
     """从「相对路径 → 内容」的文件集导入 skill 包（浏览器文件夹选择上传路线）。
 
-    与 import_skill 共用同一套口径：包根必须有 SKILL.md；导入时把文本文件统一转码成
-    UTF-8（二进制原样复制）；**frontmatter 坏不再拒导入**——照常入库为「损坏行」
-    （占位名「技能已损坏」），损坏原因随响应带给前端警告条（2026-10-01 用户裁）。
+    与 import_skill 共用同一套口径：包根必须有 SKILL.md；导入时只把带 BOM 的 UTF-16/32
+    文件转成 UTF-8（其余一律原样复制，2026-10-05 用户裁「只认 BOM 类可靠信号」）；
+    **frontmatter 坏不再拒导入**——照常入库为「损坏行」（占位名「技能已损坏」），
+    损坏原因随响应带给前端警告条（2026-10-01 用户裁）。
     相对路径的卫生（拒绝绝对路径与 ``..`` 穿越）由 HTTP 入口层在收包时清洗，本函数
     按可信输入对待。
 
@@ -388,7 +389,7 @@ def import_skill_files(files: Mapping[str, bytes]) -> SkillImport:
         SkillImport：导入的 skill（enabled=True）+ 整包字节数 + 转码清单 + 损坏原因。
 
     Raises:
-        SkillFormatError: 文件集缺 SKILL.md / SKILL.md 是二进制或转不成 UTF-8。
+        SkillFormatError: 文件集缺 SKILL.md，或 SKILL.md 不是合法 UTF-8 文本。
         SkillError: 库目录准备 / 写入失败。
     """
     skill_md_bytes = files.get(_SKILL_MD)

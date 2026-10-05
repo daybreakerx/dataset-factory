@@ -212,9 +212,9 @@ def test_one_handler_per_exception_class() -> None:
 
 
 def test_phase_one_detail_shape_still_served() -> None:
-    """一期端点的 ``{"detail"}`` 简形没有被表驱动的改造顺带改掉。"""
+    """一期端点的 ``{"detail", "field"}`` 简形没有被表驱动的改造顺带改掉（field 恒带，操作级为 null）。"""
     response = _client_raising(ConfigError("配置缺失")).get("/probe-error")
 
     assert response.status_code == 400
-    assert response.json() == {"detail": "配置缺失"}
+    assert response.json() == {"detail": "配置缺失", "field": None}
     assert "problem+json" not in response.headers["content-type"]

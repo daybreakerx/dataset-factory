@@ -90,6 +90,14 @@ class ConfigNotFoundError(ConfigError):
     """端点配置不存在（按 ID 找不到）。"""
 
 
+class ConfigNameError(ConfigError):
+    """显示名不合法（空、超长）——操作级错误之外的「字段级」错误。
+
+    HTTP 入口层据此给 400 响应体带 ``field: "name"`` 标记，前端才能把错误精确挂到
+    名字框上（aria-invalid），而不是混在操作级错误里无从判别归属（对齐批批 18 裁）。
+    """
+
+
 def validated_request_params(
     data: Mapping[str, object], name: str
 ) -> dict[str, object]:
@@ -189,9 +197,9 @@ def _validate_display_name(raw: str) -> str:
     """
     cleaned = raw.strip()
     if not cleaned:
-        raise ConfigError("配置名不能为空；请填写名称。")
+        raise ConfigNameError("配置名不能为空；请填写名称。")
     if len(cleaned) > _MAX_NAME_LENGTH:
-        raise ConfigError(
+        raise ConfigNameError(
             f"配置名过长（{len(cleaned)} 字符，上限 {_MAX_NAME_LENGTH}）——请缩短后重试。"
         )
     return cleaned

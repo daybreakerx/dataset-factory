@@ -462,29 +462,69 @@ def test_import_slash_display_name_is_display_only(
     assert not (_skills_dir(temp_data_root) / "bad").exists()
 
 
-def test_import_normalizes_non_utf8_text_files(
+def test_import_transcodes_bom_utf16_files(
     tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """导入时把非 UTF-8 文本文件归一化成 UTF-8（Shift-JIS 探测转码），转码清单随结果带回。
+    """带 BOM 的 UTF-16 文件＝可靠信号：按标记转成 UTF-8，转码清单随结果带回。
 
-    探测用 Shift-JIS 样本：即使被识别为超集 cp932，解码结果也相同、往返无损。
+    2026-10-05 用户裁「只认 BOM 类可靠信号」——charset-normalizer 猜码会把 GBK
+    误判成近邻编码、转出不可恢复的乱码，故只有编码有硬标记的文件才自动转。
+    """
+    source = _make_source(tmp_path, "---\nname: bom-pack\ndescription: d\n---\n正文\n")
+    reference_text = "カタカナの参考内容です"
+    (source / "references" / "u16.md").write_bytes(
+        reference_text.encode("utf-16")
+    )  # Python utf-16 编码自带 BOM
+
+    result = import_skill(source)
+
+    stored = temp_data_root / "skills" / result.skill.id / "references" / "u16.md"
+    assert stored.read_text(encoding="utf-8") == reference_text
+    assert result.transcoded == [("references/u16.md", "UTF-16")]
+    assert result.import_error is None
+
+
+def test_import_no_bom_non_utf8_stays_raw_and_reports_not_utf8(
+    tmp_path: Path, temp_data_root: Path
+) -> None:
+    """无 BOM 的非 UTF-8 文本不再猜码：原样入库（transcoded 空），列表报 not-utf8 档。
+
+    Shift-JIS 样本在旧口径下会被探测转码（哪怕判对也有近邻误判风险）——新口径下
+    保留原字节，损坏由 not-utf8 档承接「另存为 UTF-8」修法，绝不静默改写内容。
     """
     source = _make_source(tmp_path, "---\nname: sjis-pack\ndescription: d\n---\n正文\n")
     reference_text = "カタカナの参考内容です"
-    (source / "references" / "sjis.md").write_bytes(reference_text.encode("shift_jis"))
+    sjis_bytes = reference_text.encode("shift_jis")
+    (source / "references" / "sjis.md").write_bytes(sjis_bytes)
 
     result = import_skill(source)
 
     stored = temp_data_root / "skills" / result.skill.id / "references" / "sjis.md"
-    assert stored.read_text(encoding="utf-8") == reference_text
-    assert result.transcoded == [("references/sjis.md", "cp932")]
+    assert stored.read_bytes() == sjis_bytes
+    assert result.transcoded == []
     assert result.import_error is None
+    damaged = list_skills()[0]
+    assert damaged.damage_kind == "not-utf8"
+    assert damaged.damage_file == "references/sjis.md"
+
+
+def test_import_gbk_skill_md_rejected_with_fix_hint(
+    tmp_path: Path, temp_data_root: Path
+) -> None:
+    """SKILL.md 本身是无 BOM 非 UTF-8（GBK）：文本读不出 → 整包拒导入＋修法文案。"""
+    source = tmp_path / "gbk-pack"
+    source.mkdir()
+    gbk_text = "---\nname: 包\ndescription: d\n---\n正文\n"
+    (source / "SKILL.md").write_bytes(gbk_text.encode("gbk"))
+
+    with pytest.raises(SkillFormatError, match="另存为 UTF-8"):
+        import_skill(source)
 
 
 def test_import_binary_files_copied_verbatim(
     tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """真二进制（含 NUL 字节）按字节原样复制、绝不转码。"""
+    """真二进制（含 NUL 字节）按字节原样复制、绝不转码（无 BOM 一律原样保留）。"""
     source = _make_source(tmp_path, "---\nname: bin-pack\ndescription: d\n---\n正文\n")
     blob = bytes([0x89, 0x50, 0x4E, 0x47, 0x00, 0x0D, 0x0A, 0xFF])
     (source / "assets").mkdir()
@@ -495,35 +535,6 @@ def test_import_binary_files_copied_verbatim(
     stored = temp_data_root / "skills" / result.skill.id / "assets" / "logo.png"
     assert stored.read_bytes() == blob
     assert result.transcoded == []
-
-
-def test_import_unconvertible_text_rejects_whole_pack(
-    tmp_path: Path, temp_data_root: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """判定为文本但转不成 UTF-8 → 整包拒导入，错误点名文件＋修法（白盒构造转不出的形状）。"""
-
-    class _FakeMatch:
-        """仿 CharsetMatch：声明了编码但 output() 转不出。"""
-
-        encoding = "big5"
-
-        def output(self) -> bytes:
-            raise UnicodeError("转码失败")
-
-    class _FakeResult:
-        def best(self) -> _FakeMatch:
-            return _FakeMatch()
-
-    source = _make_source(tmp_path, "---\nname: bad-enc\ndescription: d\n---\n正文\n")
-    (source / "references" / "weird.md").write_bytes(b"\x87\x54\x87\x55")
-
-    def _fake_from_bytes(_data: bytes) -> _FakeResult:
-        return _FakeResult()
-
-    monkeypatch.setattr(skill_store.charset_normalizer, "from_bytes", _fake_from_bytes)
-
-    with pytest.raises(SkillFormatError, match="另存为 UTF-8"):
-        import_skill(source)
 
 
 def test_import_broken_frontmatter_enters_library_as_broken_row(
@@ -550,19 +561,19 @@ def test_import_files_broken_frontmatter_enters_library_as_broken_row() -> None:
     assert result.import_error is not None
 
 
-def test_import_files_normalizes_non_utf8_text() -> None:
-    """上传路线同一口径：非 UTF-8 文本文件归一化成 UTF-8，转码清单随结果带回。"""
+def test_import_files_transcodes_bom_utf16() -> None:
+    """上传路线同一口径：带 BOM 的 UTF-16 文件转成 UTF-8，转码清单随结果带回。"""
     reference_text = "カタカナの参考内容です"
 
     result = import_skill_files(
         {
-            "SKILL.md": "---\nname: sjis-up\ndescription: d\n---\n正文\n".encode(),
-            "references/sjis.md": reference_text.encode("shift_jis"),
+            "SKILL.md": "---\nname: bom-up\ndescription: d\n---\n正文\n".encode(),
+            "references/u16.md": reference_text.encode("utf-16"),
         }
     )
 
-    assert result.transcoded == [("references/sjis.md", "cp932")]
-    assert read_skill_file(result.skill.id, "references/sjis.md") == reference_text
+    assert result.transcoded == [("references/u16.md", "UTF-16")]
+    assert read_skill_file(result.skill.id, "references/u16.md") == reference_text
 
 
 def test_save_skill_file_rebuilds_frontmatter_for_broken_pack(
@@ -1001,9 +1012,11 @@ def test_read_skill_file_missing_skill_is_not_found(temp_data_root: Path) -> Non
 def test_read_skill_file_binary_reference_rejected(
     temp_data_root: Path, tmp_path: Path
 ) -> None:
-    """references/ 下的二进制内容（非法 UTF-8）→ SkillFileNotPreviewableError，不吐乱码。"""
+    """references/ 下的二进制内容（无 BOM、非法 UTF-8）→ SkillFileNotPreviewableError，不吐乱码。"""
     source = _make_full_source(tmp_path)
-    (source / "references" / "blob.bin").write_bytes(b"\xff\xfe\x00\x81")
+    (source / "references" / "blob.bin").write_bytes(
+        b"\x89\x50\x4e\x47\x00\x0d\x0a\x1a"
+    )  # PNG 魔数：无 BOM 的典型二进制
     import_skill(source)
 
     with pytest.raises(SkillFileNotPreviewableError, match="UTF-8"):

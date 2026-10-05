@@ -34,6 +34,7 @@ from .config import (
 from .endpoints import (
     SUPPORTED_API_FORMAT,
     ConfigError,
+    ConfigNameError,
     ConfigNotFoundError,
     EndpointConfigInfo,
     SecretValue,
@@ -90,6 +91,7 @@ __all__ = [
     "VIDEO_MIME_BY_SUFFIX",
     "Completer",
     "ConfigError",
+    "ConfigNameError",
     "ConfigNotFoundError",
     "ContentPart",
     "EndpointConfig",

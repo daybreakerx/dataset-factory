@@ -22,6 +22,14 @@ class ErrorDetail(BaseModel):
     """
 
     detail: str
+    field: str | None = Field(
+        default=None,
+        description=(
+            "字段级错误标记：detail 指向某个具体输入字段时给该字段名（如 name），"
+            "供前端把错误精确挂到对应输入框（aria-invalid 程序化关联）；"
+            "操作级错误为 null"
+        ),
+    )
 
 
 class LabelRequest(BaseModel):

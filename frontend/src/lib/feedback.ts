@@ -13,6 +13,9 @@ export interface Feedback {
   /** warn＝操作成功但结果带瑕疵、要用户知情（如坏包以损坏行入库）。 */
   kind: "success" | "warn" | "error";
   text: string;
+  /** 字段级标记：后端指认 text 属于哪个输入字段（如 name）时带上，供调用点把
+   *  字段级错误精确挂到输入框（aria-invalid）；操作级错误不带。 */
+  field?: string;
 }
 
 /**
@@ -35,4 +38,17 @@ export function reportError(err: unknown): string | null {
     return null;
   }
   return errorMessage(err);
+}
+
+/**
+ * 从捕获到的异常里取字段级标记（后端 ErrorDetail.field）。
+ *
+ * 与 {@link reportError} 配套使用：reportError 给「就地文案」，本函数给「这句文案
+ * 属于哪个字段」。后端未指认字段（操作级错误）或非 HTTP 异常时返回 null。
+ *
+ * @param err - 捕获到的未知异常。
+ * @returns 字段名（如 name）；无标记时 null。
+ */
+export function errorField(err: unknown): string | null {
+  return err instanceof ApiError ? err.field : null;
 }
