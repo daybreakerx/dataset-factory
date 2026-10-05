@@ -3,10 +3,11 @@
  * ＋保存钮）、四个字段（Base URL / API 格式 / 模型名称 / API 密钥——原「名称」字段行随
  * 头行名字框化整撤）、测试连接行与高级参数折叠区。展示层——草稿状态与命令回调由面板传入。
  */
-import { EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 import type { EndpointConfigSummary, EndpointTestResult } from "../../../api";
+import { TrashIcon } from "../../../components/icons";
 import { NoteInline } from "../../../components/note-inline";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -84,6 +85,8 @@ type ConfigFormProps = {
   advState: AdvJsonState;
   thinking: ThinkingMode;
   onThinkingChange: (mode: ThinkingMode) => void;
+  /** 详情头行最左槽：窄屏列表展收的展开钮（对齐批「窄屏列表展收」，面板按窄屏传入；宽屏不传）。 */
+  headLeading?: ReactElement;
 };
 
 /** 详情表单：编辑 / 创建共用一套草稿；保存与删除等命令由面板执行。 */
@@ -121,6 +124,7 @@ export function ConfigForm({
   advState,
   thinking,
   onThinkingChange,
+  headLeading,
 }: ConfigFormProps): ReactElement {
   // 密钥明文切换只作用于本次输入：框被清空（保存成功回空、换选中回填、放弃修改）
   // 即复位为隐藏——已存密钥永不回显，切换态不能跨清空残留。
@@ -140,6 +144,7 @@ export function ConfigForm({
   return (
     <div className="flex w-full min-w-0 flex-col gap-3">
       <div className="flex min-h-(--h-lg) items-center gap-2">
+        {headLeading}
         <input
           aria-label="配置名称"
           value={draftName}
@@ -158,7 +163,7 @@ export function ConfigForm({
               // 静止中性、悬停红底红字（.set-head-del 同款——红色留给悬停提示与确认弹窗）。
               className="hover:bg-bad-ink/12 hover:text-bad-ink"
             >
-              <Trash2Icon />
+              <TrashIcon />
             </Button>
           </Tip>
         )}

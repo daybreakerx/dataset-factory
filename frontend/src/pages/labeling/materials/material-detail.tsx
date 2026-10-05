@@ -2,6 +2,7 @@ import { ArrowLeftIcon, Maximize2Icon, Minimize2Icon } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 import { Button } from "../../../components/ui/button";
+import { Tip } from "../../../components/ui/tooltip";
 import type { BatchSelection, WorkdirBatches } from "../batching/BatchSelector";
 import { CaptionPreview } from "../runs/CaptionPreview";
 import { ITEM_GROUPS, type ItemRow } from "../runs/items-state";
@@ -48,7 +49,9 @@ export function MaterialDetail({
           <ArrowLeftIcon />
           返回概览
         </Button>
-        <h2 className="min-w-0 truncate text-t-md font-medium">{selected.name}</h2>
+        <Tip label={selected.name}>
+          <h2 className="min-w-0 truncate text-t-md font-medium">{selected.name}</h2>
+        </Tip>
         <span
           className={`shrink-0 text-t-sm ${selected.status === "done" ? "text-ok-ink" : selected.status === "failed" ? "text-bad-ink" : "text-text-3"}`}
         >

@@ -1,6 +1,6 @@
-/** 能力 · 技能 · 左列列表（列表头＋导入钮、搜索框、技能行、三态同槽）。 */
-import { ImportIcon, SearchIcon, TriangleAlertIcon } from "lucide-react";
-import type { ReactElement } from "react";
+/** 能力 · 技能 · 左列列表（列表头＋导入钮、搜索框、技能行、三态同槽、窄屏展收两态）。 */
+import { ArrowLeftIcon, ImportIcon, SearchIcon, TriangleAlertIcon } from "lucide-react";
+import type { ReactElement, Ref } from "react";
 import { useState } from "react";
 import type { SkillInfo } from "../../../api";
 import { Button } from "../../../components/ui/button";
@@ -14,6 +14,7 @@ import {
 } from "../../../components/ui/tooltip";
 import { useVscrollColumn } from "../../../components/vscroll";
 import { formatChars } from "../../../lib/format";
+import { cn } from "../../../lib/utils";
 
 type SkillListProps = {
   skills: SkillInfo[];
@@ -25,6 +26,15 @@ type SkillListProps = {
   onToggle: (skill: SkillInfo) => void;
   onPick: (sid: string) => void;
   onImport: () => void;
+  /** 窄屏展收（同端点左列；hook＝usePeekList）：窄屏默认收起（左列隐）；peek＝暂展
+   *  浮出层（280 叠详情上、详情不位移，左缘圆角＋浮层影）。宽屏两参恒 false。 */
+  narrow: boolean;
+  peek: boolean;
+  /** 暂展收出口：层头返回钮点击／指针移出浮出层立即回收。 */
+  onPeekBack: () => void;
+  onPeekLeave: () => void;
+  /** 层头返回钮落点（键盘进暂展的首件）。 */
+  backRef: Ref<HTMLButtonElement | null>;
 };
 
 /** 损坏行的警告图标：可修复档（frontmatter-corrupt）琥珀、不可修复档红——行名跟图标同档
@@ -66,6 +76,11 @@ export function SkillList({
   onToggle,
   onPick,
   onImport,
+  narrow,
+  peek,
+  onPeekBack,
+  onPeekLeave,
+  backRef,
 }: SkillListProps): ReactElement {
   const [search, setSearch] = useState("");
   const itemsRef = useVscrollColumn<HTMLDivElement>();
@@ -80,8 +95,43 @@ export function SkillList({
         );
 
   return (
-    <fieldset className="flex min-w-0 shrink-0 flex-col gap-1 p-4 lg:min-h-0">
-      <div className="flex min-h-(--h-lg) flex-wrap items-center gap-2 px-3 pt-2">
+    <fieldset
+      onMouseLeave={peek ? onPeekLeave : undefined}
+      className={
+        narrow && !peek
+          ? "hidden"
+          : cn(
+              "flex min-w-0 shrink-0 flex-col gap-1 p-4 lg:min-h-0",
+              // 暂展＝浮出层叠在详情上（280 宽、左缘圆角＋浮层影——base.css §21 --peek 档）。
+              narrow &&
+                peek &&
+                "absolute inset-y-0 left-0 z-2 w-70 rounded-l-(--r-md) bg-card shadow-(--sh-3)",
+            )
+      }
+    >
+      <div
+        className={
+          peek
+            ? // 层头＝[返回钮 26＋间隙 8＋题字]：左内距归 0、顶距 margin 承担＋撤
+              // padding-top（层头盒与详情头行同位同高——base.css §21，同端点层头）。
+              "mt-2 flex min-h-(--h-lg) flex-wrap items-center gap-2 pr-3"
+            : "flex min-h-(--h-lg) flex-wrap items-center gap-2 px-3 pt-2"
+        }
+      >
+        {peek && (
+          <Tip label="收起列表">
+            <Button
+              ref={backRef}
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="收起列表"
+              onClick={onPeekBack}
+            >
+              <ArrowLeftIcon />
+            </Button>
+          </Tip>
+        )}
         <h3 className="text-t-md font-medium text-text-1">技能列表</h3>
         <Button variant="ghost" size="sm" className="ml-auto" onClick={onImport}>
           <ImportIcon />
@@ -100,7 +150,11 @@ export function SkillList({
       </div>
       <div
         ref={itemsRef}
-        className="vscroll-y flex max-h-40 min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-4 lg:max-h-none"
+        className={cn(
+          "vscroll-y flex max-h-40 min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-4 lg:max-h-none",
+          // 暂展层与宽屏两列同形：条目区吃满整层高，不吃旧窄屏堆叠态的 160px 顶高。
+          narrow && peek && "max-h-none",
+        )}
       >
         {visible.length === 0 && (
           <div className="px-1 text-center text-t-sm text-text-3">

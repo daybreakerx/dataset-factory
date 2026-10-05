@@ -1,8 +1,9 @@
 /** 能力 · 技能 · 右列详情（头行：名字框＋删除钮＋保存钮；描述、包内容胶囊、内容预览）。 */
-import { FileTextIcon, ImageIcon, Trash2Icon } from "lucide-react";
+import { FileTextIcon, ImageIcon } from "lucide-react";
 import type { ReactElement } from "react";
 import { useId } from "react";
 import type { SkillFileInfo } from "../../../api";
+import { TrashIcon } from "../../../components/icons";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import {
@@ -92,6 +93,8 @@ type SkillDetailProps = {
     nameBlocked?: boolean;
   } | null;
   onSave: () => void;
+  /** 详情头行最左槽：窄屏列表展收的展开钮（对齐批「窄屏列表展收」，面板按窄屏传入；宽屏不传）。 */
+  headLeading?: ReactElement;
 };
 
 /** 右列：详情头行（可编辑名字框＋删除钮＋保存钮——启停章与底部操作条随两子页归一撤除，
@@ -114,12 +117,14 @@ export function SkillDetail({
   onDescriptionChange,
   headNote,
   onSave,
+  headLeading,
 }: SkillDetailProps): ReactElement {
   // 消息槽 id：空名被拦时名字框经 aria-describedby 程序化关联到它。
   const noteId = useId();
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex min-h-(--h-lg) items-center gap-2">
+        {headLeading}
         <input
           aria-label="技能名称"
           aria-invalid={headNote?.nameBlocked || undefined}
@@ -145,7 +150,7 @@ export function SkillDetail({
             // 静止中性、悬停红底红字（.set-head-del 同款，与端点详情头行同构）。
             className="hover:bg-bad-ink/12 hover:text-bad-ink"
           >
-            <Trash2Icon />
+            <TrashIcon />
           </Button>
         </Tip>
         {headNote !== null && (

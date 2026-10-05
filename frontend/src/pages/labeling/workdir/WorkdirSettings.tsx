@@ -1,8 +1,9 @@
-import { ArrowLeftIcon, RefreshCwIcon, Trash2Icon } from "lucide-react";
+import { ArrowLeftIcon, RefreshCwIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
 import { FormError } from "../../../components/form-error";
+import { TrashIcon } from "../../../components/icons";
 import { Button } from "../../../components/ui/button";
 import { NewStrategyDialog } from "../batching/NewStrategyDialog";
 import { SnapshotDialog } from "../batching/SnapshotDialog";
@@ -141,7 +142,7 @@ export function WorkdirSettings({
             size="sm"
             onClick={() => setDeleting(true)}
           >
-            <Trash2Icon />
+            <TrashIcon />
             删除工作目录
           </Button>
         </section>

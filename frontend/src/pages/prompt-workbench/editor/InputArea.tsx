@@ -17,6 +17,7 @@ import {
 import type { MediaPreviewTarget } from "../../../components/media-lightbox";
 import { Button } from "../../../components/ui/button";
 import {
+  Tip,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -141,7 +142,9 @@ export function InputArea({
               )}
             </button>
             <div className="flex min-w-0 flex-col gap-1">
-              <div className="max-w-[172px] truncate">{media.name}</div>
+              <Tip label={media.name}>
+                <div className="max-w-[172px] truncate">{media.name}</div>
+              </Tip>
               <div className="text-t-xs text-muted-foreground">
                 {mimeLabel(media.mime)} · {formatBytesAuto(media.byteSize)}
               </div>

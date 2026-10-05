@@ -13,9 +13,10 @@ import {
   CfgPopHead,
   CfgPopStateRow,
 } from "../../../components/cfg-pop";
+import { HScroll } from "../../../components/hs-scroll";
 import type { MediaPreviewTarget } from "../../../components/media-lightbox";
 import { MediaLightbox } from "../../../components/media-lightbox";
-import { Alert, AlertDescription } from "../../../components/ui/alert";
+import { NoteInline } from "../../../components/note-inline";
 import { Button } from "../../../components/ui/button";
 import {
   DropdownMenu,
@@ -178,9 +179,9 @@ export function ChatColumn({
       />
 
       {chatError !== "" && (
-        <Alert variant="destructive" className="mt-3">
-          <AlertDescription>{chatError}</AlertDescription>
-        </Alert>
+        // 对话列反馈（对齐批 17·alert 退役 B 位）：消息流与输入区之间一行字，
+        // 单行省略＋截断悬停全文；role="alert" 语义保住（NoteInline 默认 status）。
+        <NoteInline kind="bad" role="alert" text={chatError} className="mt-3" />
       )}
 
       {/* 输入区 */}
@@ -236,7 +237,9 @@ export function ChatColumn({
           </DropdownMenu>
         }
         selectedSkills={
-          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
+          // 已选 Skill 胶囊条（对话态稿 composer 区同款）：单行横滚走 hs 定式
+          // （DESIGN.md 3.3，HScroll——自绘拇指贴底重叠、hover 显、渐隐位置感知）。
+          <HScroll className="flex-1">
             {skillIds.map((sid) => {
               const label = skills.find((entry) => entry.id === sid)?.name ?? sid;
               return (
@@ -256,7 +259,7 @@ export function ChatColumn({
                 </span>
               );
             })}
-          </div>
+          </HScroll>
         }
         instruction={instruction}
         onInstructionChange={onInstructionChange}

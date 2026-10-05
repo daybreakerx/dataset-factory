@@ -54,12 +54,18 @@ test("技能拖入、正文与描述写回经真实接口保存并刷新恢复",
   expect(editorBounds!.width).toBeGreaterThan(280);
   expect(editorBounds!.x).toBeGreaterThanOrEqual(0);
   expect(editorBounds!.x + editorBounds!.width).toBeLessThanOrEqual(390);
-  for (const name of ["导入 Skill", "保存"]) {
-    const bounds = await page.getByRole("button", { name, exact: true }).boundingBox();
-    expect(bounds).not.toBeNull();
-    expect(bounds!.x).toBeGreaterThanOrEqual(0);
-    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
-  }
+  // 窄屏两态机（窄屏列表展收）：详情头「保存」常在视口内；「导入 Skill」住列表列——
+  // 收起态经展开钮进暂展浮出层后取界（点行即收，不动选择）。
+  const saveBounds = await page.getByRole("button", { name: "保存", exact: true }).boundingBox();
+  expect(saveBounds).not.toBeNull();
+  expect(saveBounds!.x).toBeGreaterThanOrEqual(0);
+  expect(saveBounds!.x + saveBounds!.width).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "展开列表" }).click();
+  const importBounds = await page.getByRole("button", { name: "导入 Skill" }).boundingBox();
+  expect(importBounds).not.toBeNull();
+  expect(importBounds!.x).toBeGreaterThanOrEqual(0);
+  expect(importBounds!.x + importBounds!.width).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "收起列表" }).click();
   await page.screenshot({ path: testInfo.outputPath("skill-mobile.png"), fullPage: true });
   await page.getByRole("button", { name: "打开导航" }).click();
   const navigation = page.getByRole("dialog", { name: "导航" });

@@ -1,5 +1,5 @@
 /** 提示词编辑列（区块组件）：名称与提示词库、描述、正文与字节护栏、反馈与删除确认。 */
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { type ReactElement, type RefObject, useRef } from "react";
 import type { PromptInfo } from "../../../api";
 import {
@@ -12,6 +12,7 @@ import {
   CfgPopStateRow,
 } from "../../../components/cfg-pop";
 import { DialogShell } from "../../../components/dialog-shell";
+import { TrashIcon } from "../../../components/icons";
 import { Button } from "../../../components/ui/button";
 import {
   DropdownMenu,
@@ -107,7 +108,7 @@ function PromptMenu({
                   danger
                   label={`删除提示词 ${prompt.name}`}
                   tip="删除"
-                  icon={<Trash2Icon />}
+                  icon={<TrashIcon />}
                   onClick={() => onDelete(prompt.id)}
                 />
               </CfgPopRow>

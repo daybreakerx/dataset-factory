@@ -1,5 +1,6 @@
-import { FileIcon, FileImageIcon, FilmIcon, Trash2Icon, XIcon } from "lucide-react";
+import { FileIcon, FileImageIcon, FilmIcon, XIcon } from "lucide-react";
 import { memo } from "react";
+import { TrashIcon } from "../../../components/icons";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
 import { formatBytesAuto } from "../../../lib/format";
@@ -60,7 +61,9 @@ export const MaterialRow = memo(function MaterialRow({
           )}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate">{row.name}</span>
+          <Tip label={row.name}>
+            <span className="block truncate">{row.name}</span>
+          </Tip>
           {(row.message || row.reason) && (
             <span className="block break-words text-t-xs text-text-3">
               {row.message || row.reason}
@@ -134,7 +137,7 @@ export const MaterialRow = memo(function MaterialRow({
             aria-label={`删除未导入 ${row.name}`}
             onClick={() => onRemoveUnimported(row)}
           >
-            <Trash2Icon />
+            <TrashIcon />
           </Button>
         </Tip>
       )}

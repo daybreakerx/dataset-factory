@@ -17,7 +17,7 @@ import {
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { ShutdownButton } from "../components/shutdown-button";
 import { ThemeToggle } from "../components/theme-toggle";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
+import { Tip, Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import type { ThemeMode } from "../hooks/use-theme";
 import type { SettingsSection, ShellPage } from "../lib/ui-storage";
 import { cn } from "../lib/utils";
@@ -143,10 +143,15 @@ export function Sidebar({
           )}
           {!collapsed && (
             <span className="min-w-0">
-              <span className="block truncate font-medium">Dataset Factory</span>
-              <span className="block truncate text-t-sm text-text-3">
-                打标流水线工具
-              </span>
+              {/* 品牌标名／副题被侧栏宽度截断时悬停给全文（DESIGN.md 六）。 */}
+              <Tip label="Dataset Factory">
+                <span className="block truncate font-medium">Dataset Factory</span>
+              </Tip>
+              <Tip label="打标流水线工具">
+                <span className="block truncate text-t-sm text-text-3">
+                  打标流水线工具
+                </span>
+              </Tip>
             </span>
           )}
         </div>
@@ -233,7 +238,11 @@ export function Sidebar({
                         )}
                       >
                         <item.icon className="size-4 shrink-0" />
-                        {!collapsed && <span className="truncate">{item.label}</span>}
+                        {!collapsed && (
+                          <Tip label={item.label}>
+                            <span className="truncate">{item.label}</span>
+                          </Tip>
+                        )}
                       </button>
                     </li>
                   );

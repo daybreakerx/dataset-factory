@@ -5,6 +5,7 @@ import type { components } from "../../../api-types.gen";
 import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
+import { Tip } from "../../../components/ui/tooltip";
 import { SnapshotDialog } from "../batching/SnapshotDialog";
 import { RebuildImportsDialog } from "../workdir/RebuildImportsDialog";
 import { ExportPanel } from "./ExportPanel";
@@ -235,12 +236,14 @@ export function BatchOverview({
           </Button>
           <h3 className="text-t-md font-medium">素材完整性</h3>
           {report && (
-            <time
-              className="min-w-0 truncate text-t-xs text-text-4"
-              dateTime={report.checked_at}
-            >
-              上次校验 {new Date(report.checked_at).toLocaleString()}
-            </time>
+            <Tip label={`上次校验 ${new Date(report.checked_at).toLocaleString()}`}>
+              <time
+                className="min-w-0 truncate text-t-xs text-text-4"
+                dateTime={report.checked_at}
+              >
+                上次校验 {new Date(report.checked_at).toLocaleString()}
+              </time>
+            </Tip>
           )}
           <Button
             className="ml-auto"

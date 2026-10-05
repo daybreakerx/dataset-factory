@@ -1098,3 +1098,42 @@ describe("对话页交互改版与媒体预览", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("PromptWorkbench · Ctrl+S 绑提示词行保存", () => {
+  it("不脏时 Ctrl+S 只拦浏览器默认行为、静默无动作；脏态走保存同路并给出已保存反馈", async () => {
+    renderWorkbench();
+    await waitFor(() => expect(screen.getByLabelText("名称")).toHaveValue("h3-video"));
+
+    // 不脏：preventDefault 生效（dispatchEvent 返回 false＝默认行为已拦），不发保存请求。
+    expect(fireEvent.keyDown(window, { key: "s", ctrlKey: true })).toBe(false);
+    expect(apiMock.savePrompt).not.toHaveBeenCalled();
+
+    // 打脏（改名）后 Ctrl+S：与点保存钮完全同路——先 rename 再写正文，成功反馈同槽。
+    fireEvent.input(screen.getByLabelText("名称"), { target: { value: "h3-video-2" } });
+    fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+    await waitFor(() =>
+      expect(apiMock.renamePrompt).toHaveBeenCalledWith("p-h3-video-01", {
+        new_name: "h3-video-2",
+      }),
+    );
+    await waitFor(() => expect(apiMock.savePrompt).toHaveBeenCalled());
+    expect(await screen.findByText("已保存")).toBeInTheDocument();
+  });
+
+  it("Cmd+S（macOS）同样绑保存；保存飞行期连按不重入", async () => {
+    let releaseSave: () => void = () => {};
+    apiMock.savePrompt.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseSave = resolve;
+        }),
+    );
+    renderWorkbench();
+    await waitFor(() => expect(screen.getByLabelText("名称")).toHaveValue("h3-video"));
+    fireEvent.input(screen.getByLabelText("名称"), { target: { value: "h3-video-2" } });
+    fireEvent.keyDown(window, { key: "s", metaKey: true });
+    fireEvent.keyDown(window, { key: "s", metaKey: true });
+    releaseSave();
+    await waitFor(() => expect(apiMock.savePrompt).toHaveBeenCalledTimes(1));
+  });
+});

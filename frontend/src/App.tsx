@@ -5,7 +5,7 @@ import { PageViewport } from "./app-shell/page-viewport";
 import { Sidebar } from "./app-shell/sidebar";
 import { Dialog, DialogContent, DialogTitle } from "./components/ui/dialog";
 import { ToastViewport } from "./components/ui/toast";
-import { TooltipProvider } from "./components/ui/tooltip";
+import { Tip, TooltipProvider } from "./components/ui/tooltip";
 import { UnsavedConfirmDialog } from "./components/unsaved-confirm-dialog";
 import { useMediaQuery } from "./hooks/use-media-query";
 import { usePersistedState } from "./hooks/use-persisted-state";
@@ -188,7 +188,10 @@ export function App(): ReactElement {
           >
             <PanelLeftOpenIcon className="size-4" />
           </button>
-          <span className="truncate font-medium">{pageLabel}</span>
+          {/* 窄屏顶条页签名：顶条窄、签名长时被截断——悬停给全文（DESIGN.md 六）。 */}
+          <Tip label={pageLabel}>
+            <span className="truncate font-medium">{pageLabel}</span>
+          </Tip>
         </div>
         <Dialog open={navigationOpen} onOpenChange={setNavigationOpen}>
           <DialogContent

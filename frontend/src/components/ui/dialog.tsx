@@ -38,7 +38,7 @@ function DialogContent({
   const closeButton = (
     <DialogPrimitive.Close
       className={cn(
-        "absolute top-4 right-6 flex size-(--h-md) items-center justify-center rounded-md text-text-3 transition-colors hover:bg-accent hover:text-text-1 focus-visible:outline-none",
+        "absolute top-4 right-6 flex size-(--h-md) items-center justify-center rounded-md text-text-3 transition-colors hover:bg-accent hover:text-text-1",
         closeClassName,
       )}
     >

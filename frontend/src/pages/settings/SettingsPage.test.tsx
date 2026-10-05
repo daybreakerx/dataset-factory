@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EndpointConfigSummary, SkillInfo } from "../../api";
 import { getToastSnapshot } from "../../lib/toast";
 import { SettingsPage } from "./SettingsPage";
@@ -896,5 +896,94 @@ describe("SettingsPage · 服务·运行日志", () => {
     expect(parseLogLevel("2026-10-05 04:02:00,000 ERROR [-] c: 报错")).toBe("bad");
     expect(parseLogLevel("2026-10-05 04:02:00,000 CRITICAL [-] c: 致命")).toBe("bad");
     expect(parseLogLevel("2026-10-05 04:00:00,000 INFO [-] a: 信息")).toBe("info");
+  });
+});
+
+describe("SettingsPage · 窄屏列表展收（两态交互）", () => {
+  // jsdom 无 matchMedia 实现：测试内替桩模拟 <768（useMediaQuery 以此判定窄屏），用后还原防串场。
+  const originalMatchMedia = window.matchMedia;
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+  const mockNarrow = (narrow: boolean): void => {
+    window.matchMedia = ((query: string) => ({
+      matches: narrow && query === "(max-width: 767.98px)",
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+  };
+
+  it("端点子页：宽屏恒无展开钮；窄屏默认收起、详情头最左出现展开钮", async () => {
+    const view = render(<SettingsPage />);
+    await screen.findByLabelText("Base URL");
+    expect(screen.queryByLabelText("展开列表")).not.toBeInTheDocument();
+    view.unmount();
+
+    mockNarrow(true);
+    render(<SettingsPage />);
+    const toggle = await screen.findByLabelText("展开列表");
+    // 收起（窄屏自动默认）：暂展层不在场，展开钮可见可聚焦
+    expect(screen.queryByLabelText("收起列表")).not.toBeInTheDocument();
+    expect(toggle).not.toHaveClass("invisible");
+  });
+
+  it("端点子页键盘路径：展开钮进暂展、焦点入层首件＝返回钮；Esc 收起、焦点回展开钮", async () => {
+    mockNarrow(true);
+    render(<SettingsPage />);
+    const toggle = await screen.findByLabelText("展开列表");
+    // 展开钮聚焦时 Enter／Space → 浏览器合成 click（同一入口）；焦点随层落到返回钮。
+    fireEvent.click(toggle);
+    const back = await screen.findByLabelText("收起列表");
+    expect(back).toHaveFocus();
+    // 暂展期详情头展开钮 visibility 隐藏（占位保留、头行不回流、不可聚焦）。
+    expect(toggle).toHaveClass("invisible");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.queryByLabelText("收起列表")).not.toBeInTheDocument(),
+    );
+    expect(toggle).toHaveFocus();
+  });
+
+  it("端点子页：悬停进暂展、指针移出浮出层立即回收；暂展期点行即收且详情回填", async () => {
+    mockNarrow(true);
+    render(<SettingsPage />);
+    const toggle = await screen.findByLabelText("展开列表");
+    fireEvent.mouseEnter(toggle);
+    const back = await screen.findByLabelText("收起列表");
+    // 层根＝列表列（层头 div 的父层）；指针移出浮出层立即回收（不延时、不夺焦点）。
+    const layer = back.closest("div.vscroll-y");
+    expect(layer).not.toBeNull();
+    fireEvent.mouseLeave(layer as HTMLElement);
+    await waitFor(() =>
+      expect(screen.queryByLabelText("收起列表")).not.toBeInTheDocument(),
+    );
+
+    fireEvent.mouseEnter(toggle);
+    fireEvent.click(await screen.findByText("backup"));
+    await waitFor(() =>
+      expect(screen.queryByLabelText("收起列表")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText("配置名称")).toHaveValue("backup");
+  });
+
+  it("技能子页同款：窄屏默认收起、展开钮进暂展、返回钮收起焦点回展开钮", async () => {
+    mockNarrow(true);
+    render(<SettingsPage section="skills" />);
+    const toggle = await screen.findByLabelText("展开列表");
+    expect(screen.queryByLabelText("收起列表")).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    const back = await screen.findByLabelText("收起列表");
+    fireEvent.click(back);
+    await waitFor(() =>
+      expect(screen.queryByLabelText("收起列表")).not.toBeInTheDocument(),
+    );
+    expect(toggle).toHaveFocus();
   });
 });

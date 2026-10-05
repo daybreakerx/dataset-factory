@@ -1,9 +1,10 @@
-import { ChevronDownIcon, EyeIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ChevronDownIcon, EyeIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
+import { TrashIcon } from "../../../components/icons";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Tip } from "../../../components/ui/tooltip";
@@ -214,7 +215,7 @@ export function WorkdirBatches({
                   disabled={runStates[batch.id] !== false || busy}
                   onClick={() => requestAction(batch, "delete")}
                 >
-                  <Trash2Icon />
+                  <TrashIcon />
                 </Button>
               </Tip>
             </div>

@@ -313,3 +313,75 @@
 .vscroll-y::-webkit-scrollbar {
   display: none;
 }
+
+/* --- 横向滚动区 hs 定式（base.css §20 横向版，取值 1:1）--------------------
+   单行横滚区（chips 条、标签条等）：原生滚动条彻底隐藏＋自绘 4px 拇指条绝对定位
+   贴底重叠（不占竖向空间、可与同行组件重叠）；仅悬停该区且溢出才显形、可拖动。
+   行为脚本在 HScroll 组件（components/hs-scroll.tsx）——按溢出启停、纵滚轮转横滚、
+   两侧渐隐位置感知（渐隐是「后面还有」的提示，仅该侧还有内容才渐隐、尽头即消失）。 */
+.hs-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.hs-scroll {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  min-width: 0;
+}
+.hs-scroll::-webkit-scrollbar {
+  display: none;
+}
+.hs-thumb {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  border-radius: var(--r-full);
+  background: hsl(var(--muted-foreground) / 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-1) var(--ease);
+}
+.hs-wrap:hover .hs-thumb.hs-on {
+  opacity: 1;
+  pointer-events: auto;
+  cursor: grab;
+} /* 仅悬停且溢出时可抓取——隐形态不拦指针，不挡下方内容的点击 */
+.hs-thumb.hs-drag {
+  opacity: 1;
+  cursor: grabbing;
+} /* 拖动离区保持显形：指针已出 wrap 时 :hover 失效，不能让拇指半路消失 */
+.hs-fade-r .hs-scroll {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 calc(100% - 20px),
+    rgba(0, 0, 0, 0) 100%
+  );
+  mask-image: linear-gradient(to right, #000 calc(100% - 20px), rgba(0, 0, 0, 0) 100%);
+} /* 右侧还有内容 */
+.hs-fade-l .hs-scroll {
+  -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0) 0, #000 20px);
+  mask-image: linear-gradient(to right, rgba(0, 0, 0, 0) 0, #000 20px);
+} /* 左侧还有内容 */
+.hs-fade-l.hs-fade-r .hs-scroll {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0) 0,
+    #000 20px,
+    #000 calc(100% - 20px),
+    rgba(0, 0, 0, 0) 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0) 0,
+    #000 20px,
+    #000 calc(100% - 20px),
+    rgba(0, 0, 0, 0) 100%
+  );
+} /* 两侧都有 */

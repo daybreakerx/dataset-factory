@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../components/ui/select";
+import { Tip } from "../../../components/ui/tooltip";
 
 type Catalog = {
   strategies: Awaited<ReturnType<typeof api.listStrategies>>;
@@ -262,14 +263,28 @@ export function NewStrategyDialog({
                 aria-label="选择 Skill"
                 disabled={busy || !catalog || library !== "scratch"}
               >
-                <span className="truncate">
-                  {(source?.skill_ids ?? skills)
-                    .map(
-                      (sid) =>
-                        catalog?.skills.find((entry) => entry.id === sid)?.name ?? sid,
-                    )
-                    .join(" · ") || "无"}
-                </span>
+                {/* 触发钮当前值为多 Skill 名拼接、单行省略——悬停给全文（DESIGN.md 六）。 */}
+                <Tip
+                  label={
+                    (source?.skill_ids ?? skills)
+                      .map(
+                        (sid) =>
+                          catalog?.skills.find((entry) => entry.id === sid)?.name ??
+                          sid,
+                      )
+                      .join(" · ") || "无"
+                  }
+                >
+                  <span className="truncate">
+                    {(source?.skill_ids ?? skills)
+                      .map(
+                        (sid) =>
+                          catalog?.skills.find((entry) => entry.id === sid)?.name ??
+                          sid,
+                      )
+                      .join(" · ") || "无"}
+                  </span>
+                </Tip>
                 <ChevronDownIcon />
               </Button>
             </DropdownMenuTrigger>

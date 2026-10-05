@@ -190,7 +190,9 @@ function CfgPopRow({
 }
 
 /** 行主体（`.pl-main`）：名字（13px/500）＋字数（11px）＋坏行标记（11px 红）同一行、描述（11px）第二行。
- *  名字与描述单行省略（.pl-name／.pl-desc）；tip 传「键值卡／全文」类内容（策略行出处卡）。 */
+ *  名字与描述单行省略（.pl-name／.pl-desc）；被截断的固定文字悬停给全文（DESIGN.md 六）——
+ *  收拢在组件一处、全部用例（策略／提示词／端点／Skill 行）受益。调用方传 tip（策略行
+ *  出处卡这类键值卡）时不再叠名字／描述气泡（嵌套双气泡），全文职责随卡内容走。 */
 function CfgPopRowMain({
   name,
   count,
@@ -204,12 +206,16 @@ function CfgPopRowMain({
   desc?: ReactNode;
   tip?: ReactNode;
 }): ReactElement {
+  const nameTip = tip === undefined && typeof name === "string" ? name : "";
+  const descTip = tip === undefined && typeof desc === "string" ? desc : "";
   const main = (
     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
       <span className="flex min-w-0 items-baseline gap-2">
-        <span className="min-w-0 truncate text-t-md font-medium text-text-2 group-data-[row=cur]:text-primary group-data-[row=bad]:text-text-3">
-          {name}
-        </span>
+        <Tip label={nameTip}>
+          <span className="min-w-0 truncate text-t-md font-medium text-text-2 group-data-[row=cur]:text-primary group-data-[row=bad]:text-text-3">
+            {name}
+          </span>
+        </Tip>
         {count !== undefined && (
           <span className="shrink-0 text-t-xs text-n-500">{count}</span>
         )}
@@ -218,9 +224,11 @@ function CfgPopRowMain({
         )}
       </span>
       {desc !== undefined && (
-        <span className="min-w-0 truncate text-t-xs text-n-500 group-data-[row=cur]:text-text-3">
-          {desc}
-        </span>
+        <Tip label={descTip}>
+          <span className="min-w-0 truncate text-t-xs text-n-500 group-data-[row=cur]:text-text-3">
+            {desc}
+          </span>
+        </Tip>
       )}
     </span>
   );

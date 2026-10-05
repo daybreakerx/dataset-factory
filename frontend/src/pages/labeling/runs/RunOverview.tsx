@@ -184,9 +184,11 @@ function RunLogDialog({
               </button>
             ))}
           </div>
-          <DialogDescription className="min-w-0 flex-1 truncate">
-            {result?.path ?? runId}
-          </DialogDescription>
+          <Tip label={result?.path ?? runId}>
+            <DialogDescription className="min-w-0 flex-1 truncate">
+              {result?.path ?? runId}
+            </DialogDescription>
+          </Tip>
         </DialogHeader>
         {error && <FormError className="text-bad-ink">{error}</FormError>}
         {tab === "run.log" ? (
@@ -229,8 +231,10 @@ function RunLogDialog({
                       <td className="px-3 py-1.5 tabular-nums">
                         {row.asset_hash ? `${row.asset_hash.slice(0, 6)}…` : "—"}
                       </td>
-                      <td className="min-w-0 max-w-60 truncate px-3 py-1.5 text-text-3">
-                        {row.message || "—"}
+                      <td className="min-w-0 max-w-60 px-3 py-1.5 text-text-3">
+                        <Tip label={row.message || ""}>
+                          <span className="block truncate">{row.message || "—"}</span>
+                        </Tip>
                       </td>
                     </tr>
                   ))

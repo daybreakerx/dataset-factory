@@ -6,7 +6,7 @@ import { cn } from "../../lib/utils";
 const buttonVariants = cva(
   // 微交互（DESIGN.md 2.6）：按压 translateY(1px)——位移方向恒定恒向下（原 scale(.98)
   // 在 30px 小钮上低于感知阈、已实测否决）；transform 并入过渡（原 transition-colors 不含）。
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-t-md font-medium transition-[color,background-color,border-color,text-decoration-color,fill,stroke,transform,box-shadow] duration-(--dur-1) focus-visible:outline-none active:translate-y-px disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-t-md font-medium transition-[color,background-color,border-color,text-decoration-color,fill,stroke,transform,box-shadow] duration-(--dur-1) active:translate-y-px disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {

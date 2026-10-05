@@ -5,16 +5,21 @@
  * delete-dialog；列表查询收拢在 use-skills（命令类留调用点）。
  * 寻址一律用 skill ID（显示名可重名——坏包占位名「技能已损坏」可同名撞键）。
  */
+
+import { PanelLeftOpenIcon } from "lucide-react";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SkillFileInfo, SkillImportResponse, SkillInfo } from "../../../api";
 import { api } from "../../../api";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
+import { Button } from "../../../components/ui/button";
+import { Tip } from "../../../components/ui/tooltip";
 import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
 import { useVscrollColumn } from "../../../components/vscroll";
 import { type Feedback, reportError } from "../../../lib/feedback";
 import { toast } from "../../../lib/toast";
 import type { PanelUnsavedActions } from "../../../lib/unsaved-actions";
+import { usePeekList } from "../use-peek-list";
 import { DeleteDialog } from "./delete-dialog";
 import { ImportDialog } from "./import-dialog";
 import { SkillDetail } from "./skill-detail";
@@ -96,6 +101,10 @@ export function SkillsPanel({
   }, []);
 
   const { skills, loading, loadError, reload: fetchSkills } = useSkills();
+  // 窄屏列表展收（对齐批「窄屏列表展收 · 两态交互实现」，与端点面板同构共用 hook）：
+  // <768 左列收起为自动默认（旧「上下堆叠」随稿撤——base.css §21 <768 块左列隐藏），
+  // 详情头展开钮悬停／键盘进暂展浮出层；≥768 两列常驻、恒无此交互。
+  const { narrow, peek, toggleRef, backRef, openPeek, closePeek } = usePeekList();
 
   const reload = useCallback(async (): Promise<void> => {
     const list = await fetchSkills();
@@ -542,8 +551,33 @@ export function SkillsPanel({
   }, [dirty, onSettingsDirtyChange]);
   useEffect(() => () => onSettingsDirtyChange?.(false), [onSettingsDirtyChange]);
 
+  // 详情头最左的展开钮（仅 <768 渲染，≥768 恒不存在；同端点面板详情头）。
+  const headToggle = narrow ? (
+    <Tip label="展开列表">
+      <Button
+        ref={toggleRef}
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label="展开列表"
+        onMouseEnter={() => openPeek(false)}
+        onClick={() => openPeek(true)}
+        className={peek ? "invisible" : undefined}
+      >
+        <PanelLeftOpenIcon />
+      </Button>
+    </Tip>
+  ) : undefined;
+
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-auto rounded-lg border border-border bg-card shadow-(--sh-1) md:grid md:grid-cols-[280px_minmax(0,1fr)] md:overflow-hidden">
+    <div
+      className={
+        narrow
+          ? // 窄屏＝收起单列（左列隐、详情吃满），与端点面板同构（base.css §21 <768 块）。
+            "relative grid h-full min-h-0 grid-cols-[minmax(0,1fr)] overflow-hidden rounded-lg border border-border bg-card shadow-(--sh-1)"
+          : "relative flex h-full min-h-0 flex-col overflow-auto rounded-lg border border-border bg-card shadow-(--sh-1) md:grid md:grid-cols-[280px_minmax(0,1fr)] md:overflow-hidden"
+      }
+    >
       {/* 左：列表 + 导入 */}
       <SkillList
         skills={skills}
@@ -552,11 +586,20 @@ export function SkillsPanel({
         selected={selected}
         toggling={toggling}
         onToggle={(skill) => void toggle(skill)}
-        onPick={pick}
+        onPick={(sid) => {
+          // 点行即收（暂展浮出层）；选中动作照旧（dirty 由未保存确认弹窗兜底）。
+          closePeek(false);
+          pick(sid);
+        }}
         onImport={() => {
           setFeedback(null);
           setImportOpen(true);
         }}
+        narrow={narrow}
+        peek={peek}
+        onPeekBack={() => closePeek(true)}
+        onPeekLeave={() => closePeek(false)}
+        backRef={backRef}
       />
       <ImportDialog
         open={importOpen}
@@ -575,10 +618,15 @@ export function SkillsPanel({
         onDrop={(transfer) => void drop(transfer)}
       />
 
-      {/* 右：详情 + 包内容预览（列内滚、自绘竖向滚动条；内距 24/32——两子页归一值） */}
+      {/* 右：详情 + 包内容预览（列内滚、自绘竖向滚动条；内距 24/32——两子页归一值）；
+          窄屏收起态＝单列吃满（旧堆叠态的顶分隔线与 16 内距随稿撤，与端点详情同构） */}
       <div
         ref={detailRef}
-        className="vscroll-y flex min-w-0 shrink-0 flex-1 flex-col border-t border-border p-4 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l lg:px-8 lg:py-6"
+        className={
+          narrow
+            ? "vscroll-y flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-6 py-6"
+            : "vscroll-y flex min-w-0 shrink-0 flex-1 flex-col border-t border-border p-4 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l lg:px-8 lg:py-6"
+        }
       >
         {current !== undefined ? (
           <SkillDetail
@@ -605,6 +653,7 @@ export function SkillsPanel({
             }
             headNote={headNote}
             onSave={() => void save()}
+            headLeading={headToggle}
           />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-t-sm text-text-3">

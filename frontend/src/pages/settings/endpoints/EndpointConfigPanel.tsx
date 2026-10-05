@@ -7,15 +7,20 @@
  * 壳层切子页的拦截经 onSettingsDirtyChange / onRegisterActions 上提（SettingsPage → App）。
  */
 
+import { PanelLeftOpenIcon } from "lucide-react";
 import type { ReactElement, SetStateAction } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EndpointConfigSummary, EndpointTestResult } from "../../../api";
 import { api } from "../../../api";
+import { Button } from "../../../components/ui/button";
+import { Tip } from "../../../components/ui/tooltip";
 import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
 import { useVscrollColumn } from "../../../components/vscroll";
 import { type Feedback, reportError } from "../../../lib/feedback";
 import { toast } from "../../../lib/toast";
 import type { PanelUnsavedActions } from "../../../lib/unsaved-actions";
+import { cn } from "../../../lib/utils";
+import { usePeekList } from "../use-peek-list";
 import {
   type AdvJsonState,
   collectAdvParams,
@@ -95,6 +100,9 @@ export function EndpointConfigPanel({
   const [leaveAction, setLeaveAction] = useState<LeaveAction | null>(null);
 
   const { endpoints, loading, loadError, reload } = useEndpointConfigs();
+  // 窄屏列表展收（对齐批「窄屏列表展收 · 两态交互实现」）：<768 左列收起为默认，
+  // 详情头展开钮悬停／键盘进暂展浮出层；宽屏两列常驻、恒无此交互。
+  const { narrow, peek, toggleRef, backRef, openPeek, closePeek } = usePeekList();
 
   useEffect(() => {
     void reload().then((list) => {
@@ -476,21 +484,59 @@ export function EndpointConfigPanel({
   }, [leaveGuard, onSettingsDirtyChange]);
   useEffect(() => () => onSettingsDirtyChange?.(false), [onSettingsDirtyChange]);
 
+  // 详情头最左的展开钮（仅 <768 渲染，≥768 恒不存在）：悬停进暂展；Enter／Space 经
+  // 合成 click 走键盘路径（焦点入层首件＝返回钮）。暂展期 visibility 隐藏、占位保留
+  // （头行不回流、不可聚焦——层内关闭出口由层头返回钮承担，base.css §21）。
+  const headToggle = narrow ? (
+    <Tip label="展开列表">
+      <Button
+        ref={toggleRef}
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label="展开列表"
+        onMouseEnter={() => openPeek(false)}
+        onClick={() => openPeek(true)}
+        className={peek ? "invisible" : undefined}
+      >
+        <PanelLeftOpenIcon />
+      </Button>
+    </Tip>
+  ) : undefined;
+
   return (
-    <div className="relative grid h-full min-h-0 grid-cols-[280px_minmax(0,1fr)] overflow-hidden rounded-lg border border-border bg-card shadow-(--sh-1)">
+    <div
+      className={
+        "relative grid h-full min-h-0 overflow-hidden rounded-lg border border-border bg-card shadow-(--sh-1) " +
+        (narrow ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[280px_minmax(0,1fr)]")
+      }
+    >
       <ConfigList
         endpoints={endpoints}
         loading={loading}
         loadError={loadError}
         selected={selected}
-        onPick={(id) => requestLeave({ kind: "pick", id })}
+        onPick={(id) => {
+          // 点行即收（暂展浮出层）；选中动作照旧（dirty 由未保存确认弹窗兜底）。
+          closePeek(false);
+          requestLeave({ kind: "pick", id });
+        }}
         onStartCreate={() => requestLeave({ kind: "create" })}
+        narrow={narrow}
+        peek={peek}
+        onPeekBack={() => closePeek(true)}
+        onPeekLeave={() => closePeek(false)}
+        backRef={backRef}
       />
 
-      {/* 右：详情（列内滚、自绘竖向滚动条；内距 24/32——两子页归一值） */}
+      {/* 右：详情（列内滚、自绘竖向滚动条；内距 24/32——两子页归一值）；
+          窄屏收起态左列不占位，详情分隔线随之撤（base.css §21 <768 块） */}
       <div
         ref={detailRef}
-        className="vscroll-y flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto border-l border-border px-8 py-6"
+        className={cn(
+          "vscroll-y flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-6 py-6",
+          !narrow && "border-l border-border",
+        )}
       >
         {creating || current !== undefined ? (
           <ConfigForm
@@ -527,6 +573,7 @@ export function EndpointConfigPanel({
             advState={advState}
             thinking={thinking}
             onThinkingChange={onThinkingChange}
+            headLeading={headToggle}
           />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-t-sm text-text-3">

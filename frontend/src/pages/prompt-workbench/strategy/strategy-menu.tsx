@@ -3,7 +3,7 @@
  *  实现侧组件归一」）；实例只带文案与数据差异（族规则 components/overlay.md）。
  *  切换锁定（提示词 dirty / 瞬态忙）的拦截在上层 choose 里裁决：dirty 走未保存确认
  *  弹窗（对齐批「提示词切换未保存拦截」条）、忙类静默——层内不再就地提示。 */
-import { CopyIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { CopyIcon, PlusIcon } from "lucide-react";
 import { type ReactElement, type RefObject, useRef } from "react";
 import type { EndpointConfigSummary, PromptInfo, SkillInfo } from "../../../api";
 import {
@@ -15,6 +15,7 @@ import {
   CfgPopRowMain,
   CfgPopStateRow,
 } from "../../../components/cfg-pop";
+import { TrashIcon } from "../../../components/icons";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -183,7 +184,7 @@ export function StrategyMenu({
                   danger
                   label={`删除策略 ${entry.name}`}
                   tip="删除"
-                  icon={<Trash2Icon />}
+                  icon={<TrashIcon />}
                   inert={busy || loading}
                   onClick={() => onRemove(entry)}
                 />

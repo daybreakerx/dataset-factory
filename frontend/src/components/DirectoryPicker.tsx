@@ -11,6 +11,7 @@ import type { components } from "../api-types.gen";
 import { FormError } from "../components/form-error";
 import { formatBytes } from "../lib/format";
 import { DialogShell } from "./dialog-shell";
+import { HScroll } from "./hs-scroll";
 import { Button } from "./ui/button";
 import { DialogDescription, DialogTitle } from "./ui/dialog";
 import { Input } from "./ui/input";
@@ -207,21 +208,21 @@ export function DirectoryPicker({
           <ArrowUpIcon />
           上一级
         </Button>
-        <nav
-          aria-label="目录路径"
-          className="flex min-w-0 overflow-x-auto text-t-sm text-text-3"
-        >
-          {breadcrumbs.map((crumb, index) => (
-            <button
-              key={crumb.path}
-              type="button"
-              className="shrink-0 rounded-sm px-1 py-0.5 hover:bg-n-100"
-              disabled={loading || renamingBusy || index === breadcrumbs.length - 1}
-              onClick={() => navigate(crumb.path)}
-            >
-              {crumb.label}
-            </button>
-          ))}
+        <nav aria-label="目录路径" className="min-w-0">
+          {/* 路径面包屑条＝单行横滚区，走 hs 定式（DESIGN.md 3.3）；crumb 无间隙由自身 px 撑。 */}
+          <HScroll className="text-t-sm text-text-3" trackClassName="gap-0">
+            {breadcrumbs.map((crumb, index) => (
+              <button
+                key={crumb.path}
+                type="button"
+                className="shrink-0 rounded-sm px-1 py-0.5 hover:bg-n-100"
+                disabled={loading || renamingBusy || index === breadcrumbs.length - 1}
+                onClick={() => navigate(crumb.path)}
+              >
+                {crumb.label}
+              </button>
+            ))}
+          </HScroll>
         </nav>
       </div>
       <form

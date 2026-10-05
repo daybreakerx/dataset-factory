@@ -1,3 +1,5 @@
+import { Tip } from "../../../components/ui/tooltip";
+
 interface Props {
   wid: string;
   /** 跑批中的「当前产出」逐字流（A2）；null = 没有正在产出的条目。 */
@@ -13,9 +15,11 @@ export function LiveOutput({ wid, liveOutput }: Props) {
     >
       <div className="mb-2 flex items-center gap-2">
         <h3 className="text-t-md font-medium">当前产出</h3>
-        <span className="min-w-0 truncate text-t-sm text-text-3">
-          {liveOutput.item}
-        </span>
+        <Tip label={liveOutput.item}>
+          <span className="min-w-0 truncate text-t-sm text-text-3">
+            {liveOutput.item}
+          </span>
+        </Tip>
         <img
           src={`/api/workdirs/${encodeURIComponent(wid)}/items/${encodeURIComponent(liveOutput.item)}/asset`}
           alt=""

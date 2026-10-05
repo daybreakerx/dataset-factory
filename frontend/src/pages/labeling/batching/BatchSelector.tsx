@@ -127,7 +127,9 @@ export function BatchSelector({
             <fieldset key={entry.id} aria-label={entry.title}>
               <div className="flex items-center gap-2 px-3 py-2 text-t-md font-medium">
                 <FolderIcon className="size-4 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">{entry.title}</span>
+                <Tip label={entry.title}>
+                  <span className="min-w-0 flex-1 truncate">{entry.title}</span>
+                </Tip>
                 {onNewStrategy && (
                   <Tip label="新增策略">
                     <button
@@ -187,7 +189,9 @@ export function BatchSelector({
                       setOpen(false);
                     }}
                   >
-                    <span className="min-w-0 flex-1 truncate">{candidate.name}</span>
+                    <Tip label={candidate.name}>
+                      <span className="min-w-0 flex-1 truncate">{candidate.name}</span>
+                    </Tip>
                     {badge && (
                       <span
                         className={`inline-flex h-4.5 shrink-0 items-center rounded-full px-2 text-t-xs font-medium ${badge.tone}`}

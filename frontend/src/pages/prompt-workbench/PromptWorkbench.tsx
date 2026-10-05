@@ -1,8 +1,8 @@
 /** 策略工作台：组合库、提示词编辑与对话调试。 */
 import {
   type ChangeEvent,
-  type KeyboardEvent,
   type ReactElement,
+  type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
   useEffect,
   useRef,
@@ -527,7 +527,9 @@ export function PromptWorkbench({
   };
 
   // 中文输入法的回车上屏不属于「发送」（isComposing 判定），Shift+Enter 换行。
-  const onInstructionKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+  const onInstructionKeyDown = (
+    event: ReactKeyboardEvent<HTMLTextAreaElement>,
+  ): void => {
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       handleSend();
@@ -541,6 +543,25 @@ export function PromptWorkbench({
     draftName !== savedPrompt.name ||
     draftDescription !== savedPrompt.description ||
     draftBody !== savedPrompt.body;
+
+  // Ctrl+S 绑提示词行保存（对齐批「Ctrl+S 绑提示词行保存」）：策略页页面级 keydown，
+  // Ctrl/Cmd+S 一律拦浏览器「保存网页」默认行为；脏态执行 saveDraft()（与点保存钮完全
+  // 同路——空名拦截、savingPromptRef 防重入、失败走编辑器反馈槽），不脏时静默无动作。
+  // 监听只挂一次，草稿与脏标志走渲染期刷新的 ref 桥（面板 actionsRef 同式）。
+  const saveDraftRef = useRef(saveDraft);
+  saveDraftRef.current = saveDraft;
+  const promptDirtyRef = useRef(promptDirty);
+  promptDirtyRef.current = promptDirty;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        if (promptDirtyRef.current) void saveDraftRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
     <TooltipProvider>

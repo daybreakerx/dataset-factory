@@ -2,7 +2,7 @@
  *  族内实例（components/cfg-pop.tsx）：触发件＝chip、行单行「名字 · 模型」、头行钮＝去设置管理、
  *  无未保存拦截（策略行改动作级实时保存后切换端点即提交）；取数失败落层内一行、重开即重拉。 */
 import { ChevronDownIcon, SettingsIcon } from "lucide-react";
-import type { ReactElement } from "react";
+import { type ReactElement, useState } from "react";
 import type { EndpointConfigSummary } from "../../../api";
 import {
   CfgPopContent,
@@ -42,6 +42,10 @@ export function EndpointSwitcher({
   onManage: () => void;
 }): ReactElement {
   const selected = endpoints.find((item) => item.id === selectedId);
+  // chip 显示「名称 · 模型」、被触发件宽度截断时悬停给全文（DESIGN.md 六）——
+  // 按溢出启停（select 触发器同口径）：值看得全就不出全文气泡、保留切换功能提示。
+  const chipText = selected ? `${selected.name} · ${selected.model}` : "未配置端点";
+  const [chipTip, setChipTip] = useState("切换端点配置");
   // 计数不可知（首取中／取数失败）时头行只写库名，不写假计数（overlay.md 头行条）。
   const countKnown = !failed && !(loading && endpoints.length === 0);
   return (
@@ -50,7 +54,7 @@ export function EndpointSwitcher({
         if (next) onMenuOpen?.();
       }}
     >
-      <Tip label="切换端点配置">
+      <Tip label={chipTip}>
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
@@ -59,10 +63,16 @@ export function EndpointSwitcher({
             className="min-w-0 max-w-60 shrink gap-2 px-2 text-t-md font-medium text-text-2 enabled:hover:bg-accent enabled:hover:text-text-1 disabled:bg-transparent disabled:text-text-2 [&_svg]:size-3"
             aria-label="端点配置切换器"
             disabled={disabled}
+            onPointerEnter={(event) => {
+              const span = event.currentTarget.querySelector("span");
+              setChipTip(
+                span != null && span.scrollWidth > span.clientWidth + 1
+                  ? chipText
+                  : "切换端点配置",
+              );
+            }}
           >
-            <span className="min-w-0 truncate">
-              {selected ? `${selected.name} · ${selected.model}` : "未配置端点"}
-            </span>
+            <span className="min-w-0 truncate">{chipText}</span>
             <ChevronDownIcon className="shrink-0" />
           </Button>
         </DropdownMenuTrigger>

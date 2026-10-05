@@ -9,6 +9,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { FilmIcon, XIcon } from "lucide-react";
 import { type ReactElement, useState } from "react";
 import { cn } from "../lib/utils";
+import { Tip } from "./ui/tooltip";
 
 /** 预览目标的最小描述：原件地址 + 类型 + 文件名（视频另带封面，播放失败时展示）。 */
 export interface MediaPreviewTarget {
@@ -74,7 +75,11 @@ export function MediaLightbox({
               ) : (
                 <FilmIcon className="size-10 text-text-4" aria-hidden />
               )}
-              <p className="max-w-full truncate text-t-sm text-text-3">{target.name}</p>
+              <Tip label={target.name}>
+                <p className="max-w-full truncate text-t-sm text-text-3">
+                  {target.name}
+                </p>
+              </Tip>
               <p className="text-t-sm text-text-4">浏览器不支持该编码，无法播放</p>
             </div>
           ) : null}
