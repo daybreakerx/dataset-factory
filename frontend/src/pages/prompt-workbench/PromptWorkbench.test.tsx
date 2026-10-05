@@ -84,6 +84,8 @@ const SKILLS: SkillInfo[] = [
     description: "H3 要求",
     enabled: true,
     body_chars: 860,
+    damage_kind: null,
+    damage_file: "",
   },
 ];
 
@@ -576,7 +578,8 @@ describe("PromptWorkbench", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "删除" }));
 
     await waitFor(() => {
-      expect(apiMock.deletePrompt).toHaveBeenCalledWith("h3-video");
+      // 删除寻址传稳定 ID（显示名可重名——坏提示词占位名会同名撞）。
+      expect(apiMock.deletePrompt).toHaveBeenCalledWith("p-h3-video-01");
     });
   });
 

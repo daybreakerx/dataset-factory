@@ -49,6 +49,9 @@ export function PromptWorkbench({
   const [isNewDraft, setIsNewDraft] = useState(false);
   const [editorFeedback, setEditorFeedback] = useState<Feedback | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // 删除目标：API 寻址与确认弹窗展示分离——API 按 ID（重名显示名解析不到）、
+  // 弹窗与成功文案用显示名。
+  const [deleteId, setDeleteId] = useState("");
   const [deleteName, setDeleteName] = useState("");
   const [promptMenuOpen, setPromptMenuOpen] = useState(false);
   const [promptBusy, setPromptBusy] = useState(false);
@@ -57,7 +60,7 @@ export function PromptWorkbench({
   // 放行后要继续的动作；error 只收业务错误（环境类走浮层、弹窗保持打开）。
   const [unsavedOpen, setUnsavedOpen] = useState(false);
   const [unsavedTarget, setUnsavedTarget] = useState<
-    { kind: "prompt"; name: string } | { kind: "strategy"; strategy: Strategy } | null
+    { kind: "prompt"; id: string } | { kind: "strategy"; strategy: Strategy } | null
   >(null);
   const [unsavedError, setUnsavedError] = useState("");
   const [unsavedBusy, setUnsavedBusy] = useState(false);
@@ -413,7 +416,7 @@ export function PromptWorkbench({
   ): Promise<void> => {
     if (target.kind === "prompt") {
       interactionRef.current += 1;
-      await selectPrompt(target.name);
+      await selectPrompt(target.id);
       return;
     }
     setPendingStrategySwitch(target.strategy);
@@ -460,14 +463,14 @@ export function PromptWorkbench({
   };
 
   const deleteSelected = async (): Promise<void> => {
-    if (deleteName === "" || savingPromptRef.current) {
+    if (deleteId === "" || savingPromptRef.current) {
       return;
     }
     savingPromptRef.current = true;
     setPromptBusy(true);
     try {
-      await api.deletePrompt(deleteName);
-      if (deleteName === selectedId) startNewDraft();
+      await api.deletePrompt(deleteId);
+      if (deleteId === selectedId) startNewDraft();
       setEditorFeedback({ kind: "success", text: `已删除「${deleteName}」` });
       setDeleteDialogOpen(false);
       await reloadPrompts();
@@ -628,22 +631,23 @@ export function PromptWorkbench({
             }}
             promptDirty={promptDirty}
             onNewDraft={startNewDraft}
-            onSelectPrompt={(name) => {
+            onSelectPrompt={(pid) => {
               setPromptMenuOpen(false);
-              const targetId = prompts.find((p) => p.name === name)?.id ?? "";
-              // 脏态点非当前行：关弹层、起未保存确认弹窗（保存／放弃后继续切换）——
-              // 对齐批「提示词切换未保存拦截」条；当前行与非脏态保持直通。
-              if (promptDirty && targetId !== selectedId) {
-                setUnsavedTarget({ kind: "prompt", name });
+              // 选中寻址一律传 ID（显示名可重名，两个坏提示词同名即撞）。脏态点非当前
+              // 行：关弹层、起未保存确认弹窗（保存／放弃后继续切换）——对齐批「提示词
+              // 切换未保存拦截」条；当前行与非脏态保持直通。
+              if (promptDirty && pid !== selectedId) {
+                setUnsavedTarget({ kind: "prompt", id: pid });
                 setUnsavedError("");
                 setUnsavedOpen(true);
                 return;
               }
               interactionRef.current += 1;
-              void selectPrompt(name);
+              void selectPrompt(pid);
             }}
-            onDeletePromptRequest={(name) => {
-              setDeleteName(name);
+            onDeletePromptRequest={(pid) => {
+              setDeleteId(pid);
+              setDeleteName(prompts.find((p) => p.id === pid)?.name ?? pid);
               setDeleteDialogOpen(true);
               setPromptMenuOpen(false);
             }}

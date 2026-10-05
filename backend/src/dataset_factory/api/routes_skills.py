@@ -25,6 +25,7 @@ from ..skills import (
     rename_skill,
     set_enabled,
 )
+from ..skills.model import SkillImport
 from ..skills.store import save_skill_file
 from .schemas import (
     ErrorDetail,
@@ -36,11 +37,29 @@ from .schemas import (
     SkillImportResponse,
     SkillInfo,
     SkillRenameRequest,
+    SkillTranscodeInfo,
 )
 
 router = APIRouter(prefix="/api/skills", tags=["Skill 库"])
 
 _SKILL_MD = "SKILL.md"
+
+
+def _import_response(result: SkillImport) -> SkillImportResponse:
+    """把 store 层的导入结果装配成 API 响应（两条导入路线共用同一形状）。"""
+    return SkillImportResponse(
+        id=result.skill.id,
+        name=result.skill.name,
+        description=result.skill.description,
+        enabled=result.skill.enabled,
+        total_bytes=result.total_bytes,
+        damage_kind=result.skill.damage_kind,
+        import_error=result.import_error,
+        transcoded=[
+            SkillTranscodeInfo(path=path, from_encoding=encoding)
+            for path, encoding in result.transcoded
+        ],
+    )
 
 
 def _strip_picker_root(payload: dict[str, bytes]) -> dict[str, bytes]:
@@ -78,6 +97,8 @@ def list_all() -> list[SkillInfo]:
             description=item.description,
             enabled=item.enabled,
             body_chars=item.body_chars,
+            damage_kind=item.damage_kind,
+            damage_file=item.damage_file,
         )
         for item in list_skills()
     ]
@@ -114,13 +135,7 @@ def import_one(request: SkillImportRequest) -> SkillImportResponse:
         result = import_skill_files({_SKILL_MD: content})
     else:
         result = import_skill(source)
-    return SkillImportResponse(
-        id=result.skill.id,
-        name=result.skill.name,
-        description=result.skill.description,
-        enabled=result.skill.enabled,
-        total_bytes=result.total_bytes,
-    )
+    return _import_response(result)
 
 
 @router.post(
@@ -152,13 +167,7 @@ async def import_upload(files: list[UploadFile]) -> SkillImportResponse:
             )
         payload[rel] = await upload.read()
     result = import_skill_files(_strip_picker_root(payload))
-    return SkillImportResponse(
-        id=result.skill.id,
-        name=result.skill.name,
-        description=result.skill.description,
-        enabled=result.skill.enabled,
-        total_bytes=result.total_bytes,
-    )
+    return _import_response(result)
 
 
 @router.get(

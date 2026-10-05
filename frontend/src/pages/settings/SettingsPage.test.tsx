@@ -62,6 +62,8 @@ const SKILLS: SkillInfo[] = [
     description: "H3 官方要求",
     enabled: true,
     body_chars: 1240,
+    damage_kind: null,
+    damage_file: "",
   },
   {
     id: "k-old-skill-01",
@@ -69,6 +71,8 @@ const SKILLS: SkillInfo[] = [
     description: "",
     enabled: false,
     body_chars: 320,
+    damage_kind: null,
+    damage_file: "",
   },
 ];
 
@@ -510,7 +514,7 @@ describe("SettingsPage · 能力·技能", () => {
     await userEvent.click(screen.getByLabelText("启用 h3-skill"));
 
     await waitFor(() => {
-      expect(apiMock.setSkillEnabled).toHaveBeenCalledWith("h3-skill", false);
+      expect(apiMock.setSkillEnabled).toHaveBeenCalledWith("k-h3-skill-01", false);
     });
   });
 
@@ -533,35 +537,41 @@ describe("SettingsPage · 能力·技能", () => {
     expect(screen.queryByLabelText("启用 h3-skill")).not.toBeInTheDocument();
   });
 
-  it("损坏包降级呈现：description 以「文件损坏：」开头时原文照排、不吞不替换（宽容降级口径）", async () => {
+  it("损坏包降级呈现：占位名＋警告图标进列表，原因与目录名走图标 Tip、行内无描述", async () => {
     apiMock.listSkills.mockResolvedValue([
       {
         id: "k-bad-x111111",
-        name: "bad",
+        name: "技能已损坏",
         description:
           "文件损坏：SKILL.md 的 frontmatter 未闭合（开头有 ---，但找不到结束的 ---）。",
         enabled: true,
         body_chars: 0,
+        damage_kind: "frontmatter-corrupt",
+        damage_file: "SKILL.md",
       },
     ] satisfies SkillInfo[]);
     render(<SettingsPage section="skills" />);
-    await screen.findByLabelText("启用 bad");
+    const row = (await screen.findByLabelText("启用 技能已损坏")).parentElement;
 
-    // TooltipContent 会另渲染一份描述文本（portal 到 body），断言收窄到列表行内的 span
-    const row = screen.getByLabelText("启用 bad").parentElement;
-    const text = await within(row as HTMLElement).findByText(/文件损坏：/);
-
-    // jsdom 量不到颜色，颜色一类的视觉口径归 e2e 视觉基线那层；这里只断「损坏信息原文照排、
-    // 没有被降级逻辑吞掉或替换」。
-    expect(text.textContent).toContain("frontmatter 未闭合");
+    // 名字位＝占位名（不回落裸目录名 / ID）；行内不再渲染描述（2026-09-30 行撤描述），
+    // 损坏原因与「目录名 <ID>」走图标 Tip（jsdom 不悬停，Tip 内容归 E2E 层）。
+    expect(within(row as HTMLElement).getByText("技能已损坏")).toBeInTheDocument();
+    expect(
+      within(row as HTMLElement).queryByText(/文件损坏：/),
+    ).not.toBeInTheDocument();
+    expect(row?.querySelector("svg.lucide-triangle-alert")).not.toBeNull();
   });
 
   it("导入成功：选择文件夹调 importSkillFiles 并给出体积与 token 提醒反馈条", async () => {
     apiMock.importSkillFiles.mockResolvedValue({
+      id: "kFresh000001",
       name: "fresh",
       description: "",
       enabled: true,
       total_bytes: 42_000,
+      damage_kind: null,
+      import_error: null,
+      transcoded: [],
     });
     await openSkills();
 
@@ -598,7 +608,16 @@ describe("SettingsPage · 能力·技能", () => {
         },
       ],
     });
-    apiMock.importSkill.mockResolvedValue({ name: "notes", total_bytes: 24 });
+    apiMock.importSkill.mockResolvedValue({
+      id: "kNotes000001",
+      name: "notes",
+      description: "",
+      enabled: true,
+      total_bytes: 24,
+      damage_kind: null,
+      import_error: null,
+      transcoded: [],
+    });
     await openSkills();
 
     await userEvent.click(screen.getByRole("button", { name: "导入 Skill" }));
@@ -623,10 +642,14 @@ describe("SettingsPage · 能力·技能", () => {
 
   it("路径导入：粘贴路径点导入调 importSkill；空路径时导入按钮禁用", async () => {
     apiMock.importSkill.mockResolvedValue({
+      id: "kPath0000001",
       name: "path-skill",
       description: "",
       enabled: true,
       total_bytes: 1024,
+      damage_kind: null,
+      import_error: null,
+      transcoded: [],
     });
     await openSkills();
 
@@ -646,10 +669,14 @@ describe("SettingsPage · 能力·技能", () => {
 
   it("单文件导入：SKILL.md 文件入口调 importSkillFile（单文件 skill 无文件夹结构）", async () => {
     apiMock.importSkillFile.mockResolvedValue({
+      id: "kSingle00001",
       name: "single",
       description: "",
       enabled: true,
       total_bytes: 2048,
+      damage_kind: null,
+      import_error: null,
+      transcoded: [],
     });
     await openSkills();
 
@@ -680,7 +707,7 @@ describe("SettingsPage · 能力·技能", () => {
 
     await waitFor(() => {
       expect(apiMock.readSkillFile).toHaveBeenCalledWith(
-        "h3-skill",
+        "k-h3-skill-01",
         "references/detail.md",
       );
     });
@@ -705,7 +732,7 @@ describe("SettingsPage · 能力·技能", () => {
 
     expect(await screen.findByText(/文件已被修改/)).toBeInTheDocument();
     expect(editor).toHaveValue("新的正文");
-    expect(apiMock.saveSkillFile).toHaveBeenCalledWith("h3-skill", "SKILL.md", {
+    expect(apiMock.saveSkillFile).toHaveBeenCalledWith("k-h3-skill-01", "SKILL.md", {
       content: "新的正文",
       original_content: "# Example\n按格式输出 caption。",
       description: "新的描述",
@@ -730,12 +757,12 @@ describe("SettingsPage · 能力·技能", () => {
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     // 改名必须排在存内容之后：改名会重写 frontmatter，先改名就让刚读的基线失效（PUT 400）。
-    expect(apiMock.saveSkillFile).toHaveBeenCalledWith("h3-skill", "SKILL.md", {
+    expect(apiMock.saveSkillFile).toHaveBeenCalledWith("k-h3-skill-01", "SKILL.md", {
       content: SKILL_MD,
       original_content: SKILL_MD,
     });
     await waitFor(() =>
-      expect(apiMock.renameSkill).toHaveBeenCalledWith("h3-skill", {
+      expect(apiMock.renameSkill).toHaveBeenCalledWith("k-h3-skill-01", {
         new_name: "h3-caption",
       }),
     );
@@ -796,7 +823,16 @@ describe("SettingsPage · 能力·技能", () => {
   });
 
   it("拖入单文件通过导入接口提交一次并显示结果", async () => {
-    apiMock.importSkillFile.mockResolvedValue({ name: "dropped", total_bytes: 12 });
+    apiMock.importSkillFile.mockResolvedValue({
+      id: "kDropped001",
+      name: "dropped",
+      description: "",
+      enabled: true,
+      total_bytes: 12,
+      damage_kind: null,
+      import_error: null,
+      transcoded: [],
+    });
     await openSkills();
     await userEvent.click(screen.getByRole("button", { name: "导入 Skill" }));
     const file = new File(["skill"], "SKILL.md");

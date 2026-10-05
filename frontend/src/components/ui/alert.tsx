@@ -5,7 +5,7 @@ import { cn } from "../../lib/utils";
 
 /**
  * 页内反馈条（design「反馈条」）：操作结果直接呈现在页面里。
- * 成功 = success 10% 底 + 深绿文字；错误 = destructive 底；信息 = muted。
+ * 成功 = success 10% 底 + 深绿文字；警告 = warn 组档（琥珀）；错误 = destructive 底；信息 = muted。
  */
 const alertVariants = cva(
   "relative flex w-full items-start gap-2 rounded-md border px-3 py-2 text-[13px] [&>svg]:size-4 [&>svg]:mt-0.5",
@@ -14,6 +14,7 @@ const alertVariants = cva(
       variant: {
         default: "border-border bg-card text-foreground",
         success: "border-success/25 bg-success/10 text-success",
+        warn: "border-warn-bd bg-warn-bg text-warn-ink",
         destructive: "border-destructive/25 bg-destructive/10 text-destructive",
       },
     },

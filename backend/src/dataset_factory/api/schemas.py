@@ -199,6 +199,26 @@ class SkillInfo(BaseModel):
     body_chars: int = Field(
         description="注入正文字符数（SKILL.md + references/ 全部文件，即打标请求的注入量）"
     )
+    damage_kind: (
+        Literal["frontmatter-corrupt", "not-utf8", "assembly-failed"] | None
+    ) = Field(
+        description=(
+            "损坏分类（健康包为 null）：frontmatter-corrupt＝frontmatter 解析不过"
+            "（可修复——详情里改名称/描述保存即自愈）；not-utf8＝包内文本不是合法 "
+            "UTF-8（不可修复——去磁盘另存）；assembly-failed＝包体组装失败等其他损坏"
+            "（不可修复）"
+        )
+    )
+    damage_file: str = Field(
+        description="损坏涉及的包内相对路径（如 references/h3.md）；健康包为空串",
+    )
+
+
+class SkillTranscodeInfo(BaseModel):
+    """导入时被转码成 UTF-8 的一个文件。"""
+
+    path: str = Field(description="包内相对路径")
+    from_encoding: str = Field(description="探测出的原编码")
 
 
 class SkillRenameRequest(BaseModel):
@@ -259,6 +279,20 @@ class SkillImportResponse(BaseModel):
     description: str
     enabled: bool
     total_bytes: int
+    damage_kind: (
+        Literal["frontmatter-corrupt", "not-utf8", "assembly-failed"] | None
+    ) = Field(
+        description=(
+            "损坏分类：包以「损坏行」入库时非 null（现役只会有 frontmatter-corrupt"
+            "——frontmatter 解析不过，详情里改名称/描述保存即自愈）；正常导入为 null"
+        )
+    )
+    import_error: str | None = Field(
+        description="损坏原因全文（damage_kind 非 null 时有值，供前端呈现）；正常导入为 null"
+    )
+    transcoded: list[SkillTranscodeInfo] = Field(
+        description="导入时被转码成 UTF-8 的文件清单（原编码已探测）；未发生转码为空表"
+    )
 
 
 class EndpointRequestParams(BaseModel):

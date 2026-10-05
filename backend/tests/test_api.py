@@ -401,9 +401,13 @@ def test_skills_list_degrades_corrupt_package(
 
     assert response.status_code == 200
     items = {item["name"]: item for item in response.json()}
-    assert items["bad"]["description"].startswith("文件损坏：")
-    assert items["bad"]["body_chars"] == 0
+    broken = items["技能已损坏"]
+    assert broken["description"].startswith("文件损坏：")
+    assert broken["body_chars"] == 0
+    assert broken["damage_kind"] == "frontmatter-corrupt"
+    assert broken["damage_file"] == "SKILL.md"
     assert items["example-caption-skill"]["body_chars"] > 0
+    assert items["example-caption-skill"]["damage_kind"] is None
 
 
 def test_skill_rename_roundtrip_and_conflict(client: TestClient) -> None:

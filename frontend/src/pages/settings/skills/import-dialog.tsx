@@ -151,7 +151,13 @@ export function ImportDialog({
         </div>
         {feedback !== null && (
           <Alert
-            variant={feedback.kind === "error" ? "destructive" : "success"}
+            variant={
+              feedback.kind === "error"
+                ? "destructive"
+                : feedback.kind === "warn"
+                  ? "warn"
+                  : "success"
+            }
             className="mt-2"
           >
             <AlertDescription>{feedback.text}</AlertDescription>

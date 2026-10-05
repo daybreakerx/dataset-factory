@@ -100,10 +100,18 @@ def test_parse_unknown_frontmatter_key_raises() -> None:
         parse_prompt("bad", "---\ndescriptions: 拼错了\n---\n正文")
 
 
-def test_parse_non_string_description_raises() -> None:
-    """description 不是字符串（YAML 把 123 解析成整数）→ PromptParseError。"""
+def test_parse_scalar_values_as_strings() -> None:
+    """frontmatter 标量一律按字符串解析（``123``/``yes``/日期不被 YAML 1.1 读成整数等）。"""
+    parsed = parse_prompt("pabc123xyz", "---\nname: yes\ndescription: 123\n---\n正文")
+
+    assert parsed.name == "yes"
+    assert parsed.description == "123"
+
+
+def test_parse_sequence_description_still_raises() -> None:
+    """description 是序列（非标量）仍拒——放宽只覆盖标量类型，结构判定不变。"""
     with pytest.raises(PromptParseError, match="description 应是字符串"):
-        parse_prompt("bad", "---\ndescription: 123\n---\n正文")
+        parse_prompt("bad", "---\ndescription: [1, 2]\n---\n正文")
 
 
 def test_parse_missing_name_falls_back(temp_data_root: Path) -> None:
@@ -418,18 +426,19 @@ def test_seed_builtin_presets_keeps_user_deletion(temp_data_root: Path) -> None:
 
 
 def test_list_prompts_degrades_corrupt_entry(temp_data_root: Path) -> None:
-    """列表对单个损坏条目宽容降级：description = 可读原因、body = 原始全文，其余条目不受影响。"""
+    """列表对单个损坏条目宽容降级：占位名「提示词已损坏」＋可读原因＋原始全文，其余条目不受影响。"""
     save_prompt(Prompt(name="good", description="好的", body="正文"))
     _write_raw(temp_data_root, "bad", "---\ndescription: x\n没有闭合")
 
     prompts = list_prompts()
 
-    assert [p.name for p in prompts] == ["bad", "good"]
-    broken = prompts[0]
+    assert [p.name for p in prompts] == ["good", "提示词已损坏"]
+    broken = prompts[1]
+    assert broken.id == "bad"  # 身份仍是文件名（ID），占位名只落名字位
     assert broken.description.startswith("文件损坏：")
     assert "未闭合" in broken.description  # 原因可读：哪里坏
     assert broken.body == "---\ndescription: x\n没有闭合"  # 原始全文：可在编辑列修复
-    assert prompts[1].description == "好的"
+    assert prompts[0].description == "好的"
 
 
 def test_list_prompts_broken_entry_heals_after_fix(temp_data_root: Path) -> None:
@@ -457,7 +466,10 @@ def test_list_prompts_broken_entry_body_uses_replacement_chars(
     prompts = list_prompts()
 
     assert len(prompts) == 1
-    assert prompts[0].name == "bin"
+    assert (
+        prompts[0].name == "提示词已损坏"
+    )  # frontmatter 未闭合＝损坏行，名字位用占位名
+    assert prompts[0].id == "bin"
 
 
 def test_legacy_entry_migrates_to_id(temp_data_root: Path) -> None:

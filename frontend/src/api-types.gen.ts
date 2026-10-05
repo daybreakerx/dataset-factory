@@ -3145,6 +3145,11 @@ export interface components {
          * @description 导入结果。
          */
         SkillImportResponse: {
+            /**
+             * Damage Kind
+             * @description 损坏分类：包以「损坏行」入库时非 null（现役只会有 frontmatter-corrupt——frontmatter 解析不过，详情里改名称/描述保存即自愈）；正常导入为 null
+             */
+            damage_kind: ("frontmatter-corrupt" | "not-utf8" | "assembly-failed") | null;
             /** Description */
             description: string;
             /** Enabled */
@@ -3154,10 +3159,20 @@ export interface components {
              * @description 新 skill 的稳定 ID（后续寻址用）
              */
             id: string;
+            /**
+             * Import Error
+             * @description 损坏原因全文（damage_kind 非 null 时有值，供前端呈现）；正常导入为 null
+             */
+            import_error: string | null;
             /** Name */
             name: string;
             /** Total Bytes */
             total_bytes: number;
+            /**
+             * Transcoded
+             * @description 导入时被转码成 UTF-8 的文件清单（原编码已探测）；未发生转码为空表
+             */
+            transcoded: components["schemas"]["SkillTranscodeInfo"][];
         };
         /**
          * SkillInfo
@@ -3169,6 +3184,16 @@ export interface components {
              * @description 注入正文字符数（SKILL.md + references/ 全部文件，即打标请求的注入量）
              */
             body_chars: number;
+            /**
+             * Damage File
+             * @description 损坏涉及的包内相对路径（如 references/h3.md）；健康包为空串
+             */
+            damage_file: string;
+            /**
+             * Damage Kind
+             * @description 损坏分类（健康包为 null）：frontmatter-corrupt＝frontmatter 解析不过（可修复——详情里改名称/描述保存即自愈）；not-utf8＝包内文本不是合法 UTF-8（不可修复——去磁盘另存）；assembly-failed＝包体组装失败等其他损坏（不可修复）
+             */
+            damage_kind: ("frontmatter-corrupt" | "not-utf8" | "assembly-failed") | null;
             /** Description */
             description: string;
             /** Enabled */
@@ -3194,6 +3219,22 @@ export interface components {
              * @description 新显示名（可改、允许重名）
              */
             new_name: string;
+        };
+        /**
+         * SkillTranscodeInfo
+         * @description 导入时被转码成 UTF-8 的一个文件。
+         */
+        SkillTranscodeInfo: {
+            /**
+             * From Encoding
+             * @description 探测出的原编码
+             */
+            from_encoding: string;
+            /**
+             * Path
+             * @description 包内相对路径
+             */
+            path: string;
         };
         /**
          * SnapshotEndpointView

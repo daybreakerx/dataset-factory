@@ -1,7 +1,7 @@
 /** 能力 · 技能 · 右列详情（头行：名字框＋删除钮＋保存钮；描述、包内容胶囊、内容预览）。 */
 import { FileTextIcon, ImageIcon, Trash2Icon } from "lucide-react";
 import type { ReactElement } from "react";
-import type { SkillFileInfo, SkillInfo } from "../../../api";
+import type { SkillFileInfo } from "../../../api";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import {
@@ -63,9 +63,10 @@ function SkillFileChip({
 }
 
 type SkillDetailProps = {
-  current: SkillInfo;
   /** 名称草稿：null = 未改动（null 化判断在面板回调里）。 */
   nameDraft: string | null;
+  /** 名字框显示默认值：健康包 = 显示名；坏包（frontmatter-corrupt）= 抢救值、救不出留空。 */
+  nameDefault: string;
   onNameChange: (value: string) => void;
   saving: boolean;
   loadingPreview: boolean;
@@ -78,15 +79,19 @@ type SkillDetailProps = {
   onPreviewChange: (value: string) => void;
   /** 描述草稿：null = 未改动（null 化判断在面板回调里）。 */
   descriptionDraft: string | null;
+  /** 描述框显示默认值：健康包 = 落盘描述；坏包 = 抢救值、救不出留空。 */
+  descriptionDefault: string;
   onDescriptionChange: (value: string) => void;
+  /** 头行消息槽（删除钮右侧、保存钮前；一槽一消息、互斥替换——稿 技能详情头）。 */
+  headNote: { kind: "warn" | "bad"; text: string } | null;
   onSave: () => void;
 };
 
 /** 右列：详情头行（可编辑名字框＋删除钮＋保存钮——启停章与底部操作条随两子页归一撤除，
  *  启停只由左列开关表达、放弃路走未保存确认弹窗）＋描述横排字段＋包内容胶囊＋内容预览。 */
 export function SkillDetail({
-  current,
   nameDraft,
+  nameDefault,
   onNameChange,
   saving,
   loadingPreview,
@@ -98,7 +103,9 @@ export function SkillDetail({
   previewContent,
   onPreviewChange,
   descriptionDraft,
+  descriptionDefault,
   onDescriptionChange,
+  headNote,
   onSave,
 }: SkillDetailProps): ReactElement {
   return (
@@ -106,7 +113,7 @@ export function SkillDetail({
       <div className="flex min-h-(--h-lg) items-center gap-2">
         <input
           aria-label="技能名称"
-          value={nameDraft ?? current.name}
+          value={nameDraft ?? nameDefault}
           disabled={saving || loadingPreview}
           onChange={(event) => onNameChange(event.currentTarget.value)}
           className="min-w-24 max-w-[380px] w-fit shrink-[1] basis-auto field-sizing-content -ml-[calc(var(--s-1)+1px)] rounded-md border border-transparent bg-transparent p-1 text-t-xl font-semibold text-foreground hover:border-input focus:border-n-400 focus:outline-none"
@@ -127,11 +134,25 @@ export function SkillDetail({
             <Trash2Icon />
           </Button>
         </Tip>
+        {headNote !== null && (
+          // 消息槽：12px、单行省略兜底窄窗、被截断时悬停给全文（DESIGN.md 六）；
+          // 文字用 <span>（带 UA 外边距的标签会把头行撑高）。不带图标（稿 2026-10-01 裁）。
+          <span
+            role="status"
+            title={headNote.text}
+            className={
+              "min-w-0 flex-1 truncate text-t-sm " +
+              (headNote.kind === "bad" ? "text-bad-ink" : "text-warn-ink")
+            }
+          >
+            {headNote.text}
+          </span>
+        )}
         <Tip label={dirty ? "" : "没有未保存的修改"}>
           <Button
             type="button"
             variant={dirty ? "default" : "ghost"}
-            className="ml-auto"
+            className={headNote === null ? "ml-auto" : undefined}
             disabled={!dirty || saving || loadingPreview}
             onClick={onSave}
           >
@@ -144,7 +165,7 @@ export function SkillDetail({
         <Input
           aria-label="技能描述"
           id="skill-description"
-          value={descriptionDraft ?? current.description}
+          value={descriptionDraft ?? descriptionDefault}
           disabled={saving || loadingPreview || previewPath !== "SKILL.md"}
           onChange={(event) => onDescriptionChange(event.currentTarget.value)}
         />

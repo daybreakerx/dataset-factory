@@ -159,6 +159,7 @@ name = "dataset-factory"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "charset-normalizer" },
     { name = "fastapi" },
     { name = "filelock" },
     { name = "openai" },
@@ -189,6 +190,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "charset-normalizer", specifier = ">=3.4.2" },
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "filelock", specifier = ">=3.32.6" },
     { name = "openai", specifier = ">=3.13.0" },

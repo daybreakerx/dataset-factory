@@ -171,9 +171,10 @@ def list_prompts() -> list[Prompt]:
     只认 prompts/ 下的普通 `*.md` 文件：跳过 _history/ 子目录、原子写留下的 `.` 前缀临时
     文件与任何非普通文件。库目录不存在时返回空列表（还没有任何条目，不算错）。
 
-    损坏条目的降级口径（2026-09-14 用户定夺，Web 与 CLI 同此）：解析失败的文件仍以
-    文件名（ID）进列表，description = 可读的损坏原因（哪里坏、怎么修），body = 文件原始
-    全文（可在编辑列直接修复后保存，保存即自愈）；其余条目不受影响。单条读取
+    损坏条目的降级口径（2026-09-14 用户定夺，Web 与 CLI 同此；名字位 2026-09-30 改占位名，
+    与技能侧「技能已损坏」同一条口径）：解析失败的文件仍照常进列表，名字位＝占位名
+    「提示词已损坏」（不回落裸文件名 / ID），description = 可读的损坏原因（哪里坏、怎么修），
+    body = 文件原始全文（可在编辑列直接修复后保存，保存即自愈）；其余条目不受影响。单条读取
     （read_prompt）仍 fail loud 给详细错误——打标装配侧拿到损坏条目会被明确拒绝，
     不会带病使用。
 
@@ -190,7 +191,12 @@ def list_prompts() -> list[Prompt]:
             except OSError:
                 raw = ""
             prompts.append(
-                Prompt(id=pid, name=pid, description=f"文件损坏：{exc}", body=raw)
+                Prompt(
+                    id=pid,
+                    name="提示词已损坏",
+                    description=f"文件损坏：{exc}",
+                    body=raw,
+                )
             )
     return sorted(prompts, key=lambda prompt: prompt.name.casefold())
 

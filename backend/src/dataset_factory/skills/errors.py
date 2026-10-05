@@ -23,6 +23,20 @@ class SkillFormatError(SkillError):
     """skill 包格式非法（缺 SKILL.md、frontmatter 缺失 / 未闭合 / 非法 YAML / 缺 name 或 description、非 UTF-8）。"""
 
 
+class SkillNotUtf8Error(SkillFormatError):
+    """包内文件不是合法 UTF-8（损坏分类的 not-utf8 档：去磁盘另存为 UTF-8 后自愈）。
+
+    Attributes:
+        path_hint: 包内相对路径（如 ``references/h3.md``）——契约 damage_file 的取值来源；
+            空串表示调用方未标注（列表侧回落 SKILL.md）。
+    """
+
+    def __init__(self, message: str, *, path_hint: str = "") -> None:
+        """初始化错误；``path_hint`` 供契约 damage_file 取值，未标注时为空串。"""
+        super().__init__(message)
+        self.path_hint = path_hint
+
+
 class SkillSourceError(SkillError):
     """导入源不可用（路径不是目录、目录不可访问）——调用方填错路径，属用户输入错。"""
 

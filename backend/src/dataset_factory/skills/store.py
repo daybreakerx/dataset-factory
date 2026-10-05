@@ -25,6 +25,7 @@ from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import cast
 
+import charset_normalizer
 import yaml
 from filelock import Timeout
 
@@ -38,6 +39,7 @@ from .errors import (
     SkillFormatError,
     SkillNameError,
     SkillNotFoundError,
+    SkillNotUtf8Error,
     SkillSourceError,
 )
 from .model import (
@@ -55,6 +57,10 @@ _DELIMITER = "---"
 _LF = "\n"
 _CRLF = "\r\n"
 _CR = "\r"
+
+# 损坏包的显示名占位（frontmatter 读不出、连显示名都拿不到时的名字位；2026-09-30
+# 用户裁「占位名设为技能已损坏」，Web 与 CLI 同口径——不回落裸目录名 / ID）。
+_BROKEN_NAME = "技能已损坏"
 
 # Skill ID 形状（目录名即 ID；与策略 / 端点 ID 同一模式，字母开头避免被 CLI 解析为选项）。
 SKILL_ID_RE = re.compile(r"^[a-z][A-Za-z0-9_-]{10}$")
@@ -93,12 +99,24 @@ def _validate_display_name(name: str) -> str:
     return cleaned
 
 
-def _read_text(path: Path) -> str:
-    """读 UTF-8 文本；不可读 / 非文本统一转成技能域错误（统一小闸门）。"""
+def _read_text(path: Path, *, package_hint: str = "") -> str:
+    """读 UTF-8 文本；不可读 / 非文本统一转成技能域错误（统一小闸门）。
+
+    Args:
+        path: 要读的文件路径。
+        package_hint: 包内相对路径（供损坏分类的 damage_file；SKILL.md / references
+            调用点各自传入，非包内文件调用点留空）。
+
+    Raises:
+        SkillNotUtf8Error: 文件不是合法 UTF-8（带 path_hint 供契约携带）。
+        SkillError: 文件不可读（OSError）。
+    """
     try:
         return path.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:
-        raise SkillFormatError(f"{path} 不是合法 UTF-8 文本；文件可能已损坏。") from exc
+        raise SkillNotUtf8Error(
+            f"{path} 不是合法 UTF-8 文本；文件可能已损坏。", path_hint=package_hint
+        ) from exc
     except OSError as exc:
         raise SkillError(f"无法读取 {path}：{exc.strerror or exc}") from exc
 
@@ -106,29 +124,6 @@ def _read_text(path: Path) -> str:
 def _dir_bytes(directory: Path) -> int:
     """目录树里所有文件的字节总和（供导入体积提示）。"""
     return sum(p.stat().st_size for p in directory.rglob("*") if p.is_file())
-
-
-def _atomic_copytree(source: Path, dest: Path) -> None:
-    """把 source 目录树原子复制到 dest：先复制到同目录临时名、再 os.replace 改名。
-
-    dest 必须尚不存在（ID 由调用方新生成）。改名成功后临时目录已不存在（finally 的
-    rmtree 即 no-op）；任何失败路径都清掉临时目录，崩溃也不留下半个包冒充成品。
-
-    Args:
-        source: 源 skill 目录。
-        dest: 库内目标目录（skills/<id>）。
-
-    Raises:
-        SkillError: 复制或改名失败（底层 OSError，含 shutil.Error）。
-    """
-    tmp = dest.parent / f".{dest.name}.tmp{os.urandom(4).hex()}"
-    try:
-        shutil.copytree(source, tmp)
-        _publish_skill(tmp, dest)
-    except OSError as exc:
-        raise SkillError(f"无法把 {source} 复制进库：{exc.strerror or exc}") from exc
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def _read_disabled() -> set[str]:
@@ -241,22 +236,83 @@ def _load_entries() -> dict[str, Path]:
     return entries
 
 
+def _normalize_file_bytes(rel: str, data: bytes) -> tuple[bytes, str | None]:
+    """把一个包内文件的字节内容归一化成 UTF-8（2026-09-30 用户裁「导入时归一化」）。
+
+    判别与分档（2026-10-01 用户裁细）：UTF-8 严格解码成功＝已是 UTF-8，原样返回；
+    失败后**无 NUL 字节**且 charset-normalizer 能给出解码方案＝文本，转码写回（返回
+    原编码供导入反馈计数）；探测不出（``best()`` 为 None）＝真二进制，按字节原样复制；
+    判定为文本但转不成 UTF-8 ＝ 整包拒导入（点名文件＋修法）。
+
+    Args:
+        rel: 包内相对路径（错误文案点名用）。
+        data: 文件原始字节。
+
+    Returns:
+        (归一化后的字节, 原编码或 None＝未发生转码)。
+
+    Raises:
+        SkillFormatError: 判定为文本但转不成 UTF-8。
+    """
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    else:
+        return data, None
+    if b"\x00" in data:
+        return data, None
+    match = charset_normalizer.from_bytes(data).best()
+    if match is None:
+        return data, None
+    try:
+        return match.output(), match.encoding
+    except UnicodeError as exc:
+        raise SkillFormatError(
+            f"{rel} 的文本内容（探测编码 {match.encoding}）转不成 UTF-8；"
+            "请用编辑器另存为 UTF-8 后重试。"
+        ) from exc
+
+
+def _normalize_package_dir(root: Path) -> list[tuple[str, str]]:
+    """把目录包里全部文件就地归一化成 UTF-8（目录导入路线；发布前在临时目录里做）。
+
+    Returns:
+        发生转码的文件清单（包内相对路径 → 探测出的原编码）。
+
+    Raises:
+        SkillFormatError: 判定为文本但转不成 UTF-8（整包拒导入）。
+    """
+    transcoded: list[tuple[str, str]] = []
+    for path in sorted(root.rglob("*"), key=lambda p: p.as_posix()):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root).as_posix()
+        normalized, encoding = _normalize_file_bytes(rel, path.read_bytes())
+        if encoding is not None:
+            path.write_bytes(normalized)
+            transcoded.append((rel, encoding))
+    return transcoded
+
+
 def import_skill(source: Path) -> SkillImport:
     """从一个 agentskills.io skill 目录导入：校验 → 整目录复制进库（自包含）→ 默认启用。
 
     源必须是一个含 SKILL.md 的目录；显示名与说明取自 SKILL.md frontmatter，包落到
     新分配的 `skills/<ID>/`（同显示名可并存——身份是 ID，不再拒绝重名）。复制走
-    「临时名 + os.replace」的目录级原子导入，崩溃不留半个包。
+    「临时名 + os.replace」的目录级原子导入，崩溃不留半个包。导入时把包内文本文件
+    统一转码成 UTF-8（二进制原样复制）；**frontmatter 坏不再拒导入**——照常入库为
+    「损坏行」（占位名「技能已损坏」），损坏原因随响应带给前端警告条（2026-10-01 用户裁）。
 
     Args:
         source: 源 skill 目录（含 SKILL.md，可含 references/ 等子目录）。
 
     Returns:
-        SkillImport：导入的 skill（enabled=True）+ 整包字节数（供体积提示）。
+        SkillImport：导入的 skill（enabled=True）+ 整包字节数 + 转码清单 + 损坏原因。
 
     Raises:
         SkillSourceError: 源不是目录（路径填错）。
-        SkillFormatError: 源缺 SKILL.md，或 SKILL.md frontmatter 非法。
+        SkillFormatError: 源缺 SKILL.md，或文本文件转不成 UTF-8。
         SkillError: 库目录 / 复制准备失败。
     """
     if not source.is_dir():
@@ -268,33 +324,71 @@ def import_skill(source: Path) -> SkillImport:
         raise SkillFormatError(
             f"导入源 {source} 缺少 {_SKILL_MD}；不是合法的 agentskills.io skill 包。"
         )
-    name, description = parse_skill_frontmatter(_read_text(skill_md))
     skills_root = _skills_dir()
     sid = _generate_id()
     while (skills_root / sid).exists():
         sid = _generate_id()
-    _atomic_copytree(source, skills_root / sid)
+    dest = skills_root / sid
+    tmp = dest.parent / f".{dest.name}.tmp{os.urandom(4).hex()}"
+    try:
+        skills_root.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source, tmp)
+        transcoded = _normalize_package_dir(tmp)
+        _publish_skill(tmp, dest)
+    except OSError as exc:
+        raise SkillError(f"无法把 {source} 复制进库：{exc.strerror or exc}") from exc
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    # frontmatter 在归一化后的包上复检：坏 = 损坏行入库（不再 fail loud 拦整包）。
+    damage_kind: str | None = None
+    import_error: str | None = None
+    name = _BROKEN_NAME
+    description = ""
+    try:
+        skill_md_text = _read_text(dest / _SKILL_MD, package_hint=_SKILL_MD)
+        name, description = parse_skill_frontmatter(skill_md_text)
+    except SkillNotUtf8Error as exc:
+        # SKILL.md 本身非 UTF-8 且探测不出可靠转码——文本都读不出，拒（与「文本转不成
+        # UTF-8 就拒」同一档；二进制判别已在前置归一化里处理，走到这里即坏到底）。
+        raise SkillFormatError(
+            f"{_SKILL_MD} 不是合法 UTF-8 文本；文件可能已损坏。"
+        ) from exc
+    except SkillError as exc:
+        damage_kind = "frontmatter-corrupt"
+        import_error = str(exc)
     return SkillImport(
-        skill=Skill(id=sid, name=name, description=description, enabled=True),
-        total_bytes=_dir_bytes(skills_root / sid),
+        skill=Skill(
+            id=sid,
+            name=name if damage_kind is None else _BROKEN_NAME,
+            description=description
+            if damage_kind is None
+            else f"文件损坏：{import_error}",
+            enabled=True,
+            damage_kind=damage_kind,
+        ),
+        total_bytes=_dir_bytes(dest),
+        transcoded=transcoded,
+        import_error=import_error,
     )
 
 
 def import_skill_files(files: Mapping[str, bytes]) -> SkillImport:
     """从「相对路径 → 内容」的文件集导入 skill 包（浏览器文件夹选择上传路线）。
 
-    与 import_skill 共用同一套校验与原子落库：包根必须有 SKILL.md、frontmatter 合法；
-    包落到新分配的 `skills/<ID>/`（同显示名可并存）。相对路径的卫生（拒绝绝对路径与
-    ``..`` 穿越）由 HTTP 入口层在收包时清洗，本函数按可信输入对待。
+    与 import_skill 共用同一套口径：包根必须有 SKILL.md；导入时把文本文件统一转码成
+    UTF-8（二进制原样复制）；**frontmatter 坏不再拒导入**——照常入库为「损坏行」
+    （占位名「技能已损坏」），损坏原因随响应带给前端警告条（2026-10-01 用户裁）。
+    相对路径的卫生（拒绝绝对路径与 ``..`` 穿越）由 HTTP 入口层在收包时清洗，本函数
+    按可信输入对待。
 
     Args:
         files: 包内相对路径（POSIX 风格，如 SKILL.md、references/x.md）→ 文件字节内容。
 
     Returns:
-        SkillImport：导入的 skill（enabled=True）+ 整包字节数（供体积提示）。
+        SkillImport：导入的 skill（enabled=True）+ 整包字节数 + 转码清单 + 损坏原因。
 
     Raises:
-        SkillFormatError: 文件集缺 SKILL.md / SKILL.md 不是合法 UTF-8 / frontmatter 非法。
+        SkillFormatError: 文件集缺 SKILL.md / SKILL.md 是二进制或转不成 UTF-8。
         SkillError: 库目录准备 / 写入失败。
     """
     skill_md_bytes = files.get(_SKILL_MD)
@@ -302,21 +396,36 @@ def import_skill_files(files: Mapping[str, bytes]) -> SkillImport:
         raise SkillFormatError(
             f"上传内容缺少 {_SKILL_MD}；请选择包含 {_SKILL_MD} 的 skill 文件夹导入。"
         )
+    normalized: dict[str, bytes] = {}
+    transcoded: list[tuple[str, str]] = []
+    for rel, content in files.items():
+        data, encoding = _normalize_file_bytes(rel, content)
+        normalized[rel] = data
+        if encoding is not None:
+            transcoded.append((rel, encoding))
     try:
-        skill_md_text = skill_md_bytes.decode("utf-8")
+        skill_md_text = normalized[_SKILL_MD].decode("utf-8")
     except UnicodeDecodeError as exc:
         raise SkillFormatError(
-            f"{_SKILL_MD} 不是合法 UTF-8 文本；文件可能已损坏。"
+            f"{_SKILL_MD} 不是合法 UTF-8 文本；文件可能已损坏（转码后仍读不出）。"
         ) from exc
-    name, description = parse_skill_frontmatter(skill_md_text)
     skills_root = _skills_dir()
     sid = _generate_id()
     dest = skills_root / sid
     tmp = dest.parent / f".{dest.name}.tmp{os.urandom(4).hex()}"
+    damage_kind: str | None = None
+    import_error: str | None = None
+    name = _BROKEN_NAME
+    description = ""
+    try:
+        name, description = parse_skill_frontmatter(skill_md_text)
+    except SkillError as exc:
+        damage_kind = "frontmatter-corrupt"
+        import_error = str(exc)
     try:
         skills_root.mkdir(parents=True, exist_ok=True)
         tmp.mkdir()
-        for rel, content in files.items():
+        for rel, content in normalized.items():
             target = tmp.joinpath(*[p for p in rel.split("/") if p])
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content)
@@ -326,8 +435,18 @@ def import_skill_files(files: Mapping[str, bytes]) -> SkillImport:
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     return SkillImport(
-        skill=Skill(id=sid, name=name, description=description, enabled=True),
-        total_bytes=sum(len(content) for content in files.values()),
+        skill=Skill(
+            id=sid,
+            name=name if damage_kind is None else _BROKEN_NAME,
+            description=description
+            if damage_kind is None
+            else f"文件损坏：{import_error}",
+            enabled=True,
+            damage_kind=damage_kind,
+        ),
+        total_bytes=sum(len(content) for content in normalized.values()),
+        transcoded=transcoded,
+        import_error=import_error,
     )
 
 
@@ -361,24 +480,68 @@ def list_skills() -> list[Skill]:
     disabled = _read_disabled()
     skills: list[Skill] = []
     for sid, directory in _load_entries().items():
-        # 两级降级：frontmatter 损坏 = 连显示名都拿不到（name 回落 ID）；frontmatter
-        # 合法但正文 / references 组装失败 = 保留显示名、body_chars 按 0 计。
+        # 两级降级＋损坏分类（2026-10-01「损坏类别进契约」）：frontmatter 损坏 =
+        # 连显示名都拿不到（name 用占位名「技能已损坏」）；frontmatter 合法但包体组装
+        # 失败 = 保留显示名。kind 三档＝frontmatter-corrupt（可修复）／not-utf8／
+        # assembly-failed（不可修复），damage_file 指认坏文件（读取失败等罕见 OSError
+        # 也归 assembly-failed 档——它不是「另存 UTF-8」能修的）。
         try:
-            skill_text = _read_text(directory / _SKILL_MD)
+            skill_text = _read_text(directory / _SKILL_MD, package_hint=_SKILL_MD)
             name, description = parse_skill_frontmatter(skill_text)
+        except SkillNotUtf8Error as exc:
+            skills.append(
+                Skill(
+                    id=sid,
+                    name=_BROKEN_NAME,
+                    description=f"文件损坏：{exc}",
+                    enabled=sid not in disabled,
+                    body_chars=0,
+                    damage_kind="not-utf8",
+                    damage_file=exc.path_hint or _SKILL_MD,
+                )
+            )
+            continue
+        except SkillFormatError as exc:
+            skills.append(
+                Skill(
+                    id=sid,
+                    name=_BROKEN_NAME,
+                    description=f"文件损坏：{exc}",
+                    enabled=sid not in disabled,
+                    body_chars=0,
+                    damage_kind="frontmatter-corrupt",
+                    damage_file=_SKILL_MD,
+                )
+            )
+            continue
         except SkillError as exc:
             skills.append(
                 Skill(
                     id=sid,
-                    name=sid,
+                    name=_BROKEN_NAME,
                     description=f"文件损坏：{exc}",
                     enabled=sid not in disabled,
                     body_chars=0,
+                    damage_kind="assembly-failed",
+                    damage_file=_SKILL_MD,
                 )
             )
             continue
         try:
             body_chars = len(_assemble_skill_body(directory, skill_text))
+        except SkillNotUtf8Error as exc:
+            skills.append(
+                Skill(
+                    id=sid,
+                    name=name,
+                    description=f"文件损坏：{exc}",
+                    enabled=sid not in disabled,
+                    body_chars=0,
+                    damage_kind="not-utf8",
+                    damage_file=exc.path_hint,
+                )
+            )
+            continue
         except SkillError as exc:
             skills.append(
                 Skill(
@@ -387,6 +550,7 @@ def list_skills() -> list[Skill]:
                     description=f"文件损坏：{exc}",
                     enabled=sid not in disabled,
                     body_chars=0,
+                    damage_kind="assembly-failed",
                 )
             )
             continue
@@ -493,7 +657,7 @@ def _assemble_skill_body(skill_dir: Path, skill_md_text: str) -> str:
         ):
             rel = path.relative_to(skill_dir).as_posix()
             sections.append(
-                f'<skill-file path="{rel}">\n{_read_text(path)}\n</skill-file>'
+                f'<skill-file path="{rel}">\n{_read_text(path, package_hint=rel)}\n</skill-file>'
             )
     return "\n\n".join(sections)
 
@@ -794,31 +958,72 @@ def save_skill_file(
     if description is not None:
         if parts != (_SKILL_MD,):
             raise SkillFormatError("描述只能通过 SKILL.md 保存。")
-        parse_skill_frontmatter(content)
-        lines = (
-            content.lstrip(chr(0xFEFF))
-            .replace("\r\n", "\n")
-            .replace("\r", "\n")
-            .splitlines(keepends=True)
-        )
-        end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
-        front = "".join(lines[1:end])
-        node = cast(
-            object,
-            yaml.compose(front, Loader=yaml.SafeLoader),  # pyright: ignore[reportUnknownMemberType]
-        )
-        if not isinstance(node, yaml.MappingNode):
-            raise SkillFormatError("SKILL.md 的 frontmatter 顶层应是映射。")
-        values = [value for key, value in node.value if key.value == "description"]
-        if len(values) != 1:
-            raise SkillFormatError("SKILL.md 必须包含唯一的 description 字段。")
-        value = values[0]
-        replacement = json.dumps(description, ensure_ascii=False)
-        suffix = front[value.end_mark.index :]
-        if not suffix.startswith(("\n", "\r", " ", "\t")):
-            replacement += "\n"
-        front = front[: value.start_mark.index] + replacement + suffix
-        content = "---\n" + front + "---\n" + "".join(lines[end + 1 :])
+        # 字段即修复（2026-10-01 用户裁定案）：磁盘上的 SKILL.md 本就解析不过＝坏包，
+        # 保存改为「重建 frontmatter」——name 用包 ID（改名接口随后落用户的显示名）、
+        # description 用字段值、正文取磁盘原文 frontmatter 之后的部分。存完列表现扫
+        # 现解析即自愈；非坏包路径零改动（新内容解析不过仍 fail loud，不吞用户手误）。
+        disk_text = ""
+        disk_broken = True
+        try:
+            disk_text = _read_text(directory / _SKILL_MD, package_hint=_SKILL_MD)
+            parse_skill_frontmatter(disk_text)
+            disk_broken = False
+        except SkillError:
+            disk_broken = True
+        if disk_broken:
+            normalized_disk = (
+                disk_text.lstrip(chr(0xFEFF)).replace(_CRLF, _LF).replace(_CR, _LF)
+            )
+            disk_lines = normalized_disk.split("\n")
+            if disk_lines and disk_lines[0].strip() == _DELIMITER:
+                end = next(
+                    (
+                        i
+                        for i in range(1, len(disk_lines))
+                        if disk_lines[i].strip() == _DELIMITER
+                    ),
+                    None,
+                )
+                body = (
+                    "\n".join(disk_lines[end + 1 :])
+                    if end is not None
+                    else "\n".join(disk_lines[1:])
+                )
+            else:
+                body = normalized_disk
+            content = (
+                f"{_DELIMITER}\n"
+                f"name: {json.dumps(sid, ensure_ascii=False)}\n"
+                f"description: {json.dumps(description, ensure_ascii=False)}\n"
+                f"{_DELIMITER}\n"
+                f"{body}"
+            )
+        else:
+            parse_skill_frontmatter(content)
+            lines = (
+                content.lstrip(chr(0xFEFF))
+                .replace("\r\n", "\n")
+                .replace("\r", "\n")
+                .splitlines(keepends=True)
+            )
+            end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
+            front = "".join(lines[1:end])
+            node = cast(
+                object,
+                yaml.compose(front, Loader=yaml.SafeLoader),  # pyright: ignore[reportUnknownMemberType]
+            )
+            if not isinstance(node, yaml.MappingNode):
+                raise SkillFormatError("SKILL.md 的 frontmatter 顶层应是映射。")
+            values = [value for key, value in node.value if key.value == "description"]
+            if len(values) != 1:
+                raise SkillFormatError("SKILL.md 必须包含唯一的 description 字段。")
+            value = values[0]
+            replacement = json.dumps(description, ensure_ascii=False)
+            suffix = front[value.end_mark.index :]
+            if not suffix.startswith(("\n", "\r", " ", "\t")):
+                replacement += "\n"
+            front = front[: value.start_mark.index] + replacement + suffix
+            content = "---\n" + front + "---\n" + "".join(lines[end + 1 :])
     if parts == (_SKILL_MD,):
         # frontmatter 必须保持合法（name = 显示名、description 用途说明）；正文随便改。
         parse_skill_frontmatter(content)

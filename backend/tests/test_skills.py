@@ -256,15 +256,15 @@ def test_save_skill_description_preserves_other_metadata(
     [
         "没有 frontmatter 的正文",
         "---\ndescription: 缺 name\n---\n正文",
-        "---\nname: s\ndescription: 123\n---\n正文",
     ],
 )
 def test_save_skill_file_rejects_invalid_metadata(
     temp_data_root: Path, updated: str
 ) -> None:
-    """无效元数据（缺 frontmatter / 缺 name / description 类型错）不能损坏原文件。
+    """无效元数据（缺 frontmatter / 缺 name）不能损坏原文件。
 
-    frontmatter 的 name 改成别的显示名是合法操作（name = 显示名，ID 在目录名上）。
+    frontmatter 的 name 改成别的显示名是合法操作（name = 显示名，ID 在目录名上）；
+    标量一律按字符串解析后，``description: 123`` 已是合法值（字符串 "123"），不再属拒绝档。
     """
     import_skill(_FIXTURE_PACK)
     original = read_skill_file(_FIXTURE_NAME, "SKILL.md")
@@ -330,6 +330,32 @@ def test_parse_missing_description_raises() -> None:
     """缺 description 字段 → SkillFormatError。"""
     with pytest.raises(SkillFormatError, match="description"):
         parse_skill_frontmatter("---\nname: s\n---\n正文\n")
+
+
+def test_parse_tolerates_delimiter_trailing_spaces() -> None:
+    """分隔行带尾随空格不再误报「未闭合」（解析与写侧统一 strip() 口径，只往宽走）。"""
+    text = "--- \nname: s\ndescription: d\n---  \n正文\n"
+
+    assert parse_skill_frontmatter(text) == ("s", "d")
+
+
+def test_parse_leading_blank_line_still_rejected() -> None:
+    """首行前有空行仍属「缺少 frontmatter」（strip() 只容分隔行自身的尾随空白）。"""
+    with pytest.raises(SkillFormatError, match="缺少"):
+        parse_skill_frontmatter("\n---\nname: s\ndescription: d\n---\n正文\n")
+
+
+def test_parse_scalar_values_as_strings() -> None:
+    """frontmatter 标量一律按字符串解析（``yes``/纯数字/ISO 形态不被 YAML 1.1 读成布尔等）。"""
+    text = "---\nname: yes\ndescription: 2026-09-30\n---\n正文\n"
+
+    assert parse_skill_frontmatter(text) == ("yes", "2026-09-30")
+
+
+def test_parse_sequence_description_still_rejected() -> None:
+    """description 是序列（非标量）仍拒——放宽只覆盖标量类型，结构判定不变。"""
+    with pytest.raises(SkillFormatError, match="description"):
+        parse_skill_frontmatter("---\nname: s\ndescription: [1, 2]\n---\n正文\n")
 
 
 def test_import_copies_whole_pack_self_contained(temp_data_root: Path) -> None:
@@ -436,6 +462,136 @@ def test_import_slash_display_name_is_display_only(
     assert not (_skills_dir(temp_data_root) / "bad").exists()
 
 
+def test_import_normalizes_non_utf8_text_files(
+    tmp_path: Path, temp_data_root: Path
+) -> None:
+    """导入时把非 UTF-8 文本文件归一化成 UTF-8（Shift-JIS 探测转码），转码清单随结果带回。
+
+    探测用 Shift-JIS 样本：即使被识别为超集 cp932，解码结果也相同、往返无损。
+    """
+    source = _make_source(tmp_path, "---\nname: sjis-pack\ndescription: d\n---\n正文\n")
+    reference_text = "カタカナの参考内容です"
+    (source / "references" / "sjis.md").write_bytes(reference_text.encode("shift_jis"))
+
+    result = import_skill(source)
+
+    stored = temp_data_root / "skills" / result.skill.id / "references" / "sjis.md"
+    assert stored.read_text(encoding="utf-8") == reference_text
+    assert result.transcoded == [("references/sjis.md", "cp932")]
+    assert result.import_error is None
+
+
+def test_import_binary_files_copied_verbatim(
+    tmp_path: Path, temp_data_root: Path
+) -> None:
+    """真二进制（含 NUL 字节）按字节原样复制、绝不转码。"""
+    source = _make_source(tmp_path, "---\nname: bin-pack\ndescription: d\n---\n正文\n")
+    blob = bytes([0x89, 0x50, 0x4E, 0x47, 0x00, 0x0D, 0x0A, 0xFF])
+    (source / "assets").mkdir()
+    (source / "assets" / "logo.png").write_bytes(blob)
+
+    result = import_skill(source)
+
+    stored = temp_data_root / "skills" / result.skill.id / "assets" / "logo.png"
+    assert stored.read_bytes() == blob
+    assert result.transcoded == []
+
+
+def test_import_unconvertible_text_rejects_whole_pack(
+    tmp_path: Path, temp_data_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """判定为文本但转不成 UTF-8 → 整包拒导入，错误点名文件＋修法（白盒构造转不出的形状）。"""
+
+    class _FakeMatch:
+        """仿 CharsetMatch：声明了编码但 output() 转不出。"""
+
+        encoding = "big5"
+
+        def output(self) -> bytes:
+            raise UnicodeError("转码失败")
+
+    class _FakeResult:
+        def best(self) -> _FakeMatch:
+            return _FakeMatch()
+
+    source = _make_source(tmp_path, "---\nname: bad-enc\ndescription: d\n---\n正文\n")
+    (source / "references" / "weird.md").write_bytes(b"\x87\x54\x87\x55")
+    monkeypatch.setattr(
+        skill_store.charset_normalizer, "from_bytes", lambda _data: _FakeResult()
+    )
+
+    with pytest.raises(SkillFormatError, match="另存为 UTF-8"):
+        import_skill(source)
+
+
+def test_import_broken_frontmatter_enters_library_as_broken_row(
+    tmp_path: Path, temp_data_root: Path
+) -> None:
+    """frontmatter 坏不再拒导入：直接入库为损坏行（占位名），损坏原因随结果带回。"""
+    source = _make_source(tmp_path, "---\ndescription: x\n没有闭合")
+
+    result = import_skill(source)
+
+    assert result.skill.name == "技能已损坏"
+    assert result.skill.damage_kind == "frontmatter-corrupt"
+    assert result.import_error is not None
+    assert "未闭合" in result.import_error
+    assert list_skills()[0].damage_kind == "frontmatter-corrupt"
+
+
+def test_import_files_broken_frontmatter_enters_library_as_broken_row() -> None:
+    """上传路线同一口径：frontmatter 坏直接入库为损坏行，不拒。"""
+    result = import_skill_files({"SKILL.md": b"---\ndescription: x\n\xe6\xb2\xa1"})
+
+    assert result.skill.name == "技能已损坏"
+    assert result.skill.damage_kind == "frontmatter-corrupt"
+    assert result.import_error is not None
+
+
+def test_import_files_normalizes_non_utf8_text() -> None:
+    """上传路线同一口径：非 UTF-8 文本文件归一化成 UTF-8，转码清单随结果带回。"""
+    reference_text = "カタカナの参考内容です"
+
+    result = import_skill_files(
+        {
+            "SKILL.md": "---\nname: sjis-up\ndescription: d\n---\n正文\n".encode(),
+            "references/sjis.md": reference_text.encode("shift_jis"),
+        }
+    )
+
+    assert result.transcoded == [("references/sjis.md", "cp932")]
+    assert read_skill_file(result.skill.id, "references/sjis.md") == reference_text
+
+
+def test_save_skill_file_rebuilds_frontmatter_for_broken_pack(
+    temp_data_root: Path,
+) -> None:
+    """字段即修复：坏包保存时从字段值重建 frontmatter＋保留正文，存完列表即自愈。"""
+    bad_dir = _skills_dir(temp_data_root) / "kBadPack000"
+    bad_dir.mkdir(parents=True)
+    disk_text = "---\ndescription: x\n没有闭合\n正文第一行\n正文第二行"
+    (bad_dir / "SKILL.md").write_text(disk_text, encoding="utf-8")
+
+    save_skill_file(
+        "kBadPack000",
+        "SKILL.md",
+        disk_text,
+        original_content=disk_text,
+        description="修复后的描述",
+    )
+
+    healed = read_skill_file("kBadPack000", "SKILL.md")
+    assert healed.startswith("---\n")
+    assert '"修复后的描述"' in healed
+    assert "正文第一行" in healed
+    assert "正文第二行" in healed
+    skills = list_skills()
+    assert len(skills) == 1
+    assert skills[0].name == "kBadPack000"  # name 先落包 ID，显示名随改名接口落
+    assert skills[0].damage_kind is None  # 现扫现解析即自愈
+    assert skills[0].description == "修复后的描述"
+
+
 def test_list_empty_when_no_dir(temp_data_root: Path) -> None:
     """库目录不存在 → list_skills 返回空列表。"""
     assert list_skills() == []
@@ -480,7 +636,7 @@ def test_list_skips_state_file_and_non_skill_dirs(temp_data_root: Path) -> None:
 
 
 def test_list_skills_degrades_corrupt_package(temp_data_root: Path) -> None:
-    """列表对单个损坏包宽容降级：目录名兜底进列表、description = 可读原因，其余不受影响。"""
+    """列表对单个损坏包宽容降级：占位名「技能已损坏」＋损坏分类进契约，其余不受影响。"""
     import_skill(_FIXTURE_PACK)
     bad_dir = _skills_dir(temp_data_root) / "bad"
     bad_dir.mkdir(parents=True)
@@ -488,12 +644,19 @@ def test_list_skills_degrades_corrupt_package(temp_data_root: Path) -> None:
 
     skills = list_skills()
 
-    assert [s.name for s in skills] == ["bad", _FIXTURE_NAME]
-    broken = skills[0]
+    assert [s.name for s in skills] == [
+        _FIXTURE_NAME,
+        "技能已损坏",
+    ]  # 按名排序，占位名靠后
+    broken = skills[1]
     assert broken.description.startswith("文件损坏：")
     assert "未闭合" in broken.description  # 原因可读：哪里坏
     assert broken.body_chars == 0
-    assert skills[1].description.startswith("示例 skill")  # 好包不受影响
+    assert broken.damage_kind == "frontmatter-corrupt"
+    assert broken.damage_file == "SKILL.md"
+    assert skills[0].description.startswith("示例 skill")  # 好包不受影响
+    assert skills[0].damage_kind is None
+    assert skills[0].damage_file == ""
 
 
 def test_list_skills_corrupt_package_heals_after_fix(temp_data_root: Path) -> None:

@@ -23,6 +23,24 @@ from .errors import PromptParseError
 # frontmatter 分隔符：文件以单独一行 "---" 开头，到下一个单独一行 "---" 结束。
 _DELIMITER = "---"
 
+
+class _StrScalarsLoader(yaml.SafeLoader):
+    """标量一律读成字符串的 SafeLoader（与 skills 侧同源）。
+
+    清掉非 str 隐式解析器，保留 str/merge 隐式解析、显式 ``!!`` 标签与安全限制——
+    ``name: yes`` 是合法显示名，不该被 YAML 1.1 读成布尔。
+    """
+
+
+_StrScalarsLoader.yaml_implicit_resolvers = {
+    prefix: [
+        (tag, regexp)
+        for tag, regexp in resolvers
+        if tag in ("tag:yaml.org,2002:str", "tag:yaml.org,2002:merge")
+    ]
+    for prefix, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+
 # frontmatter 只认这两个字段；出现别的键即报错（挡住手误，如把 description 拼错）。
 # name（显示名）是 2026-09-23 ID 化新增的：旧版条目没有它，由迁移补写。
 _ALLOWED_FRONTMATTER_KEYS = frozenset({"name", "description"})
@@ -88,10 +106,14 @@ def parse_prompt(entry_id: str, text: str, fallback_name: str | None = None) -> 
             或含 name / description 以外的字段。
     """
     label = fallback_name or entry_id
-    if not text.startswith(f"{_DELIMITER}\n"):
-        return Prompt(id=entry_id, name=label, description="", body=text)
     lines = text.split("\n")
-    end = next((i for i in range(1, len(lines)) if lines[i] == _DELIMITER), None)
+    # 分隔行按 strip() 口径（与 skills 侧同一把尺——首行 / 结束行带尾随空格不再两侧
+    # 各一把尺）；frontmatter 标量按字符串解析（name: yes 不再被 YAML 1.1 读成布尔）。
+    if not lines or lines[0].strip() != _DELIMITER:
+        return Prompt(id=entry_id, name=label, description="", body=text)
+    end = next(
+        (i for i in range(1, len(lines)) if lines[i].strip() == _DELIMITER), None
+    )
     if end is None:
         raise PromptParseError(
             f"提示词 {label!r} 的 frontmatter 未闭合（开头有 ---，但找不到结束的 ---）；请补全。"
@@ -99,7 +121,10 @@ def parse_prompt(entry_id: str, text: str, fallback_name: str | None = None) -> 
     front_text = "\n".join(lines[1:end])
     body = "\n".join(lines[end + 1 :])
     try:
-        loaded: object = yaml.safe_load(front_text)
+        loaded: object = yaml.load(  # pyright: ignore[reportUnknownMemberType]
+            front_text,
+            Loader=_StrScalarsLoader,  # noqa: S506 -- SafeLoader 子类，仅去掉标量隐式解析、未放开任何构造器
+        )
     except yaml.YAMLError as exc:
         raise PromptParseError(
             f"提示词 {label!r} 的 frontmatter 不是合法 YAML；请检查语法。"

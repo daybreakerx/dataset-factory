@@ -53,8 +53,10 @@ function PromptMenu({
   /** 名字框承载块：弹层宽下限与贴边方向的基准（族宽三段式）。 */
   wrapRef: RefObject<HTMLDivElement | null>;
   onNew: () => void;
-  onSelect: (name: string) => void;
-  onDelete: (name: string) => void;
+  /** 选中／删除一律传稳定 ID（显示名可重名——两个坏提示词同名占位「提示词已损坏」，
+   *  按 name 寻址会撞键且后端重名解析不到）。 */
+  onSelect: (pid: string) => void;
+  onDelete: (pid: string) => void;
 }): ReactElement {
   const triggerRef = useRef<HTMLButtonElement>(null);
   // 计数不可知（首取中／取数失败）时头行只写库名，不写假计数（overlay.md 头行条）。
@@ -93,7 +95,7 @@ function PromptMenu({
                 onSelect={() => {
                   // 点当前行＝无实质变化，随 Radix 选中默认关层即可（2026-10-05 用户裁）。
                   if (prompt.id === selectedPromptId) return;
-                  onSelect(prompt.name);
+                  onSelect(prompt.id);
                 }}
               >
                 <CfgPopRowMain
@@ -106,7 +108,7 @@ function PromptMenu({
                   label={`删除提示词 ${prompt.name}`}
                   tip="删除"
                   icon={<Trash2Icon />}
-                  onClick={() => onDelete(prompt.name)}
+                  onClick={() => onDelete(prompt.id)}
                 />
               </CfgPopRow>
             ))

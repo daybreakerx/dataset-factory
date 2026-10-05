@@ -3,9 +3,10 @@
  * 草稿与反馈状态、命令回调（启停 / 导入 / 删除 / 存文件 / 改名）住这里；
  * 展示块拆在同目录：skill-list / skill-detail（内嵌包内容胶囊）/ import-dialog /
  * delete-dialog；列表查询收拢在 use-skills（命令类留调用点）。
+ * 寻址一律用 skill ID（显示名可重名——坏包占位名「技能已损坏」可同名撞键）。
  */
 import type { ReactElement } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SkillFileInfo, SkillImportResponse, SkillInfo } from "../../../api";
 import { api } from "../../../api";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
@@ -20,6 +21,7 @@ import { ImportDialog } from "./import-dialog";
 import { SkillDetail } from "./skill-detail";
 import { readSkillDrop } from "./skill-drop";
 import { SkillList } from "./skill-list";
+import { rescueSkillFrontmatter } from "./skill-rescue";
 import { useSkills } from "./use-skills";
 
 export function SkillsPanel({
@@ -36,8 +38,10 @@ export function SkillsPanel({
   const [previewPath, setPreviewPath] = useState("");
   const [previewContent, setPreviewContent] = useState("");
   const [originalContent, setOriginalContent] = useState("");
+  /** SKILL.md 的磁盘原文（抢救预填的输入；描述行的取值不随预览文件切换丢失）。 */
+  const [skillMdOriginal, setSkillMdOriginal] = useState("");
   const [descriptionDraft, setDescriptionDraft] = useState<string | null>(null);
-  /** 名称草稿：null = 未改动。改名走独立接口（`POST /api/skills/{name}/rename`），不混在存文件里。 */
+  /** 名称草稿：null = 未改动。改名走独立接口（`POST /api/skills/{id}/rename`），不混在存文件里。 */
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -54,9 +58,11 @@ export function SkillsPanel({
   const [unsavedError, setUnsavedError] = useState("");
   const [unsavedBusy, setUnsavedBusy] = useState(false);
   const [leaveAction, setLeaveAction] = useState<
-    { kind: "pick"; name: string } | { kind: "preview"; path: string } | null
+    { kind: "pick"; id: string } | { kind: "preview"; path: string } | null
   >(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  // 头行消息槽的「保存被拦」消息（对齐批「头行消息槽」条④）：红字、下一次操作互斥替换。
+  const [headBlocked, setHeadBlocked] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   // 删除飞行期与失败行：提交后回包前两钮只失效不换装；业务错误就地进弹窗
   // （弹窗保持打开），连接类失败由 reportError 改走浮层（稿 弹窗壳「环境类失败」）。
@@ -82,7 +88,7 @@ export function SkillsPanel({
     const list = await fetchSkills();
     // 首次加载默认选中第一个技能（详情区直接有内容；用户可再点选其他）。
     setSelected((current) =>
-      current === "" && list.length > 0 ? (list[0]?.name ?? "") : current,
+      current === "" && list.length > 0 ? (list[0]?.id ?? "") : current,
     );
   }, [fetchSkills]);
 
@@ -94,6 +100,8 @@ export function SkillsPanel({
   // 但 frontmatter 被重写过，重读一次才拿得到磁盘上的真基线。
   useEffect(() => {
     setNameDraft(null);
+    setHeadBlocked(null);
+    setSkillMdOriginal("");
     const generation = ++previewGeneration.current;
     setPreviewPath("");
     setPreviewContent("");
@@ -121,6 +129,7 @@ export function SkillsPanel({
             setPreviewPath(first.path);
             setPreviewContent(content.content);
             setOriginalContent(content.content);
+            if (first.path === "SKILL.md") setSkillMdOriginal(content.content);
           }
         }
       } catch (err) {
@@ -138,18 +147,56 @@ export function SkillsPanel({
     };
   }, [selected, fail]);
 
-  const current = skills.find((item) => item.name === selected);
+  const current = skills.find((item) => item.id === selected);
 
-  const pick = (name: string): void => {
+  // ---------- 字段即修复（稿 技能详情头「损坏态」）：抢救预填与头行消息槽 ----------
+  // 可修复档（frontmatter 坏但 SKILL.md 可读）：名字框 / 描述框显示抢救值（正则从原文捞回，
+  // 保存走后端重建 frontmatter 分支）；救不出 → 留空待填、槽提示「无法解析名称/描述」。
+  const skillMdRescue = useMemo(
+    () => rescueSkillFrontmatter(skillMdOriginal),
+    [skillMdOriginal],
+  );
+  const fixable = current?.damage_kind === "frontmatter-corrupt";
+  const nameDefault = fixable ? (skillMdRescue.name ?? "") : (current?.name ?? "");
+  const descriptionDefault = fixable
+    ? (skillMdRescue.description ?? "")
+    : (current?.description ?? "");
+  const rescueFailed =
+    fixable &&
+    skillMdRescue.name === undefined &&
+    skillMdRescue.description === undefined;
+
+  // 头行消息槽内容（一槽一消息、互斥替换）：保存被拦（bad）＞ 损坏档常态（warn／bad）。
+  // assembly-failed（包体组装失败等）的槽文案稿未承载——不占槽，原因走列表图标 Tip（挂账呈报）。
+  let headNote: { kind: "warn" | "bad"; text: string } | null = null;
+  if (headBlocked !== null) {
+    headNote = { kind: "bad", text: headBlocked };
+  } else if (current !== undefined) {
+    if (current.damage_kind === "frontmatter-corrupt") {
+      headNote = rescueFailed
+        ? { kind: "warn", text: "无法解析名称/描述" }
+        : { kind: "warn", text: "技能包损坏，重新编辑名称和描述后保存即可修复" };
+    } else if (current.damage_kind === "not-utf8") {
+      headNote = {
+        kind: "bad",
+        text:
+          current.damage_file === "" || current.damage_file === "SKILL.md"
+            ? "SKILL.md 不是 UTF-8 编码，请在编辑器中另存为 UTF-8"
+            : `${current.damage_file} 不是 UTF-8 编码，请在编辑器中另存为 UTF-8`,
+      };
+    }
+  }
+
+  const pick = (sid: string): void => {
     if (saving || savePending.current) return;
     // dirty 时点其他行：由未保存确认弹窗兜底（dirty 语义改写——动作照常可点）。
     if (dirty) {
-      setLeaveAction({ kind: "pick", name });
+      setLeaveAction({ kind: "pick", id: sid });
       setUnsavedError("");
       setUnsavedOpen(true);
       return;
     }
-    setSelected(name);
+    setSelected(sid);
     setFeedback(null);
   };
 
@@ -158,7 +205,7 @@ export function SkillsPanel({
     togglePending.current = true;
     setToggling(true);
     try {
-      await api.setSkillEnabled(skill.name, !skill.enabled);
+      await api.setSkillEnabled(skill.id, !skill.enabled);
       await reload();
     } catch (err) {
       fail(err);
@@ -168,19 +215,33 @@ export function SkillsPanel({
     }
   };
 
-  const applyImportResult = (result: SkillImportResponse): void => {
+  /** 导入反馈：损坏行入库（frontmatter 坏不再拒）→ 警告条按来源名指认；正常 → 成功条
+   *  （转码注明「N 个文件已从 〈编码〉 转为 UTF-8」，随「导入时归一化」条）。 */
+  const applyImportResult = (result: SkillImportResponse, sourceName: string): void => {
+    setSelected(result.id);
+    if (result.import_error !== null) {
+      setFeedback({
+        kind: "warn",
+        text: `已导入「${sourceName}」，技能名称和描述无法解析，可在技能详情里修复。`,
+      });
+      return;
+    }
     const sizeText = formatBytes(result.total_bytes, "KiB", 1);
+    const encodings = [...new Set(result.transcoded.map((t) => t.from_encoding))];
+    const transcodeNote =
+      result.transcoded.length > 0
+        ? `；${result.transcoded.length} 个文件已从 ${encodings.join("、")} 转为 UTF-8`
+        : "";
     setFeedback({
       kind: "success",
-      text: `已导入「${result.name}」（${sizeText}——skill 全文将注入打标请求，体积偏大时留意 token 消耗）`,
+      text: `已导入「${result.name}」（${sizeText}——skill 全文将注入打标请求，体积偏大时留意 token 消耗${transcodeNote}）`,
     });
-    setSelected(result.name);
   };
 
   const doImport = async (picked: File[]): Promise<void> => {
     setImporting(true);
     try {
-      applyImportResult(await api.importSkillFiles(picked));
+      applyImportResult(await api.importSkillFiles(picked), picked[0]?.name ?? "");
       await reload();
     } catch (err) {
       fail(err);
@@ -195,7 +256,7 @@ export function SkillsPanel({
     }
     setImporting(true);
     try {
-      applyImportResult(await api.importSkillFile(picked));
+      applyImportResult(await api.importSkillFile(picked), picked.name);
       await reload();
     } catch (err) {
       fail(err);
@@ -211,7 +272,7 @@ export function SkillsPanel({
     }
     setImporting(true);
     try {
-      applyImportResult(await api.importSkill(path));
+      applyImportResult(await api.importSkill(path), path.split(/[\\/]/).pop() ?? path);
       setPathValue("");
       await reload();
     } catch (err) {
@@ -251,7 +312,7 @@ export function SkillsPanel({
     try {
       await api.deleteSkill(selected);
       setDeleteDialogOpen(false);
-      setFeedback({ kind: "success", text: `已删除「${selected}」` });
+      setFeedback({ kind: "success", text: `已删除「${current?.name ?? selected}」` });
       setSelected("");
       await reload();
     } catch (err) {
@@ -285,6 +346,7 @@ export function SkillsPanel({
       setPreviewPath(path);
       setPreviewContent(content.content);
       setOriginalContent(content.content);
+      if (path === "SKILL.md") setSkillMdOriginal(content.content);
       setDescriptionDraft(null);
     } catch (err) {
       if (generation === previewGeneration.current) fail(err);
@@ -305,7 +367,7 @@ export function SkillsPanel({
     action: NonNullable<typeof leaveAction>,
   ): Promise<void> => {
     if (action.kind === "pick") {
-      setSelected(action.name);
+      setSelected(action.id);
       setFeedback(null);
       return;
     }
@@ -317,6 +379,7 @@ export function SkillsPanel({
       setPreviewPath(action.path);
       setPreviewContent(content.content);
       setOriginalContent(content.content);
+      if (action.path === "SKILL.md") setSkillMdOriginal(content.content);
       setDescriptionDraft(null);
     } catch (err) {
       if (generation === previewGeneration.current) fail(err);
@@ -362,15 +425,17 @@ export function SkillsPanel({
   };
 
   const save = async (): Promise<{ ok: boolean; error: string }> => {
-    if (savePending.current || loadingPreview || !dirty) {
+    if (savePending.current || loadingPreview || !dirty || current === undefined) {
       return { ok: false, error: "" };
     }
-    const nextName = (nameDraft ?? selected).trim();
+    // 名字提交值 = 草稿 ?? 显示默认值（坏包＝抢救值，救不出为空串 → 空名拦截）。
+    const nextName = (nameDraft ?? nameDefault).trim();
     if (nextName === "") {
-      setFeedback({ kind: "error", text: "名称不能为空；请填写技能名称。" });
-      return { ok: false, error: "名称不能为空；请填写技能名称。" };
+      const message = "名称不能为空；请填写技能名称。";
+      setHeadBlocked(message);
+      return { ok: false, error: message };
     }
-    const renamed = nextName !== selected;
+    const renamed = nextName !== current.name;
     savePending.current = true;
     setSaving(true);
     const generation = previewGeneration.current;
@@ -378,21 +443,38 @@ export function SkillsPanel({
       const result = await api.saveSkillFile(selected, previewPath, {
         content: previewContent,
         original_content: originalContent,
-        ...(descriptionDraft !== null ? { description: descriptionDraft } : {}),
+        // 坏包必须带 description（后端靠它走「重建 frontmatter」分支即修复）；健康包
+        // 只在改动时带（不吞用户没动过的值）。
+        ...(descriptionDraft !== null || fixable
+          ? { description: descriptionDraft ?? descriptionDefault }
+          : {}),
       });
       if (generation !== previewGeneration.current) {
         return { ok: false, error: "" };
       }
-      setPreviewContent(result.content);
-      setOriginalContent(result.content);
-      setDescriptionDraft(null);
       if (renamed) {
         // 改名排在存内容之后：改名会重写 SKILL.md 的 frontmatter（name 与目录名一起换），
-        // 先改名就让刚读到的并发基线失效了（实测 PUT 当场 400）。换完名由选中项变化触发
-        // 重读，编辑器里看到的是磁盘上带新名的正文，下一次保存的基线也就对了。
+        // 先改名就让刚读到的并发基线失效了（实测 PUT 当场 400）。坏包同路：重建分支
+        // 先落标准 frontmatter（name 暂用包 ID），改名接口随后落用户的显示名。
         await api.renameSkill(selected, { new_name: nextName });
-        setSelected(nextName);
       }
+      const finalContent =
+        renamed && previewPath !== ""
+          ? (await api.readSkillFile(selected, previewPath)).content
+          : result.content;
+      if (generation !== previewGeneration.current) {
+        return { ok: false, error: "" };
+      }
+      // 改名重写了 frontmatter 的 name 字段——显式重读拿磁盘真基线（选中是 ID、不再
+      // 变化，原「选中变化触发重读」的机制不再触发）。
+      setPreviewContent(finalContent);
+      setOriginalContent(finalContent);
+      setDescriptionDraft(null);
+      setNameDraft(null);
+      setHeadBlocked(null);
+      if (previewPath === "SKILL.md") setSkillMdOriginal(finalContent);
+      // 成功句仍走面板反馈条（槽不常显成功句——稿 技能详情头「保存提交 · 成功」）；
+      // 「已保存→详情头槽」的落位随批 14 反馈归一（E 位对位表 --ok）。
       setFeedback({
         kind: "success",
         text: renamed ? `已保存并改名为「${nextName}」` : "已保存",
@@ -471,17 +553,27 @@ export function SkillsPanel({
         className="vscroll-y flex min-w-0 shrink-0 flex-1 flex-col border-t border-border p-4 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l lg:px-8 lg:py-6"
       >
         {!importOpen && feedback !== null && (
-          <Alert variant={feedback.kind === "error" ? "destructive" : "success"}>
+          <Alert
+            variant={
+              feedback.kind === "error"
+                ? "destructive"
+                : feedback.kind === "warn"
+                  ? "warn"
+                  : "success"
+            }
+          >
             <AlertDescription>{feedback.text}</AlertDescription>
           </Alert>
         )}
         {current !== undefined ? (
           <SkillDetail
-            current={current}
             nameDraft={nameDraft}
-            onNameChange={(value) =>
-              setNameDraft(value === current.name ? null : value)
-            }
+            nameDefault={nameDefault}
+            onNameChange={(value) => {
+              // 改正名字即清「保存被拦」消息（稿：改正后回常态消息）。
+              setHeadBlocked(null);
+              setNameDraft(value === nameDefault ? null : value);
+            }}
             saving={saving}
             loadingPreview={loadingPreview}
             dirty={dirty}
@@ -492,9 +584,11 @@ export function SkillsPanel({
             previewContent={previewContent}
             onPreviewChange={setPreviewContent}
             descriptionDraft={descriptionDraft}
+            descriptionDefault={descriptionDefault}
             onDescriptionChange={(value) =>
-              setDescriptionDraft(value === current.description ? null : value)
+              setDescriptionDraft(value === descriptionDefault ? null : value)
             }
+            headNote={headNote}
             onSave={() => void save()}
           />
         ) : (
@@ -532,7 +626,7 @@ export function SkillsPanel({
             setDeleteError("");
           }
         }}
-        target={selected}
+        target={current?.name ?? selected}
         flight={deleting}
         error={deleteError}
         onConfirm={() => void remove()}
