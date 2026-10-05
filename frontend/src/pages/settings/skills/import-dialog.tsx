@@ -150,6 +150,7 @@ export function ImportDialog({
           </Button>
         </div>
         {feedback !== null && (
+          // 上距归 space-y 刻度（--s-3）：mt-2 与 space-y-3 叠加成 20px 属刻度外（对齐批连带）。
           <Alert
             variant={
               feedback.kind === "error"
@@ -158,7 +159,6 @@ export function ImportDialog({
                   ? "warn"
                   : "success"
             }
-            className="mt-2"
           >
             <AlertDescription>{feedback.text}</AlertDescription>
           </Alert>
