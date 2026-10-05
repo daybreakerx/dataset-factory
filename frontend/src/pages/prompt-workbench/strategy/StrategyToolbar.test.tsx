@@ -34,9 +34,12 @@ const strategy: components["schemas"]["StrategyView"] = {
   endpoint_id: "e-default-x1",
   prompt_id: "p-caption-01",
   skill_ids: [],
+  endpoint_name: "",
+  prompt_name: "",
   body_chars: 12_400,
   available: true,
   missing_refs: [],
+  damaged: false,
   created_at: "2026-09-01T00:00:00Z",
   updated_at: "2026-09-01T00:00:00Z",
 };

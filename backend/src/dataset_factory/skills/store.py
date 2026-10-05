@@ -322,7 +322,7 @@ def import_skill(source: Path) -> SkillImport:
     skill_md = source / _SKILL_MD
     if not skill_md.is_file():
         raise SkillFormatError(
-            f"导入源 {source} 缺少 {_SKILL_MD}；不是合法的 agentskills.io skill 包。"
+            f"导入源 {source} 缺少 {_SKILL_MD}；请选择包含 {_SKILL_MD} 的 skill 文件夹导入。"
         )
     skills_root = _skills_dir()
     sid = _generate_id()
@@ -351,7 +351,7 @@ def import_skill(source: Path) -> SkillImport:
         # SKILL.md 本身非 UTF-8 且探测不出可靠转码——文本都读不出，拒（与「文本转不成
         # UTF-8 就拒」同一档；二进制判别已在前置归一化里处理，走到这里即坏到底）。
         raise SkillFormatError(
-            f"{_SKILL_MD} 不是合法 UTF-8 文本；文件可能已损坏。"
+            f"{_SKILL_MD} 不是合法 UTF-8 文本；请用编辑器另存为 UTF-8 后重试。"
         ) from exc
     except SkillError as exc:
         damage_kind = "frontmatter-corrupt"
@@ -407,7 +407,8 @@ def import_skill_files(files: Mapping[str, bytes]) -> SkillImport:
         skill_md_text = normalized[_SKILL_MD].decode("utf-8")
     except UnicodeDecodeError as exc:
         raise SkillFormatError(
-            f"{_SKILL_MD} 不是合法 UTF-8 文本；文件可能已损坏（转码后仍读不出）。"
+            f"{_SKILL_MD} 不是合法 UTF-8 文本（转码后仍读不出）；"
+            "请用编辑器另存为 UTF-8 后重试。"
         ) from exc
     skills_root = _skills_dir()
     sid = _generate_id()

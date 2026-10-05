@@ -184,14 +184,15 @@ def test_library_create_with_missing_ref_returns_problem_json(
 def test_library_health_shows_missing_refs_after_delete(
     client: TestClient, assets: None
 ) -> None:
-    """提示词被删 → 列表里该策略 available=False 且 missing_refs 有原因。"""
+    """提示词被删 → 列表里该策略 available=False；缺失描述用引用名快照指认。"""
     entry = client.post("/api/strategies", json=_strategy_payload()).json()
     delete_prompt("详细描述")
 
     body = client.get(f"/api/strategies/{entry['id']}").json()
 
     assert body["available"] is False
-    assert body["missing_refs"] == [f"基础提示词「{body['prompt_id']}」不存在"]
+    assert body["prompt_name"] == "详细描述"
+    assert body["missing_refs"] == ["基础提示词「详细描述」不存在"]
 
 
 def test_library_unknown_id_returns_problem_json_404(
@@ -202,6 +203,70 @@ def test_library_unknown_id_returns_problem_json_404(
 
     assert response.status_code == 404
     assert response.json()["type"] == "strategy-not-found"
+
+
+def test_library_list_degrades_damaged_file(
+    client: TestClient, assets: None, temp_data_root: Path
+) -> None:
+    """坏文件不拦整库：损坏条目以文件名去 .json 进列表，damaged=True、available=False。"""
+    created = client.post("/api/strategies", json=_strategy_payload()).json()
+    (temp_data_root / "strategies" / "broken.json").write_text(
+        "{not json", encoding="utf-8"
+    )
+
+    response = client.get("/api/strategies")
+
+    assert response.status_code == 200
+    entries = response.json()
+    broken = next(item for item in entries if item["damaged"])
+    assert broken["id"] == "broken"
+    assert broken["name"] == "broken"
+    assert broken["available"] is False
+    healthy = next(item for item in entries if not item["damaged"])
+    assert healthy["id"] == created["id"]
+
+
+def test_library_delete_damaged_file_by_name_succeeds(
+    client: TestClient, assets: None, temp_data_root: Path
+) -> None:
+    """损坏条目的删除：按文件名删、不读内容 → 204，列表即恢复可用。"""
+    strategies_dir = temp_data_root / "strategies"
+    strategies_dir.mkdir(exist_ok=True)
+    broken = strategies_dir / "broken.json"
+    broken.write_text("{not json", encoding="utf-8")
+
+    response = client.delete("/api/strategies/broken")
+
+    assert response.status_code == 204
+    assert not broken.exists()
+    assert client.get("/api/strategies").status_code == 200
+
+
+def test_library_delete_conflict_mentions_generating_reply(
+    client: TestClient, assets: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """删除 409 的文案点真实场景：调试对话正在生成回复（strategy-session-busy）。"""
+    entry = client.post("/api/strategies", json=_strategy_payload()).json()
+
+    def fake_bucket(_strategy_id: str) -> list[str]:
+        """桩：该策略名下有一个会话。"""
+        return ["sess-1"]
+
+    def fake_active() -> frozenset[str]:
+        """桩：该会话正有一轮生成回复在途。"""
+        return frozenset({"sess-1"})
+
+    monkeypatch.setattr(
+        "dataset_factory.api.routes_strategies.sessions_for_strategy", fake_bucket
+    )
+    monkeypatch.setattr(
+        "dataset_factory.api.routes_strategies.active_session_ids", fake_active
+    )
+
+    response = client.delete(f"/api/strategies/{entry['id']}")
+
+    assert response.status_code == 409
+    assert "调试对话正在生成回复" in response.json()["detail"]
 
 
 # --------------------------------------------------------------------------

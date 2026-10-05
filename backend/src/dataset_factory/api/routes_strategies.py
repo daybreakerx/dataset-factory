@@ -105,7 +105,15 @@ def _strategy_body_chars(
 def _to_strategy_view(
     entry: LibraryStrategy, skill_chars: dict[str, int] | None = None
 ) -> StrategyView:
-    """库策略 → 响应模型（健康度与注入字数现查）。"""
+    """库策略 → 响应模型（健康度与注入字数现查；损坏条目降级呈现）。
+
+    损坏条目没有可现查的组合（引用与字数字段为空壳），直接给 available=False、
+    空缺失清单与 0 字数——缺失处置走损坏条目的删除确认弹窗，不经引用缺失流程。
+    """
+    if entry.damaged:
+        return StrategyView.model_validate(
+            asdict(entry) | {"available": False, "missing_refs": [], "body_chars": 0}
+        )
     problems = missing_refs(entry)
     return StrategyView.model_validate(
         asdict(entry)
@@ -241,22 +249,24 @@ def update_library_entry(strategy_id: str, body: StrategySaveRequest) -> Strateg
     status_code=204,
     responses={
         404: problem("库策略不存在（problem+json: strategy-not-found）"),
-        409: problem("策略的会话正在打标（problem+json: strategy-session-busy）"),
+        409: problem(
+            "策略的调试对话正在生成回复（problem+json: strategy-session-busy）"
+        ),
     },
 )
 def delete_library_entry(strategy_id: str) -> Response:
     """删除库策略（已应用的批次不受影响——copy-on-apply 持有内容副本）。
 
     级联删除（会话归属 v3 用户定夺）：该策略名下的会话一并删除（滚动保留后至多一份
-    + 可能的失败半截会话）——用户明确不要孤儿会话。删除前检查进行中的打标轮次，
-    有则 409 拒绝整次删除（策略与会话同进退，不删一半）。
+    + 可能的失败半截会话）——用户明确不要孤儿会话。删除前检查该策略调试对话里正在
+    生成回复的轮次，有则 409 拒绝整次删除（策略与会话同进退，不删一半）。
     """
     bucket = sessions_for_strategy(strategy_id)
     running = sorted(set(bucket) & active_session_ids())
     if running:
         raise HTTPException(
             status_code=409,
-            detail="该策略的会话正在打标，请等本轮结束或停止后再删除策略。",
+            detail="该策略的调试对话正在生成回复，请等本轮结束后再删除策略。",
         )
     for session_id in bucket:
         try:

@@ -684,8 +684,8 @@ export interface paths {
          * @description 删除库策略（已应用的批次不受影响——copy-on-apply 持有内容副本）。
          *
          *     级联删除（会话归属 v3 用户定夺）：该策略名下的会话一并删除（滚动保留后至多一份
-         *     + 可能的失败半截会话）——用户明确不要孤儿会话。删除前检查进行中的打标轮次，
-         *     有则 409 拒绝整次删除（策略与会话同进退，不删一半）。
+         *     + 可能的失败半截会话）——用户明确不要孤儿会话。删除前检查该策略调试对话里正在
+         *     生成回复的轮次，有则 409 拒绝整次删除（策略与会话同进退，不删一半）。
          */
         delete: operations["delete_library_entry_api_strategies__strategy_id__delete"];
         options?: never;
@@ -3373,7 +3373,8 @@ export interface components {
          *
          *     available = 引用健康度（现查）：任一引用（端点配置 / 提示词 / Skill）已不存在
          *     则为 False，missing_refs 给出缺失清单（界面置灰、禁止应用、走重新指定）。
-         *     引用一律存各资产的稳定 ID（2026-09-23 ID 化；显示名由前端从各资产列表现查）。
+         *     引用一律存各资产的稳定 ID（2026-09-23 ID 化；显示名由前端从各资产列表现查），
+         *     同时携带保存时刻的引用名快照——缺失位的兜底展示（资产已删时名字无处现查）。
          */
         StrategyView: {
             /**
@@ -3392,6 +3393,12 @@ export interface components {
              */
             created_at: string;
             /**
+             * Damaged
+             * @description 库策略文件损坏标记：True = 条目由损坏文件降级而来，仅 id / name（文件名去 .json）有意义，available 恒 False、引用与字数无意义
+             * @default false
+             */
+            damaged: boolean;
+            /**
              * Description
              * @description 说明文字
              */
@@ -3401,6 +3408,12 @@ export interface components {
              * @description 端点配置 ID 引用
              */
             endpoint_id: string;
+            /**
+             * Endpoint Name
+             * @description 引用名快照：保存时刻的端点显示名（引用缺失时兜底展示；健康时以现查为准，旧文件为空串）
+             * @default
+             */
+            endpoint_name: string;
             /**
              * Id
              * @description 库策略 ID（内部稳定标识，改名不变）
@@ -3422,10 +3435,21 @@ export interface components {
              */
             prompt_id: string;
             /**
+             * Prompt Name
+             * @description 引用名快照：保存时刻的基础提示词显示名（同上）
+             * @default
+             */
+            prompt_name: string;
+            /**
              * Skill Ids
              * @description 启用 Skill ID 引用清单（有序）
              */
             skill_ids: string[];
+            /**
+             * Skill Names
+             * @description 引用名快照：保存时刻的各 Skill 显示名（与 skill_ids 同序；同上）
+             */
+            skill_names?: string[];
             /**
              * Updated At
              * @description 最近更新时刻（UTC ISO 8601）
@@ -5317,7 +5341,7 @@ export interface operations {
                     "application/problem+json": unknown;
                 };
             };
-            /** @description 策略的会话正在打标（problem+json: strategy-session-busy） */
+            /** @description 策略的调试对话正在生成回复（problem+json: strategy-session-busy） */
             409: {
                 headers: {
                     [name: string]: unknown;

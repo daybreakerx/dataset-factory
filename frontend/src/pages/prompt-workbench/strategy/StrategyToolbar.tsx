@@ -298,10 +298,19 @@ export function StrategyToolbar({
    *  放弃路在清空草稿的同一拍调用，不能回走 choose（闭包里还是清空前的状态）。 */
   const performSwitch = async (entry: Strategy): Promise<void> => {
     if (pending.current || loading) return;
+    if (entry.damaged) {
+      // 损坏条目（对齐批「策略库损坏降级」）：没有可切换的组合，点行 = 走删除
+      // 确认弹窗（损坏条目版）——不立「重新指定·文件损坏态」（没东西可重指）。
+      setRemove(entry);
+      setOpen(false);
+      return;
+    }
     if (!entry.available) {
+      // 缺失引用位的选择器初始为空（对齐批「重新指定弹窗缺失选择器初始为空」）：
+      // 不预选悬空值，确认钮在两选择器都选到现存资产前禁用；Skill 勾选沿用现值。
       setBindings({
-        endpoint_id: entry.endpoint_id,
-        prompt_id: entry.prompt_id,
+        endpoint_id: "",
+        prompt_id: "",
         skill_ids: entry.skill_ids,
       });
       setRepair(entry);
@@ -512,77 +521,83 @@ export function StrategyToolbar({
             }}
           />
         </div>
-        <input
-          aria-label="策略描述"
-          placeholder="适用场景与写作风格"
-          value={description}
-          disabled={busy}
-          onChange={(event) => {
-            selectionTouched.current = true;
-            setDescription(event.currentTarget.value);
-          }}
-          onBlur={() => queueAutoSave("edit")}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              queueAutoSave("edit");
-            }
-          }}
-          className="min-w-24 max-w-full field-sizing-content rounded-md border border-transparent bg-transparent px-2 py-1 text-t-md text-text-3 hover:border-border hover:bg-card focus:border-input"
-        />
-        {error !== "" && remove === null && repair === null && (
-          // 行内失败槽（保存钮稿「失败提示行」；与切换／复制失败同槽共用）：
-          // note-inline--bad 等价类——单行省略＋悬停给全文；下一次保存成功即清。
-          <Tip label={error}>
-            <span
-              role="alert"
-              className="min-w-[200px] max-w-full truncate text-t-sm text-bad-ink"
-            >
-              {error}
-            </span>
-          </Tip>
-        )}
-        {createdFlash ? (
-          // 创建成功的原地反馈（保存钮稿「创建 · 成功」）：无底绿色对勾、读屏播报、
-          // 三秒自动消失。放在 selected 条件外——创建成功即选中（selected 已更新），
-          // 对勾仍要驻留三秒。
-          <CheckIcon
-            aria-label="已创建"
-            role="status"
-            className="size-4 shrink-0 text-ok-ink"
+        {/* 两行制折行（对齐批「行折行两行制」，稿侧 .wt-tail 的等价 Tailwind 结构）：
+            描述框＋失败槽＋右侧钮包进不可折行分组一体同行（内部永不折行、保存钮恒在
+            行尾），窄到放不下才整体落到第二行；最左的名字框独行。min-w-144 = desc
+            min 96＋gap 8＋保存钮实宽 40 的折行底线。 */}
+        <div className="flex min-w-[144px] flex-1 items-center gap-2">
+          <input
+            aria-label="策略描述"
+            placeholder="适用场景与写作风格"
+            value={description}
+            disabled={busy}
+            onChange={(event) => {
+              selectionTouched.current = true;
+              setDescription(event.currentTarget.value);
+            }}
+            onBlur={() => queueAutoSave("edit")}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                queueAutoSave("edit");
+              }
+            }}
+            className="min-w-24 max-w-[420px] field-sizing-content rounded-md border border-transparent bg-transparent px-2 py-1 text-t-md text-text-3 hover:border-border hover:bg-card focus:border-input"
           />
-        ) : (
-          selected === null && (
-            // 显式创建（保存钮稿「创建态」）：仅新建策略态渲染，占原保存钮位置。
-            <>
-              <span className="hidden flex-1 sm:block" />
-              <Tip
-                label={
-                  name.trim() === ""
-                    ? "请填写策略名称"
-                    : !references.prompt_id || !references.endpoint_id
-                      ? "请先选择端点和提示词"
-                      : ""
-                }
+          {error !== "" && remove === null && repair === null && (
+            // 行内失败槽（保存钮稿「失败提示行」；与切换／复制失败同槽共用）：
+            // note-inline--bad 等价类——单行省略＋悬停给全文；下一次保存成功即清。
+            <Tip label={error}>
+              <span
+                role="alert"
+                className="min-w-[200px] max-w-full truncate text-t-sm text-bad-ink"
               >
-                <Button
-                  size="sm"
-                  disabled={
-                    !name.trim() || !references.prompt_id || !references.endpoint_id
+                {error}
+              </span>
+            </Tip>
+          )}
+          {createdFlash ? (
+            // 创建成功的原地反馈（保存钮稿「创建 · 成功」）：无底绿色对勾、读屏播报、
+            // 三秒自动消失。放在 selected 条件外——创建成功即选中（selected 已更新），
+            // 对勾仍要驻留三秒。
+            <CheckIcon
+              aria-label="已创建"
+              role="status"
+              className="size-4 shrink-0 text-ok-ink"
+            />
+          ) : (
+            selected === null && (
+              // 显式创建（保存钮稿「创建态」）：仅新建策略态渲染，占原保存钮位置。
+              <>
+                <span className="hidden flex-1 sm:block" />
+                <Tip
+                  label={
+                    name.trim() === ""
+                      ? "请填写策略名称"
+                      : !references.prompt_id || !references.endpoint_id
+                        ? "请先选择端点和提示词"
+                        : ""
                   }
-                  aria-disabled={busy || undefined}
-                  className={busy ? "pointer-events-none" : undefined}
-                  onClick={() => {
-                    if (busy) return;
-                    create();
-                  }}
                 >
-                  创建
-                </Button>
-              </Tip>
-            </>
-          )
-        )}
+                  <Button
+                    size="sm"
+                    disabled={
+                      !name.trim() || !references.prompt_id || !references.endpoint_id
+                    }
+                    aria-disabled={busy || undefined}
+                    className={busy ? "pointer-events-none" : undefined}
+                    onClick={() => {
+                      if (busy) return;
+                      create();
+                    }}
+                  >
+                    创建
+                  </Button>
+                </Tip>
+              </>
+            )
+          )}
+        </div>
       </div>
       <DialogShell
         open={remove !== null}
@@ -590,8 +605,18 @@ export function StrategyToolbar({
         onOpenChange={(open) => {
           if (!open) setRemove(null);
         }}
-        title={<>删除策略「{remove?.name}」？</>}
-        description="已应用到工作目录的快照不受影响；被引用的提示词与 Skill 不会被删除。"
+        title={
+          remove?.damaged ? (
+            <>删除损坏的策略条目？</>
+          ) : (
+            <>删除策略「{remove?.name}」？</>
+          )
+        }
+        description={
+          remove?.damaged
+            ? "该策略文件已损坏，内容无法读取。"
+            : "已应用到工作目录的快照不受影响；被引用的提示词与 Skill 不会被删除。"
+        }
         note="此操作不可撤销"
         flight={busy}
         closeTip={busy ? "关闭不等于撤销删除" : ""}
@@ -672,12 +697,8 @@ export function StrategyToolbar({
               <SelectValue placeholder="选择端点" />
             </SelectTrigger>
             <SelectContent>
-              {!endpoints.some((entry) => entry.id === bindings.endpoint_id) &&
-                bindings.endpoint_id !== "" && (
-                  <SelectItem value={bindings.endpoint_id} disabled>
-                    {bindings.endpoint_id}（缺失）
-                  </SelectItem>
-                )}
+              {/* 缺失信息由弹窗描述位 missing_refs 清单承载；选择器只列现存资产
+                  （对齐批「重新指定弹窗缺失选择器初始为空」——撤悬空 ID 的禁用灰项）。 */}
               {endpoints.map((entry) => (
                 <SelectItem key={entry.id} value={entry.id}>
                   {entry.name}
@@ -697,12 +718,6 @@ export function StrategyToolbar({
               <SelectValue placeholder="选择提示词" />
             </SelectTrigger>
             <SelectContent>
-              {!prompts.some((entry) => entry.id === bindings.prompt_id) &&
-                bindings.prompt_id !== "" && (
-                  <SelectItem value={bindings.prompt_id} disabled>
-                    {bindings.prompt_id}（缺失）
-                  </SelectItem>
-                )}
               {prompts.map((entry) => (
                 <SelectItem key={entry.id} value={entry.id}>
                   {entry.name}

@@ -25,7 +25,8 @@ import type { Strategy } from "./use-strategies";
 /** 悬停气泡里的出身三参数（components/data.md 键值行：键用弱字、值用次字，键列全站统一 84px）。
 
     策略存的是各资产的稳定 ID：展示前按传入的资产列表反查显示名；反查不到
-    （资产已删除）时显示 ID 原样——缺失本身由 available / missing_refs 表达。
+    （资产已删除）时退到引用名快照（保存时刻的显示名），快照也没有（旧文件）
+    再显示 ID 原样——缺失本身由 available / missing_refs 表达。
     */
 function StrategyRefs({
   entry,
@@ -39,11 +40,15 @@ function StrategyRefs({
   endpoints: EndpointConfigSummary[];
 }): ReactElement {
   const endpointName =
-    endpoints.find((item) => item.id === entry.endpoint_id)?.name ?? entry.endpoint_id;
+    endpoints.find((item) => item.id === entry.endpoint_id)?.name ??
+    (entry.endpoint_name || entry.endpoint_id);
   const promptName =
-    prompts.find((item) => item.id === entry.prompt_id)?.name ?? entry.prompt_id;
+    prompts.find((item) => item.id === entry.prompt_id)?.name ??
+    (entry.prompt_name || entry.prompt_id);
   const skillNames = entry.skill_ids.map(
-    (sid) => skills.find((item) => item.id === sid)?.name ?? sid,
+    (sid, index) =>
+      skills.find((item) => item.id === sid)?.name ??
+      (entry.skill_names?.[index] || sid),
   );
   return (
     <span className="grid grid-cols-[84px_minmax(0,1fr)] gap-x-2 gap-y-1 text-left">
@@ -140,20 +145,31 @@ export function StrategyMenu({
                   onChoose(entry);
                 }}
               >
-                <CfgPopRowMain
-                  name={entry.name}
-                  count={formatChars(entry.body_chars)}
-                  badge={entry.available ? undefined : "引用缺失"}
-                  desc={entry.description}
-                  tip={
-                    <StrategyRefs
-                      entry={entry}
-                      prompts={prompts}
-                      skills={skills}
-                      endpoints={endpoints}
-                    />
-                  }
-                />
+                {entry.damaged ? (
+                  // 损坏行（对齐批「策略库损坏降级」）：名字位 = 文件名去 .json ＋
+                  // 红字「文件损坏」缀（.pl-bad 档）、描述位固定文案、无字数、无出处卡；
+                  // 点行走 onRemove（损坏条目唯一处置 = 删除，确认弹窗由上层给）。
+                  <CfgPopRowMain
+                    name={entry.name}
+                    badge="文件损坏"
+                    desc="库策略文件损坏"
+                  />
+                ) : (
+                  <CfgPopRowMain
+                    name={entry.name}
+                    count={formatChars(entry.body_chars)}
+                    badge={entry.available ? undefined : "引用缺失"}
+                    desc={entry.description}
+                    tip={
+                      <StrategyRefs
+                        entry={entry}
+                        prompts={prompts}
+                        skills={skills}
+                        endpoints={endpoints}
+                      />
+                    }
+                  />
+                )}
                 {entry.available && (
                   <CfgPopRowIconButton
                     label={`复制策略 ${entry.name}`}

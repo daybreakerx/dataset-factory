@@ -211,47 +211,52 @@ export function EditorColumn({
               onDelete={onDeletePromptRequest}
             />
           </div>
-          {charOver ? (
-            // 超预算提示行（保存钮稿提示词行实例；warn 持续态——超限即现、降回即消）。
-            <span
-              role="status"
-              className="min-w-[200px] max-w-full truncate text-t-sm text-warn-ink"
-            >
-              正文超过 32k 字，请精简后保存。
-            </span>
-          ) : editorFeedback !== null ? (
-            editorFeedback.kind === "error" ? (
-              // 保存失败（后端真话原文直排；role=alert；持续到下一次操作）。
-              <Tip label={editorFeedback.text}>
+          {/* 两行制折行（对齐批「行折行两行制」，稿侧 .wt-tail 的等价 Tailwind 结构）：
+              反馈槽＋右侧钮包进不可折行分组一体同行（内部永不折行、保存钮恒在行尾），
+              窄到放不下才整体落到第二行；最左的标签与名字框独行。 */}
+          <div className="flex min-w-[144px] flex-1 items-center gap-2">
+            {charOver ? (
+              // 超预算提示行（保存钮稿提示词行实例；warn 持续态——超限即现、降回即消）。
+              <span
+                role="status"
+                className="min-w-[200px] max-w-full truncate text-t-sm text-warn-ink"
+              >
+                正文超过 32k 字，请精简后保存。
+              </span>
+            ) : editorFeedback !== null ? (
+              editorFeedback.kind === "error" ? (
+                // 保存失败（后端真话原文直排；role=alert；持续到下一次操作）。
+                <Tip label={editorFeedback.text}>
+                  <span
+                    role="alert"
+                    className="min-w-[200px] max-w-full truncate text-t-sm text-bad-ink"
+                  >
+                    {editorFeedback.text}
+                  </span>
+                </Tip>
+              ) : (
+                // 保存成功「已保存」（三秒自灭由状态层 timer 清除；role=status）。
                 <span
-                  role="alert"
-                  className="min-w-[200px] max-w-full truncate text-t-sm text-bad-ink"
+                  role="status"
+                  className="min-w-[200px] max-w-full truncate text-t-sm text-ok-ink"
                 >
                   {editorFeedback.text}
                 </span>
-              </Tip>
-            ) : (
-              // 保存成功「已保存」（三秒自灭由状态层 timer 清除；role=status）。
-              <span
-                role="status"
-                className="min-w-[200px] max-w-full truncate text-t-sm text-ok-ink"
+              )
+            ) : null}
+            <span className="flex-1" />
+            <Tip label={promptDirty ? "" : "没有未保存的修改"}>
+              <Button
+                type="button"
+                size="sm"
+                variant={promptDirty ? "default" : "ghost"}
+                disabled={charOver || !promptDirty}
+                onClick={onSave}
               >
-                {editorFeedback.text}
-              </span>
-            )
-          ) : null}
-          <span className="flex-1" />
-          <Tip label={promptDirty ? "" : "没有未保存的修改"}>
-            <Button
-              type="button"
-              size="sm"
-              variant={promptDirty ? "default" : "ghost"}
-              disabled={charOver || !promptDirty}
-              onClick={onSave}
-            >
-              保存
-            </Button>
-          </Tip>
+                保存
+              </Button>
+            </Tip>
+          </div>
         </div>
         <div className="mt-4">
           <Label htmlFor="prompt-desc" className="mb-1 block">

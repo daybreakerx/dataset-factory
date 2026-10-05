@@ -601,7 +601,8 @@ class StrategyView(BaseModel):
 
     available = 引用健康度（现查）：任一引用（端点配置 / 提示词 / Skill）已不存在
     则为 False，missing_refs 给出缺失清单（界面置灰、禁止应用、走重新指定）。
-    引用一律存各资产的稳定 ID（2026-09-23 ID 化；显示名由前端从各资产列表现查）。
+    引用一律存各资产的稳定 ID（2026-09-23 ID 化；显示名由前端从各资产列表现查），
+    同时携带保存时刻的引用名快照——缺失位的兜底展示（资产已删时名字无处现查）。
     """
 
     id: str = Field(description="库策略 ID（内部稳定标识，改名不变）")
@@ -610,11 +611,28 @@ class StrategyView(BaseModel):
     endpoint_id: str = Field(description="端点配置 ID 引用")
     prompt_id: str = Field(description="基础提示词 ID 引用")
     skill_ids: list[str] = Field(description="启用 Skill ID 引用清单（有序）")
+    endpoint_name: str = Field(
+        default="",
+        description="引用名快照：保存时刻的端点显示名（引用缺失时兜底展示；健康时以现查为准，旧文件为空串）",
+    )
+    prompt_name: str = Field(
+        default="",
+        description="引用名快照：保存时刻的基础提示词显示名（同上）",
+    )
+    skill_names: list[str] = Field(
+        default_factory=list,
+        description="引用名快照：保存时刻的各 Skill 显示名（与 skill_ids 同序；同上）",
+    )
     available: bool = Field(description="引用健康度：全部引用现存在才可用")
     missing_refs: list[str] = Field(description="缺失引用的可读描述（健康时为空）")
     body_chars: int = Field(
         description="注入正文字符数（基础提示词正文 + 引用的启用 Skill 注入全文；"
         "引用缺失或停用按 0 计），供列表展示字数"
+    )
+    damaged: bool = Field(
+        default=False,
+        description="库策略文件损坏标记：True = 条目由损坏文件降级而来，"
+        "仅 id / name（文件名去 .json）有意义，available 恒 False、引用与字数无意义",
     )
     created_at: str = Field(description="创建时刻（UTC ISO 8601）")
     updated_at: str = Field(description="最近更新时刻（UTC ISO 8601）")

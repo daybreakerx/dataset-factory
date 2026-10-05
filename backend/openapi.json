@@ -3106,7 +3106,7 @@
         "type": "object"
       },
       "StrategyView": {
-        "description": "库策略条目——列表 / 详情 / 创建 / 更新的响应体。\n\navailable = 引用健康度（现查）：任一引用（端点配置 / 提示词 / Skill）已不存在\n则为 False，missing_refs 给出缺失清单（界面置灰、禁止应用、走重新指定）。\n引用一律存各资产的稳定 ID（2026-09-23 ID 化；显示名由前端从各资产列表现查）。",
+        "description": "库策略条目——列表 / 详情 / 创建 / 更新的响应体。\n\navailable = 引用健康度（现查）：任一引用（端点配置 / 提示词 / Skill）已不存在\n则为 False，missing_refs 给出缺失清单（界面置灰、禁止应用、走重新指定）。\n引用一律存各资产的稳定 ID（2026-09-23 ID 化；显示名由前端从各资产列表现查），\n同时携带保存时刻的引用名快照——缺失位的兜底展示（资产已删时名字无处现查）。",
         "properties": {
           "available": {
             "description": "引用健康度：全部引用现存在才可用",
@@ -3123,6 +3123,12 @@
             "title": "Created At",
             "type": "string"
           },
+          "damaged": {
+            "default": false,
+            "description": "库策略文件损坏标记：True = 条目由损坏文件降级而来，仅 id / name（文件名去 .json）有意义，available 恒 False、引用与字数无意义",
+            "title": "Damaged",
+            "type": "boolean"
+          },
           "description": {
             "description": "说明文字",
             "title": "Description",
@@ -3131,6 +3137,12 @@
           "endpoint_id": {
             "description": "端点配置 ID 引用",
             "title": "Endpoint Id",
+            "type": "string"
+          },
+          "endpoint_name": {
+            "default": "",
+            "description": "引用名快照：保存时刻的端点显示名（引用缺失时兜底展示；健康时以现查为准，旧文件为空串）",
+            "title": "Endpoint Name",
             "type": "string"
           },
           "id": {
@@ -3156,12 +3168,26 @@
             "title": "Prompt Id",
             "type": "string"
           },
+          "prompt_name": {
+            "default": "",
+            "description": "引用名快照：保存时刻的基础提示词显示名（同上）",
+            "title": "Prompt Name",
+            "type": "string"
+          },
           "skill_ids": {
             "description": "启用 Skill ID 引用清单（有序）",
             "items": {
               "type": "string"
             },
             "title": "Skill Ids",
+            "type": "array"
+          },
+          "skill_names": {
+            "description": "引用名快照：保存时刻的各 Skill 显示名（与 skill_ids 同序；同上）",
+            "items": {
+              "type": "string"
+            },
+            "title": "Skill Names",
             "type": "array"
           },
           "updated_at": {
@@ -5496,7 +5522,7 @@
     },
     "/api/strategies/{strategy_id}": {
       "delete": {
-        "description": "删除库策略（已应用的批次不受影响——copy-on-apply 持有内容副本）。\n\n级联删除（会话归属 v3 用户定夺）：该策略名下的会话一并删除（滚动保留后至多一份\n+ 可能的失败半截会话）——用户明确不要孤儿会话。删除前检查进行中的打标轮次，\n有则 409 拒绝整次删除（策略与会话同进退，不删一半）。",
+        "description": "删除库策略（已应用的批次不受影响——copy-on-apply 持有内容副本）。\n\n级联删除（会话归属 v3 用户定夺）：该策略名下的会话一并删除（滚动保留后至多一份\n+ 可能的失败半截会话）——用户明确不要孤儿会话。删除前检查该策略调试对话里正在\n生成回复的轮次，有则 409 拒绝整次删除（策略与会话同进退，不删一半）。",
         "operationId": "delete_library_entry_api_strategies__strategy_id__delete",
         "parameters": [
           {
@@ -5533,7 +5559,7 @@
               },
               "application/problem+json": {}
             },
-            "description": "策略的会话正在打标（problem+json: strategy-session-busy）"
+            "description": "策略的调试对话正在生成回复（problem+json: strategy-session-busy）"
           },
           "422": {
             "content": {

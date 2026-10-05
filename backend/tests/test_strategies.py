@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import threading
 from pathlib import Path
 
@@ -242,7 +243,7 @@ def test_delete_other_strategy_keeps_pointer(assets: None) -> None:
 
 
 def test_health_turns_unavailable_when_prompt_deleted(assets: None) -> None:
-    """引用的提示词被删 → 健康度现查为不可用，missing_refs 给可读原因。"""
+    """引用的提示词被删 → 健康度现查为不可用，missing_refs 用快照名给可读原因。"""
     entry = create_strategy(
         name="策略", endpoint_id="main", prompt_id="详细描述", skill_ids=[_SKILL_NAME]
     )
@@ -250,7 +251,7 @@ def test_health_turns_unavailable_when_prompt_deleted(assets: None) -> None:
 
     problems = missing_refs(get_strategy(entry.id))
 
-    assert problems == [f"基础提示词「{get_strategy(entry.id).prompt_id}」不存在"]
+    assert problems == ["基础提示词「详细描述」不存在"]
 
 
 def test_rebind_restores_health(assets: None) -> None:
@@ -267,14 +268,126 @@ def test_rebind_restores_health(assets: None) -> None:
     assert missing_refs(get_strategy(entry.id)) == []
 
 
-def test_corrupted_library_file_fails_loud(temp_data_root: Path, assets: None) -> None:
-    """库文件损坏 → StrategyError（fail loud，不静默藏起来）。"""
+def test_corrupted_library_file_degrades_to_damaged_entry(
+    temp_data_root: Path, assets: None
+) -> None:
+    """库文件损坏 → 列表降级出损坏条目（id/名 = 文件名去 .json），其余条目不受影响。"""
+    entry = create_strategy(
+        name="好策略", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
     strategies_dir = temp_data_root / "strategies"
-    strategies_dir.mkdir()
+    (strategies_dir / "broken.json").write_text("{not json", encoding="utf-8")
+
+    entries = list_strategies()
+
+    assert [item.name for item in entries] == ["broken", "好策略"]
+    broken = entries[0]
+    assert broken.damaged is True
+    assert broken.id == "broken"
+    healthy = entries[1]
+    assert healthy.damaged is False
+    assert healthy.id == entry.id
+
+
+def test_get_strategy_still_fails_loud_on_corrupted_file(
+    temp_data_root: Path, assets: None
+) -> None:
+    """单条读取对损坏文件仍 fail loud（列表降级不改单条语义）。"""
+    strategies_dir = temp_data_root / "strategies"
+    strategies_dir.mkdir(exist_ok=True)
     (strategies_dir / "broken.json").write_text("{not json", encoding="utf-8")
 
     with pytest.raises(StrategyError, match="损坏"):
-        list_strategies()
+        get_strategy("broken")
+
+
+def test_delete_corrupted_file_by_name_succeeds(
+    temp_data_root: Path, assets: None
+) -> None:
+    """损坏文件的删除路径按文件名删、不读内容（界面删除损坏条目的程序路）。"""
+    strategies_dir = temp_data_root / "strategies"
+    strategies_dir.mkdir(exist_ok=True)
+    broken = strategies_dir / "broken.json"
+    broken.write_text("{not json", encoding="utf-8")
+
+    delete_strategy("broken")
+
+    assert not broken.exists()
+    assert list_strategies() == []
+
+
+# --------------------------------------------------------------------------
+# 引用名快照（存名机制）
+# --------------------------------------------------------------------------
+
+
+def test_create_writes_ref_name_snapshot(assets: None) -> None:
+    """保存策略时把各引用当时的显示名写进文件（引用名快照，与引用位一一对应）。"""
+    entry = create_strategy(
+        name="快照", endpoint_id="main", prompt_id="详细描述", skill_ids=[_SKILL_NAME]
+    )
+
+    stored = get_strategy(entry.id)
+
+    assert stored.endpoint_name == "main"
+    assert stored.prompt_name == "详细描述"
+    assert stored.skill_names == [get_skill(_SKILL_NAME).name]
+
+
+def test_missing_ref_message_uses_snapshot_name(assets: None) -> None:
+    """引用缺失后名字无处现查：缺失描述改用快照名指认（不再显示裸 ID）。"""
+    entry = create_strategy(
+        name="快照", endpoint_id="main", prompt_id="详细描述", skill_ids=[_SKILL_NAME]
+    )
+    delete_prompt("详细描述")
+
+    problems = missing_refs(get_strategy(entry.id))
+
+    assert problems == ["基础提示词「详细描述」不存在"]
+
+
+def test_legacy_file_without_snapshot_falls_back_to_ref_id(
+    temp_data_root: Path, assets: None
+) -> None:
+    """旧文件缺快照字段：缺失描述回退显示裸 ID；下次保存自动补全快照。"""
+    entry = create_strategy(
+        name="旧文件", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    path = temp_data_root / "strategies" / f"{entry.id}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for key in ("endpoint_name", "prompt_name", "skill_names"):
+        data.pop(key, None)
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    delete_prompt("详细描述")
+    stored = get_strategy(entry.id)
+    assert stored.endpoint_name == ""
+    assert stored.prompt_name == ""
+    assert missing_refs(stored) == [f"基础提示词「{stored.prompt_id}」不存在"]
+
+    # 下次保存自动补全：先恢复同名资产（更新要求引用现存在），再走整条更新。
+    save_prompt(Prompt(name="详细描述", description="", body=_PROMPT_BODY))
+    update_strategy(
+        entry.id,
+        name="旧文件",
+        endpoint_id="main",
+        prompt_id="详细描述",
+        skill_ids=[],
+    )
+
+    refilled = get_strategy(entry.id)
+    assert refilled.prompt_name == "详细描述"
+
+
+def test_copy_carries_snapshot(assets: None) -> None:
+    """复制派生：引用名快照随内容一并带走。"""
+    source = create_strategy(
+        name="原版", endpoint_id="main", prompt_id="详细描述", skill_ids=[_SKILL_NAME]
+    )
+
+    clone = copy_strategy(source.id)
+
+    assert clone.prompt_name == source.prompt_name
+    assert clone.skill_names == source.skill_names
 
 
 # --------------------------------------------------------------------------

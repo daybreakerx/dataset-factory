@@ -13,7 +13,6 @@ import { DirectoryPicker } from "../../../components/DirectoryPicker";
 import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
 import { useVscrollColumn } from "../../../components/vscroll";
 import { type Feedback, reportError } from "../../../lib/feedback";
-import { formatBytes } from "../../../lib/format";
 import { toast } from "../../../lib/toast";
 import type { PanelUnsavedActions } from "../../../lib/unsaved-actions";
 import { DeleteDialog } from "./delete-dialog";
@@ -235,7 +234,8 @@ export function SkillsPanel({
   };
 
   /** 导入反馈：损坏行入库（frontmatter 坏不再拒）→ 警告条按来源名指认；正常 → 成功条
-   *  （转码注明「N 个文件已从 〈编码〉 转为 UTF-8」，随「导入时归一化」条）。 */
+   *  （「assets / scripts 不参与注入」说明注入范围，对齐批「导入侧的反馈与失败文案」；
+   *  转码注明「N 个文件已从 〈编码〉 转为 UTF-8」接在成功条后，随「导入时归一化」条）。 */
   const applyImportResult = (result: SkillImportResponse, sourceName: string): void => {
     setSelected(result.id);
     if (result.import_error !== null) {
@@ -245,7 +245,6 @@ export function SkillsPanel({
       });
       return;
     }
-    const sizeText = formatBytes(result.total_bytes, "KiB", 1);
     const encodings = [...new Set(result.transcoded.map((t) => t.from_encoding))];
     const transcodeNote =
       result.transcoded.length > 0
@@ -253,14 +252,22 @@ export function SkillsPanel({
         : "";
     setFeedback({
       kind: "success",
-      text: `已导入「${result.name}」（${sizeText}——skill 全文将注入打标请求，体积偏大时留意 token 消耗${transcodeNote}）`,
+      text: `已导入「${result.name}」（assets / scripts 不参与注入）${transcodeNote}`,
     });
+  };
+
+  /** 来源名（警告条指认用）：文件夹导入取 webkitRelativePath 首段（拖入的文件夹名），
+   *  散文件回落文件名本身。 */
+  const importSourceName = (picked: File[]): string => {
+    const first = picked[0];
+    const root = (first?.webkitRelativePath ?? "").split("/")[0] ?? "";
+    return root || first?.name || "";
   };
 
   const doImport = async (picked: File[]): Promise<void> => {
     setImporting(true);
     try {
-      applyImportResult(await api.importSkillFiles(picked), picked[0]?.name ?? "");
+      applyImportResult(await api.importSkillFiles(picked), importSourceName(picked));
       await reload();
     } catch (err) {
       fail(err);

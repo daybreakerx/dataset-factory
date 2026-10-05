@@ -574,7 +574,7 @@ describe("SettingsPage · 能力·技能", () => {
     expect(row?.querySelector("svg.lucide-triangle-alert")).not.toBeNull();
   });
 
-  it("导入成功：选择文件夹调 importSkillFiles 并给出体积与 token 提醒反馈条", async () => {
+  it("导入成功：选择文件夹调 importSkillFiles 并给出注入范围反馈条", async () => {
     apiMock.importSkillFiles.mockResolvedValue({
       id: "kFresh000001",
       name: "fresh",
@@ -599,7 +599,7 @@ describe("SettingsPage · 能力·技能", () => {
       expect(apiMock.importSkillFiles).toHaveBeenCalledTimes(1);
     });
     expect(
-      await screen.findByText(/41\.0 KiB——skill 全文将注入打标请求/),
+      await screen.findByText(/已导入「fresh」（assets \/ scripts 不参与注入）/),
     ).toBeInTheDocument();
   });
 
