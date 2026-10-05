@@ -140,7 +140,7 @@ export function defineBaselineScreens(
   test("05 设置-服务段", async ({ page }) => {
     const sink = await boot(page);
     await openSettings(page, sink);
-    await page.getByRole("button", { name: "服务运行", exact: true }).click();
+    await page.getByRole("button", { name: "运行日志", exact: true }).click();
     await snap(page, sink, "05-settings-service");
   });
 
@@ -233,7 +233,7 @@ export function defineBaselineScreens(
     await openSettings(page, sink);
     await page.getByRole("button", { name: /offline/ }).click();
     await settle(page, sink);
-    await page.getByRole("button", { name: "删除", exact: true }).click();
+    await page.getByRole("button", { name: "删除配置", exact: true }).click();
     await snap(page, sink, "16-settings-endpoint-delete");
   });
 

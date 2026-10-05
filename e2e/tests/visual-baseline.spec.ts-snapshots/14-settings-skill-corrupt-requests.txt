@@ -7,4 +7,3 @@ GET /api/sessions/latest
 GET /api/prompts/p-1
 GET /api/endpoints
 GET /api/skills
-GET /api/skills/caption-style/files
