@@ -63,12 +63,18 @@ describe("App 外壳", () => {
     await user.click(screen.getByRole("button", { name: "设置" }));
     // 设置首屏 = 默认子页「端点配置」（回归钉：openSettings 曾被 onClick 直传、React 把
     // 事件对象塞进节状态——无分支命中、内容区空白。E2E smoke 实锤过一轮）。
-    await screen.findByRole("heading", { name: "端点配置", level: 2 });
+    // 等待对象是「设置页分包载入」这个真实异步边界：整机高负载（verify 并行跑门禁、
+    // 并行会话同机活动）下 1s 默认窗不够，显式给 5s（断言对象与强度不变）。
+    await screen.findByRole(
+      "heading",
+      { name: "端点配置", level: 2 },
+      { timeout: 5_000 },
+    );
     await user.click(screen.getByRole("button", { name: "技能" }));
 
     // 设置页现在是进页面才载的分包：先等它出现，再按原样断言（断言对象与强度不变）。
     // A9 按原型还原后设置页不再有页头 h1，子页标题与「端点配置 / 服务运行」同为 h2。
-    await screen.findByRole("heading", { name: "技能", level: 2 });
+    await screen.findByRole("heading", { name: "技能", level: 2 }, { timeout: 5_000 });
     expect(screen.getByRole("heading", { name: "技能", level: 2 })).toBeVisible();
     // 「设置页不加二级导航地标」得是可证伪的断言：数当前有几个导航地标
     // （只有侧栏那一个），多加一个就会红——原来查一个根本不存在的名字必然永真。
