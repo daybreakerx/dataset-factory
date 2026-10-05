@@ -153,7 +153,12 @@ describe("打标页读取流程", () => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       render(<LabelingPage />);
-      const context = await screen.findByRole("region", { name: "策略配置" });
+      // 等待对象＝打标页分包载入的真实异步边界：高负载下 1s 默认窗不够（同 App.test 注）。
+      const context = await screen.findByRole(
+        "region",
+        { name: "策略配置" },
+        { timeout: 5_000 },
+      );
 
       expect(within(context).getAllByText("shared")).toHaveLength(2);
       expect(errors).not.toHaveBeenCalled();
@@ -164,7 +169,11 @@ describe("打标页读取流程", () => {
 
   it("顶栏展示批次快照的只读端点、提示词与技能上下文", async () => {
     render(<LabelingPage />);
-    const context = await screen.findByRole("region", { name: "策略配置" });
+    const context = await screen.findByRole(
+      "region",
+      { name: "策略配置" },
+      { timeout: 5_000 },
+    );
     expect(context).toHaveTextContent("Example · mock-model");
     expect(context).toHaveTextContent("Mock prompt");
     expect(context).toHaveTextContent("Mock skill");

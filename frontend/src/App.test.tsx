@@ -242,7 +242,7 @@ describe("页面保活与外壳持久化", () => {
     expect(screen.queryByTestId("page-labeling")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "打标" }));
-    await screen.findByTestId("page-labeling");
+    await screen.findByTestId("page-labeling", {}, { timeout: 5_000 });
     await user.click(screen.getByRole("button", { name: "策略" }));
 
     // 保活的直接证据：切走后打标页仍在 DOM（display:none 隐藏），策略页不重挂。
@@ -256,7 +256,7 @@ describe("页面保活与外壳持久化", () => {
 
     await user.type(screen.getByLabelText("名称"), "我的草稿");
     await user.click(screen.getByRole("button", { name: "打标" }));
-    await screen.findByTestId("page-labeling");
+    await screen.findByTestId("page-labeling", {}, { timeout: 5_000 });
     await user.click(screen.getByRole("button", { name: "策略" }));
 
     expect(
@@ -269,7 +269,7 @@ describe("页面保活与外壳持久化", () => {
     const { unmount } = render(<App />);
 
     await user.click(screen.getByRole("button", { name: "打标" }));
-    await screen.findByTestId("page-labeling");
+    await screen.findByTestId("page-labeling", {}, { timeout: 5_000 });
     await user.click(screen.getByRole("button", { name: "收起侧栏" }));
     expect(localStorage.getItem("dsf-shell-page")).toBe(JSON.stringify("labeling"));
     expect(localStorage.getItem("dsf-shell-sidebar-collapsed")).toBe("true");
@@ -277,7 +277,7 @@ describe("页面保活与外壳持久化", () => {
 
     // 重挂 = 模拟重启：从 localStorage 恢复到打标页，侧栏保持折叠。
     render(<App />);
-    await screen.findByTestId("page-labeling");
+    await screen.findByTestId("page-labeling", {}, { timeout: 5_000 });
     expect(screen.getByRole("button", { name: "打标" })).toHaveAttribute(
       "aria-current",
       "page",
