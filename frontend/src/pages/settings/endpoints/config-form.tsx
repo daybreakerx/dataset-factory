@@ -1,13 +1,13 @@
 /**
- * 连接 · 端点配置 · 详情表单（右列）：头行（名字框〔配置名可编辑〕＋删除钮＋保存钮）、
- * 四个字段（Base URL / API 格式 / 模型名称 / API 密钥——原「名称」字段行随头行名字框化
- * 整撤）、反馈条、测试连接行与高级参数折叠区。展示层——草稿状态与命令回调由面板传入。
+ * 连接 · 端点配置 · 详情表单（右列）：头行（名字框〔配置名可编辑〕＋删除钮＋头行消息槽
+ * ＋保存钮）、四个字段（Base URL / API 格式 / 模型名称 / API 密钥——原「名称」字段行随
+ * 头行名字框化整撤）、测试连接行与高级参数折叠区。展示层——草稿状态与命令回调由面板传入。
  */
 import { EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 import type { EndpointConfigSummary, EndpointTestResult } from "../../../api";
-import { Alert, AlertDescription } from "../../../components/ui/alert";
+import { NoteInline } from "../../../components/note-inline";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
@@ -37,6 +37,13 @@ const API_FORMATS: ReadonlyArray<{ value: string; label: string; enabled: boolea
   },
 ];
 
+/** 面板操作反馈 → 头行消息槽四色档（家族语义：成功绿／警告琥珀／失败红）。 */
+const FEEDBACK_KIND = {
+  success: "ok",
+  warn: "warn",
+  error: "bad",
+} as const;
+
 type ConfigFormProps = {
   creating: boolean;
   /** 当前选中的配置（回填与占位来源；创建态为 undefined）。 */
@@ -54,6 +61,8 @@ type ConfigFormProps = {
   draftKey: string;
   onKeyInput: (value: string) => void;
   feedback: Feedback | null;
+  /** 高级参数保存拦截错误（就地落该区状态行；null＝无）。 */
+  advInterceptError: string | null;
   canSave: boolean;
   /** 保存请求飞行期（瞬态）：只失效不换装，不进 disabled 条件。 */
   saving: boolean;
@@ -93,6 +102,7 @@ export function ConfigForm({
   draftKey,
   onKeyInput,
   feedback,
+  advInterceptError,
   canSave,
   saving,
   onSave,
@@ -151,6 +161,18 @@ export function ConfigForm({
               <Trash2Icon />
             </Button>
           </Tip>
+        )}
+        {/* 头行消息槽（反馈形态归一·E 位）：落删除钮右侧、保存钮左侧——只收两类，
+            ①操作级结果②名称字段级失败（名字框就在本行＝就地）；其它字段／区块的
+            失败不上浮到此（高级参数类落该区状态行）。一槽一消息，fill 弹性占满中段、
+            单行省略＋截断悬停给全文；role="alert"＝提交后一次性结果的播报档（form.md）。 */}
+        {feedback !== null && (
+          <NoteInline
+            fill
+            role="alert"
+            kind={FEEDBACK_KIND[feedback.kind]}
+            text={feedback.text}
+          />
         )}
         <Tip label={saveTip}>
           <Button
@@ -247,12 +269,6 @@ export function ConfigForm({
         </div>
       </div>
 
-      {feedback !== null && (
-        <Alert variant={feedback.kind === "error" ? "destructive" : "success"}>
-          <AlertDescription>{feedback.text}</AlertDescription>
-        </Alert>
-      )}
-
       <TestConnection
         testing={testing}
         disabled={draftBaseUrl.trim() === "" || draftModel.trim() === ""}
@@ -270,6 +286,7 @@ export function ConfigForm({
         json={advJson}
         onJsonInput={onAdvJsonInput}
         state={advState}
+        interceptError={advInterceptError}
         thinking={thinking}
         onThinkingChange={onThinkingChange}
       />

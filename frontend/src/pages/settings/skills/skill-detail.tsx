@@ -1,6 +1,7 @@
 /** 能力 · 技能 · 右列详情（头行：名字框＋删除钮＋保存钮；描述、包内容胶囊、内容预览）。 */
 import { FileTextIcon, ImageIcon, Trash2Icon } from "lucide-react";
 import type { ReactElement } from "react";
+import { useId } from "react";
 import type { SkillFileInfo } from "../../../api";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -82,8 +83,14 @@ type SkillDetailProps = {
   /** 描述框显示默认值：健康包 = 落盘描述；坏包 = 抢救值、救不出留空。 */
   descriptionDefault: string;
   onDescriptionChange: (value: string) => void;
-  /** 头行消息槽（删除钮右侧、保存钮前；一槽一消息、互斥替换——稿 技能详情头）。 */
-  headNote: { kind: "warn" | "bad"; text: string } | null;
+  /** 头行消息槽（删除钮右侧、保存钮前；一槽一消息、互斥替换——稿 技能详情头）。
+   *  nameBlocked＝消息来自空名拦截：名字框挂 aria-invalid＋aria-describedby 指向槽
+   *  （字段级错误程序化关联，DESIGN.md 七 9；ok／warn 档不得预设 aria-invalid——ARIA21）。 */
+  headNote: {
+    kind: "ok" | "warn" | "bad";
+    text: string;
+    nameBlocked?: boolean;
+  } | null;
   onSave: () => void;
 };
 
@@ -108,13 +115,20 @@ export function SkillDetail({
   headNote,
   onSave,
 }: SkillDetailProps): ReactElement {
+  // 消息槽 id：空名被拦时名字框经 aria-describedby 程序化关联到它。
+  const noteId = useId();
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex min-h-(--h-lg) items-center gap-2">
         <input
           aria-label="技能名称"
+          aria-invalid={headNote?.nameBlocked || undefined}
+          aria-describedby={headNote?.nameBlocked ? noteId : undefined}
           value={nameDraft ?? nameDefault}
-          disabled={saving || loadingPreview}
+          // 飞行期（保存／预览加载）只失效不换装：readonly 掐编辑、外观不动（稿 技能详情头
+          // 「保存飞行／预览加载」行；持续禁用才走灰阶——名字框没有持续禁用态）。
+          readOnly={saving || loadingPreview || undefined}
+          aria-disabled={saving || loadingPreview || undefined}
           onChange={(event) => onNameChange(event.currentTarget.value)}
           className="min-w-24 max-w-[380px] w-fit shrink-[1] basis-auto field-sizing-content -ml-[calc(var(--s-1)+1px)] rounded-md border border-transparent bg-transparent p-1 text-t-xl font-semibold text-foreground hover:border-input focus:border-n-400 focus:outline-none"
         />
@@ -138,11 +152,16 @@ export function SkillDetail({
           // 消息槽：12px、单行省略兜底窄窗、被截断时悬停给全文（DESIGN.md 六）；
           // 文字用 <span>（带 UA 外边距的标签会把头行撑高）。不带图标（稿 2026-10-01 裁）。
           <span
+            id={noteId}
             role="status"
             title={headNote.text}
             className={
               "min-w-0 flex-1 truncate text-t-sm " +
-              (headNote.kind === "bad" ? "text-bad-ink" : "text-warn-ink")
+              (headNote.kind === "bad"
+                ? "text-bad-ink"
+                : headNote.kind === "warn"
+                  ? "text-warn-ink"
+                  : "text-ok-ink")
             }
           >
             {headNote.text}
@@ -152,8 +171,16 @@ export function SkillDetail({
           <Button
             type="button"
             variant={dirty ? "default" : "ghost"}
-            className={headNote === null ? "ml-auto" : undefined}
-            disabled={!dirty || saving || loadingPreview}
+            className={
+              cn(
+                headNote === null && "ml-auto",
+                // 保存飞行＝瞬态只失效不换装（端点保存钮同款）：不进 disabled 条件、
+                // 外观与就绪态同形；重入由面板 savePending／loadingPreview 守卫掐住。
+                (saving || loadingPreview) && "pointer-events-none",
+              ) || undefined
+            }
+            disabled={!dirty}
+            aria-disabled={saving || loadingPreview || undefined}
             onClick={onSave}
           >
             保存
@@ -166,7 +193,10 @@ export function SkillDetail({
           aria-label="技能描述"
           id="skill-description"
           value={descriptionDraft ?? descriptionDefault}
-          disabled={saving || loadingPreview || previewPath !== "SKILL.md"}
+          // 预览非 SKILL.md＝持续禁用（灰阶，稿样图第 8 格）；保存／加载飞行＝瞬态只失效不换装。
+          disabled={previewPath !== "SKILL.md"}
+          readOnly={saving || loadingPreview || undefined}
+          aria-disabled={saving || loadingPreview || undefined}
           onChange={(event) => onDescriptionChange(event.currentTarget.value)}
         />
       </label>
@@ -195,7 +225,10 @@ export function SkillDetail({
             id="skill-content"
             spellCheck={false}
             value={previewContent}
-            disabled={saving || loadingPreview}
+            // 保存飞行／预览加载＝瞬态禁用：只失效不换装（对齐批「瞬态禁用不换装」）——
+            // readonly 掐输入且无 UA 灰显，不走 disabled（半透明与灰字都是换装）。
+            readOnly={saving || loadingPreview}
+            aria-disabled={saving || loadingPreview || undefined}
             onChange={(event) => onPreviewChange(event.currentTarget.value)}
             className="min-h-40 w-full flex-1 resize-none rounded-md border border-input bg-card p-3 font-sans text-t-md leading-(--lh-loose) hover:border-n-400 focus:border-n-400 focus:outline-none"
           />

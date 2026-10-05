@@ -16,9 +16,6 @@ const badgeVariants = cva(
         success: "bg-ok-ink text-on-ink",
         info: "bg-info-ink text-on-ink",
         destructive: "bg-bad-ink text-on-ink",
-        // 「已停用」这类不需要强调的状态：不开新的章底色（components/marks.md 尾句），
-        // 用灰字 + 字重表达——落在 2026-09-20 的取色拍板上（候选 α）。
-        muted: "text-n-500",
         outline: "text-foreground",
       },
     },

@@ -7,13 +7,14 @@
  * 壳层切子页的拦截经 onSettingsDirtyChange / onRegisterActions 上提（SettingsPage → App）。
  */
 
-import type { ReactElement } from "react";
+import type { ReactElement, SetStateAction } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EndpointConfigSummary, EndpointTestResult } from "../../../api";
 import { api } from "../../../api";
 import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
 import { useVscrollColumn } from "../../../components/vscroll";
 import { type Feedback, reportError } from "../../../lib/feedback";
+import { toast } from "../../../lib/toast";
 import type { PanelUnsavedActions } from "../../../lib/unsaved-actions";
 import {
   type AdvJsonState,
@@ -79,6 +80,10 @@ export function EndpointConfigPanel({
     kind: "ok",
     text: "已同步",
   });
+  // 保存拦截错误（collectAdvParams 拦下时置值）：就地落高级参数区自己的状态行，
+  // 不再进全局 feedback 上浮头行（2026-10-04 用户裁「提示条跟随最近的操作」）；
+  // 本区任一输入变更或保存通过本地校验即清空（一槽一消息、行内替换）。
+  const [advIntercept, setAdvIntercept] = useState<string | null>(null);
   // 思考模式三态（A1 → B 方案一等参数，2026-09-23）：跟着参数 JSON 里的顶层
   // enable_thinking 走——JSON 是唯一事实，三态控件只是它的可视化快捷键（手写
   // reasoning_effort 等其他厂商字段仍走 JSON 的 extra_body）。
@@ -127,6 +132,7 @@ export function EndpointConfigPanel({
     setAdvJson(nextJson);
     setThinking(thinkingOfJson(nextJson));
     setAdvState({ kind: "ok", text: "已同步" });
+    setAdvIntercept(null);
   }, []);
 
   // 选中变化（或保存后列表刷新）时把详情回填为落盘值；创建态保留空白草稿。
@@ -193,6 +199,7 @@ export function EndpointConfigPanel({
     setAdvJson("{}");
     setThinking("default");
     setAdvState({ kind: "ok", text: "已同步" });
+    setAdvIntercept(null);
     setAdvOpen(false);
     setFeedback(null);
     setTestResult(null);
@@ -273,6 +280,7 @@ export function EndpointConfigPanel({
     setAdvForm(nextForm);
     setAdvJson(formToJson(nextForm, advJson));
     setAdvState({ kind: "ok", text: "已同步" });
+    setAdvIntercept(null);
   };
 
   /** 粘贴 / 编辑 JSON → 同步回表单三键；无效时只改状态提示（不同步、不报错打断）。 */
@@ -285,11 +293,21 @@ export function EndpointConfigPanel({
       setAdvForm(synced.form);
     }
     setAdvState(synced.state);
+    setAdvIntercept(null);
+  };
+
+  /** 传输参数输入：与本区其它输入一致，清掉保存拦截文案（下一次输入即行内替换）。 */
+  const onAdvTransportInput = (
+    action: SetStateAction<{ timeout_seconds: string; max_retries: string }>,
+  ): void => {
+    setAdvTransport(action);
+    setAdvIntercept(null);
   };
 
   /** 三态选择 → 写进 JSON 的 extra_body（其余透传键原样保留；JSON 无效不动原值）。 */
   const onThinkingChange = (mode: ThinkingMode): void => {
     setThinking(mode);
+    setAdvIntercept(null);
     const nextJson = setThinkingInJson(advJson, mode);
     if (nextJson === null) {
       setAdvState({ kind: "invalid", text: "JSON 无效——修好后再设置思考模式" });
@@ -348,9 +366,11 @@ export function EndpointConfigPanel({
       json: advJson,
     });
     if (adv.error !== null) {
-      setFeedback({ kind: "error", text: adv.error });
+      // 拦截错误落高级参数区自己的状态行（就地），不再进全局 feedback 上浮头行。
+      setAdvIntercept(adv.error);
       return { ok: false, error: adv.error };
     }
+    setAdvIntercept(null);
     savingRef.current = true;
     setSaving(true);
     try {
@@ -415,7 +435,9 @@ export function EndpointConfigPanel({
     try {
       await api.deleteEndpoint(selected);
       setDeleteDialogOpen(false);
-      setFeedback({ kind: "success", text: `已删除配置「${targetName}」` });
+      // 删除成功改浮层（对齐批「删除成功反馈改浮层」——技能侧同裁，2026-10-04 用户裁）：
+      // 详情列随后回空态，面板反馈条已无承载位。
+      toast(`已删除配置「${targetName}」`);
       setSelected("");
       await reload();
     } catch (err) {
@@ -486,6 +508,7 @@ export function EndpointConfigPanel({
             draftKey={draftKey}
             onKeyInput={setDraftKey}
             feedback={feedback}
+            advInterceptError={advIntercept}
             canSave={canSave}
             saving={saving}
             onSave={() => void save()}
@@ -498,7 +521,7 @@ export function EndpointConfigPanel({
             advForm={advForm}
             onAdvFormField={onAdvFormField}
             advTransport={advTransport}
-            setAdvTransport={setAdvTransport}
+            setAdvTransport={onAdvTransportInput}
             advJson={advJson}
             onAdvJsonInput={onAdvJsonInput}
             advState={advState}

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { EndpointConfigSummary, SkillInfo } from "../../api";
+import { getToastSnapshot } from "../../lib/toast";
 import { SettingsPage } from "./SettingsPage";
 import { parseLogLevel } from "./service/ServicePanel";
 
@@ -122,13 +123,17 @@ describe("SettingsPage · 连接·端点配置", () => {
 
     await userEvent.click(toggle);
     await userEvent.click(toggle);
-    expect(toggle).toBeDisabled();
+    // 切换飞行＝瞬态禁用只失效不换装：挂 aria-disabled 语义，不再走 disabled 灰阶。
+    expect(toggle).toHaveAttribute("aria-disabled", "true");
     expect(apiMock.setSkillEnabled).toHaveBeenCalledTimes(1);
     rejectToggle(new Error("写入失败"));
 
-    await waitFor(() => expect(toggle).toBeEnabled());
+    await waitFor(() => expect(toggle).not.toHaveAttribute("aria-disabled"));
     expect(toggle).toHaveAttribute("aria-checked", "true");
-    expect(await screen.findByText(/写入失败/)).toBeVisible();
+    // 失败提示改走浮层（面板提示条随「技能侧反馈归一」整撤）。
+    await waitFor(() =>
+      expect(getToastSnapshot().map((item) => item.text)).toContain("写入失败"),
+    );
   });
 
   it("列表 + 详情回填：名称可编辑、密钥只报来源不回内容", async () => {
@@ -429,9 +434,11 @@ describe("SettingsPage · 端点配置·高级参数", () => {
 
     expect(screen.getByLabelText("temperature")).toHaveValue(0.2);
     expect(screen.getByRole("status")).toHaveTextContent("已忽略：top_k");
+    // 已忽略档校验未出错：JSON 框不得预设 aria-invalid（W3C ARIA21）。
+    expect(json).not.toHaveAttribute("aria-invalid");
   });
 
-  it("JSON 无效时保存被拦下（不发请求），提示修好再保存", async () => {
+  it("JSON 无效时保存被拦下（不发请求），拦截文案就地进高级参数状态行并程序化关联", async () => {
     await openAdvanced();
     const json = screen.getByLabelText("模型通用参数 JSON");
 
@@ -439,7 +446,12 @@ describe("SettingsPage · 端点配置·高级参数", () => {
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
 
     expect(apiMock.updateEndpoint).not.toHaveBeenCalled();
-    expect(await screen.findByText(/JSON 写法无效/)).toBeInTheDocument();
+    // 拦截文案落高级参数区自己的状态行（不再上浮头行消息槽），
+    // 且 JSON 框挂 aria-invalid ＋ aria-describedby 指向该状态行（字段级错误程序化关联）。
+    const status = await screen.findByText(/JSON 写法无效/);
+    expect(status).toHaveAttribute("role", "status");
+    expect(json).toHaveAttribute("aria-invalid", "true");
+    expect(json).toHaveAttribute("aria-describedby", status.id);
   });
 
   it("旧后端响应缺 request_params 字段时详情页不崩（热升级窗口防御）", async () => {

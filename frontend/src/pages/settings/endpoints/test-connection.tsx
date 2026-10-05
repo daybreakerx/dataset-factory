@@ -1,6 +1,7 @@
 /** 连接 · 端点配置 · 测试连接行（按钮＋结果字）。 */
 import type { ReactElement } from "react";
 import type { EndpointTestResult } from "../../../api";
+import { NoteInline } from "../../../components/note-inline";
 import { Button } from "../../../components/ui/button";
 
 type TestConnectionProps = {
@@ -12,8 +13,9 @@ type TestConnectionProps = {
 };
 
 /** 测试连接：飞行归载入档（data-loading＝文字透明占位＋转圈、底保持 accent 不灰——
- *  探测属可感知等待的操作；防重入由 data-loading 的 pointer-events 与面板键盘守卫承担）；
- *  结果字随反馈形态归一改族的事在批 14 收尾，本行只承载文案与耗时。 */
+ *  探测属可感知等待的操作；防重入由 data-loading 的 pointer-events 与面板键盘守卫承担）。
+ *  结果字＝NoteInline 消息槽（反馈形态归一）：成功绿／失败红、role="status"、
+ *  单行省略＋被截断悬停给全文（Tip 承接）；耗时缀只随成功出现。 */
 export function TestConnection({
   testing,
   disabled,
@@ -40,13 +42,10 @@ export function TestConnection({
         测试连接
       </Button>
       {result !== null && (
-        <span
-          className={`text-t-sm ${result.ok ? "text-success" : "text-destructive"}`}
-          role="status"
-        >
-          {result.message}
-          {result.ok ? ` · ${Math.round(result.latency_ms)} ms` : ""}
-        </span>
+        <NoteInline
+          kind={result.ok ? "ok" : "bad"}
+          text={`${result.message}${result.ok ? ` · ${Math.round(result.latency_ms)} ms` : ""}`}
+        />
       )}
     </div>
   );

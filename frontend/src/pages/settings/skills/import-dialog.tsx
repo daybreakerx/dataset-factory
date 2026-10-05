@@ -1,10 +1,11 @@
-/** 能力 · 技能 · 导入弹窗（拖入 / 文件夹 / SKILL.md / 服务器路径四种方式与反馈条）。 */
+/** 能力 · 技能 · 导入弹窗（拖入 / 文件夹 / SKILL.md / 服务器路径四种方式与标题行反馈槽）。 */
 import { FileTextIcon, FolderOpenIcon, ImportIcon } from "lucide-react";
 import type { ReactElement } from "react";
 import { useRef } from "react";
 import { DialogShell } from "../../../components/dialog-shell";
-import { Alert, AlertDescription } from "../../../components/ui/alert";
+import { NoteInline } from "../../../components/note-inline";
 import { Button } from "../../../components/ui/button";
+import { DialogHeader, DialogTitle } from "../../../components/ui/dialog";
 import { Input } from "../../../components/ui/input";
 import {
   Tooltip,
@@ -12,6 +13,7 @@ import {
   TooltipTrigger,
 } from "../../../components/ui/tooltip";
 import type { Feedback } from "../../../lib/feedback";
+import { cn } from "../../../lib/utils";
 
 type ImportDialogProps = {
   open: boolean;
@@ -30,7 +32,10 @@ type ImportDialogProps = {
   onDrop: (transfer: DataTransfer) => void;
 };
 
-/** 导入弹窗：拖放区触发文件夹选择（webkitdirectory），两种文件选择与服务器路径导入并存。 */
+/** 导入弹窗：拖放区触发文件夹选择（webkitdirectory），两种文件选择与服务器路径导入并存。
+ *  三态反馈挂弹窗标题行右侧消息槽（成功 ok／警告 warn／失败 bad——稿 导入技能弹窗「反馈槽
+ *  形态与落位」行）；头行带三色槽属布局分叉，按壳层约定 children 自组（不走壳层 headNote
+ *  槽——它固定红字失败行形态）。 */
 export function ImportDialog({
   open,
   onOpenChange,
@@ -47,16 +52,44 @@ export function ImportDialog({
 }: ImportDialogProps): ReactElement {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mdInputRef = useRef<HTMLInputElement>(null);
+  // 飞行期（导入中／读包中）＝瞬态禁用：只失效不换装（对齐批「瞬态禁用不换装」）。
+  // fieldset 层掐指针事件、语义交给 aria-disabled；键盘路径由各控件 onClick 拦截与
+  // readOnly 兜底。「导入」钮路径为空是持续禁用，照旧走 disabled 灰阶。
+  const flight = importing || readingDrop;
+  const flightProps = {
+    "aria-disabled": flight || undefined,
+    className: flight ? "pointer-events-none" : undefined,
+  } as const;
 
   return (
     <DialogShell
       open={open}
       onOpenChange={onOpenChange}
       className="w-[min(560px,calc(100vw-48px))]"
-      title="导入 Skill 包"
-      description="agentskills.io 标准"
     >
-      <fieldset disabled={importing || readingDrop} className="min-w-0 space-y-3">
+      <DialogHeader>
+        <div className="flex min-h-(--h-md) items-center gap-3">
+          <DialogTitle>导入 Skill 包</DialogTitle>
+          {feedback !== null && (
+            <NoteInline
+              fill
+              kind={
+                feedback.kind === "error"
+                  ? "bad"
+                  : feedback.kind === "warn"
+                    ? "warn"
+                    : "ok"
+              }
+              role={feedback.kind === "error" ? "alert" : "status"}
+              text={feedback.text}
+            />
+          )}
+        </div>
+      </DialogHeader>
+      <fieldset
+        aria-disabled={flight || undefined}
+        className={cn("min-w-0 space-y-3", flight && "pointer-events-none")}
+      >
         <button
           type="button"
           aria-label="拖入 Skill 包"
@@ -65,8 +98,11 @@ export function ImportDialog({
             event.preventDefault();
             onDrop(event.dataTransfer);
           }}
-          onClick={() => fileInputRef.current?.click()}
-          className="flex w-full items-center justify-center gap-3 rounded-md border border-dashed border-input bg-card p-8 text-t-md text-muted-foreground"
+          onClick={flight ? undefined : () => fileInputRef.current?.click()}
+          className={cn(
+            "flex w-full items-center justify-center gap-3 rounded-md border border-dashed border-input bg-card p-8 text-t-md text-muted-foreground",
+            flight && "pointer-events-none",
+          )}
         >
           <ImportIcon className="size-4" />
           拖文件夹 / SKILL.md 到这里导入
@@ -102,8 +138,8 @@ export function ImportDialog({
           <Button
             type="button"
             variant="outline"
-            disabled={importing}
-            onClick={() => fileInputRef.current?.click()}
+            {...flightProps}
+            onClick={flight ? undefined : () => fileInputRef.current?.click()}
           >
             <FolderOpenIcon className="size-4" />
             文件夹
@@ -111,8 +147,8 @@ export function ImportDialog({
           <Button
             type="button"
             variant="outline"
-            disabled={importing}
-            onClick={() => mdInputRef.current?.click()}
+            {...flightProps}
+            onClick={flight ? undefined : () => mdInputRef.current?.click()}
           >
             <FileTextIcon className="size-4" />
             SKILL.md 文件
@@ -123,6 +159,8 @@ export function ImportDialog({
             aria-label="skill 服务器路径"
             placeholder="服务器上的目录或文件"
             value={pathValue}
+            readOnly={flight}
+            aria-disabled={flight || undefined}
             onInput={(event) => onPathInput(event.currentTarget.value)}
           />
           <Tooltip>
@@ -132,8 +170,8 @@ export function ImportDialog({
                 variant="ghost"
                 size="icon-lg"
                 aria-label="选择技能目录或文件"
-                disabled={importing}
-                onClick={onPickPath}
+                {...flightProps}
+                onClick={flight ? undefined : onPickPath}
               >
                 <FolderOpenIcon />
               </Button>
@@ -143,26 +181,14 @@ export function ImportDialog({
           <Button
             type="button"
             variant="outline"
-            disabled={importing || pathValue.trim() === ""}
-            onClick={onImportPath}
+            disabled={pathValue.trim() === ""}
+            aria-disabled={flight || undefined}
+            className={flight ? "pointer-events-none" : undefined}
+            onClick={flight ? undefined : onImportPath}
           >
             导入
           </Button>
         </div>
-        {feedback !== null && (
-          // 上距归 space-y 刻度（--s-3）：mt-2 与 space-y-3 叠加成 20px 属刻度外（对齐批连带）。
-          <Alert
-            variant={
-              feedback.kind === "error"
-                ? "destructive"
-                : feedback.kind === "warn"
-                  ? "warn"
-                  : "success"
-            }
-          >
-            <AlertDescription>{feedback.text}</AlertDescription>
-          </Alert>
-        )}
       </fieldset>
     </DialogShell>
   );

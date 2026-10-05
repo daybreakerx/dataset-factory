@@ -126,11 +126,16 @@ export function SkillList({
                 (active ? "border-input" : "border-transparent hover:border-border")
               }
             >
+              {/* 切换飞行＝瞬态禁用：只失效不换装（对齐批「瞬态禁用不换装」）——
+                  掐指针事件＋aria-disabled 语义、onClick 兜底拦键盘路径，不走 disabled 灰底。 */}
               <Switch
-                disabled={toggling}
+                aria-disabled={toggling || undefined}
+                className={toggling ? "pointer-events-none" : undefined}
                 checked={skill.enabled}
                 aria-label={`启用 ${skill.name}`}
-                onClick={() => onToggle(skill)}
+                onClick={() => {
+                  if (!toggling) onToggle(skill);
+                }}
               />
               <button
                 type="button"

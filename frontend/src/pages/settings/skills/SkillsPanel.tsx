@@ -10,11 +10,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SkillFileInfo, SkillImportResponse, SkillInfo } from "../../../api";
 import { api } from "../../../api";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
-import { Alert, AlertDescription } from "../../../components/ui/alert";
 import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
 import { useVscrollColumn } from "../../../components/vscroll";
 import { type Feedback, reportError } from "../../../lib/feedback";
 import { formatBytes } from "../../../lib/format";
+import { toast } from "../../../lib/toast";
 import type { PanelUnsavedActions } from "../../../lib/unsaved-actions";
 import { DeleteDialog } from "./delete-dialog";
 import { ImportDialog } from "./import-dialog";
@@ -61,8 +61,14 @@ export function SkillsPanel({
     { kind: "pick"; id: string } | { kind: "preview"; path: string } | null
   >(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-  // 头行消息槽的「保存被拦」消息（对齐批「头行消息槽」条④）：红字、下一次操作互斥替换。
-  const [headBlocked, setHeadBlocked] = useState<string | null>(null);
+  // 详情头行消息槽（一槽一消息、互斥替换）：保存被拦（bad）／保存成功（ok）优先，
+  // 其余回落损坏档常态（warn／bad）——对齐批「技能侧反馈归一」（批 14）。
+  // nameBlocked＝消息来自空名拦截，供名字框挂 aria-invalid（字段级错误程序化关联）。
+  const [headMsg, setHeadMsg] = useState<{
+    kind: "ok" | "warn" | "bad";
+    text: string;
+    nameBlocked?: boolean;
+  } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   // 删除飞行期与失败行：提交后回包前两钮只失效不换装；业务错误就地进弹窗
   // （弹窗保持打开），连接类失败由 reportError 改走浮层（稿 弹窗壳「环境类失败」）。
@@ -76,10 +82,18 @@ export function SkillsPanel({
   const [pathValue, setPathValue] = useState("");
   const [pickingPath, setPickingPath] = useState(false);
 
-  /** 失败分流：连接类失败改弹浮层（不占界面位置），后端返回的业务错误仍就地展示。 */
+  /** 导入路径的失败分流：连接类失败改弹浮层（不占界面位置），后端返回的业务错误进
+   *  弹窗标题行消息槽（对齐批 45①「反馈分域：已导入→弹窗内」）。弹窗外的面板操作
+   *  （启停／预览／文件清单）失败不再有面板提示条承接、改走浮层。 */
   const fail = useCallback((err: unknown): void => {
     const text = reportError(err);
     if (text !== null) setFeedback({ kind: "error", text });
+  }, []);
+
+  /** 弹窗外操作的失败分流：连接类由 reportError 弹浮层，业务错误同样进浮层。 */
+  const failAside = useCallback((err: unknown): void => {
+    const text = reportError(err);
+    if (text !== null) toast(text);
   }, []);
 
   const { skills, loading, loadError, reload: fetchSkills } = useSkills();
@@ -100,7 +114,7 @@ export function SkillsPanel({
   // 但 frontmatter 被重写过，重读一次才拿得到磁盘上的真基线。
   useEffect(() => {
     setNameDraft(null);
-    setHeadBlocked(null);
+    setHeadMsg(null);
     setSkillMdOriginal("");
     const generation = ++previewGeneration.current;
     setPreviewPath("");
@@ -134,7 +148,7 @@ export function SkillsPanel({
         }
       } catch (err) {
         if (!cancelled) {
-          fail(err);
+          failAside(err);
         }
       } finally {
         if (!cancelled && generation === previewGeneration.current)
@@ -145,7 +159,7 @@ export function SkillsPanel({
       cancelled = true;
       previewGeneration.current += 1;
     };
-  }, [selected, fail]);
+  }, [selected, failAside]);
 
   const current = skills.find((item) => item.id === selected);
 
@@ -166,11 +180,16 @@ export function SkillsPanel({
     skillMdRescue.name === undefined &&
     skillMdRescue.description === undefined;
 
-  // 头行消息槽内容（一槽一消息、互斥替换）：保存被拦（bad）＞ 损坏档常态（warn／bad）。
-  // assembly-failed（包体组装失败等）的槽文案稿未承载——不占槽，原因走列表图标 Tip（挂账呈报）。
-  let headNote: { kind: "warn" | "bad"; text: string } | null = null;
-  if (headBlocked !== null) {
-    headNote = { kind: "bad", text: headBlocked };
+  // 头行消息槽内容（一槽一消息、互斥替换）：保存被拦（bad）／保存成功（ok）＞ 损坏档常态
+  // （warn／bad）。assembly-failed（包体组装失败等）的槽文案稿未承载——不占槽，原因走列表
+  // 图标 Tip（挂账呈报）。
+  let headNote: {
+    kind: "ok" | "warn" | "bad";
+    text: string;
+    nameBlocked?: boolean;
+  } | null = null;
+  if (headMsg !== null) {
+    headNote = headMsg;
   } else if (current !== undefined) {
     if (current.damage_kind === "frontmatter-corrupt") {
       headNote = rescueFailed
@@ -208,7 +227,7 @@ export function SkillsPanel({
       await api.setSkillEnabled(skill.id, !skill.enabled);
       await reload();
     } catch (err) {
-      fail(err);
+      failAside(err);
     } finally {
       togglePending.current = false;
       setToggling(false);
@@ -312,7 +331,8 @@ export function SkillsPanel({
     try {
       await api.deleteSkill(selected);
       setDeleteDialogOpen(false);
-      setFeedback({ kind: "success", text: `已删除「${current?.name ?? selected}」` });
+      // 删除成功改浮层提示（对齐批 45③；面板提示条已撤，selected 清空后也不再有槽可落）。
+      toast(`已删除「${current?.name ?? selected}」`);
       setSelected("");
       await reload();
     } catch (err) {
@@ -349,7 +369,7 @@ export function SkillsPanel({
       if (path === "SKILL.md") setSkillMdOriginal(content.content);
       setDescriptionDraft(null);
     } catch (err) {
-      if (generation === previewGeneration.current) fail(err);
+      if (generation === previewGeneration.current) failAside(err);
     } finally {
       if (generation === previewGeneration.current) setLoadingPreview(false);
     }
@@ -382,7 +402,7 @@ export function SkillsPanel({
       if (action.path === "SKILL.md") setSkillMdOriginal(content.content);
       setDescriptionDraft(null);
     } catch (err) {
-      if (generation === previewGeneration.current) fail(err);
+      if (generation === previewGeneration.current) failAside(err);
     } finally {
       if (generation === previewGeneration.current) setLoadingPreview(false);
     }
@@ -432,7 +452,7 @@ export function SkillsPanel({
     const nextName = (nameDraft ?? nameDefault).trim();
     if (nextName === "") {
       const message = "名称不能为空；请填写技能名称。";
-      setHeadBlocked(message);
+      setHeadMsg({ kind: "bad", text: message, nameBlocked: true });
       return { ok: false, error: message };
     }
     const renamed = nextName !== current.name;
@@ -471,20 +491,21 @@ export function SkillsPanel({
       setOriginalContent(finalContent);
       setDescriptionDraft(null);
       setNameDraft(null);
-      setHeadBlocked(null);
       if (previewPath === "SKILL.md") setSkillMdOriginal(finalContent);
-      // 成功句仍走面板反馈条（槽不常显成功句——稿 技能详情头「保存提交 · 成功」）；
-      // 「已保存→详情头槽」的落位随批 14 反馈归一（E 位对位表 --ok）。
-      setFeedback({
-        kind: "success",
+      // 成功句挂详情头行消息槽（--ok；一槽一消息、互斥替换——对齐批「技能侧反馈归一」，
+      // E 位对位表「已保存→详情头槽」）。
+      setHeadMsg({
+        kind: "ok",
         text: renamed ? `已保存并改名为「${nextName}」` : "已保存",
       });
       await reload();
       return { ok: true, error: "" };
     } catch (err) {
       if (generation === previewGeneration.current) {
+        // 保存失败同样按分流（稿 技能详情头「保存飞行／预览加载」行）：业务错误进详情头
+        // 消息槽、连接类由 reportError 走浮层。
         const text = reportError(err);
-        if (text !== null) fail(err);
+        if (text !== null) setHeadMsg({ kind: "bad", text });
         return { ok: false, error: text ?? "" };
       }
       return { ok: false, error: "" };
@@ -552,26 +573,13 @@ export function SkillsPanel({
         ref={detailRef}
         className="vscroll-y flex min-w-0 shrink-0 flex-1 flex-col border-t border-border p-4 lg:min-h-0 lg:overflow-y-auto lg:border-t-0 lg:border-l lg:px-8 lg:py-6"
       >
-        {!importOpen && feedback !== null && (
-          <Alert
-            variant={
-              feedback.kind === "error"
-                ? "destructive"
-                : feedback.kind === "warn"
-                  ? "warn"
-                  : "success"
-            }
-          >
-            <AlertDescription>{feedback.text}</AlertDescription>
-          </Alert>
-        )}
         {current !== undefined ? (
           <SkillDetail
             nameDraft={nameDraft}
             nameDefault={nameDefault}
             onNameChange={(value) => {
               // 改正名字即清「保存被拦」消息（稿：改正后回常态消息）。
-              setHeadBlocked(null);
+              setHeadMsg(null);
               setNameDraft(value === nameDefault ? null : value);
             }}
             saving={saving}
