@@ -317,7 +317,7 @@ function CfgPopRowIconButton({
           "flex size-(--h-sm) flex-none items-center justify-center rounded-md text-text-3 select-none",
           danger
             ? "enabled:hover:bg-bad-ink/12 enabled:hover:text-bad-ink"
-            : "enabled:hover:bg-n-900/6 enabled:hover:text-text-1",
+            : "enabled:hover:bg-accent enabled:hover:text-text-1",
           "disabled:cursor-not-allowed disabled:text-n-400 disabled:bg-transparent",
           "aria-disabled:pointer-events-none",
           "[&_svg]:size-3.5",

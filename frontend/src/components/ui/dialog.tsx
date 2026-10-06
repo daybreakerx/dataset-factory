@@ -30,7 +30,7 @@ function DialogContent({
   children,
   ...props
 }: ComponentProps<typeof DialogPrimitive.Content> & {
-  /** 关闭叉钮的附加类：实例级覆盖（如窄屏侧栏抽屉实例悬停底按侧栏表面取 --nav-hover）。 */
+  /** 关闭叉钮的附加类：实例级覆盖（如窄屏侧栏抽屉实例的定位补正；悬停底统一 --accent 半透明墨）。 */
   closeClassName?: string;
   /** 关闭叉钮的随态 Tip（破坏性弹窗飞行期「关闭不等于撤销删除」）；空串不渲染气泡。 */
   closeTip?: ReactNode;

@@ -184,7 +184,7 @@ export function App(): ReactElement {
               setCollapsed(false);
               setNavigationOpen(true);
             }}
-            className="flex size-(--h-md) shrink-0 items-center justify-center rounded-md text-text-3 transition-colors duration-(--dur-1) hover:bg-nav-hover hover:text-text-1"
+            className="flex size-(--h-md) shrink-0 items-center justify-center rounded-md text-text-3 transition-colors duration-(--dur-1) hover:bg-accent hover:text-text-1"
           >
             <PanelLeftOpenIcon className="size-4" />
           </button>
@@ -197,8 +197,8 @@ export function App(): ReactElement {
           <DialogContent
             aria-describedby={undefined}
             // 抽屉叉钮＝弹窗壳关闭钮的抽屉实例位（稿 侧栏展收：绝对定位上/右各 12），
-            // 悬停底按侧栏表面取 --nav-hover（压过壳通用 --accent 白底档）。
-            closeClassName="top-3 right-3 hover:bg-nav-hover"
+            // 悬停底走 --accent 半透明墨（任意表面成立，ADR「悬停 / 高亮底改表面无关的半透明墨」）。
+            closeClassName="top-3 right-3 hover:bg-accent"
             className="left-0 top-0 h-dvh w-62.5 max-w-full translate-x-0 translate-y-0 gap-0 rounded-none border-0 p-0"
           >
             <DialogTitle className="sr-only">导航</DialogTitle>

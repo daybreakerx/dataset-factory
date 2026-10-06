@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../api";
 import { FormError } from "../../components/form-error";
 import { Button } from "../../components/ui/button";
+import { Tip } from "../../components/ui/tooltip";
 import {
   LABELING_SELECTED_ITEM_KEY,
   readStoredString,
@@ -345,14 +346,20 @@ export function LabelingPage({
               onOpen={() => setDirectoriesRevision((revision) => revision + 1)}
             />
           </div>
-          <Button
-            variant="ghost"
-            size="icon-lg"
-            aria-label="新建跑批"
-            onClick={() => setCreating(true)}
-          >
-            <PlusIcon />
-          </Button>
+          {/* 圆角统一 --r-md（对齐批「悬停/按压归一 + 顶部件三笔」⑥：基类 rounded-md＝
+              --r-sm 8px，与同排选择器 chip 的 --r-md 12px 不同档，DESIGN.md 3.4 同行共用
+              一套圆角基准）；补 Tip（⑤，图标钮必配气泡）。 */}
+          <Tip label="新建跑批">
+            <Button
+              variant="ghost"
+              size="icon-lg"
+              className="rounded-lg"
+              aria-label="新建跑批"
+              onClick={() => setCreating(true)}
+            >
+              <PlusIcon />
+            </Button>
+          </Tip>
         </div>
         {selection && (
           <BatchConfiguration

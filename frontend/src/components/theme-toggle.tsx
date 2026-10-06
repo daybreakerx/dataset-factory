@@ -43,7 +43,7 @@ export function ThemeToggle({
           size="icon"
           className={
             sidebar
-              ? "text-text-3 hover:bg-nav-hover hover:text-text-1"
+              ? "text-text-3 hover:bg-accent hover:text-text-1"
               : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           }
           aria-label={MODE_LABEL[mode]}

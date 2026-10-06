@@ -215,7 +215,7 @@ export function DirectoryPicker({
               <button
                 key={crumb.path}
                 type="button"
-                className="shrink-0 rounded-sm px-1 py-0.5 hover:bg-n-100"
+                className="shrink-0 rounded-sm px-1 py-0.5 hover:bg-accent"
                 disabled={loading || renamingBusy || index === breadcrumbs.length - 1}
                 onClick={() => navigate(crumb.path)}
               >

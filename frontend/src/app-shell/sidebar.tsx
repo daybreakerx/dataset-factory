@@ -114,7 +114,7 @@ export function Sidebar({
                     setCollapsed((value) => !value);
                   }}
                   className={cn(
-                    "group flex shrink-0 items-center justify-center rounded-md bg-black hover:bg-nav-hover",
+                    "group flex shrink-0 items-center justify-center rounded-md bg-black hover:bg-accent",
                     collapsed ? "size-(--h-sm)" : "size-8",
                   )}
                   aria-label={collapsed ? "展开侧栏" : "收起侧栏"}
@@ -167,7 +167,7 @@ export function Sidebar({
                 setPage(workPage);
                 setNavigationOpen(false);
               }}
-              className="mt-2 flex h-(--h-md) w-full items-center gap-3 rounded-md px-3 text-text-3 transition-colors duration-(--dur-1) hover:bg-nav-hover hover:text-text-1"
+              className="mt-2 flex h-(--h-md) w-full items-center gap-3 rounded-md px-3 text-text-3 transition-colors duration-(--dur-1) hover:bg-accent hover:text-text-1"
             >
               <ArrowLeftIcon className="size-4 shrink-0" />
               {!collapsed && "返回工作区"}
@@ -194,7 +194,7 @@ export function Sidebar({
                       setNavigationOpen(false);
                     }}
                     className={cn(
-                      "flex h-(--h-md) w-full items-center gap-3 rounded-md px-3 text-text-3 transition-colors duration-(--dur-1) hover:bg-nav-hover hover:text-text-1",
+                      "flex h-(--h-md) w-full items-center gap-3 rounded-md px-3 text-text-3 transition-colors duration-(--dur-1) hover:bg-accent hover:text-text-1",
                       collapsed && "justify-center px-0",
                       settingsSection === item.key &&
                         "bg-nav-active font-medium text-text-1",
@@ -234,7 +234,7 @@ export function Sidebar({
                           collapsed && "justify-center px-0",
                           active
                             ? "bg-nav-active font-medium text-text-1"
-                            : "text-text-3 hover:bg-nav-hover hover:text-text-1",
+                            : "text-text-3 hover:bg-accent hover:text-text-1",
                         )}
                       >
                         <item.icon className="size-4 shrink-0" />
@@ -268,7 +268,7 @@ export function Sidebar({
               aria-label="设置"
               aria-current={page === "settings" ? "page" : undefined}
               onClick={() => openSettings()}
-              className="flex size-(--h-md) shrink-0 items-center justify-center rounded-md text-text-3 transition-colors duration-(--dur-1) hover:bg-nav-hover hover:text-text-1"
+              className="flex size-(--h-md) shrink-0 items-center justify-center rounded-md text-text-3 transition-colors duration-(--dur-1) hover:bg-accent hover:text-text-1"
             >
               <SettingsIcon className="size-4" />
             </button>

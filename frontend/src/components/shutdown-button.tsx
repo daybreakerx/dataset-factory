@@ -58,8 +58,8 @@ export function ShutdownButton({
             className={
               sidebar
                 ? // 侧栏图标态撤红改黑（「黑」的规范形态＝text-1，暗色自动翻白）、
-                  // 悬停底归侧栏族 --nav-hover，与同排钮一致（base.css §5 side-foot）。
-                  "text-text-1 hover:bg-nav-hover"
+                  // 悬停底走 --accent 半透明墨，与同排钮一致（base.css §5 side-foot）。
+                  "text-text-1 hover:bg-accent"
                 : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             }
             aria-label="关闭服务"
