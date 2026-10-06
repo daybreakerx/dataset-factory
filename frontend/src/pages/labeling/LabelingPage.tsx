@@ -42,8 +42,15 @@ export function LabelingPage({
 } = {}) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const { workdirs, setWorkdirs, selection, setSelection, setDirectoriesRevision } =
-    useWorkdirBatches({ setError, setLoading });
+  const {
+    workdirs,
+    setWorkdirs,
+    selection,
+    setSelection,
+    setDirectoriesRevision,
+    flight,
+    loadError,
+  } = useWorkdirBatches({ setError, setLoading });
   const [items, setItems] = useState<ItemMap>(new Map());
   const [exportRevision, setExportRevision] = useState(0);
   const [externalRun, setExternalRun] = useState<{
@@ -333,6 +340,9 @@ export function LabelingPage({
               onSettings={setSettingsWid}
               onNewStrategy={setNewStrategyWid}
               runState={batchRunState}
+              loading={flight}
+              loadError={loadError}
+              onOpen={() => setDirectoriesRevision((revision) => revision + 1)}
             />
           </div>
           <Button

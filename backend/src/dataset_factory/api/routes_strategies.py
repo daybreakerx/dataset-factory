@@ -135,7 +135,8 @@ def _to_batch_view(wid: str, entry: BatchEntry) -> BatchView:
             "id": f"s{entry.seq}",
             "product_count": product_count(workdir, entry.seq),
             "run_status": record.status if record else None,
-            "run_done": record.counters.succeeded if record else None,
+            # 分子口径＝已尝试（2026-10-05 用户裁：失败条目会让「成功」分子永远合不拢进度环）
+            "run_done": record.counters.attempted if record else None,
             "run_total": record.counters.planned if record else None,
         }
     )

@@ -46,7 +46,7 @@ const workdirs: WorkdirBatches[] = [
 ];
 
 describe("批次选择器", () => {
-  it("下拉行内显示最近运行的状态章、进度与当前项勾", async () => {
+  it("下拉行内显示最近运行的状态图标、进度与当前行强调", async () => {
     const user = userEvent.setup();
     const withRun: WorkdirBatches[] = [
       {
@@ -89,14 +89,61 @@ describe("批次选择器", () => {
     );
     await user.click(screen.getByRole("button", { name: "选择工作目录与批次" }));
 
-    expect(screen.getByText("已完成")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "已完成" })).toBeInTheDocument();
     expect(screen.getByText("2 / 3")).toBeInTheDocument();
     const current = screen.getByRole("menuitem", { name: /详细描述/ });
     expect(current).toHaveAttribute("aria-current", "true");
-    expect(within(current).getByTestId("batch-is-current")).toBeInTheDocument();
-    // 无运行记录的批次不带状态章与进度
+    // 未开始（run_status 为 null）仍出图标、不留空位；无运行记录的批次不带进度计数
     const other = screen.getByRole("menuitem", { name: /标签式短句/ });
+    expect(within(other).getByRole("img", { name: "未开始" })).toBeInTheDocument();
     expect(within(other).queryByText(/\/ 3/)).not.toBeInTheDocument();
+  });
+
+  it("弹层打开即回调重拉：飞行期整层换「正在读取…」，失败换「工作目录读取失败」", async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    const { rerender } = render(
+      <BatchSelector
+        workdirs={workdirs}
+        value={null}
+        onChange={vi.fn()}
+        loading
+        onOpen={onOpen}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "选择工作目录与批次" }));
+    expect(screen.getByText("正在读取…")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith();
+
+    rerender(
+      <BatchSelector
+        workdirs={workdirs}
+        value={null}
+        onChange={vi.fn()}
+        loadError="工作目录读取失败"
+        onOpen={onOpen}
+      />,
+    );
+    expect(screen.getByText("工作目录读取失败")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
+  });
+
+  it("目录行整行触发折叠、子行随藏；再点展回", async () => {
+    const user = userEvent.setup();
+    render(<BatchSelector workdirs={workdirs} value={null} onChange={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "选择工作目录与批次" }));
+
+    const group = screen.getByRole("group", { name: "素材一" });
+    await user.click(within(group).getByText("素材一"));
+    expect(screen.getByText("素材一").closest("div")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(within(group).queryByRole("menuitem")).not.toBeInTheDocument();
+
+    await user.click(within(group).getByText("素材一"));
+    expect(within(group).getByRole("menuitem")).toBeInTheDocument();
   });
 
   it("目录加号传递目录身份且关闭菜单", async () => {
@@ -161,11 +208,11 @@ describe("批次选择器", () => {
 
     await user.click(screen.getByRole("button", { name: "选择工作目录与批次" }));
 
-    expect(screen.getByText("没有启用的批次")).toBeInTheDocument();
+    expect(screen.getByText("还没有可用的批次")).toBeInTheDocument();
     expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
   });
 
-  it("胶囊第三段按运行状态显示状态章，无记录时不显示", () => {
+  it("触发钮状态位按运行状态显示图标，无记录时显示「未开始」", () => {
     const { rerender } = render(
       <BatchSelector
         workdirs={workdirs}
@@ -175,7 +222,7 @@ describe("批次选择器", () => {
       />,
     );
 
-    expect(screen.getByText("已完成")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "已完成" })).toBeInTheDocument();
 
     rerender(
       <BatchSelector
@@ -185,8 +232,8 @@ describe("批次选择器", () => {
         runState="running"
       />,
     );
-    expect(screen.getByText("跑批中")).toBeInTheDocument();
-    expect(screen.queryByText("已完成")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "跑批中" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "已完成" })).not.toBeInTheDocument();
 
     rerender(
       <BatchSelector
@@ -196,6 +243,6 @@ describe("批次选择器", () => {
         runState={null}
       />,
     );
-    expect(screen.queryByText("跑批中")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "未开始" })).toBeInTheDocument();
   });
 });

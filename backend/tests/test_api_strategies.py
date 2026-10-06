@@ -687,5 +687,6 @@ def test_batch_view_reports_latest_run_for_dropdown(
 
     listed = client.get(f"/api/workdirs/{wid}/batches").json()
     assert listed[0]["run_status"] == "completed"
-    assert listed[0]["run_done"] == 2
+    # 分子口径＝已尝试（attempted 3，非成功 2）：失败条目在册时「成功」分子合不拢进度环
+    assert listed[0]["run_done"] == 3
     assert listed[0]["run_total"] == 3

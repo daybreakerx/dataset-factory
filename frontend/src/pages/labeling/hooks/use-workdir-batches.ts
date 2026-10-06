@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
+import { reportError } from "../../../lib/feedback";
 import { readStoredJson, writeStoredJson } from "../../../lib/ui-storage";
 import type { BatchSelection, WorkdirBatches } from "../batching/BatchSelector";
 
@@ -51,8 +52,18 @@ export function useWorkdirBatches({
   selection: BatchSelection | null;
   setSelection: Dispatch<SetStateAction<BatchSelection | null>>;
   setDirectoriesRevision: Dispatch<SetStateAction<number>>;
+  /** 弹层重拉的飞行态（打开重拉期间为 true，供弹层换「正在读取…」行）。 */
+  flight: boolean;
+  /** 目录清单取数失败（只接非连接类；连接类已转浮层），供弹层换失败行。 */
+  loadError: string | null;
 } {
   const [workdirs, setWorkdirs] = useState<WorkdirBatches[]>([]);
+  // 弹层自己的飞行 / 失败标志（对齐批「批次下拉列表对齐」⑧，族三态行口径：打开重拉期间
+  // 整层换「正在读取…」、失败换「工作目录读取失败」且只接非连接类——连接类由 reportError
+  // 转浮层提示、不占层内）。与页面级 loading／error 互不接管：页面那对还管着素材列骨架
+  // 与顶部横幅，弹层重拉不该让整页闪骨架。
+  const [flight, setFlight] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // selection 两阶段（2026-09-23 排查：删数据根后记忆 wid 必然先撞一轮 404 并闪
   // 「不在注册表中」横幅）：记忆值只作候选——启动先拉目录列表，对上才提交为正式
   // selection，对不上（删数据根 / 外部删目录 / 批次被删）静默回退默认。items /
@@ -67,6 +78,8 @@ export function useWorkdirBatches({
   // biome-ignore lint/correctness/useExhaustiveDependencies: directoriesRevision refreshes the registry after directory settings mutations.
   useEffect(() => {
     let current = true;
+    setFlight(true);
+    setLoadError(null);
     void loadWorkdirBatches()
       .then((loaded) => {
         if (!current) return;
@@ -99,10 +112,16 @@ export function useWorkdirBatches({
         });
       })
       .catch((reason: unknown) => {
-        if (current) setError(errorMessage(reason));
+        if (!current) return;
+        // 页面横幅语义不变（仍收全部失败）；弹层失败行只接非连接类（族口径）。
+        if (reportError(reason) !== null) setLoadError("工作目录读取失败");
+        setError(errorMessage(reason));
       })
       .finally(() => {
-        if (current) setLoading(false);
+        if (current) {
+          setLoading(false);
+          setFlight(false);
+        }
       });
     return () => {
       current = false;
@@ -120,5 +139,7 @@ export function useWorkdirBatches({
     selection,
     setSelection,
     setDirectoriesRevision,
+    flight,
+    loadError,
   };
 }

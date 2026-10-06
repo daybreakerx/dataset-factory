@@ -138,7 +138,8 @@ describe("打标页读取流程", () => {
     expect(api.listItems).toHaveBeenCalledWith("two", "s1");
     await user.click(screen.getByRole("button", { name: "选择工作目录与批次" }));
     const unavailable = within(screen.getByRole("group", { name: "目录一" }));
-    expect(unavailable.getByText(/目录不存在/)).toBeInTheDocument();
+    // 打开即重拉（族加载态）：飞行期行位会短暂换成「正在读取…」，行回来再断言。
+    expect(await unavailable.findByText(/目录不存在/)).toBeInTheDocument();
     expect(
       unavailable.getByRole("button", { name: "工作目录设置 目录一" }),
     ).toBeEnabled();
@@ -514,7 +515,9 @@ describe("打标页读取流程", () => {
     await screen.findByText("目录一");
     await user.click(screen.getByRole("button", { name: "选择工作目录与批次" }));
     await user.click(
-      within(screen.getByRole("group", { name: "目录二" })).getByRole("menuitem"),
+      await within(screen.getByRole("group", { name: "目录二" })).findByRole(
+        "menuitem",
+      ),
     );
     await screen.findByRole("button", { name: "second.jpg" });
     await act(async () => {
@@ -566,9 +569,10 @@ describe("切页记忆与状态章", () => {
     await user.click(screen.getByRole("button", { name: "选择工作目录与批次" }));
     // twoBatches 对两个目录都生效，菜单里有两个 /s2/——限定在目录一组内点。
     await user.click(
-      within(screen.getByRole("group", { name: "目录一" })).getByRole("menuitem", {
-        name: /s2/,
-      }),
+      await within(screen.getByRole("group", { name: "目录一" })).findByRole(
+        "menuitem",
+        { name: /s2/ },
+      ),
     );
     await screen.findByRole("button", { name: "first.jpg" });
     first.unmount();
@@ -577,13 +581,13 @@ describe("切页记忆与状态章", () => {
     await screen.findByRole("button", { name: "first.jpg" });
     expect(api.listItems).toHaveBeenLastCalledWith("one", "s2");
     await user.click(screen.getByRole("button", { name: "选择工作目录与批次" }));
+    // 当前行标记＝aria-current（绿勾已撤，tint＋左线＋aria-current 三重信号）
     expect(
-      within(screen.getByRole("group", { name: "目录一" }))
-        .getByRole("menuitem", {
-          name: /s2/,
-        })
-        .querySelector('[data-testid="batch-is-current"]'),
-    ).toBeInTheDocument();
+      await within(screen.getByRole("group", { name: "目录一" })).findByRole(
+        "menuitem",
+        { name: /s2/ },
+      ),
+    ).toHaveAttribute("aria-current", "true");
   });
 
   it("localStorage 里的失效批次回退到默认选择", async () => {
@@ -642,19 +646,19 @@ describe("切页记忆与状态章", () => {
     render(<LabelingPage />);
 
     // 挂载后先由 latestRun 读到终态，随后 RunControl 探测空闲报 idle——
-    // idle 必须触发重读而不是把刚显示的「已完成」抹掉。（重读是幂等轻量磁盘读，
+    // idle 必须触发重读而不是把刚显示的「已完成」图标抹掉。（重读是幂等轻量磁盘读，
     // 测试环境下 idle 上报可能与 selection 校验重设交织出多轮，只断言下界。
-    // 「已完成」与左列组头同名，徽标断言限定在胶囊内。）
+    // 触发钮的可访问名固定，「已完成」图标断言限定在胶囊内。）
     const capsule = (): HTMLElement =>
       screen.getByRole("button", { name: "选择工作目录与批次" });
     await waitFor(() =>
-      expect(within(capsule()).getByText("已完成")).toBeInTheDocument(),
+      expect(within(capsule()).getByRole("img", { name: "已完成" })).toBeInTheDocument(),
     );
     await waitFor(() =>
       expect(vi.mocked(api.latestRun).mock.calls.length).toBeGreaterThanOrEqual(2),
     );
     await waitFor(() =>
-      expect(within(capsule()).getByText("已完成")).toBeInTheDocument(),
+      expect(within(capsule()).getByRole("img", { name: "已完成" })).toBeInTheDocument(),
     );
   });
 
