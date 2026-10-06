@@ -107,9 +107,10 @@ export const HEALTH_DOT: Record<EndpointHealth["status"], string> = {
 };
 
 /** 策略页 chip 的点色（稿 端点切换弹层「触发件 · 点色四态」）：该页无跑批呼吸点同屏
- *  竞争，探测中走**呼吸蓝**（用户裁「呼吸代表探测中」；实现呼吸先例＝service-dot 的
- *  animate-pulse）。 */
+ *  竞争，探测中走**呼吸蓝**（用户裁「呼吸代表探测中」）；呼吸节奏归一稿点名的
+ *  dot--run（1.6s／谷值 0.35，globals.css .animate-dot-run——2026-10-06 审计呈报后随
+ *  收口归一，不再借用 service-dot 的 animate-pulse）。 */
 export const HEALTH_DOT_BREATHING: Record<EndpointHealth["status"], string> = {
   ...HEALTH_DOT,
-  probing: "bg-info-dot animate-pulse",
+  probing: "bg-info-dot animate-dot-run",
 };

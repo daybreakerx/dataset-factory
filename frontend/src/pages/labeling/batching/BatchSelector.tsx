@@ -259,7 +259,7 @@ export function BatchSelector({
           上限 480（components/overlay.md 族条；cfg-pop 同款先例）。 */}
       <DropdownMenuContent
         align="start"
-        className="max-h-80 w-max min-w-(--radix-dropdown-menu-trigger-width) max-w-[480px] overflow-y-auto"
+        className="max-h-80 w-max min-w-(--radix-dropdown-menu-trigger-width) max-w-[min(480px,calc(100vw_-_32px))] overflow-y-auto"
       >
         {loading ? (
           <MutedRow text="正在读取…" />
