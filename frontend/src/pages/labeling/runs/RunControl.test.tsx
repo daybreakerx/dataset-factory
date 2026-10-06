@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, api } from "../../../api";
@@ -139,10 +139,8 @@ describe("运行控制", () => {
     });
 
     expect(await screen.findByText("4 / 10 · 失败 1")).toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "运行进度" })).toHaveAttribute(
-      "aria-valuenow",
-      "4",
-    );
+    // 进度环已撤（对齐批④）：进度只由文本与选择器 chip 内的状态图标表达
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
   it("待启动不算结束，失败帧保留原因", async () => {
@@ -390,21 +388,35 @@ describe("运行控制", () => {
     expect(screen.getByRole("button", { name: "开始打标" })).toBeEnabled();
   });
 
-  it("重试模式经确认弹窗启动（名单发车不可撤销）", async () => {
+  it("运行史五态：中断只出「继续」并按全量续跑、完成整组不渲染、启动失败回「开始打标」", async () => {
     const user = userEvent.setup();
+    // 初始探测走 404（空闲），活观测不在场——五态判定全由 runStatus 承担。
+    vi.mocked(api.currentRun).mockReset().mockRejectedValue(new ApiError("http", "none", 404, null));
+    const { rerender } = render(
+      <RunControl wid="work" batch="s1" onFinish={vi.fn()} runStatus="interrupted" />,
+    );
+
+    const resume = screen.getByRole("button", { name: "继续" });
+    expect(screen.queryByRole("button", { name: "开始打标" })).not.toBeInTheDocument();
+    await user.click(resume);
+    expect(api.startRun).toHaveBeenCalledWith("work", "s1", "full");
+
+    rerender(<RunControl wid="work" batch="s1" onFinish={vi.fn()} runStatus="completed" />);
+    expect(screen.queryByRole("button", { name: "继续" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "开始打标" })).not.toBeInTheDocument();
+
+    rerender(<RunControl wid="work" batch="s1" onFinish={vi.fn()} runStatus="failed" />);
+    expect(screen.getByRole("button", { name: "开始打标" })).toBeInTheDocument();
+  });
+
+  it("顶栏不再有「开始重试」钮（动作的家在左列重试列表组头）", async () => {
     render(<RunControl wid="work" batch="s1" onFinish={vi.fn()} />);
-    // 初始探测（404 → 空闲）落定后按钮才可用；显式等待而非赌冲刷时序。
+    // 初始探测（404 → 空闲）落定后再断言。
     await act(async () => {});
 
-    await user.click(screen.getByRole("button", { name: "开始重试" }));
-    const dialog = screen.getByRole("dialog");
-    expect(
-      within(dialog).getByText(/按重试列表的当前名单逐条重新打标/),
-    ).toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: "开始重试" }));
-
-    expect(api.startRun).toHaveBeenCalledWith("work", "s1", "retry");
-    expect(screen.getByText("运行中")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开始打标" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "开始重试" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("启动失败显示错误且不进入运行态", async () => {

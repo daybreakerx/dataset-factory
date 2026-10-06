@@ -371,6 +371,7 @@ export function LabelingPage({
               externalRun?.identity === identity ? externalRun.id : undefined
             }
             retryRequest={retryRequest}
+            runStatus={batchRunState}
             onRunStatus={(status) => {
               // "idle" = RunControl 探测到空闲（空闲哨兵）：不抹状态章，改触发
               // latestRun 重读——抹空会把刚从磁盘读到的「已完成」等终态一并抹掉

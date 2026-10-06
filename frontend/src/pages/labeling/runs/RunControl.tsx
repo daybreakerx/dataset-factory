@@ -1,4 +1,4 @@
-import { Square } from "lucide-react";
+import { Play, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
 import { DialogShell } from "../../../components/dialog-shell";
@@ -32,6 +32,14 @@ interface Props {
    * 语义见 use-run-watch 的同名选项。
    */
   onRunStatus?: (status: string) => void;
+  /**
+   * 本批的运行史状态（`StrategyView.run_status`：null＝从未跑过，及 failed／running／
+   * interrupted／completed）——组显隐按它五态走（对齐批「运行状态组对齐」③；规格权威
+   * ＝零件稿 运行状态组.html）：从未跑过／启动失败 → 只出「开始打标」；跑批中 → 进度
+   * 文本＋「停止」；已中断 → 只出「继续」；已完成 → 整组不渲染。跑批中视图由活观测
+   * `status` 带计数，此 prop 只在观测空闲时判「上一场跑完是什么」。
+   */
+  runStatus?: string | null;
 }
 
 /** 断流不代表运行结束，重连前用 current 确认运行并刷新条目。 */
@@ -46,13 +54,13 @@ export function RunControl({
   externalRunId,
   retryRequest,
   onRunStatus,
+  runStatus,
 }: Props) {
   const [unimported, setUnimported] = useState<
     readonly { name: string; reason: string | null }[]
   >([]);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [retryConfirming, setRetryConfirming] = useState(false);
   const actionPending = useRef(false);
   const {
     status,
@@ -159,6 +167,15 @@ export function RunControl({
     }
   }
 
+  // 组显隐按「本批运行史」五态（对齐批「运行状态组对齐」③；活观测在场＝跑批中，
+  // 观测空闲时按运行史分流：中断→继续、完成→整组不渲染、未跑/启动失败→开始打标）。
+  const historyState = runStatus ?? null;
+
+  if (historyState === "completed" && !status) {
+    // 已完成：整组不渲染（右段只剩请求链只读胶囊）；观测与令牌照常运行（hooks 已走）。
+    return null;
+  }
+
   return (
     <section className="flex items-center gap-3" aria-label="运行控制">
       {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
@@ -170,62 +187,49 @@ export function RunControl({
       {status ? (
         <>
           <span className="sr-only">{current ? `正在处理：${current}` : "运行中"}</span>
-          <svg
-            viewBox="0 0 20 20"
-            className="size-4.5 shrink-0 -rotate-90"
-            role="progressbar"
-            aria-label="运行进度"
-            aria-valuemin={0}
-            aria-valuemax={status.counters.planned || 1}
-            aria-valuenow={status.counters.attempted ?? 0}
-          >
-            <circle
-              cx="10"
-              cy="10"
-              r="6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              className="text-n-200"
-            />
-            <circle
-              cx="10"
-              cy="10"
-              r="6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              pathLength="100"
-              strokeDasharray="100"
-              strokeDashoffset={
-                100 -
-                Math.min(
-                  100,
-                  ((status.counters.attempted ?? 0) / (status.counters.planned || 1)) *
-                    100,
-                )
-              }
-              className="text-primary"
-            />
-          </svg>
-          <span className="whitespace-nowrap text-t-sm tabular-nums text-muted-foreground">
+          {/* 进度环已撤（对齐批④）：「在跑」的进度只由选择器 chip 内的 14px 状态图标
+              表达，这里的文本是本组唯一的信息载体——字色取正文级 --text-2（⑤）。 */}
+          <span className="whitespace-nowrap text-t-sm tabular-nums text-text-2">
             {`${status.counters.attempted ?? 0} / ${status.counters.planned ?? 0} · 失败 ${status.counters.failed ?? 0}`}
           </span>
+          {/* 飞行期只失效不换装（对齐批⑥瞬态例外）：aria-disabled＋掐点击，外观同形。 */}
           <Button
             variant="destructive-soft"
             size="sm"
-            disabled={busy}
+            aria-disabled={busy || undefined}
+            className="aria-disabled:pointer-events-none"
             data-testid="run-stop"
-            onClick={() => void stop()}
+            onClick={() => {
+              if (busy) return;
+              void stop();
+            }}
           >
             <Square aria-hidden="true" />
             停止
           </Button>
         </>
+      ) : historyState === "interrupted" ? (
+        <>
+          {/* 已中断 → 只出「继续」（新增钮）：续跑＝全量模式，后端对已有完整产物的
+              条目自动跳过（runner _plan_full 的 skip 语义），页内另有续跑提示条承载说明。 */}
+          <Button
+            size="sm"
+            aria-disabled={busy || undefined}
+            className="aria-disabled:pointer-events-none"
+            onClick={() => {
+              if (busy) return;
+              void start("full");
+            }}
+          >
+            {/* 圆角实心三角（2026-10-05 用户裁「三个角圆润一些」）：fill＋同色 stroke 3.5
+                ＋ linejoin round——别照抄 lucide 直角原形。 */}
+            <Play fill="currentColor" strokeWidth={3.5} strokeLinejoin="round" aria-hidden="true" />
+            继续
+          </Button>
+        </>
       ) : (
         <>
-          {/* 禁用必须说明原因（按钮规范）。 */}
+          {/* 禁用必须说明原因（按钮规范）；飞行期只失效不换装（对齐批⑥瞬态例外）。 */}
           <Tip
             label={
               busy
@@ -239,60 +243,18 @@ export function RunControl({
           >
             <Button
               size="sm"
-              disabled={busy || reconnecting || !known}
-              onClick={() => void prepareFullRun()}
+              aria-disabled={busy || reconnecting || !known || undefined}
+              className="aria-disabled:pointer-events-none"
+              onClick={() => {
+                if (busy || reconnecting || !known) return;
+                void prepareFullRun();
+              }}
             >
               开始打标
             </Button>
           </Tip>
-          <Tip
-            label={
-              busy
-                ? "上一个操作还在处理中"
-                : reconnecting
-                  ? "正在重新连接运行状态"
-                  : !known
-                    ? "正在确认运行状态…"
-                    : "将按重试列表的当前名单重新打标"
-            }
-          >
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy || reconnecting || !known}
-              onClick={() => setRetryConfirming(true)}
-            >
-              开始重试
-            </Button>
-          </Tip>
         </>
       )}
-      {/* Q1（2026-09-21 复核定案）：名单发车不可撤销，顶栏「开始重试」必须过确认。 */}
-      <DialogShell
-        open={retryConfirming}
-        onOpenChange={setRetryConfirming}
-        title="开始重试？"
-        description={
-          <>
-            将按重试列表的当前名单逐条重新打标（名单在发车瞬间拍快照）。发车后不可撤销，
-            等它跑完或点「停止」前不能再发车。
-          </>
-        }
-        cancel={{
-          label: "取消",
-          variant: "outline",
-          onClick: () => setRetryConfirming(false),
-        }}
-        confirm={{
-          label: "开始重试",
-          variant: "default",
-          disabled: busy,
-          onClick: () => {
-            setRetryConfirming(false);
-            void start("retry");
-          },
-        }}
-      />
       <DialogShell
         open={confirming}
         onOpenChange={setConfirming}
