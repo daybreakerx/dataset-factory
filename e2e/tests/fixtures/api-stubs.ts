@@ -46,13 +46,21 @@ export const API_STUBS: Record<string, unknown> = {
       request_params: { temperature: 0.7 },
     },
   ],
-  "GET /api/service": {
+  "GET /api/service": (): {
+    version: string;
+    host: string;
+    port: number;
+    started_at: string;
+    log_file: string;
+  } => ({
     version: "0.1.0",
     host: "127.0.0.1",
     port: 8765,
-    started_at: "2026-01-01T00:00:00+00:00",
+    // 每次请求现算「现在 − 1 小时」：运行时长恒为 1 小时 0 分——钉死的时间戳会让
+    // 「已运行 N 分」的分位随墙钟跨 10 分位界、基线按日漂红（2026-10-06 实锤）。
+    started_at: new Date(Date.now() - 3_600_000).toISOString(),
     log_file: "/tmp/dsf/logs/server.log",
-  },
+  }),
   "GET /api/service/logs": { lines: ["INFO 启动完成"], truncated: false },
   "GET /api/sessions/latest": null,
   "GET /api/filesystem/capabilities": {
@@ -235,7 +243,9 @@ export async function stubApi(
       route.fulfill({ contentType: "text/plain", body: "一段基线产物描述。" });
       return;
     }
-    const body: unknown = key in overrides ? overrides[key] : API_STUBS[key];
+    // 桩值可为函数：取数时现算（时间型字段用，保证同一屏任何时刻采集同一输出）。
+    const raw = key in overrides ? overrides[key] : API_STUBS[key];
+    const body: unknown = typeof raw === "function" ? (raw as () => unknown)() : raw;
     if (body === undefined || body === null) {
       route.fulfill({
         status: 404,

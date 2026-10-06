@@ -12,7 +12,13 @@ import { useRunWatch } from "./use-run-watch";
  *  图标盒仍 16px（Button 基类 [&_svg]:size-4 ＝稿 .btn .ic 档）。 */
 function StopSquareIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      aria-hidden="true"
+    >
       <rect x="6" y="6" width="12" height="12" rx="2" />
     </svg>
   );
