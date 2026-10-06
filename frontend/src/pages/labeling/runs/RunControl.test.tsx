@@ -391,7 +391,9 @@ describe("运行控制", () => {
   it("运行史五态：中断只出「继续」并按全量续跑、完成整组不渲染、启动失败回「开始打标」", async () => {
     const user = userEvent.setup();
     // 初始探测走 404（空闲），活观测不在场——五态判定全由 runStatus 承担。
-    vi.mocked(api.currentRun).mockReset().mockRejectedValue(new ApiError("http", "none", 404, null));
+    vi.mocked(api.currentRun)
+      .mockReset()
+      .mockRejectedValue(new ApiError("http", "none", 404, null));
     const { rerender } = render(
       <RunControl wid="work" batch="s1" onFinish={vi.fn()} runStatus="interrupted" />,
     );
@@ -401,11 +403,15 @@ describe("运行控制", () => {
     await user.click(resume);
     expect(api.startRun).toHaveBeenCalledWith("work", "s1", "full");
 
-    rerender(<RunControl wid="work" batch="s1" onFinish={vi.fn()} runStatus="completed" />);
+    rerender(
+      <RunControl wid="work" batch="s1" onFinish={vi.fn()} runStatus="completed" />,
+    );
     expect(screen.queryByRole("button", { name: "继续" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "开始打标" })).not.toBeInTheDocument();
 
-    rerender(<RunControl wid="work" batch="s1" onFinish={vi.fn()} runStatus="failed" />);
+    rerender(
+      <RunControl wid="work" batch="s1" onFinish={vi.fn()} runStatus="failed" />,
+    );
     expect(screen.getByRole("button", { name: "开始打标" })).toBeInTheDocument();
   });
 

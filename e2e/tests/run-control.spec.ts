@@ -67,8 +67,10 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
     await page.getByRole("button", { name: "选择工作目录与批次" }).click();
     await page.getByRole("menuitem", { name: /停止验证/ }).click();
     await page.getByRole("button", { name: "开始打标", exact: true }).click();
-    const progress = page.getByRole("progressbar", { name: "运行进度" });
-    await expect(progress).toHaveAttribute("aria-valuemax", "1");
+    // 进度环已撤（对齐批「运行状态组对齐」④）：「在跑」的进度由文本与 chip 内状态图标表达，
+    // 这里的硬断言改挂进度文本（attempted / planned 起步 0 / 1）。
+    const progressText = page.getByText(/^0 \/ 1 · 失败 0$/);
+    await expect(progressText).toBeVisible();
     await expect
       .poll(
         async () =>
@@ -79,7 +81,6 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
           ).entered,
       )
       .toBe(true);
-    await expect(progress).toHaveAttribute("aria-valuenow", "0");
     const stopResponse = page.waitForResponse(
       (response) =>
         response.url().endsWith("/runs/stop") &&
@@ -125,7 +126,8 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
     expect(
       await readFile(path.join(destination, "s1__sample.txt"), "utf8"),
     ).toContain("E2E 假模型的打标结果");
-    await expect(progress).toBeHidden();
+    // 中断后回「已中断」态：只出「继续」（对齐批「运行状态组对齐」③五态显隐）。
+    await expect(page.getByRole("button", { name: "继续" })).toBeVisible();
 
     await writeFile(path.join(destination, "s1__sample.txt"), "Old caption");
     await page.getByRole("button", { name: "刷新条目", exact: true }).click();
@@ -144,9 +146,9 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
     await expect(retry.getByText("sample.png", { exact: true })).toBeVisible();
 
     await request.post("/fake-llm/__test__/gated-reset");
-    // 从「重试列表」组头发车（名单非空时组头与顶栏各有一个「开始重试」，这里走组头那条，
-    // 顶栏那条由 RunControl 组件测试覆盖）——名单已在界面上，本步顺带验证组头入口真的通。
-    // 组头钮按 §六 动态计数写作「开始重试（N）」，故不锁 exact 全名。
+    // 从「重试列表」组头发车（顶栏的「开始重试」已撤，对齐批条 3 ①；组头是唯一入口），
+    // 名单已在界面上，本步顺带验证组头入口真的通。组头钮按 §六 动态计数写作
+    // 「开始重试（N）」，故不锁 exact 全名。
     await retry.getByRole("button", { name: /开始重试/ }).click();
     await expect.poll(async () => (await (await request.post("/fake-llm/__test__/gated-entered")).json()).entered).toBe(true);
     await expect(progress).toBeVisible();

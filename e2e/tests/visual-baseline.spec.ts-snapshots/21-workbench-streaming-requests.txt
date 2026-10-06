@@ -6,4 +6,5 @@ GET /api/endpoints
 GET /api/sessions/latest
 GET /api/prompts/pbaseline01
 GET /api/endpoints
+POST /api/endpoints/test
 POST /api/label/stream
