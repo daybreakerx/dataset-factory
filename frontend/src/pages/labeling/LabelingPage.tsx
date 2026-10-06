@@ -51,7 +51,7 @@ export function LabelingPage({
     setDirectoriesRevision,
     flight,
     loadError,
-  } = useWorkdirBatches({ setError, setLoading });
+  } = useWorkdirBatches({ setLoading });
   const [items, setItems] = useState<ItemMap>(new Map());
   const [exportRevision, setExportRevision] = useState(0);
   const [externalRun, setExternalRun] = useState<{

@@ -41,10 +41,8 @@ export async function loadWorkdirBatches(): Promise<WorkdirBatches[]> {
 
 /** 目录与批次切换以成对身份取数，过期请求不能覆盖新选择。 */
 export function useWorkdirBatches({
-  setError,
   setLoading,
 }: {
-  setError: Dispatch<SetStateAction<string>>;
   setLoading: Dispatch<SetStateAction<boolean>>;
 }): {
   workdirs: WorkdirBatches[];
@@ -60,8 +58,9 @@ export function useWorkdirBatches({
   const [workdirs, setWorkdirs] = useState<WorkdirBatches[]>([]);
   // 弹层自己的飞行 / 失败标志（对齐批「批次下拉列表对齐」⑧，族三态行口径：打开重拉期间
   // 整层换「正在读取…」、失败换「工作目录读取失败」且只接非连接类——连接类由 reportError
-  // 转浮层提示、不占层内）。与页面级 loading／error 互不接管：页面那对还管着素材列骨架
-  // 与顶部横幅，弹层重拉不该让整页闪骨架。
+  // 转浮层提示、不占层内）。失败不馈页面横幅（ADR「workdir 取数失败不进页面横幅」，挂账
+  // 第 1 条 2026-10-06 裁 B：弹层行／Toast 已是贴身的单一通路，横幅再收一份＝重复呈现，
+  // 且会被打开着的弹层压在下面）；页面 loading 仍由本 hook 收尾——弹层重拉不让整页闪骨架。
   const [flight, setFlight] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   // selection 两阶段（2026-09-23 排查：删数据根后记忆 wid 必然先撞一轮 404 并闪
@@ -113,9 +112,9 @@ export function useWorkdirBatches({
       })
       .catch((reason: unknown) => {
         if (!current) return;
-        // 页面横幅语义不变（仍收全部失败）；弹层失败行只接非连接类（族口径）。
+        // 单一通路（ADR「workdir 取数失败不进页面横幅」）：连接类 reportError 转 Toast、
+        // 业务类进弹层失败行；横幅不收本链路的失败（挂账第 1 条裁决，2026-10-06）。
         if (reportError(reason) !== null) setLoadError("工作目录读取失败");
-        setError(errorMessage(reason));
       })
       .finally(() => {
         if (current) {

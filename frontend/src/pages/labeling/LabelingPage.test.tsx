@@ -528,11 +528,16 @@ describe("打标页读取流程", () => {
     expect(screen.getByRole("button", { name: "second.jpg" })).toBeInTheDocument();
   });
 
-  it("目录加载失败显示可读错误而非假空清单", async () => {
+  it("目录加载失败不进页面横幅，业务类失败行只落在弹层内（挂账第 1 条裁决 B）", async () => {
+    const user = userEvent.setup();
     vi.mocked(api.listWorkdirs).mockRejectedValue(new Error("服务不可用"));
     render(<LabelingPage />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("服务不可用");
+    await user.click(screen.getByRole("button", { name: "选择工作目录与批次" }));
+    // 单一通路（ADR「workdir 取数失败不进页面横幅」）：业务类失败由弹层失败行就地表达，
+    // 横幅不再收这条链路——旧断言「横幅显示服务不可用」随该裁决一起退役。
+    expect(await screen.findByText("工作目录读取失败")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 
