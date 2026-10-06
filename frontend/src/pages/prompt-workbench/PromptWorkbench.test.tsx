@@ -33,6 +33,7 @@ const apiMock = vi.hoisted(() => ({
   deletePrompt: vi.fn(),
   listSkills: vi.fn(),
   listEndpoints: vi.fn(),
+  testEndpoint: vi.fn(),
   labelStream: vi.fn(),
   latestSession: vi.fn(),
   listStrategies: vi.fn(),
@@ -97,6 +98,8 @@ beforeEach(() => {
   apiMock.listPrompts.mockResolvedValue(PROMPTS);
   apiMock.listSkills.mockResolvedValue(SKILLS);
   apiMock.listEndpoints.mockResolvedValue(ENDPOINTS);
+  // chip 状态点挂载即探测（端点健康共用 hook）：给默认连通回值，个案再覆写。
+  apiMock.testEndpoint.mockResolvedValue({ ok: true, latency_ms: 120 });
   // 「还没有会话」是 404，走真 ApiError（界面按 status 判它是首次使用的正常空态）。
   apiMock.latestSession.mockRejectedValue(
     new ApiError("http", "还没有任何会话；发第一轮打标即自动创建。", 404, null),

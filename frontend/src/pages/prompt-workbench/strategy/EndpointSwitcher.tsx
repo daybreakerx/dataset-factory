@@ -17,6 +17,11 @@ import {
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
 import { Tip } from "../../../components/ui/tooltip";
+import {
+  HEALTH_DOT,
+  HEALTH_DOT_BREATHING,
+  useEndpointHealth,
+} from "../../../lib/endpoint-health";
 
 export function EndpointSwitcher({
   endpoints,
@@ -42,6 +47,10 @@ export function EndpointSwitcher({
   onManage: () => void;
 }): ReactElement {
   const selected = endpoints.find((item) => item.id === selectedId);
+  // chip 状态点接真实健康探测（对齐批「端点状态点接真实健康探测」，稿 端点切换弹层
+  // 「触发件 · 点色四态」）：语义与打标页同套（共用 hook），探测中走呼吸蓝——本页无
+  // 跑批呼吸点同屏竞争；未配置端点 = 静态灰（灰点说真话、无从探起）。
+  const health = useEndpointHealth(selected?.name ?? "", selected);
   // chip 显示「名称 · 模型」、被触发件宽度截断时悬停给全文（DESIGN.md 六）——
   // 按溢出启停（select 触发器同口径）：值看得全就不出全文气泡、保留切换功能提示。
   const chipText = selected ? `${selected.name} · ${selected.model}` : "未配置端点";
@@ -64,7 +73,8 @@ export function EndpointSwitcher({
             aria-label="端点配置切换器"
             disabled={disabled}
             onPointerEnter={(event) => {
-              const span = event.currentTarget.querySelector("span");
+              // 标签是第二枚 span（第一枚是状态点）——按类定位，别按序数。
+              const span = event.currentTarget.querySelector("span.truncate");
               setChipTip(
                 span != null && span.scrollWidth > span.clientWidth + 1
                   ? chipText
@@ -72,6 +82,12 @@ export function EndpointSwitcher({
               );
             }}
           >
+            <span
+              aria-hidden
+              className={`size-1.5 shrink-0 rounded-full ${
+                selected ? HEALTH_DOT_BREATHING[health.status] : HEALTH_DOT.unknown
+              }`}
+            />
             <span className="min-w-0 truncate">{chipText}</span>
             <ChevronDownIcon className="shrink-0" />
           </Button>

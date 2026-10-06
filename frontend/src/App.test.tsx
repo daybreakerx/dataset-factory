@@ -12,6 +12,7 @@ const apiMock = vi.hoisted(() => ({
   listPrompts: vi.fn(),
   listSkills: vi.fn(),
   listEndpoints: vi.fn(),
+  testEndpoint: vi.fn(),
   getPrompt: vi.fn(),
   labelStream: vi.fn(),
   listWorkdirs: vi.fn(),
@@ -45,6 +46,8 @@ describe("App 外壳", () => {
     apiMock.listPrompts.mockResolvedValue([]);
     apiMock.listSkills.mockResolvedValue([]);
     apiMock.listEndpoints.mockResolvedValue([]);
+    // chip 状态点挂载即探测（端点健康共用 hook）：给默认连通回值，个案再覆写。
+    apiMock.testEndpoint.mockResolvedValue({ ok: true, latency_ms: 120 });
     apiMock.getService.mockResolvedValue(SERVICE_UP);
     apiMock.latestSession.mockRejectedValue(new Error("还没有任何会话"));
     apiMock.getConfig.mockResolvedValue({
