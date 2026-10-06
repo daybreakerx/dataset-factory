@@ -105,7 +105,14 @@ function RunStateIcon({
       {running ? (
         // 进度环：r=6、dasharray 2πr=37.7、整环 rotate(-90°) 起画；fill 随「已尝试/计划」走
         <svg viewBox="0 0 16 16" className="size-3.5 -rotate-90" aria-hidden="true">
-          <circle cx="8" cy="8" r="6" fill="none" stroke="hsl(var(--border))" strokeWidth="2" />
+          <circle
+            cx="8"
+            cy="8"
+            r="6"
+            fill="none"
+            stroke="hsl(var(--border))"
+            strokeWidth="2"
+          />
           <circle
             cx="8"
             cy="8"
@@ -116,7 +123,9 @@ function RunStateIcon({
             strokeLinecap="round"
             strokeDasharray="37.7"
             strokeDashoffset={
-              done != null && total != null && total > 0 ? 37.7 * (1 - done / total) : 37.7
+              done != null && total != null && total > 0
+                ? 37.7 * (1 - done / total)
+                : 37.7
             }
           />
         </svg>
@@ -229,7 +238,9 @@ export function BatchSelector({
                     <span className="min-w-[2em] truncate text-left text-t-sm text-muted-foreground [flex:0_1_auto]">
                       {batch.name}
                     </span>
-                    <span className="shrink-0 text-t-sm text-muted-foreground">{batch.id}</span>
+                    <span className="shrink-0 text-t-sm text-muted-foreground">
+                      {batch.id}
+                    </span>
                     <RunStateIcon
                       status={runState ?? null}
                       done={batch.run_done}
@@ -263,20 +274,25 @@ export function BatchSelector({
             return (
               <fieldset key={entry.id} aria-label={entry.title}>
                 {/* 目录组行＝整行触发折叠、只有行尾两枚图标钮除外；悬停出浅底。
-                    折叠指示由行首文件夹图标承担（展开 folder-open／折叠 folder，不旋转）。 */}
-                <div
-                  aria-expanded={!closed}
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-t-md font-medium select-none hover:bg-accent"
-                  onClick={() => toggleDir(entry.id)}
-                >
-                  {closed ? (
-                    <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  ) : (
-                    <FolderOpenIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                  )}
-                  <Tip label={entry.title}>
-                    <span className="min-w-0 flex-1 truncate">{entry.title}</span>
-                  </Tip>
+                    折叠指示由行首文件夹图标承担（展开 folder-open／折叠 folder，不旋转）。
+                    结构＝折叠钮（图标＋名字＋余量）与两枚动作钮并列成行：折叠区是真 button
+                    （语义与键盘齐备），又不会出现 button 嵌 button 的非法嵌套；悬停底挂行容器。 */}
+                <div className="flex w-full items-center gap-2 rounded-md px-3 py-2 select-none hover:bg-accent">
+                  <button
+                    type="button"
+                    aria-expanded={!closed}
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-t-md font-medium"
+                    onClick={() => toggleDir(entry.id)}
+                  >
+                    {closed ? (
+                      <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <FolderOpenIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                    <Tip label={entry.title}>
+                      <span className="min-w-0 flex-1 truncate">{entry.title}</span>
+                    </Tip>
+                  </button>
                   {onNewStrategy && (
                     <Tip label="新增策略">
                       <button
@@ -284,8 +300,7 @@ export function BatchSelector({
                         disabled={!!entry.error}
                         className="flex size-(--h-sm) shrink-0 items-center justify-center rounded-md hover:bg-accent"
                         aria-label={`新增策略 ${entry.title}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
+                        onClick={() => {
                           setOpen(false);
                           onNewStrategy(entry.id);
                         }}
@@ -298,10 +313,9 @@ export function BatchSelector({
                     <Tip label="工作目录设置">
                       <button
                         type="button"
-                        className="ml-auto flex size-(--h-sm) shrink-0 items-center justify-center rounded-md hover:bg-accent"
+                        className="flex size-(--h-sm) shrink-0 items-center justify-center rounded-md hover:bg-accent"
                         aria-label={`工作目录设置 ${entry.title}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
+                        onClick={() => {
                           setOpen(false);
                           onSettings(entry.id);
                         }}
@@ -346,7 +360,10 @@ export function BatchSelector({
                       >
                         <Tip label={candidate.name}>
                           <span
-                            className={cn("min-w-0 truncate", isCurrent && "text-text-2")}
+                            className={cn(
+                              "min-w-0 truncate",
+                              isCurrent && "text-text-2",
+                            )}
                           >
                             {candidate.name}
                           </span>
@@ -355,11 +372,12 @@ export function BatchSelector({
                           {candidate.id}
                         </span>
                         <span className="min-w-0 flex-1" />
-                        {candidate.run_done !== null && candidate.run_total !== null && (
-                          <span className="shrink-0 text-t-xs text-text-4 tabular-nums">
-                            {candidate.run_done} / {candidate.run_total}
-                          </span>
-                        )}
+                        {candidate.run_done !== null &&
+                          candidate.run_total !== null && (
+                            <span className="shrink-0 text-t-xs text-text-4 tabular-nums">
+                              {candidate.run_done} / {candidate.run_total}
+                            </span>
+                          )}
                         <RunStateIcon
                           status={candidate.run_status ?? null}
                           done={candidate.run_done}

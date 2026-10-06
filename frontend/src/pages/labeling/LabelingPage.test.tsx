@@ -652,13 +652,17 @@ describe("切页记忆与状态章", () => {
     const capsule = (): HTMLElement =>
       screen.getByRole("button", { name: "选择工作目录与批次" });
     await waitFor(() =>
-      expect(within(capsule()).getByRole("img", { name: "已完成" })).toBeInTheDocument(),
+      expect(
+        within(capsule()).getByRole("img", { name: "已完成" }),
+      ).toBeInTheDocument(),
     );
     await waitFor(() =>
       expect(vi.mocked(api.latestRun).mock.calls.length).toBeGreaterThanOrEqual(2),
     );
     await waitFor(() =>
-      expect(within(capsule()).getByRole("img", { name: "已完成" })).toBeInTheDocument(),
+      expect(
+        within(capsule()).getByRole("img", { name: "已完成" }),
+      ).toBeInTheDocument(),
     );
   });
 

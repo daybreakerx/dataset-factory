@@ -1771,7 +1771,7 @@ export interface components {
             product_count: number;
             /**
              * Run Done
-             * @description 最近一次运行的成功条数（下拉进度分子）；无运行记录为 null
+             * @description 最近一次运行的已尝试条数（下拉进度分子，与分母「计划」同源闭合进度环）；无运行记录为 null
              */
             run_done?: number | null;
             /**

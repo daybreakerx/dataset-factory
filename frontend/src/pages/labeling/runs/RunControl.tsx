@@ -223,7 +223,12 @@ export function RunControl({
           >
             {/* 圆角实心三角（2026-10-05 用户裁「三个角圆润一些」）：fill＋同色 stroke 3.5
                 ＋ linejoin round——别照抄 lucide 直角原形。 */}
-            <Play fill="currentColor" strokeWidth={3.5} strokeLinejoin="round" aria-hidden="true" />
+            <Play
+              fill="currentColor"
+              strokeWidth={3.5}
+              strokeLinejoin="round"
+              aria-hidden="true"
+            />
             继续
           </Button>
         </>

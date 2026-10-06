@@ -151,7 +151,7 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
     // 「开始重试（N）」，故不锁 exact 全名。
     await retry.getByRole("button", { name: /开始重试/ }).click();
     await expect.poll(async () => (await (await request.post("/fake-llm/__test__/gated-entered")).json()).entered).toBe(true);
-    await expect(progress).toBeVisible();
+    await expect(progressText).toBeVisible();
     await page.getByRole("button", { name: "选择工作目录与批次" }).click();
     await page.getByRole("button", { name: "工作目录设置 停止验证", exact: true }).click();
     const settings = page.getByRole("region", { name: "工作目录设置", exact: true });

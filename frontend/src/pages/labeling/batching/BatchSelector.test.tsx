@@ -136,7 +136,8 @@ describe("批次选择器", () => {
 
     const group = screen.getByRole("group", { name: "素材一" });
     await user.click(within(group).getByText("素材一"));
-    expect(screen.getByText("素材一").closest("div")).toHaveAttribute(
+    // aria-expanded 在折叠钮上（折叠区＝真 button，行尾两枚动作钮是其兄弟）
+    expect(within(group).getByRole("button", { name: "素材一" })).toHaveAttribute(
       "aria-expanded",
       "false",
     );
