@@ -36,7 +36,11 @@ const buttonVariants = cva(
         icon: "size-(--h-md) p-0",
         "icon-sm": "size-(--h-sm) p-0 [&_svg]:size-3.5",
         "icon-lg": "size-(--h-lg) p-0 [&_svg]:size-4.5",
-        "icon-xs": "size-(--h-xs) rounded-md p-0 [&_svg]:size-[13px]",
+        // icon-xs（22px 盒）低于触控目标 24×24（DESIGN.md 七·7）：透明伪元素把命中区
+        // 外扩 1px（base.css §7 .btn--icon.btn--xs::before 同款）——纯热区、视觉零变，
+        // 全档使用点一起受益（对齐批「请求链胶囊对齐」⑦）。
+        "icon-xs":
+          "relative size-(--h-xs) rounded-md p-0 before:absolute before:-inset-px before:content-[''] [&_svg]:size-[13px]",
       },
     },
     compoundVariants: [
