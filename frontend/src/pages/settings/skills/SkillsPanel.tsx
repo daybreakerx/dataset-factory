@@ -674,8 +674,15 @@ export function SkillsPanel({
             headLeading={headToggle}
           />
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-t-sm text-text-3">
-            左侧选择一个技能查看详情与包内容。
+          // 空详情态（库为空）：展开钮照挂详情头行位（同件同位不跳位，稿 窄屏列表展收 ⑥ 格）
+          // ——窄屏空库时隐藏的左列是列表与「导入 Skill」的唯一入口，无钮＝死路。
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            {headToggle !== undefined && (
+              <div className="flex min-h-(--h-lg) items-center gap-2">{headToggle}</div>
+            )}
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-t-sm text-text-3">
+              左侧选择一个技能查看详情与包内容。
+            </div>
           </div>
         )}
       </div>

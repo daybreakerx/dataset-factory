@@ -959,6 +959,9 @@ describe("SettingsPage · 窄屏列表展收（两态交互）", () => {
   it("端点子页键盘路径：展开钮进暂展、焦点入层首件＝返回钮；Esc 收起、焦点回展开钮", async () => {
     mockNarrow(true);
     render(<SettingsPage />);
+    // 先等自动选中落位：空详情态也挂展开钮（对齐批「窄屏空详情态展开钮补位」），
+    // 不等会抓到选中落位后被卸载的空态钮节点、点击落空。
+    await screen.findByLabelText("配置名称");
     const toggle = await screen.findByLabelText("展开列表");
     // 展开钮聚焦时 Enter／Space → 浏览器合成 click（同一入口）；焦点随层落到返回钮。
     fireEvent.click(toggle);
@@ -977,6 +980,7 @@ describe("SettingsPage · 窄屏列表展收（两态交互）", () => {
   it("端点子页：悬停进暂展、指针移出浮出层立即回收；暂展期点行即收且详情回填", async () => {
     mockNarrow(true);
     render(<SettingsPage />);
+    await screen.findByLabelText("配置名称");
     const toggle = await screen.findByLabelText("展开列表");
     fireEvent.mouseEnter(toggle);
     const back = await screen.findByLabelText("收起列表");
@@ -999,6 +1003,7 @@ describe("SettingsPage · 窄屏列表展收（两态交互）", () => {
   it("技能子页同款：窄屏默认收起、展开钮进暂展、返回钮收起焦点回展开钮", async () => {
     mockNarrow(true);
     render(<SettingsPage section="skills" />);
+    await screen.findByLabelText("技能名称");
     const toggle = await screen.findByLabelText("展开列表");
     expect(screen.queryByLabelText("收起列表")).not.toBeInTheDocument();
 
@@ -1009,5 +1014,26 @@ describe("SettingsPage · 窄屏列表展收（两态交互）", () => {
       expect(screen.queryByLabelText("收起列表")).not.toBeInTheDocument(),
     );
     expect(toggle).toHaveFocus();
+  });
+
+  it("端点空详情态：展开钮照挂详情头行位，经暂展可及「添加配置」", async () => {
+    apiMock.listEndpoints.mockResolvedValue([]);
+    mockNarrow(true);
+    render(<SettingsPage />);
+    // 空库无自动选中：展开钮是隐藏左列（列表＋添加配置）的唯一入口——对齐批
+    // 「窄屏空详情态展开钮补位」。
+    fireEvent.click(await screen.findByLabelText("展开列表"));
+    await screen.findByLabelText("收起列表");
+    fireEvent.click(screen.getByRole("button", { name: "添加配置" }));
+    await screen.findByLabelText("Base URL");
+  });
+
+  it("技能空详情态：展开钮照挂详情头行位、暂展层内「导入 Skill」可及", async () => {
+    apiMock.listSkills.mockResolvedValue([]);
+    mockNarrow(true);
+    render(<SettingsPage section="skills" />);
+    fireEvent.click(await screen.findByLabelText("展开列表"));
+    await screen.findByLabelText("收起列表");
+    expect(screen.getByText("导入 Skill")).toBeInTheDocument();
   });
 });

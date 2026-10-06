@@ -581,8 +581,15 @@ export function EndpointConfigPanel({
             headLeading={headToggle}
           />
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-t-sm text-text-3">
-            左侧选择一套配置，或「添加配置」新建。
+          // 空详情态（库为空）：展开钮照挂详情头行位（同件同位不跳位，稿 窄屏列表展收 ⑤ 格）
+          // ——窄屏空库时隐藏的左列是列表与「添加配置」的唯一入口，无钮＝死路。
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            {headToggle !== undefined && (
+              <div className="flex min-h-(--h-lg) items-center gap-2">{headToggle}</div>
+            )}
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-t-sm text-text-3">
+              左侧选择一套配置，或「添加配置」新建。
+            </div>
           </div>
         )}
       </div>
