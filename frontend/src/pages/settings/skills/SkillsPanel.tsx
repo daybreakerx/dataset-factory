@@ -88,16 +88,26 @@ export function SkillsPanel({
 
   /** 导入路径的失败分流：连接类失败改弹浮层（不占界面位置），后端返回的业务错误进
    *  弹窗标题行消息槽（对齐批 45①「反馈分域：已导入→弹窗内」）。弹窗外的面板操作
-   *  （启停／预览／文件清单）失败不再有面板提示条承接、改走浮层。 */
+   *  失败：启停走 toast（failAside）、预览／文件清单落详情头行槽（failHead）。 */
   const fail = useCallback((err: unknown): void => {
     const text = reportError(err);
     if (text !== null) setFeedback({ kind: "error", text });
   }, []);
 
-  /** 弹窗外操作的失败分流：连接类由 reportError 弹浮层，业务错误同样进浮层。 */
+  /** 启停开关的失败反馈（对齐批「技能面板弹窗外失败分流」：启停是列表行上的轻操作，
+   *  业务与环境类失败都走 toast，维持批 14 现状）。 */
   const failAside = useCallback((err: unknown): void => {
     const text = reportError(err);
     if (text !== null) toast(text);
+  }, []);
+
+  /** 详情区操作的失败分流（对齐批「技能面板弹窗外失败分流」，恢复「业务就地、环境浮层」
+   *  旧判据）：包文件清单与预览都是详情区自己的操作，业务错误落详情头行消息槽（bad 色、
+   *  删除钮右侧既有槽）；连接类失败由 reportError 内部转浮层。失败信息走 headMsg 现有
+   *  生命周期（切选技能即清），瞬态盖过「包损坏」常驻提示属就地语义、不另设优先级。 */
+  const failHead = useCallback((err: unknown): void => {
+    const text = reportError(err);
+    if (text !== null) setHeadMsg({ kind: "bad", text });
   }, []);
 
   const { skills, loading, loadError, reload: fetchSkills } = useSkills();
@@ -156,7 +166,7 @@ export function SkillsPanel({
         }
       } catch (err) {
         if (!cancelled) {
-          failAside(err);
+          failHead(err);
         }
       } finally {
         if (!cancelled && generation === previewGeneration.current)
@@ -167,7 +177,7 @@ export function SkillsPanel({
       cancelled = true;
       previewGeneration.current += 1;
     };
-  }, [selected, failAside]);
+  }, [selected, failHead]);
 
   const current = skills.find((item) => item.id === selected);
 
@@ -389,7 +399,7 @@ export function SkillsPanel({
       if (path === "SKILL.md") setSkillMdOriginal(content.content);
       setDescriptionDraft(null);
     } catch (err) {
-      if (generation === previewGeneration.current) failAside(err);
+      if (generation === previewGeneration.current) failHead(err);
     } finally {
       if (generation === previewGeneration.current) setLoadingPreview(false);
     }
@@ -422,7 +432,7 @@ export function SkillsPanel({
       if (action.path === "SKILL.md") setSkillMdOriginal(content.content);
       setDescriptionDraft(null);
     } catch (err) {
-      if (generation === previewGeneration.current) failAside(err);
+      if (generation === previewGeneration.current) failHead(err);
     } finally {
       if (generation === previewGeneration.current) setLoadingPreview(false);
     }
