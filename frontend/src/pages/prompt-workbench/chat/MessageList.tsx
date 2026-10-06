@@ -150,7 +150,7 @@ function AttachmentThumb({
           cover !== undefined ? (
             <>
               <img src={cover} alt="" className="size-full object-cover" />
-              <span className="absolute flex size-4 items-center justify-center rounded-sm bg-black/60 text-white">
+              <span className="absolute flex size-4 items-center justify-center rounded-sm bg-black/58 text-white">
                 <PlayIcon className="size-2.5" />
               </span>
             </>
@@ -166,7 +166,7 @@ function AttachmentThumb({
           <ImageIcon className="size-5 text-text-3" />
         )}
         {badge !== null && (
-          <span className="absolute right-0.5 bottom-0.5 rounded-sm bg-black/60 px-1 text-[10px] leading-4 text-white">
+          <span className="absolute right-0.5 bottom-0.5 rounded-sm bg-black/58 px-1 text-[10px] leading-4 text-white">
             {badge}
           </span>
         )}
