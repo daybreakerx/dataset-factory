@@ -127,7 +127,11 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
       await readFile(path.join(destination, "s1__sample.txt"), "utf8"),
     ).toContain("E2E 假模型的打标结果");
     // 中断后回「已中断」态：只出「继续」（对齐批「运行状态组对齐」③五态显隐）。
-    await expect(page.getByRole("button", { name: "继续" })).toBeVisible();
+    // 时延窗按设计给足：快路＝SSE run-finished 即报；兜底＝空闲哨兵 15 秒慢轮＋回读
+    // （use-run-watch L3 定案的时延），全量连跑高负载下快路也可能超出默认 5 秒期待窗。
+    await expect(page.getByRole("button", { name: "继续" })).toBeVisible({
+      timeout: 20_000,
+    });
 
     await writeFile(path.join(destination, "s1__sample.txt"), "Old caption");
     await page.getByRole("button", { name: "刷新条目", exact: true }).click();
