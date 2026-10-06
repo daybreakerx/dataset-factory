@@ -1,4 +1,3 @@
-import { Play, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
 import { DialogShell } from "../../../components/dialog-shell";
@@ -7,6 +6,35 @@ import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
 import type { ItemDelta, ItemUpdate } from "./items-state";
 import { useRunWatch } from "./use-run-watch";
+
+/** 停止钮的方块（2026-10-06 用户裁「按稿改实现」）：稿 i-square＝rect 6,6→18,18（12×12@24
+ *  栅格、圆角 2、空心描边）——lucide Square 是 18×18（占栅格 75%）、墨量差 1.5 倍，不照抄。
+ *  图标盒仍 16px（Button 基类 [&_svg]:size-4 ＝稿 .btn .ic 档）。 */
+function StopSquareIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
+  );
+}
+
+/** 继续钮的圆角实心三角：path 与 3.5 同色描边按稿不动（⑪「三个角圆润」裁决不推翻），
+ *  viewBox 取稿侧 icons.js VIEWBOX 表的 -3.5 -3 31 30 留白（2026-10-06 用户裁 B：与空心
+ *  方块同排重量对等 0.987——transform:scale 弃案，CSS 盒仍 16px、不破坏按钮内布局）。 */
+function PlayRoundIcon() {
+  return (
+    <svg viewBox="-3.5 -3 31 30" aria-hidden="true">
+      <path
+        d="M7 5.5 18.5 12 7 18.5Z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth={3.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 interface Props {
   wid: string;
@@ -204,7 +232,7 @@ export function RunControl({
               void stop();
             }}
           >
-            <Square aria-hidden="true" />
+            <StopSquareIcon />
             停止
           </Button>
         </>
@@ -221,14 +249,7 @@ export function RunControl({
               void start("full");
             }}
           >
-            {/* 圆角实心三角（2026-10-05 用户裁「三个角圆润一些」）：fill＋同色 stroke 3.5
-                ＋ linejoin round——别照抄 lucide 直角原形。 */}
-            <Play
-              fill="currentColor"
-              strokeWidth={3.5}
-              strokeLinejoin="round"
-              aria-hidden="true"
-            />
+            <PlayRoundIcon />
             继续
           </Button>
         </>
