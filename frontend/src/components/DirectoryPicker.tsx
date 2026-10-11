@@ -190,7 +190,7 @@ export function DirectoryPicker({
     <DialogShell
       open
       onOpenChange={(open) => !open && !mutationPending.current && onClose()}
-      className="w-[calc(100%-2rem)] max-w-[620px] gap-0 p-4"
+      className="w-[calc(100%-2rem)] max-w-(--w-modal-620) gap-0 p-4"
     >
       <div className="mb-2 flex flex-wrap items-center gap-3 pr-8">
         <DialogTitle className="text-t-xl font-medium">{title}</DialogTitle>
@@ -340,7 +340,7 @@ export function DirectoryPicker({
                 </>
               )}
               <span className="ml-auto text-t-sm text-text-3 tabular-nums">
-                {entry.size === null ? "" : `${formatBytes(entry.size, "KiB", 1)} · `}
+                {entry.size === null ? "" : `${formatBytes(entry.size, "KB", 1)} · `}
                 {new Date(entry.modified_at).toLocaleString()}
               </span>
             </div>
@@ -536,7 +536,7 @@ export function DirectoryPicker({
 
 function FolderOrFile({ entry }: { entry: Entry }) {
   const Icon = entry.kind === "directory" ? FolderIcon : FileIcon;
-  return <Icon aria-hidden="true" className="size-4 shrink-0" />;
+  return <Icon aria-hidden="true" className="size-(--icon-md) shrink-0" />;
 }
 
 function breadcrumbsFor(listing: Listing | null) {

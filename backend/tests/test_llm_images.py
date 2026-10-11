@@ -1,7 +1,7 @@
 """单元测试：llm 的图片编码与校验（magic bytes 识别格式 / 大小上限 / data URL）。
 
 不依赖真实图片文件——只用带正确 magic 前缀的字节即可覆盖识别逻辑；大小上限用 monkeypatch
-调小，避免真造 20MiB 数据。
+调小，避免真造 20MB 数据。
 """
 
 from __future__ import annotations

@@ -77,7 +77,7 @@ export function BatchStrategyFields({
               className="ml-auto"
               onClick={options_.onManage}
             >
-              <SettingsIcon className="size-3.5" />
+              <SettingsIcon className="size-(--icon-sm)" />
             </Button>
           </Tip>
         )}
@@ -166,7 +166,7 @@ export function BatchStrategyFields({
                     className="ml-auto"
                     onClick={onNavigateToSettings}
                   >
-                    <SettingsIcon className="size-3.5" />
+                    <SettingsIcon className="size-(--icon-sm)" />
                   </Button>
                 </Tip>
               )}

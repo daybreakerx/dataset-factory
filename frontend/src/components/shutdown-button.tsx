@@ -65,7 +65,7 @@ export function ShutdownButton({
             aria-label="关闭服务"
             onClick={() => setOpen(true)}
           >
-            <PowerIcon className="size-4" />
+            <PowerIcon className="size-(--icon-md)" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>关闭服务</TooltipContent>

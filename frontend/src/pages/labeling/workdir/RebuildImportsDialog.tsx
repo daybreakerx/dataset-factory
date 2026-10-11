@@ -114,7 +114,7 @@ export function RebuildImportsDialog({ wid, onClose, onRebuilt }: Props) {
       onOpenChange={(open) => {
         if (!open && !busy) onClose();
       }}
-      className="max-h-[90dvh] w-[min(540px,100%)] max-w-none overflow-y-auto"
+      className="max-h-[90dvh] w-[min(var(--w-modal-540),100%)] max-w-none overflow-y-auto"
       title="重建导入记录"
       description="当前工作目录"
       footer={

@@ -109,7 +109,7 @@ export function DeleteWorkdirDialog({
         <div className="space-y-2 text-t-sm">
           <p className="break-all">{preview.path}</p>
           <p>
-            {preview.file_count} 个文件 · {formatBytes(preview.total_bytes, "MiB", 2)}
+            {preview.file_count} 个文件 · {formatBytes(preview.total_bytes, "MB", 2)}
           </p>
           <p className={preview.original_materials ? "text-bad-ink" : "text-warn-ink"}>
             {preview.confirmation}

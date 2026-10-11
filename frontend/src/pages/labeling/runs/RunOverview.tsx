@@ -154,7 +154,7 @@ function RunLogDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="grid-cols-[minmax(0,1fr)] max-h-[90dvh] w-[min(780px,100%)] max-w-none overflow-y-auto">
+      <DialogContent className="grid-cols-[minmax(0,1fr)] max-h-[90dvh] w-[min(var(--w-modal-780),100%)] max-w-none overflow-y-auto">
         <DialogHeader className="flex-row items-center gap-3 space-y-0">
           <DialogTitle className="shrink-0">运行日志</DialogTitle>
           <div

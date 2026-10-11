@@ -601,7 +601,7 @@ class LabelingEngine:
         IO——见 :class:`MaterialLabelResult`）。图片与视频按扩展名区分，一次一个素材。
 
         运行时护栏在读取前先验（防素材导入后被绕过工具换掉）：文件存在性与大小上限
-        （图片 20 MiB / 视频 100 MiB，单一事实源在 llm 层）。
+        （图片 20 MB / 视频 100 MB，单一事实源在 llm 层）。
 
         Args:
             material: 素材文件路径（图片或视频，按扩展名窄清单判定；白名单与上限
@@ -619,7 +619,7 @@ class LabelingEngine:
             ValueError: prompt_body 为空白（一轮打标必须有基础提示词作 system 底座）；
                 或素材扩展名不在白名单内（调用方应只喂窄清单素材；导入后被改名也在此拦下）。
             MaterialReadError: 素材不存在、不是文件或读取失败。
-            MaterialOversizeError: 素材超出大小上限（图片 20 MiB / 视频 100 MiB）。
+            MaterialOversizeError: 素材超出大小上限（图片 20 MB / 视频 100 MB）。
             LLMError: 模型调用失败（本路径不落盘，异常直接冒泡给调用方按运行流水处置）。
         """
         start = perf_counter()
@@ -975,7 +975,7 @@ def _read_material(material: Path) -> bytes:
 
     Raises:
         MaterialReadError: 素材不存在、不是文件或读取失败。
-        MaterialOversizeError: 超出该类素材的大小上限（图片 20 MiB / 视频 100 MiB）。
+        MaterialOversizeError: 超出该类素材的大小上限（图片 20 MB / 视频 100 MB）。
         ValueError: 扩展名不在窄清单内。
     """
     suffix = material.suffix.lower()
@@ -1000,7 +1000,7 @@ def _read_material(material: Path) -> bytes:
     if size > limit:
         raise MaterialOversizeError(
             f"{kind}素材「{material.name}」超出大小上限"
-            f"（{size / (1024 * 1024):.1f} MiB，上限 {limit // (1024 * 1024)} MiB）；"
+            f"（{size / (1024 * 1024):.1f} MB，上限 {limit // (1024 * 1024)} MB）；"
             "请压缩或替换后重试。"
         )
     try:

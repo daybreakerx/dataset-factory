@@ -18,6 +18,7 @@ vi.mock("../../api", () => ({
     removeRetryItem: vi.fn(),
     clearRetryItems: vi.fn(),
     importMaterials: vi.fn(),
+    listDirectory: vi.fn(),
     removeUnimported: vi.fn(),
     getTask: vi.fn(),
     cancelTask: vi.fn(),
@@ -320,18 +321,22 @@ describe("打标页读取流程", () => {
 
     expect(screen.getByRole("heading", { name: "first.psd" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "产物预览" })).not.toBeInTheDocument();
+    // 组头「一键导入」两枚已撤（2026-10-10 用户裁）；行内「导入」点击直接补登记、不经弹窗。
     const unimported = within(screen.getByRole("region", { name: "未导入" }));
-    expect(unimported.getAllByRole("button", { name: "导入" })[0]).toBeDisabled();
-    await user.click(unimported.getByRole("button", { name: "一键导入" }));
-    const dialog = within(screen.getByRole("dialog"));
-    expect(dialog.queryByText("first.psd")).not.toBeInTheDocument();
-    await user.click(dialog.getByRole("button", { name: "导入" }));
+    expect(screen.queryByRole("button", { name: "一键导入" })).not.toBeInTheDocument();
+    const [blocked, eligible] = unimported.getAllByRole("button", { name: "导入" });
+    if (!blocked || !eligible)
+      throw new Error("未导入组应给出两枚「导入」钮（一灰一可点）");
+    expect(blocked).toBeDisabled();
+    await user.click(eligible);
 
-    await dialog.findByText(/导入完成/);
-    expect(api.importMaterials).toHaveBeenCalledExactlyOnceWith("one", {
-      source: null,
-      names: ["new.jpg"],
-    });
+    await waitFor(() =>
+      expect(api.importMaterials).toHaveBeenCalledExactlyOnceWith("one", {
+        names: ["new.jpg"],
+      }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(api.listItems).toHaveBeenLastCalledWith("one", "s1"));
   });
   it("折叠和展开保留同一视频元素与播放位置，返回关闭预览", async () => {
     const user = userEvent.setup();
@@ -361,49 +366,65 @@ describe("打标页读取流程", () => {
     expect(screen.queryByRole("region", { name: "产物预览" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "clip.mp4" })).toBeInTheDocument();
   });
-  it("发车确认可进入真实导入，完成后重新读取当前批次", async () => {
+  it("缺失行「重新指定」开目录选择弹窗，选定文件后按新来源直接导入", async () => {
     const user = userEvent.setup();
     const initial = view("first");
-    initial.groups.unimported = [
+    initial.groups.missing = [
       {
-        item: "new",
-        name: "new.jpg",
+        item: "gone",
+        name: "gone.jpg",
         media: "image",
-        status: "unimported",
+        status: "missing",
         can_retry: false,
         in_retry: false,
-        reason: "未登记",
+        recoverable: false,
+        source: "D:\\old\\gone.jpg",
       },
     ];
     vi.mocked(api.listItems).mockResolvedValue(initial);
-    vi.mocked(api.importMaterials).mockResolvedValue({ task_id: "import-task" });
+    vi.mocked(api.listDirectory).mockResolvedValue({
+      path: "D:/newsource",
+      parent: "D:/",
+      hostname: "",
+      system: "windows",
+      entries: [
+        {
+          kind: "file",
+          name: "gone.jpg",
+          path: "D:/newsource/gone.jpg",
+          size: 12,
+          modified_at: "2026-10-12T00:00:00Z",
+        },
+      ],
+      unavailable_count: 0,
+    });
+    vi.mocked(api.importMaterials).mockResolvedValue({ task_id: "repoint-task" });
     vi.mocked(api.getTask).mockResolvedValue({
-      id: "import-task",
+      id: "repoint-task",
       status: "succeeded",
       progress: 1,
       error: null,
-      result: {
-        source: "/one",
-        imported: ["new.jpg"],
-        skipped_identical: [],
-        skipped_conflict: [],
-        skipped_duplicate: [],
-        rejected: [],
-      },
+      result: null,
     });
     render(<LabelingPage />);
     await screen.findByRole("button", { name: "first.jpg" });
-    await user.click(screen.getByRole("button", { name: "开始打标" }));
 
-    await user.click(screen.getByRole("button", { name: "先去导入" }));
-    expect(screen.getByRole("dialog", { name: "导入素材" })).toBeInTheDocument();
+    const missing = within(screen.getByRole("region", { name: "缺失" }));
+    await user.click(missing.getByRole("button", { name: "重新指定" }));
+
+    const picker = within(screen.getByRole("dialog"));
+    await picker.findByRole("button", { name: /gone\.jpg/ });
     const reads = vi.mocked(api.listItems).mock.calls.length;
-    await user.click(screen.getByRole("button", { name: "导入" }));
+    await user.click(picker.getByRole("button", { name: /gone\.jpg/ }));
+    await user.click(picker.getByRole("button", { name: "选择此文件" }));
 
-    await screen.findByText(/导入完成 · 新增 1 项/);
-    expect(api.importMaterials).toHaveBeenCalledWith("one", { source: null });
+    await waitFor(() =>
+      expect(api.importMaterials).toHaveBeenCalledWith("one", {
+        source: "D:/newsource",
+        names: ["gone.jpg"],
+      }),
+    );
     expect(vi.mocked(api.listItems).mock.calls.length).toBeGreaterThan(reads);
-    expect(api.listItems).toHaveBeenLastCalledWith("one", "s1");
   });
 
   it("分组全选后批量加入重试，成功后清空选择并同步重试组", async () => {

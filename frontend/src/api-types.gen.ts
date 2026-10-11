@@ -1487,7 +1487,7 @@ export interface paths {
          *
          *     交给 FileResponse 而不是自己读字节：它原生支持 Range（206 单段 / 多段、
          *     416 越界）与 ETag / Last-Modified，视频拖动进度条全靠这个；自己读整份字节
-         *     会把 100 MiB 的视频整个塞进内存，还得手写一遍分段逻辑。不设
+         *     会把 100 MB 的视频整个塞进内存，还得手写一遍分段逻辑。不设
          *     ``content-disposition``——界面要在 ``<img>`` / ``<video>`` 里内联渲染，
          *     attachment 会让浏览器变成下载。
          */
@@ -2204,6 +2204,16 @@ export interface components {
              * @description 被排除的具体原因
              */
             reason?: string | null;
+            /**
+             * Recoverable
+             * @description 来源那儿还有没有这份素材（null＝本行不是缺失行）
+             */
+            recoverable?: boolean | null;
+            /**
+             * Source
+             * @description 缺失行的来源文件全路径（其余行为 null）；界面据此决定「重新导入」还是「重新指定」
+             */
+            source?: string | null;
         };
         /**
          * ExportPlanView

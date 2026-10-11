@@ -134,7 +134,7 @@ function CfgPopHead({
               "enabled:hover:bg-accent enabled:hover:text-text-1",
               "disabled:cursor-not-allowed disabled:text-n-400 disabled:bg-transparent",
               "aria-disabled:pointer-events-none",
-              "[&_svg]:size-3.5",
+              "[&_svg]:size-(--icon-sm)",
             )}
           >
             {action.icon}
@@ -320,7 +320,7 @@ function CfgPopRowIconButton({
             : "enabled:hover:bg-accent enabled:hover:text-text-1",
           "disabled:cursor-not-allowed disabled:text-n-400 disabled:bg-transparent",
           "aria-disabled:pointer-events-none",
-          "[&_svg]:size-3.5",
+          "[&_svg]:size-(--icon-sm)",
         )}
       >
         {icon}
@@ -351,11 +351,11 @@ function CfgNameChevron({
         className={cn(
           "absolute top-1/2 right-0.5 flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-text-3",
           "enabled:hover:text-text-1 disabled:cursor-not-allowed disabled:text-n-400",
-          "[&_svg]:size-4",
+          "[&_svg]:size-(--icon-md)",
         )}
         {...props}
       >
-        <ChevronDownIcon className="size-4" />
+        <ChevronDownIcon className="size-(--icon-md)" />
       </button>
     </Tip>
   );

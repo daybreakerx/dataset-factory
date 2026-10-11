@@ -14,12 +14,6 @@ import {
 } from "../runs/items-state";
 import { MaterialRow } from "./material-row";
 
-/** 「一键导入」弹窗的请求形状（面板组头按钮与页面 recover 共用）。 */
-export interface RecoveryRequest {
-  names: string[];
-  mode: "copy" | "restore" | "inplace";
-}
-
 /** 素材条目左列：条目头＋搜索＋分组列表。筛选词 / 折叠 / 组内展开为本块私有持久化态。 */
 export function MaterialsPanel({
   items,
@@ -34,10 +28,10 @@ export function MaterialsPanel({
   addSelected,
   removeRetry,
   setRetryRequest,
-  setRecovery,
   selectedItem,
   choose,
   recover,
+  repoint,
   requestRemoval,
 }: {
   items: ItemMap;
@@ -52,10 +46,12 @@ export function MaterialsPanel({
   addSelected: () => Promise<void>;
   removeRetry: (item?: string) => Promise<void>;
   setRetryRequest: Dispatch<SetStateAction<number>>;
-  setRecovery: Dispatch<SetStateAction<RecoveryRequest | null>>;
   selectedItem: string | null;
   choose: (row: ItemRow) => void;
+  /** 行内「导入」／「重新导入」：点击直接执行，不经弹窗（2026-10-10 用户裁）。 */
   recover: (row: ItemRow) => void;
+  /** 缺失行「重新指定」：来源已失效，开目录选择弹窗选定新来源。 */
+  repoint: (name: string) => void;
   requestRemoval: (row: ItemRow) => void;
 }) {
   // 左列筛选词跨重启持久化：搜索到一半重启，回来还在。
@@ -115,6 +111,7 @@ export function MaterialsPanel({
         </Button>
       </div>
       <div className="mr-3 mb-2 ml-4 flex h-(--h-sm) shrink-0 items-center gap-2 rounded-md border border-input bg-card px-2">
+        {/* 12px 不在全站图标五档里：本搜索框是手写矮版，换 §8 族结构（图标 16）随对齐批「条目标题行与搜索行」② 落，此处不是漏改。 */}
         <SearchIcon className="size-3 shrink-0 text-text-3" />
         <input
           className="min-w-0 flex-1 border-0 bg-transparent text-t-sm text-text-2 outline-none placeholder:text-n-400"
@@ -149,7 +146,7 @@ export function MaterialsPanel({
                   }
                 >
                   <ChevronDownIcon
-                    className={`size-3.5 shrink-0 text-text-3 ${!query && collapsed.has(key) ? "-rotate-90" : ""}`}
+                    className={`size-(--icon-sm) shrink-0 text-text-3 ${!query && collapsed.has(key) ? "-rotate-90" : ""}`}
                   />
                   {label}
                   <span
@@ -184,48 +181,6 @@ export function MaterialsPanel({
                       </Button>
                     </Tip>
                   </>
-                )}
-                {key === "missing" && !!filtered.missing?.length && (
-                  <Tip label="把当前清单中可从来源找回的缺失素材重新导入">
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      className="shrink-0"
-                      disabled={!filtered.missing.some((row) => row.recoverable)}
-                      onClick={() =>
-                        setRecovery({
-                          names: (filtered.missing ?? [])
-                            .filter((row) => row.recoverable)
-                            .map((row) => row.name),
-                          mode: "restore",
-                        })
-                      }
-                    >
-                      一键导入
-                    </Button>
-                  </Tip>
-                )}
-                {key === "unimported" && !!filtered.unimported?.length && (
-                  <Tip label="导入当前清单中符合格式与大小限制的文件">
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      className="shrink-0"
-                      disabled={
-                        !filtered.unimported.some((row) => row.reason === "未登记")
-                      }
-                      onClick={() =>
-                        setRecovery({
-                          names: (filtered.unimported ?? [])
-                            .filter((row) => row.reason === "未登记")
-                            .map((row) => row.name),
-                          mode: "inplace",
-                        })
-                      }
-                    >
-                      一键导入
-                    </Button>
-                  </Tip>
                 )}
                 {selectionMode && (key === "done" || key === "failed") && (
                   <button
@@ -290,6 +245,7 @@ export function MaterialsPanel({
                             saving={saving}
                             onRemoveRetry={removeRetry}
                             onRecover={recover}
+                            onRepoint={repoint}
                             onRemoveUnimported={requestRemoval}
                           />
                         ))}

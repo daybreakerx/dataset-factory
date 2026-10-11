@@ -426,10 +426,12 @@ class WorkdirStore:
             raise WorkdirPathError("清理路径必须是工作目录的子路径。")
         resolved = candidate.resolve()
         if resolved == root.resolve() or not resolved.is_relative_to(root.resolve()):
-            raise WorkdirPathError("清理路径越出工作目录，请检查链接。")
+            raise WorkdirPathError(
+                "清理路径越出工作目录，请检查路径沿途的符号链接或目录联接。"
+            )
         while candidate != root:
             if candidate.is_symlink() or candidate.is_junction():
-                raise WorkdirPathError("清理路径包含链接，请检查后重试。")
+                raise WorkdirPathError("清理路径包含文件或文件夹的链接，请检查后重试。")
             candidate = candidate.parent
 
     def finish_cleanup(self, recovery: Path | None) -> str | None:

@@ -24,4 +24,4 @@ class PromptParseError(PromptError):
 
 
 class PromptTooLargeError(PromptError):
-    """提示词条目序列化后超过字节上限（32 KiB）。"""
+    """提示词条目正文超过字数上限（32_000 字，界面同口径显示 32k 字）。"""

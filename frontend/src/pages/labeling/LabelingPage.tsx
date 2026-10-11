@@ -1,9 +1,11 @@
 import { FileImageIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../api";
+import { DirectoryPicker } from "../../components/DirectoryPicker";
 import { FormError } from "../../components/form-error";
 import { Button } from "../../components/ui/button";
 import { Tip } from "../../components/ui/tooltip";
+import { toast } from "../../lib/toast";
 import {
   LABELING_SELECTED_ITEM_KEY,
   readStoredString,
@@ -15,8 +17,13 @@ import { NewBatchForm } from "./batching/NewBatchForm";
 import { NewStrategyDialog } from "./batching/NewStrategyDialog";
 import { useBatchRunState } from "./hooks/use-batch-run-state";
 import { loadWorkdirBatches, useWorkdirBatches } from "./hooks/use-workdir-batches";
+import {
+  importFromDirectory,
+  registerInPlace,
+  reimportFromSource,
+} from "./material-actions";
 import { MaterialDetail } from "./materials/material-detail";
-import { MaterialsPanel, type RecoveryRequest } from "./materials/materials-panel";
+import { MaterialsPanel } from "./materials/materials-panel";
 import { BatchOverview } from "./runs/BatchOverview";
 import {
   type ItemMap,
@@ -27,7 +34,6 @@ import {
   withRetryItems,
 } from "./runs/items-state";
 import { RunControl } from "./runs/RunControl";
-import { ImportMaterialsDialog } from "./workdir/ImportMaterialsDialog";
 import { RemoveUnimportedDialog } from "./workdir/RemoveUnimportedDialog";
 import { WorkdirSettings } from "./workdir/WorkdirSettings";
 
@@ -70,11 +76,11 @@ export function LabelingPage({
   const [retryRequest, setRetryRequest] = useState(0);
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set());
   const [saving, setSaving] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   const [removal, setRemoval] = useState<{ identity: string; name: string } | null>(
     null,
   );
-  const [recovery, setRecovery] = useState<RecoveryRequest | null>(null);
+  // 「重新指定」待顶替的缺失文件名（开目录选择弹窗时记下，选定即按新来源直接导入）。
+  const [repoint, setRepoint] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [settingsWid, setSettingsWid] = useState<string | null>(null);
   const [newStrategyWid, setNewStrategyWid] = useState<string | null>(null);
@@ -113,7 +119,7 @@ export function LabelingPage({
     setSelectionMode(false);
     setRetryRequest(0);
     setSaving(false);
-    setRecovery(null);
+    setRepoint(null);
     setRemoval(null);
     void api
       .listItems(selection.workdirId, selection.batchId)
@@ -153,13 +159,6 @@ export function LabelingPage({
   useEffect(() => {
     writeStoredJson(LABELING_SELECTED_ITEM_KEY, selectedItem);
   }, [selectedItem]);
-  const recover = useCallback((row: ItemRow) => {
-    setRecovery({
-      names: [row.name],
-      mode:
-        row.status === "unimported" ? "inplace" : row.recoverable ? "restore" : "copy",
-    });
-  }, []);
   const requestRemoval = useCallback(
     (row: ItemRow) => {
       setRemoval({ identity, name: row.name });
@@ -208,6 +207,51 @@ export function LabelingPage({
       }
     },
     [selection, identity],
+  );
+  // 行内处置＝点击直接执行（2026-10-10 用户裁「不经确认、不经弹窗」）：未导入行就地补登记、
+  // 缺失行从登记在册的来源取回。成功后 toast ＋ 重取清单——行消失本身就是反馈。
+  const recover = useCallback(
+    async (row: ItemRow) => {
+      if (!selection) return;
+      setSaving(true);
+      try {
+        if (row.status === "unimported") {
+          await registerInPlace(selection.workdirId, row.name);
+          toast(`已导入「${row.name}」`);
+        } else {
+          await reimportFromSource(selection.workdirId, row.name);
+          toast(`已重新导入「${row.name}」`);
+        }
+        await refreshItems();
+      } catch (reason) {
+        setError(errorMessage(reason));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [selection, refreshItems],
+  );
+  // 「重新指定」＝用户从目录选择弹窗挑一份文件顶替：按其所在目录做复制导入。
+  // 不按扩展名过滤列表——收不收得进来由后端闸门判，界面吃它的真话（同一把尺）。
+  const repointPicked = useCallback(
+    async (picked: string) => {
+      setRepoint(null);
+      if (!selection) return;
+      const cut = Math.max(picked.lastIndexOf("/"), picked.lastIndexOf("\\"));
+      const source = cut > 0 ? picked.slice(0, cut) : picked;
+      const name = cut > 0 ? picked.slice(cut + 1) : picked;
+      setSaving(true);
+      try {
+        await importFromDirectory(selection.workdirId, source, name);
+        toast(`已重新指定「${name}」`);
+        await refreshItems();
+      } catch (reason) {
+        setError(errorMessage(reason));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [selection, refreshItems],
   );
   const removeRetry = useCallback(
     async (item?: string) => {
@@ -313,22 +357,11 @@ export function LabelingPage({
           onRemoved={() => void refreshItems()}
         />
       )}
-      {selection && recovery && (
-        <ImportMaterialsDialog
-          key={`recover/${identity}`}
-          wid={selection.workdirId}
-          names={recovery.names}
-          initialMode={recovery.mode}
-          onClose={() => setRecovery(null)}
-          onImported={() => void refreshItems()}
-        />
-      )}
-      {selection && importOpen && (
-        <ImportMaterialsDialog
-          key={identity}
-          wid={selection.workdirId}
-          onClose={() => setImportOpen(false)}
-          onImported={() => void refreshItems()}
+      {selection && repoint !== null && (
+        <DirectoryPicker
+          files
+          onClose={() => setRepoint(null)}
+          onSelect={(picked) => void repointPicked(picked)}
         />
       )}
       <header className="flex shrink-0 flex-wrap items-center gap-3 px-4 pt-4 pb-3 lg:flex-nowrap lg:gap-4 lg:px-6">
@@ -412,7 +445,6 @@ export function LabelingPage({
                     : { ...current, content: current.content + event.text },
               );
             }}
-            onImport={() => setImportOpen(true)}
           />
         )}
         <Button
@@ -442,10 +474,10 @@ export function LabelingPage({
           addSelected={addSelected}
           removeRetry={removeRetry}
           setRetryRequest={setRetryRequest}
-          setRecovery={setRecovery}
           selectedItem={selectedItem}
           choose={choose}
           recover={recover}
+          repoint={(name) => setRepoint(name)}
           requestRemoval={requestRemoval}
         />
         <div className="flex min-w-0 shrink-0 flex-col lg:flex-1 lg:overflow-auto">
@@ -499,7 +531,8 @@ export function LabelingPage({
                   onRunStarted={(id) => setExternalRun({ identity, id })}
                   onSelect={choose}
                   onImported={() => void refreshItems()}
-                  onImport={() => setImportOpen(true)}
+                  onRepoint={(name) => setRepoint(name)}
+                  onRetryChanged={retryChanged}
                 />
               )}
               {!selected && !selection && (

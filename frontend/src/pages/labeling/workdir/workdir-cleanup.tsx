@@ -76,7 +76,7 @@ export function WorkdirCleanup({
           <span className="text-text-3">
             {cleanupSummary.products.products.length} 个 txt（
             {cleanupBatches.size} 套策略，含 {hiddenCleanupBatches} 套已停用）·{" "}
-            {formatBytes(cleanupSummary.products.total_bytes, "KiB", 1)}
+            {formatBytes(cleanupSummary.products.total_bytes, "KB", 1)}
           </span>
         )}
         <Button
@@ -95,7 +95,7 @@ export function WorkdirCleanup({
             {cleanupSummary.runs.length} 份 ·{" "}
             {formatBytes(
               cleanupSummary.runs.reduce((total, entry) => total + entry.size, 0),
-              "KiB",
+              "KB",
               1,
             )}
             {runDateRange && ` · ${runDateRange}`}

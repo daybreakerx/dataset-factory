@@ -258,7 +258,11 @@ export function InputArea({
                 disabled={!sending && !canSend}
                 onClick={sending ? onStop : onSend}
               >
-                {sending ? <SquareIcon className="size-3.5" /> : <ArrowUpIcon />}
+                {sending ? (
+                  <SquareIcon className="size-(--icon-sm)" />
+                ) : (
+                  <ArrowUpIcon />
+                )}
               </Button>
             </TooltipTrigger>
             <TooltipContent>{sending ? "停止生成" : "发送"}</TooltipContent>

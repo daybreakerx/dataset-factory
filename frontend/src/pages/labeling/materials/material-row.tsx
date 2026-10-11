@@ -4,6 +4,7 @@ import { TrashIcon } from "../../../components/icons";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
 import { formatBytesAuto } from "../../../lib/format";
+import { exclusionLabel } from "../material-actions";
 import type { ItemRow } from "../runs/items-state";
 
 export const MaterialRow = memo(function MaterialRow({
@@ -17,6 +18,7 @@ export const MaterialRow = memo(function MaterialRow({
   saving,
   onRemoveRetry,
   onRecover,
+  onRepoint,
   onRemoveUnimported,
 }: {
   row: ItemRow;
@@ -29,6 +31,8 @@ export const MaterialRow = memo(function MaterialRow({
   saving: boolean;
   onRemoveRetry: (item: string) => void;
   onRecover: (row: ItemRow) => void;
+  /** 缺失行「重新指定」：来源已失效，开目录选择弹窗选定新来源。 */
+  onRepoint: (name: string) => void;
   onRemoveUnimported: (row: ItemRow) => void;
 }) {
   return (
@@ -53,11 +57,11 @@ export const MaterialRow = memo(function MaterialRow({
       >
         <span className="flex h-[27px] w-9 shrink-0 items-center justify-center rounded-sm border border-border bg-muted/60 text-text-3">
           {row.media === "video" ? (
-            <FilmIcon className="size-3.5" />
+            <FilmIcon className="size-(--icon-sm)" />
           ) : row.media === "image" ? (
-            <FileImageIcon className="size-3.5" />
+            <FileImageIcon className="size-(--icon-sm)" />
           ) : (
-            <FileIcon className="size-3.5" />
+            <FileIcon className="size-(--icon-sm)" />
           )}
         </span>
         <span className="min-w-0 flex-1">
@@ -66,9 +70,9 @@ export const MaterialRow = memo(function MaterialRow({
           </Tip>
           {(row.message || row.reason) && (
             <span className="block break-words text-t-xs text-text-3">
-              {row.message || row.reason}
+              {row.message || exclusionLabel(row.reason)}
               {/* V2（2026-09-21 审计）：契约里一直带着 size / limit——超出大小上限
-                  这类拒绝要让用户看到具体数值（原型口径：412 MiB ＞ 100 MiB）。 */}
+                  这类拒绝要让用户看到具体数值（原型口径：412 MB ＞ 100 MB）。 */}
               {row.status === "unimported" &&
                 row.size !== null &&
                 row.size !== undefined &&
@@ -86,18 +90,14 @@ export const MaterialRow = memo(function MaterialRow({
         </span>
       </button>
       {row.status === "missing" && (
-        <Tip
-          label={
-            row.recoverable ? `来源：${row.source}` : "原始来源不可用，请从别处导入"
-          }
-        >
+        <Tip label={row.recoverable ? `来源：${row.source}` : "来源已失效，请重新指定"}>
           <Button
             variant="ghost"
             size="mini"
             className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
-            onClick={() => onRecover(row)}
+            onClick={() => (row.recoverable ? onRecover(row) : onRepoint(row.name))}
           >
-            {row.recoverable ? "重新导入" : "从别处导入"}
+            {row.recoverable ? "重新导入" : "重新指定"}
           </Button>
         </Tip>
       )}

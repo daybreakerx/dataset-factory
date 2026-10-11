@@ -269,7 +269,7 @@ describe("新建跑批恢复", () => {
     await user.click(screen.getByRole("button", { name: "开始打标" }));
 
     const dialog = await screen.findByRole("dialog", { name: "开始打标前确认" });
-    expect(dialog).toHaveTextContent("有 2 个素材未登记");
+    expect(dialog).toHaveTextContent("有 2 个素材未导入");
     expect(dialog).toHaveTextContent("design.psd");
     expect(dialog).toHaveTextContent("扩展名不支持");
     expect(dialog).toHaveTextContent("large.mov");

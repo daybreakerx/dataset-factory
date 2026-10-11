@@ -25,7 +25,10 @@ interface Props {
   liveOutput?: { item: string; reasoning: string; content: string } | null;
   onSelect: (row: components["schemas"]["ItemRowView"]) => void;
   onImported?: () => void;
-  onImport?: () => void;
+  /** 打包被排除清单的「重新指定」：目录选择弹窗住在页面层。 */
+  onRepoint?: (name: string) => void;
+  /** 打包清单「加入重试」成功后回灌左列名单。 */
+  onRetryChanged?: (items: string[]) => void;
   onRunStarted?: (id: string) => void;
 }
 
@@ -45,7 +48,8 @@ export function BatchOverview({
   liveOutput = null,
   onSelect,
   onImported,
-  onImport,
+  onRepoint,
+  onRetryChanged,
   onRunStarted,
 }: Props) {
   const [rebuildOpen, setRebuildOpen] = useState(false);
@@ -423,7 +427,8 @@ export function BatchOverview({
           wid={wid}
           batch={batch}
           refreshKey={`${exportRevision}/${exclusionRevision}`}
-          onImport={onImport}
+          onRepoint={onRepoint}
+          onRetryChanged={onRetryChanged}
           mediaSummary={{
             images: members.filter((row) => row.media === "image").length,
             videos: members.filter((row) => row.media === "video").length,

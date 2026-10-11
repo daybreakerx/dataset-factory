@@ -993,7 +993,7 @@ def test_material_video_oversize_raises(
     fake_completer: FakeCompleter,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """视频超出运行时护栏（100 MiB 上限的运行时再验）：读取前拦截 MaterialOversizeError。"""
+    """视频超出运行时护栏（100 MB 上限的运行时再验）：读取前拦截 MaterialOversizeError。"""
     monkeypatch.setattr(labeling_engine_module, "MAX_VIDEO_BYTES", 4)
     video = tmp_path / "big.mp4"
     video.write_bytes(b"0123456789")

@@ -253,40 +253,62 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   await rename(path.join(directory, "lost.png"), testInfo.outputPath("lost.backup"));
   await rename(path.join(source, "lost.png"), testInfo.outputPath("lost-source.backup"));
   await page.getByRole("button", { name: "刷新条目", exact: true }).click();
-  const missing = page.getByRole("region", { name: "缺失", exact: true }).filter({ has: page.getByRole("button", { name: "一键导入", exact: true }) });
+  const missing = page.getByRole("region", { name: "缺失", exact: true });
   await expect(missing.getByText("recover.png", { exact: true })).toBeVisible();
   await expect(missing.getByText("原始来源不可用", { exact: true })).toBeVisible();
-  await missing.getByRole("button", { name: "一键导入", exact: true }).click();
-  const recovery = page.getByRole("dialog", { name: "重新导入缺失素材", exact: true });
-  await expect(recovery.getByText("recover.png", { exact: true })).toBeVisible();
-  await expect(recovery.getByText("lost.png", { exact: true })).toHaveCount(0);
-  await recovery.getByRole("button", { name: "导入", exact: true }).click();
-  await expect(recovery.getByText(/导入完成 · 新增 1 项/)).toBeVisible();
-  expect(await readFile(path.join(directory, "recover.png"))).toEqual(await readFile(path.join(source, "recover.png")));
-  await recovery.getByRole("button", { name: "关闭", exact: true }).first().click();
-  await expect(missing.getByText("recover.png", { exact: true })).toHaveCount(0);
-  await expect(missing.getByRole("button", { name: "一键导入", exact: true })).toBeDisabled();
-  await missing.getByRole("button", { name: "从别处导入", exact: true }).click();
-  const replacement = page.getByRole("dialog", { name: "导入素材", exact: true });
-  await expect(replacement.getByRole("radio", { name: "复制导入" })).toBeChecked();
-  await expect(replacement.getByText("lost.png", { exact: true })).toBeVisible();
-  await replacement.getByRole("button", { name: "关闭", exact: true }).first().click();
+  // 两枚组头「一键导入」与「重新导入缺失素材」弹窗已撤（2026-10-10 用户裁）：行内动作直接执行。
+  await expect(missing.getByRole("button", { name: "一键导入", exact: true })).toHaveCount(0);
+  const recoverRow = missing.locator("div.group", { hasText: "recover.png" });
+  await recoverRow.hover();
+  await recoverRow.getByRole("button", { name: "重新导入", exact: true }).click();
+  // 恢复动作走后台任务（受理 → 界面轮询 → 落盘），没有弹窗的「导入完成」文字可等，
+  // 于是按字节到位来判——判据本身不变，只是把等待预算给足（并发跑各 spec 时起服务更慢）。
+  await expect
+    .poll(
+      async () => {
+        try {
+          return (await readFile(path.join(directory, "recover.png"))).equals(
+            await readFile(path.join(source, "recover.png")),
+          );
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(true);
+  await expect(missing.getByText("recover.png", { exact: true })).toHaveCount(0, {
+    timeout: 30_000,
+  });
+  // 来源已失效的缺失行走「重新指定」：开的是通用「目录选择弹窗」，不再进导入素材弹窗。
+  const lostRow = missing.locator("div.group", { hasText: "lost.png" });
+  await lostRow.hover();
+  await lostRow.getByRole("button", { name: "重新指定", exact: true }).click();
+  const picker = page.getByRole("dialog");
+  await expect(picker).toBeVisible();
+  await picker.getByRole("button", { name: "关闭", exact: true }).first().click();
+  await expect(missing.getByText("lost.png", { exact: true })).toBeVisible();
   await writeFile(path.join(directory, "sample.psd"), "Unsupported same-stem file");
   await writeFile(path.join(directory, "unregistered.png"), Buffer.concat([await readFile(assetPath), Buffer.from("unregistered")]));
   await page.getByRole("button", { name: "刷新条目", exact: true }).click();
   const unregistered = page.getByRole("region", { name: "未导入", exact: true });
   await expect(unregistered.getByText("sample.psd", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "已完成", exact: true }).getByText("sample.png", { exact: true })).toBeVisible();
-  await unregistered.getByRole("button", { name: "一键导入", exact: true }).click();
-  const registration = page.getByRole("dialog", { name: "导入素材", exact: true });
-  await expect(registration.getByText("unregistered.png", { exact: true })).toBeVisible();
-  await expect(registration.getByText("sample.psd", { exact: true })).toHaveCount(0);
-  await registration.getByRole("button", { name: "导入", exact: true }).click();
-  await expect(registration.getByText(/导入完成 · 新增 1 项/)).toBeVisible();
-  await registration.getByRole("button", { name: "关闭", exact: true }).first().click();
-  await expect(unregistered.getByText("unregistered.png", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "排队中", exact: true }).getByText("unregistered.png", { exact: true })).toBeVisible();
-  await expect(unregistered.getByRole("button", { name: "一键导入", exact: true })).toBeDisabled();
+  // 行内「导入」＝点击直接补登记（不经确认、不经弹窗）；扩展名不支持的那一行钮置灰。
+  const blockedRow = unregistered.locator("div.group", { hasText: "sample.psd" });
+  await blockedRow.hover();
+  await expect(blockedRow.getByRole("button", { name: "导入", exact: true })).toBeDisabled();
+  const registerRow = unregistered.locator("div.group", { hasText: "unregistered.png" });
+  await registerRow.hover();
+  await registerRow.getByRole("button", { name: "导入", exact: true }).click();
+  await expect(unregistered.getByText("unregistered.png", { exact: true })).toHaveCount(0, {
+    timeout: 30_000,
+  });
+  await expect(
+    page.getByRole("region", { name: "排队中", exact: true }).getByText("unregistered.png", {
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 30_000 });
   const retainedAsset = await readFile(assetPath);
   const retainedCaption = await readFile(path.join(directory, "s1__sample.txt"));
   const removeButton = unregistered.getByRole("button", { name: "删除未导入 sample.psd", exact: true });

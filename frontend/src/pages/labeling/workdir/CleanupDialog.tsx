@@ -208,7 +208,7 @@ export function CleanupDialog({
                       </span>
                     )}
                     <span className="shrink-0 text-text-4 tabular-nums">
-                      {formatBytes(entry.size, "KiB", 1)}
+                      {formatBytes(entry.size, "KB", 1)}
                       {entry.batch !== undefined ? ` · s${entry.batch}` : ""}
                     </span>
                     {entry.modified_at !== undefined && (
@@ -221,7 +221,7 @@ export function CleanupDialog({
               </div>
             </fieldset>
             <p className="text-t-sm text-text-3">
-              已选 {selected.size} 项 · {formatBytes(bytes, "KiB", 1)}
+              已选 {selected.size} 项 · {formatBytes(bytes, "KB", 1)}
             </p>
             {confirming && (
               <p className="text-t-sm text-warn-ink">

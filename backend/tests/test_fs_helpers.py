@@ -213,7 +213,7 @@ def test_hash_stream_digests_the_bytes_it_moves(tmp_path: Path) -> None:
     with source.open("rb") as reader, target.open("wb") as writer:
         digest, moved = hash_stream(reader, writer, on_chunk=tamper_once)
 
-    # 第一块是原内容，之后读到的是改写后的剩余部分（源已被截到 2 MiB）。
+    # 第一块是原内容，之后读到的是改写后的剩余部分（源已被截到 2 MB）。
     landed = b"A" * _MIB + b"Z" * _MIB
     assert digest == hashlib.sha256(landed).hexdigest()
     assert moved == len(landed)

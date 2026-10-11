@@ -439,7 +439,7 @@ def test_oversize_rejected_by_kind_limit(
 def test_image_real_limit_is_20_mib(
     workdir: Path, source: Path, temp_data_root: Path
 ) -> None:
-    """真实护栏值钉死：图片恰好 20 MiB 放行、20 MiB + 1 字节拒绝。"""
+    """真实护栏值钉死：图片恰好 20 MB 放行、20 MB + 1 字节拒绝。"""
     boundary = 20 * 1024 * 1024
     _write(source, "max.jpg", b"0" * boundary)
 
@@ -767,7 +767,7 @@ def test_record_hash_refers_to_copied_bytes(
 
 
 def test_size_limit_constants_pinned() -> None:
-    """护栏常量钉死（design 项 13）：图片 20 MiB / 视频 100 MiB——值被误改当场红。"""
+    """护栏常量钉死（design 项 13）：图片 20 MB / 视频 100 MB——值被误改当场红。"""
     assert importer_module.MAX_IMAGE_BYTES == 20 * 1024 * 1024
     assert importer_module.MAX_VIDEO_BYTES == 100 * 1024 * 1024
 

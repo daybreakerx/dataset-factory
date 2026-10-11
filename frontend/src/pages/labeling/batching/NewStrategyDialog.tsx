@@ -173,7 +173,7 @@ export function NewStrategyDialog({
       onOpenChange={(open) => {
         if (!open && !pending.current) onClose();
       }}
-      className="max-h-[90vh] max-w-[600px] overflow-y-auto p-4"
+      className="max-h-[90vh] max-w-(--w-modal-600) overflow-y-auto p-4"
       note={`新策略为 s${nextSeq}，与既有 ${existingCount} 套并存`}
       footerExtra={
         !catalog && error ? (

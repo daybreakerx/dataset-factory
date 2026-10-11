@@ -629,7 +629,7 @@ def get_item_asset(wid: str, item: str) -> _AssetResponse:
 
     交给 FileResponse 而不是自己读字节：它原生支持 Range（206 单段 / 多段、
     416 越界）与 ETag / Last-Modified，视频拖动进度条全靠这个；自己读整份字节
-    会把 100 MiB 的视频整个塞进内存，还得手写一遍分段逻辑。不设
+    会把 100 MB 的视频整个塞进内存，还得手写一遍分段逻辑。不设
     ``content-disposition``——界面要在 ``<img>`` / ``<video>`` 里内联渲染，
     attachment 会让浏览器变成下载。
     """

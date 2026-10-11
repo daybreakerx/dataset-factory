@@ -65,7 +65,7 @@ export function ImportDialog({
     <DialogShell
       open={open}
       onOpenChange={onOpenChange}
-      className="w-[min(560px,calc(100vw-48px))]"
+      className="w-[min(var(--w-modal-560),calc(100vw-48px))]"
     >
       <DialogHeader>
         <div className="flex min-h-(--h-md) items-center gap-3">
@@ -104,7 +104,7 @@ export function ImportDialog({
             flight && "pointer-events-none",
           )}
         >
-          <ImportIcon className="size-4" />
+          <ImportIcon className="size-(--icon-md)" />
           拖文件夹 / SKILL.md 到这里导入
         </button>
         <input
@@ -141,7 +141,7 @@ export function ImportDialog({
             {...flightProps}
             onClick={flight ? undefined : () => fileInputRef.current?.click()}
           >
-            <FolderOpenIcon className="size-4" />
+            <FolderOpenIcon className="size-(--icon-md)" />
             文件夹
           </Button>
           <Button
@@ -150,7 +150,7 @@ export function ImportDialog({
             {...flightProps}
             onClick={flight ? undefined : () => mdInputRef.current?.click()}
           >
-            <FileTextIcon className="size-4" />
+            <FileTextIcon className="size-(--icon-md)" />
             SKILL.md 文件
           </Button>
         </div>

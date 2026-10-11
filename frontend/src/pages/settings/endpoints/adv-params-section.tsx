@@ -82,7 +82,7 @@ export function AdvParamsSection({
       >
         <ChevronDownIcon
           className={cn(
-            "size-4 shrink-0 text-muted-foreground transition-transform",
+            "size-(--icon-md) shrink-0 text-muted-foreground transition-transform",
             open && "rotate-180",
           )}
           aria-hidden

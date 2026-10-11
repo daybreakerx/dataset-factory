@@ -31,7 +31,11 @@ class ExportError(Exception):
 
 @dataclass(frozen=True)
 class ExportRow:
-    """一条配对计划或排除记录；大小为未压缩的实际字节数。"""
+    """一条配对计划或排除记录；大小为未压缩的实际字节数。
+
+    ``source`` / ``recoverable`` 只在「缺失」排除行上填：界面据此决定给
+    「重新导入」（来源还在）还是「重新指定」（来源已没了）——与左列缺失行同一把尺。
+    """
 
     item: str
     name: str
@@ -43,6 +47,14 @@ class ExportRow:
     caption_hash: str | None = None
     integrity: IntegrityStatus | None = None
     reason: str | None = None
+    source: str | None = None
+    recoverable: bool | None = None
+
+
+# 「素材在、本批还没有可用产物」的两类：不入将入包、也不进被排除清单——它们的家在
+# 左列「排队中」分组（2026-10-10 用户裁：还没打标不该在打包清单里重复报警，无效产物
+# 下次全量天然重打）。
+_QUIET_REASONS = frozenset({"无配对产物", "产物异常"})
 
 
 @dataclass(frozen=True)
@@ -89,10 +101,19 @@ def build_export_plan(
         _check_cancel(should_stop)
         row = ExportRow(checked.item, checked.name, integrity=checked.status)
         reason: str | None = None
-        if checked.status == "missing":
+        if checked.status in ("missing", "unreadable"):
+            # 「素材不可读取」并入「缺失」（2026-10-10 用户裁：与缺失同构——都是素材本身
+            # 读不到，处置出口也同一个）。两类都带来源只读探测，界面据此分「重新导入」
+            # （来源还在）与「重新指定」（来源已失效），与左列缺失行同一把尺。
             reason = "缺失"
-        elif checked.status == "unreadable":
-            reason = "素材不可读取"
+            origin = origins.get(checked.name)
+            if origin is not None:
+                source_file = Path(origin.source) / origin.name
+                row = replace(
+                    row,
+                    source=str(source_file),
+                    recoverable=source_file.is_file(),
+                )
         elif counts.get(checked.item, 0) > 1:
             reason = "配对冲突"
         elif checked.item in excluded_items:
@@ -120,7 +141,7 @@ def build_export_plan(
                 reason = "产物异常"
         if reason is None:
             included.append(row)
-        else:
+        elif reason not in _QUIET_REASONS:
             excluded.append(replace(row, reason=reason))
     for unimported in unimported_files(workdir, set(origins)):
         excluded.append(

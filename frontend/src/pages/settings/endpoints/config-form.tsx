@@ -271,9 +271,9 @@ export function ConfigForm({
                 className="absolute top-1/2 right-3 flex size-6 -translate-y-1/2 items-center justify-center rounded-xs text-muted-foreground transition-colors hover:bg-accent hover:text-text-1"
               >
                 {showKey ? (
-                  <EyeIcon className="size-4" />
+                  <EyeIcon className="size-(--icon-md)" />
                 ) : (
-                  <EyeOffIcon className="size-4" />
+                  <EyeOffIcon className="size-(--icon-md)" />
                 )}
               </button>
             </Tip>

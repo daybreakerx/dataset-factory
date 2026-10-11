@@ -1099,6 +1099,30 @@
             ],
             "description": "被排除的具体原因",
             "title": "Reason"
+          },
+          "recoverable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "来源那儿还有没有这份素材（null＝本行不是缺失行）",
+            "title": "Recoverable"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "缺失行的来源文件全路径（其余行为 null）；界面据此决定「重新导入」还是「重新指定」",
+            "title": "Source"
           }
         },
         "required": [
@@ -8946,7 +8970,7 @@
     },
     "/api/workdirs/{wid}/items/{item}/asset": {
       "get": {
-        "description": "素材原件（只读预览）。\n\n三重校验分工：``WorkdirRegistry.get`` 管「wid 注册表存活」，``resolve_asset``\n管后两重——「在册」（没登记的文件不属于任何批次，预览端点不为它服务）与\n「realpath confine」（工作目录里的符号链接指向外部时拒绝，只读端点也不能\n变成读任意文件的通道）。\n\n交给 FileResponse 而不是自己读字节：它原生支持 Range（206 单段 / 多段、\n416 越界）与 ETag / Last-Modified，视频拖动进度条全靠这个；自己读整份字节\n会把 100 MiB 的视频整个塞进内存，还得手写一遍分段逻辑。不设\n``content-disposition``——界面要在 ``<img>`` / ``<video>`` 里内联渲染，\nattachment 会让浏览器变成下载。",
+        "description": "素材原件（只读预览）。\n\n三重校验分工：``WorkdirRegistry.get`` 管「wid 注册表存活」，``resolve_asset``\n管后两重——「在册」（没登记的文件不属于任何批次，预览端点不为它服务）与\n「realpath confine」（工作目录里的符号链接指向外部时拒绝，只读端点也不能\n变成读任意文件的通道）。\n\n交给 FileResponse 而不是自己读字节：它原生支持 Range（206 单段 / 多段、\n416 越界）与 ETag / Last-Modified，视频拖动进度条全靠这个；自己读整份字节\n会把 100 MB 的视频整个塞进内存，还得手写一遍分段逻辑。不设\n``content-disposition``——界面要在 ``<img>`` / ``<video>`` 里内联渲染，\nattachment 会让浏览器变成下载。",
         "operationId": "get_item_asset_api_workdirs__wid__items__item__asset_get",
         "parameters": [
           {

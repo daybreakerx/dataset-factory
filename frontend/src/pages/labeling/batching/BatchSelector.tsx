@@ -104,7 +104,11 @@ function RunStateIcon({
     >
       {running ? (
         // 进度环：r=6、dasharray 2πr=37.7、整环 rotate(-90°) 起画；fill 随「已尝试/计划」走
-        <svg viewBox="0 0 16 16" className="size-3.5 -rotate-90" aria-hidden="true">
+        <svg
+          viewBox="0 0 16 16"
+          className="size-(--icon-sm) -rotate-90"
+          aria-hidden="true"
+        >
           <circle
             cx="8"
             cy="8"
@@ -136,7 +140,7 @@ function RunStateIcon({
           stroke="currentColor"
           strokeWidth={2}
           strokeLinecap="round"
-          className="size-3.5"
+          className="size-(--icon-sm)"
           aria-hidden="true"
         >
           <circle cx="12" cy="12" r="10" />
@@ -144,11 +148,11 @@ function RunStateIcon({
           <line x1="15" y1="8" x2="15" y2="16" />
         </svg>
       ) : status === "completed" ? (
-        <CheckIcon className="size-3.5" aria-hidden="true" />
+        <CheckIcon className="size-(--icon-sm)" aria-hidden="true" />
       ) : status === "failed" ? (
-        <TriangleAlertIcon className="size-3.5" aria-hidden="true" />
+        <TriangleAlertIcon className="size-(--icon-sm)" aria-hidden="true" />
       ) : (
-        <CirclePlayIcon className="size-3.5" aria-hidden="true" />
+        <CirclePlayIcon className="size-(--icon-sm)" aria-hidden="true" />
       )}
     </span>
   );
@@ -248,7 +252,7 @@ export function BatchSelector({
                     />
                   </>
                 )}
-                <ChevronDownIcon className="ml-auto size-[13px] shrink-0 text-muted-foreground" />
+                <ChevronDownIcon className="ml-auto size-(--icon-xs) shrink-0 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
@@ -285,9 +289,9 @@ export function BatchSelector({
                     onClick={() => toggleDir(entry.id)}
                   >
                     {closed ? (
-                      <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                      <FolderIcon className="size-(--icon-sm) shrink-0 text-muted-foreground" />
                     ) : (
-                      <FolderOpenIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                      <FolderOpenIcon className="size-(--icon-sm) shrink-0 text-muted-foreground" />
                     )}
                     <Tip label={entry.title}>
                       <span className="min-w-0 flex-1 truncate">{entry.title}</span>
@@ -305,7 +309,7 @@ export function BatchSelector({
                           onNewStrategy(entry.id);
                         }}
                       >
-                        <PlusIcon className="size-3.5" />
+                        <PlusIcon className="size-(--icon-sm)" />
                       </button>
                     </Tip>
                   )}
@@ -320,7 +324,7 @@ export function BatchSelector({
                           onSettings(entry.id);
                         }}
                       >
-                        <SettingsIcon className="size-3.5" />
+                        <SettingsIcon className="size-(--icon-sm)" />
                       </button>
                     </Tip>
                   )}
@@ -349,7 +353,7 @@ export function BatchSelector({
                           setOpen(false);
                         }}
                         className={cn(
-                          "ml-3 border-l-2 pl-4 text-t-md [&_svg]:size-3.5",
+                          "ml-3 border-l-2 pl-4 text-t-md [&_svg]:size-(--icon-sm)",
                           // 当前行＝primary 浅底＋左线主色（树形行形态，与族 .pl-row.cur 的
                           // 差异只在左线）；不用勾做标记（tint＋左线＋aria-current 三重信号），
                           // 悬停保持 tint 不换底。

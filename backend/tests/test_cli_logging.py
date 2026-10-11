@@ -124,7 +124,7 @@ def test_reconfiguring_replaces_the_previous_handler(
 def test_server_file_handler_rolling_and_encoding(
     tmp_path: Path, root_logging: None
 ) -> None:
-    """serve 的文件日志：滚动 5 MiB × 3 份、UTF-8、挂在 root 上、父目录自动建出来。"""
+    """serve 的文件日志：滚动 5 MB × 3 份、UTF-8、挂在 root 上、父目录自动建出来。"""
     target = tmp_path / "logs" / "nested" / "server.log"
 
     handler = add_server_file_handler(target)

@@ -6,7 +6,7 @@ import { cn } from "../../lib/utils";
 const buttonVariants = cva(
   // 微交互（DESIGN.md 2.6）：按压 translateY(1px)——位移方向恒定恒向下（原 scale(.98)
   // 在 30px 小钮上低于感知阈、已实测否决）；transform 并入过渡（原 transition-colors 不含）。
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-t-md font-medium transition-[color,background-color,border-color,text-decoration-color,fill,stroke,transform,box-shadow] duration-(--dur-1) active:translate-y-px disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-t-md font-medium transition-[color,background-color,border-color,text-decoration-color,fill,stroke,transform,box-shadow] duration-(--dur-1) active:translate-y-px disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-(--icon-md) [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -32,15 +32,15 @@ const buttonVariants = cva(
         xs: "h-(--h-xs) rounded-full px-3 text-t-xs",
         sm: "h-(--h-sm) px-2 text-t-sm",
         lg: "h-(--h-lg) px-4 text-t-lg",
-        mini: "h-4 rounded-none bg-transparent px-0 text-t-sm text-text-3 hover:bg-transparent hover:text-text-1 disabled:bg-transparent [&_svg]:size-3.5",
+        mini: "h-4 rounded-none bg-transparent px-0 text-t-sm text-text-3 hover:bg-transparent hover:text-text-1 disabled:bg-transparent [&_svg]:size-(--icon-sm)",
         icon: "size-(--h-md) p-0",
-        "icon-sm": "size-(--h-sm) p-0 [&_svg]:size-3.5",
-        "icon-lg": "size-(--h-lg) p-0 [&_svg]:size-4.5",
+        "icon-sm": "size-(--h-sm) p-0 [&_svg]:size-(--icon-md)",
+        "icon-lg": "size-(--h-lg) p-0 [&_svg]:size-(--icon-lg)",
         // icon-xs（22px 盒）低于触控目标 24×24（DESIGN.md 七·7）：透明伪元素把命中区
         // 外扩 1px（base.css §7 .btn--icon.btn--xs::before 同款）——纯热区、视觉零变，
         // 全档使用点一起受益（对齐批「请求链胶囊对齐」⑦）。
         "icon-xs":
-          "relative size-(--h-xs) rounded-md p-0 before:absolute before:-inset-px before:content-[''] [&_svg]:size-[13px]",
+          "relative size-(--h-xs) rounded-md p-0 before:absolute before:-inset-px before:content-[''] [&_svg]:size-(--icon-xs)",
       },
     },
     compoundVariants: [

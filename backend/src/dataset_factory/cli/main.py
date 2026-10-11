@@ -104,7 +104,7 @@ app.command(name="run")(run.run)
 
 
 def add_server_file_handler(path: Path) -> logging.handlers.RotatingFileHandler:
-    """把日志同时写入指定文件（serve 专用：数据根 logs/server.log，滚动 5 MiB × 3 份）。
+    """把日志同时写入指定文件（serve 专用：数据根 logs/server.log，滚动 5 MB × 3 份）。
 
     无窗口后台运行时终端看不到输出，文件是唯一的完整日志来源；CLI 单发命令不挂
     （它们的输出就在终端，不留文件）。挂在 root logger 上，与 stderr handler 并行，

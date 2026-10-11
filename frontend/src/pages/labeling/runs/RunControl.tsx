@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
-import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
@@ -9,7 +8,7 @@ import { useRunWatch } from "./use-run-watch";
 
 /** 停止钮的方块（2026-10-06 用户裁「按稿改实现」）：稿 i-square＝rect 6,6→18,18（12×12@24
  *  栅格、圆角 2、空心描边）——lucide Square 是 18×18（占栅格 75%）、墨量差 1.5 倍，不照抄。
- *  图标盒仍 16px（Button 基类 [&_svg]:size-4 ＝稿 .btn .ic 档）。 */
+ *  图标盒仍 16px（Button 基类 [&_svg]:size-(--icon-md) ＝稿 .btn .ic 档）。 */
 function StopSquareIcon() {
   return (
     <svg
@@ -50,7 +49,6 @@ interface Props {
   /** 流式增量转发（A2：跑批逐字呈现）；不转发时增量事件只被忽略。 */
   onItemDelta?: (event: ItemDelta) => void;
   onCurrentItem?: (item: string | null) => void;
-  onImport?: () => void;
   externalRunId?: string;
   /**
    * 左列「重试列表」组头发起的开始重试请求（令牌式触发：值变化即发车）。
@@ -81,7 +79,6 @@ export function RunControl({
   wid,
   batch,
   onFinish,
-  onImport,
   onItemUpdate,
   onItemDelta,
   onCurrentItem,
@@ -90,11 +87,7 @@ export function RunControl({
   onRunStatus,
   runStatus,
 }: Props) {
-  const [unimported, setUnimported] = useState<
-    readonly { name: string; reason: string | null }[]
-  >([]);
   const [busy, setBusy] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const actionPending = useRef(false);
   const {
     status,
@@ -143,10 +136,7 @@ export function RunControl({
         if (lifecycle.current === generation) setError(errorMessage(reason));
       } finally {
         actionPending.current = false;
-        if (lifecycle.current === generation) {
-          setBusy(false);
-          setConfirming(false);
-        }
+        if (lifecycle.current === generation) setBusy(false);
       }
     },
     [batch, wid, lifecycle, setError, setStatus, reportStatus, setAcceptedRunId],
@@ -173,33 +163,6 @@ export function RunControl({
       if (lifecycle.current === generation) setBusy(false);
     }
   }, [batch, wid, lifecycle, setError]);
-
-  async function prepareFullRun() {
-    if (actionPending.current) return;
-    const generation = lifecycle.current;
-    actionPending.current = true;
-    setBusy(true);
-    setError("");
-    try {
-      const view = await api.listItems(wid, batch);
-      if (lifecycle.current !== generation) return;
-      const rows = (view.groups.unimported ?? []).map((row) => ({
-        name: row.name,
-        reason: row.reason ?? null,
-      }));
-      setUnimported(rows);
-      if (rows.length) setConfirming(true);
-      else {
-        actionPending.current = false;
-        await start("full");
-      }
-    } catch (reason) {
-      if (lifecycle.current === generation) setError(errorMessage(reason));
-    } finally {
-      actionPending.current = false;
-      if (lifecycle.current === generation) setBusy(false);
-    }
-  }
 
   // 组显隐按「本批运行史」五态（对齐批「运行状态组对齐」③；活观测在场＝跑批中，
   // 观测空闲时按运行史分流：中断→继续、完成→整组不渲染、未跑/启动失败→开始打标）。
@@ -279,7 +242,7 @@ export function RunControl({
               className="aria-disabled:pointer-events-none"
               onClick={() => {
                 if (busy || reconnecting || !known) return;
-                void prepareFullRun();
+                void start("full");
               }}
             >
               开始打标
@@ -287,42 +250,6 @@ export function RunControl({
           </Tip>
         </>
       )}
-      <DialogShell
-        open={confirming}
-        onOpenChange={setConfirming}
-        title="未导入素材确认"
-        description={
-          <>有 {unimported.length} 个工作目录文件未登记，不会进入本次跑批。</>
-        }
-        cancel={{
-          label: "先去导入",
-          variant: "outline",
-          onClick: () => {
-            setConfirming(false);
-            onImport?.();
-          },
-        }}
-        confirm={{
-          label: "仍要开始",
-          variant: "default",
-          disabled: busy,
-          onClick: () => void start("full"),
-        }}
-      >
-        <ul
-          className="max-h-48 overflow-auto rounded-md border border-border p-3 text-t-sm"
-          aria-label="未导入素材"
-        >
-          {unimported.map((row) => (
-            <li key={row.name}>
-              {row.name}
-              {row.reason && (
-                <span className="text-muted-foreground"> · {row.reason}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </DialogShell>
     </section>
   );
 }

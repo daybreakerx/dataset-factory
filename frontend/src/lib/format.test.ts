@@ -2,18 +2,18 @@ import { describe, expect, it } from "vitest";
 import { formatBytes, formatBytesAuto, formatChars } from "./format";
 
 /** 收成助手之前各调用点写的原式（照搬过来作对照，不是再实现一遍给人读）。 */
-function legacyKiB(bytes: number): string {
-  return `${(bytes / 1024).toFixed(1)} KiB`;
+function legacyKB(bytes: number): string {
+  return `${(bytes / 1024).toFixed(1)} KB`;
 }
-function legacyMiB2(bytes: number): string {
-  return `${(bytes / 1024 / 1024).toFixed(2)} MiB`;
+function legacyMB2(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 function legacyAuto(bytes: number): string {
   return bytes < 1024
     ? `${bytes} B`
     : bytes < 1024 ** 2
-      ? `${(bytes / 1024).toFixed(1)} KiB`
-      : `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
+      ? `${(bytes / 1024).toFixed(1)} KB`
+      : `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 }
 
 const SAMPLES: number[] = [
@@ -22,15 +22,15 @@ const SAMPLES: number[] = [
 ];
 
 describe("字节显示格式化", () => {
-  it("KiB 一位小数与收成助手前的原式逐字一致", () => {
+  it("KB 一位小数与收成助手前的原式逐字一致", () => {
     for (const bytes of SAMPLES) {
-      expect(formatBytes(bytes, "KiB", 1)).toBe(legacyKiB(bytes));
+      expect(formatBytes(bytes, "KB", 1)).toBe(legacyKB(bytes));
     }
   });
 
-  it("MiB 两位小数与收成助手前的原式逐字一致", () => {
+  it("MB 两位小数与收成助手前的原式逐字一致", () => {
     for (const bytes of SAMPLES) {
-      expect(formatBytes(bytes, "MiB", 2)).toBe(legacyMiB2(bytes));
+      expect(formatBytes(bytes, "MB", 2)).toBe(legacyMB2(bytes));
     }
   });
 
@@ -43,15 +43,15 @@ describe("字节显示格式化", () => {
       formatBytesAuto(1024),
       formatBytesAuto(1_048_575),
       formatBytesAuto(1_048_576),
-    ]).toEqual(["1023 B", "1.0 KiB", "1024.0 KiB", "1.0 MiB"]);
+    ]).toEqual(["1023 B", "1.0 KB", "1024.0 KB", "1.0 MB"]);
   });
 
   it("位数与单位都由调用点决定，不在助手内改写", () => {
     expect([
-      formatBytes(1_048_576, "KiB", 1),
-      formatBytes(1_048_576, "MiB", 1),
-      formatBytes(1_048_576, "MiB", 2),
-    ]).toEqual(["1024.0 KiB", "1.0 MiB", "1.00 MiB"]);
+      formatBytes(1_048_576, "KB", 1),
+      formatBytes(1_048_576, "MB", 1),
+      formatBytes(1_048_576, "MB", 2),
+    ]).toEqual(["1024.0 KB", "1.0 MB", "1.00 MB"]);
   });
 });
 describe("注入字数格式化", () => {

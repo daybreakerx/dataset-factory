@@ -181,7 +181,7 @@ def confine_to_workdir(workdir: Path, candidate: Path) -> Path:
     if real_target != real_root and not real_target.startswith(real_root + os.sep):
         raise AssetPathError(
             f"条目「{candidate.name}」解析后越出工作目录（可能是一个指向外部的符号链接）"
-            "——已拒绝访问。请检查该文件是否被替换成了链接。",
+            "——已拒绝访问。请检查该文件是否被替换成了符号链接或目录联接。",
         )
     return candidate
 

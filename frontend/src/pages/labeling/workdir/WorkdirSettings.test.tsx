@@ -272,13 +272,13 @@ it("清理摘要按策略去重统计，并区分已停用策略", async () => {
 
   const cleanup = within(await screen.findByRole("region", { name: "清理" }));
   expect(
-    cleanup.getByText("3 个 txt（2 套策略，含 1 套已停用）· 3.0 KiB"),
+    cleanup.getByText("3 个 txt（2 套策略，含 1 套已停用）· 3.0 KB"),
   ).toBeVisible();
   expect(screen.getByRole("region", { name: "基本信息" })).toHaveTextContent(
-    "素材 4 · 产物 3 · 2.00 MiB",
+    "素材 4 · 产物 3 · 2.00 MB",
   );
   expect(screen.getByText("产物 2 / 4")).toBeVisible();
-  expect(cleanup.getByText("2 份 · 3.0 KiB · 2026-09-09 → 2026-09-12")).toBeVisible();
+  expect(cleanup.getByText("2 份 · 3.0 KB · 2026-09-09 → 2026-09-12")).toBeVisible();
 });
 
 it("区块顺序与原型一致：基本信息后先清理再策略与危险操作", async () => {

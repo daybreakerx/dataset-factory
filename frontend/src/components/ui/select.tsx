@@ -78,7 +78,7 @@ function SelectTrigger({
         className={cn(
           "flex h-(--h-lg) min-w-0 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 text-t-md whitespace-nowrap [&>span]:truncate",
           "hover:border-n-400 focus:border-n-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-n-400",
-          "data-[placeholder]:text-text-4 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-text-3",
+          "data-[placeholder]:text-text-4 [&_svg]:size-(--icon-md) [&_svg]:shrink-0 [&_svg]:text-text-3",
           className,
         )}
         {...props}
@@ -126,7 +126,7 @@ function SelectContent({
         {...props}
       >
         <SelectPrimitive.ScrollUpButton className="flex h-6 items-center justify-center">
-          <ChevronUpIcon className="size-4" />
+          <ChevronUpIcon className="size-(--icon-md)" />
         </SelectPrimitive.ScrollUpButton>
         <SelectPrimitive.Viewport
           className={cn(
@@ -137,7 +137,7 @@ function SelectContent({
           {children}
         </SelectPrimitive.Viewport>
         <SelectPrimitive.ScrollDownButton className="flex h-6 items-center justify-center">
-          <ChevronDownIcon className="size-4" />
+          <ChevronDownIcon className="size-(--icon-md)" />
         </SelectPrimitive.ScrollDownButton>
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>

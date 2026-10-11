@@ -56,7 +56,7 @@ function Thinking({
     <details className="group" {...(streaming ? { open: true } : {})}>
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-t-sm text-text-3 hover:text-foreground [&::-webkit-details-marker]:hidden">
         <ChevronDownIcon
-          className="size-3.5 shrink-0 transition-transform duration-150 group-open:rotate-180"
+          className="size-(--icon-sm) shrink-0 transition-transform duration-150 group-open:rotate-180"
           aria-hidden
         />
         <span className="font-medium">思考过程</span>
@@ -262,7 +262,7 @@ export function MessageList({
                       />
                     )}
                     {hasReasoning && hasText && (
-                      <div className="mx-3.5 h-px bg-border" aria-hidden />
+                      <div className="mx-4 h-px bg-border" aria-hidden />
                     )}
                     {hasText && (
                       <div className="px-4 py-3 text-t-md wrap-anywhere whitespace-pre-wrap">
@@ -331,7 +331,7 @@ export function MessageList({
                 seconds={streaming.content === "" ? waitSeconds : undefined}
               />
               {streaming.reasoning !== "" && streaming.content !== "" && (
-                <div className="mx-3.5 h-px bg-border" aria-hidden />
+                <div className="mx-4 h-px bg-border" aria-hidden />
               )}
               {streaming.content === "" ? (
                 // 状态行仅「响应中」（尚无任何增量）阶段存在（N1②）；思考流入后

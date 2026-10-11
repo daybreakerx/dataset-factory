@@ -321,7 +321,7 @@ describe("运行控制", () => {
     expect(screen.getByRole("button", { name: "开始打标" })).toBeEnabled();
   });
 
-  it("未导入素材先确认，确认后仍可启动全量跑批", async () => {
+  it("点开始打标即起跑批：发车拦截已退役，不再查未导入、不弹确认", async () => {
     const user = userEvent.setup();
     const onFinish = vi.fn();
     vi.mocked(api.listItems).mockResolvedValue({
@@ -346,12 +346,9 @@ describe("运行控制", () => {
     await act(async () => {});
 
     await user.click(screen.getByRole("button", { name: "开始打标" }));
-    expect(
-      screen.getByText("有 1 个工作目录文件未登记，不会进入本次跑批。"),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "仍要开始" }));
 
     expect(api.startRun).toHaveBeenCalledWith("work", "s1", "full");
+    expect(screen.queryByText(/未登记/)).not.toBeInTheDocument();
     expect(screen.getByText("运行中")).toBeInTheDocument();
   });
 

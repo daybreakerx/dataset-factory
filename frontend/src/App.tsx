@@ -186,7 +186,7 @@ export function App(): ReactElement {
             }}
             className="flex size-(--h-md) shrink-0 items-center justify-center rounded-md text-text-3 transition-colors duration-(--dur-1) hover:bg-accent hover:text-text-1"
           >
-            <PanelLeftOpenIcon className="size-4" />
+            <PanelLeftOpenIcon className="size-(--icon-md)" />
           </button>
           {/* 窄屏顶条页签名：顶条窄、签名长时被截断——悬停给全文（DESIGN.md 六）。 */}
           <Tip label={pageLabel}>

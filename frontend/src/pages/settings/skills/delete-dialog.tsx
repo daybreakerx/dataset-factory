@@ -34,7 +34,7 @@ export function DeleteDialog({
     <DialogShell
       open={open}
       onOpenChange={onOpenChange}
-      className="w-fit min-w-[min(360px,calc(100vw-48px))] max-w-[min(480px,calc(100vw-48px))]"
+      className="w-fit min-w-[min(var(--w-modal-360),calc(100vw-48px))] max-w-[min(var(--w-modal-480),calc(100vw-48px))]"
       title={<>删除技能「{target}」？</>}
       note="此操作不可撤销"
       flight={flight}

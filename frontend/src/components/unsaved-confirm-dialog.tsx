@@ -34,7 +34,7 @@ export function UnsavedConfirmDialog({
     <DialogShell
       open={open}
       onOpenChange={onOpenChange}
-      className="w-fit min-w-[min(360px,calc(100vw-48px))] max-w-[min(480px,calc(100vw-48px))]"
+      className="w-fit min-w-[min(var(--w-modal-360),calc(100vw-48px))] max-w-[min(var(--w-modal-480),calc(100vw-48px))]"
       title="当前有未保存编辑，是否保存。"
       flight={flight}
       cancel={{ label: "放弃修改", onClick: onDiscard }}

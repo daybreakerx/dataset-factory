@@ -88,7 +88,7 @@ export function SnapshotDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="max-h-[90dvh] w-[min(680px,100%)] max-w-none overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] w-[min(var(--w-modal-680),100%)] max-w-none overflow-y-auto">
         <DialogHeader>
           <DialogTitle>策略快照</DialogTitle>
           <DialogDescription>{batch}</DialogDescription>

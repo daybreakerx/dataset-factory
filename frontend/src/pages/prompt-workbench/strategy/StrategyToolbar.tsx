@@ -563,7 +563,7 @@ export function StrategyToolbar({
             <CheckIcon
               aria-label="已创建"
               role="status"
-              className="size-4 shrink-0 text-ok-ink"
+              className="size-(--icon-md) shrink-0 text-ok-ink"
             />
           ) : (
             selected === null && (

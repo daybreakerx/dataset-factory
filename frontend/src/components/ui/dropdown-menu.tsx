@@ -106,7 +106,7 @@ function DropdownMenuItem({
       className={cn(
         "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none select-none",
         "focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-        "[&_svg]:size-4 [&_svg]:shrink-0",
+        "[&_svg]:size-(--icon-md) [&_svg]:shrink-0",
         className,
       )}
       {...props}
@@ -136,7 +136,7 @@ function DropdownMenuCheckboxItem({
       {withIndicator && (
         <span className="absolute left-2 flex size-3.5 items-center justify-center">
           <DropdownMenuPrimitive.ItemIndicator>
-            <CheckIcon className="size-4" />
+            <CheckIcon className="size-(--icon-md)" />
           </DropdownMenuPrimitive.ItemIndicator>
         </span>
       )}

@@ -88,7 +88,7 @@ export function ConfigList({
             type="button"
             aria-label="添加配置"
             onClick={onStartCreate}
-            className="ml-auto flex size-[22px] flex-none items-center justify-center rounded-md text-text-3 select-none enabled:hover:bg-accent enabled:hover:text-text-1 [&_svg]:size-3.5"
+            className="ml-auto flex size-[22px] flex-none items-center justify-center rounded-md text-text-3 select-none enabled:hover:bg-accent enabled:hover:text-text-1 [&_svg]:size-(--icon-sm)"
           >
             <PlusIcon />
           </button>

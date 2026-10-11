@@ -6,6 +6,7 @@ import { DirectoryPicker } from "../../../components/DirectoryPicker";
 import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
+import { exclusionLabel } from "../material-actions";
 import { type ImportReport, parseImportReport } from "../runs/import-report";
 import { ImportMaterialsDialog } from "../workdir/ImportMaterialsDialog";
 import type { BatchSelection } from "./BatchSelector";
@@ -324,7 +325,7 @@ export function NewBatchForm({
           open={!!unimported && !importOpen}
           onOpenChange={(open) => !open && !busy && setUnimported(null)}
           title="开始打标前确认"
-          description={<>有 {unimported?.length ?? 0} 个素材未登记，本次不会打标。</>}
+          description={<>有 {unimported?.length ?? 0} 个素材未导入，本次不会打标。</>}
           cancel={{
             label: "先去导入",
             variant: "ghost",
@@ -347,7 +348,9 @@ export function NewBatchForm({
                 className="flex flex-wrap gap-2 border-b border-border/60 py-2 last:border-0"
               >
                 <span className="break-all font-medium">{row.name}</span>
-                <span className="break-words text-muted-foreground">{row.reason}</span>
+                <span className="break-words text-muted-foreground">
+                  {exclusionLabel(row.reason)}
+                </span>
               </li>
             ))}
           </ul>
@@ -377,9 +380,7 @@ export function NewBatchForm({
                   拿不准效果？先在对话中用单张试标
                 </button>
               )}
-              <span className="ml-auto">
-                体积上限：单图 ≤ 20 MiB · 单视频 ≤ 100 MiB
-              </span>
+              <span className="ml-auto">体积上限：单图 ≤ 20 MB · 单视频 ≤ 100 MB</span>
             </div>
           </div>
         )}

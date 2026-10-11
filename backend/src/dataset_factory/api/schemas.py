@@ -1005,6 +1005,14 @@ class ExportPlanRow(BaseModel):
         Field(default=None, description="素材完整性结论（排除行可为 null）")
     )
     reason: str | None = Field(default=None, description="被排除的具体原因")
+    source: str | None = Field(
+        default=None,
+        description="缺失行的来源文件全路径（其余行为 null）；界面据此决定「重新导入」还是「重新指定」",
+    )
+    recoverable: bool | None = Field(
+        default=None,
+        description="来源那儿还有没有这份素材（null＝本行不是缺失行）",
+    )
 
 
 class ExportPlanView(BaseModel):

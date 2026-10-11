@@ -128,9 +128,9 @@ export function Sidebar({
                     )}
                   />
                   {collapsed ? (
-                    <PanelLeftOpenIcon className="hidden size-4 group-hover:block" />
+                    <PanelLeftOpenIcon className="hidden size-(--icon-md) group-hover:block" />
                   ) : (
-                    <PanelLeftCloseIcon className="hidden size-4 group-hover:block" />
+                    <PanelLeftCloseIcon className="hidden size-(--icon-md) group-hover:block" />
                   )}
                 </button>
               </TooltipTrigger>
@@ -169,7 +169,7 @@ export function Sidebar({
               }}
               className="mt-2 flex h-(--h-md) w-full items-center gap-3 rounded-md px-3 text-text-3 transition-colors duration-(--dur-1) hover:bg-accent hover:text-text-1"
             >
-              <ArrowLeftIcon className="size-4 shrink-0" />
+              <ArrowLeftIcon className="size-(--icon-md) shrink-0" />
               {!collapsed && "返回工作区"}
             </button>
             {!collapsed && (
@@ -200,7 +200,7 @@ export function Sidebar({
                         "bg-nav-active font-medium text-text-1",
                     )}
                   >
-                    <item.icon className="size-4 shrink-0" />
+                    <item.icon className="size-(--icon-md) shrink-0" />
                     {!collapsed && item.label}
                   </button>
                 </li>
@@ -237,7 +237,7 @@ export function Sidebar({
                             : "text-text-3 hover:bg-accent hover:text-text-1",
                         )}
                       >
-                        <item.icon className="size-4 shrink-0" />
+                        <item.icon className="size-(--icon-md) shrink-0" />
                         {!collapsed && (
                           <Tip label={item.label}>
                             <span className="truncate">{item.label}</span>
@@ -270,7 +270,7 @@ export function Sidebar({
               onClick={() => openSettings()}
               className="flex size-(--h-md) shrink-0 items-center justify-center rounded-md text-text-3 transition-colors duration-(--dur-1) hover:bg-accent hover:text-text-1"
             >
-              <SettingsIcon className="size-4" />
+              <SettingsIcon className="size-(--icon-md)" />
             </button>
           </TooltipTrigger>
           <TooltipContent>设置</TooltipContent>

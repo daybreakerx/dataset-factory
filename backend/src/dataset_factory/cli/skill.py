@@ -57,7 +57,7 @@ def skill_import(
     result = import_skill(source)
     size_kb = result.total_bytes / 1024
     typer.secho(
-        f"已导入 skill {result.skill.name!r}（{result.skill.id}，{size_kb:.1f} KiB——"
+        f"已导入 skill {result.skill.name!r}（{result.skill.id}，{size_kb:.1f} KB——"
         "skill 全文将注入打标请求，体积偏大时留意 token 消耗）",
         fg=typer.colors.GREEN,
     )

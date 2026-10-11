@@ -77,7 +77,7 @@ export function WorkdirSummary({
           已停用 {batches.filter((batch) => !batch.active).length}）
           {stats && ` · 素材 ${stats.asset_count}`} · 产物{" "}
           {batches.reduce((total, batch) => total + batch.product_count, 0)}
-          {stats && ` · ${formatBytes(stats.asset_bytes, "MiB", 2)}`}
+          {stats && ` · ${formatBytes(stats.asset_bytes, "MB", 2)}`}
         </span>
       </div>
       {statsError && (

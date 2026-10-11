@@ -85,7 +85,12 @@ def test_export_excludes_credentials_and_internal_metadata(tmp_path: Path) -> No
 
 
 def test_plan_explains_all_exclusions(tmp_path: Path) -> None:
-    """缺失、无产物、空产物、未完成、手动排除、主干冲突与未登记分别给原因。"""
+    """缺失、未完成、手动排除、主干冲突与未登记分别给原因；没产物与空产物不进两张清单。
+
+    「无配对产物」「产物异常」2026-10-10 撤出被排除清单（2026-10-10 用户裁）——素材在、
+    本批还没有可用产物就是左列「排队中」那一件事，在打包清单里再报一次是重复报警；
+    它们既不入将入包、也不出现在被排除清单。
+    """
     names = [
         "missing.jpg",
         "no.jpg",
@@ -114,8 +119,6 @@ def test_plan_explains_all_exclusions(tmp_path: Path) -> None:
     assert plan.included == []
     assert reasons == {
         "missing.jpg": "缺失",
-        "no.jpg": "无配对产物",
-        "empty.jpg": "产物异常",
         "failed.jpg": "未完成",
         "manual.jpg": "用户排除",
         "clash.jpg": "配对冲突",
@@ -123,6 +126,29 @@ def test_plan_explains_all_exclusions(tmp_path: Path) -> None:
         "new.jpg": "未登记",
         "other-caption.txt": "未登记",
     }
+    assert {"no.jpg", "empty.jpg"}.isdisjoint(reasons)
+
+
+def test_missing_row_carries_source_probe(tmp_path: Path) -> None:
+    """缺失行带来源只读探测：来源还在＝recoverable 真（界面给「重新导入」），没了＝假（给「重新指定」）。"""
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "keep.jpg").write_bytes(b"still here")
+    _register(tmp_path, ["keep.jpg", "gone.jpg"])
+    WorkdirStore(tmp_path).append_import_record(
+        {
+            "imported_at": "later",
+            "source": str(source_dir),
+            "files": [{"name": "keep.jpg", "sha256": "h"}],
+        }
+    )
+
+    plan = build_export_plan(tmp_path, 1, labeling_hashes={})
+
+    probe = {row.name: (row.source, row.recoverable) for row in plan.excluded}
+    assert probe["keep.jpg"] == (str(source_dir / "keep.jpg"), True)
+    assert probe["gone.jpg"] == ("gone.jpg", False)
+    assert all(row.source is None for row in plan.included)
 
 
 def test_original_names_and_batch_caption_are_preserved(tmp_path: Path) -> None:
@@ -188,7 +214,11 @@ def test_changed_input_aborts_zip_without_touching_source(
 
 @pytest.mark.parametrize("content", [b"", b" \n\t", b"\xff"])
 def test_invalid_caption_is_excluded(tmp_path: Path, content: bytes) -> None:
-    """空白或非 UTF-8 caption 不进入导出计划。"""
+    """空白或非 UTF-8 caption 不进导出计划，也不进被排除清单（2026-10-10 裁）。
+
+    这类条目就是「还没有一份可用产物」——下次全量跑批天然重打，归左列「排队中」管，
+    打包清单不为它另立一类。
+    """
     _pair(tmp_path, "a.jpg")
     _register(tmp_path, ["a.jpg"])
     (tmp_path / "s1__a.txt").write_bytes(content)
@@ -196,7 +226,7 @@ def test_invalid_caption_is_excluded(tmp_path: Path, content: bytes) -> None:
     plan = build_export_plan(tmp_path, 1, labeling_hashes={})
 
     assert plan.included == []
-    assert plan.excluded[0].reason == "产物异常"
+    assert plan.excluded == []
 
 
 def test_cancelled_plan_does_not_read_materials(
