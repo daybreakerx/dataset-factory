@@ -22,7 +22,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -377,22 +377,31 @@ def delete_batch(
     seq: int,
     *,
     cleanup_state: Callable[[dict[str, object]], None] | None = None,
+    run_dirs: Sequence[Path] = (),
 ) -> int:
-    """删除批次：产物 txt + 快照 + state.json 记录 + 排除名单一并移除。
+    """删除批次：产物 txt + 快照 + 该批次运行记录一并移除，最后才提交 state.json。
 
     运行锁阻止删除正在写出的产物。调用方提供附属状态清理函数，使跨域名单
     与批次条目在同一次状态写入中出清；回调只修改传入字典，不另写文件。
 
-    **文件删除留在状态锁外**：状态临界区只放「读—改—写 state.json」那几毫秒，
-    产物可能有几百个文件，逐条 unlink 是系统调用密集的操作，压在临界区里会把
-    其它写者（改名单 / 改名 / 跑批收尾出列）挡到状态锁的宽超时上、误报成
-    「状态锁卡死」。顺序取「先提交状态、再删文件」：万一删到一半失败，留下的是
-    批次已不存在、盘上却还有 `s<N>__*.txt` 的**无主产物**——它正是清理区
-    「清理无素材产物」认得、且用户能自己处置的那一类；反过来先删文件再提交状态，
-    失败会留下「批次还在、产物已少一半」的坏批次，那是用户看不见的窟窿。
+    **顺序＝先删附属文件、后提交登记**（2026-10-09 用户裁，与旧实现相反）：中途失败
+    留下的是「批次还在、产物少一半」这种看得见的现场，再点一次删除即续完；旧顺序留下
+    的「批次已不在登记、盘上还有 `s<N>__*.txt`」才是看不见的窟窿——旧注释说这类无主
+    产物归「清理无素材产物」管是错判，`preview_cleanup` 判孤立只看主干在不在素材集合
+    里、不看批次是否还在登记，而删批次从不删素材。
+
+    重 IO（逐条 unlink 与整目录暂存）仍留在状态临界区之外：状态锁里只放「读—改—写
+    state.json」那几毫秒——产物可能有几百个文件，把系统调用压进临界区会把其它写者
+    （改名单 / 改名 / 跑批收尾出列）挡到宽超时上、误报成「状态锁卡死」。倒转顺序
+    与这条约束不冲突：删除动作本来就排在 `mutate_state` 之前完成。
+
+    Args:
+        run_dirs: 属于本批次的运行目录，由入口层按 `run.json` 的批次字段挑出后传入——
+            strategies 域不去 import runs 域（分层契约），「哪些记录属于这一批」的判据
+            留在 runs 域，删除编组在入口层汇合。整份移入可恢复暂存，不硬删。
 
     Returns:
-        删除的产物 txt 数（历史 runs/ 保留）。
+        删除的产物 txt 数。
 
     Raises:
         BatchNotFoundError: 批次不存在。
@@ -423,10 +432,11 @@ def delete_batch(
             if cleanup_state is not None:
                 cleanup_state(state)
 
-        store.mutate_state(mutator)
         for product in products:
             product.unlink()
         snapshot_path.unlink(missing_ok=True)
+        store.quarantine_paths(list(run_dirs))
+        store.mutate_state(mutator)
         return len(products)
     finally:
         lock.release()

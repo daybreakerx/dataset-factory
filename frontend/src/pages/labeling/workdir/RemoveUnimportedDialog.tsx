@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { api, errorMessage } from "../../../api";
+import { api } from "../../../api";
 import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
-import {
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "../../../components/ui/dialog";
+import { Tip } from "../../../components/ui/tooltip";
+import { reportError } from "../../../lib/feedback";
+import { toast } from "../../../lib/toast";
 
+/**
+ * 条目行「删除未导入」确认窗（破坏性确认族形：标题带对象名、无副题、页脚「取消＋删除」）。
+ *
+ * 2026-10-11 用户裁「此文件将从本地永久删除」：后端不再移进可恢复暂存区，原来的
+ * 「结果态·恢复路径回显」整块退役，成功去向＝关窗＋浮层汇报；飞行期关窗与 Esc 照常可退
+ * （退出 ≠ 撤销，壳级规则），两个钮只失效不换装、不换词。
+ */
 export function RemoveUnimportedDialog({
   wid,
   name,
@@ -21,34 +26,28 @@ export function RemoveUnimportedDialog({
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [recoveryPath, setRecoveryPath] = useState<string | null>(null);
-  const active = useRef(false);
+  const active = useRef(true);
   const submitting = useRef(false);
-  useEffect(() => {
-    active.current = true;
-    return () => {
+  useEffect(
+    () => () => {
       active.current = false;
-    };
-  }, []);
+    },
+    [],
+  );
 
   async function remove() {
-    if (submitting.current || recoveryPath) return;
+    if (submitting.current) return;
     submitting.current = true;
     setPending(true);
     setError("");
     try {
-      const result = await api.removeUnimported(wid, [name]);
+      await api.removeUnimported(wid, [name]);
       if (!active.current) return;
-      if (
-        result.count !== 1 ||
-        typeof result.recovery_path !== "string" ||
-        !result.recovery_path.trim()
-      )
-        throw new Error("删除结果格式无效，请刷新清单核对文件位置");
-      setRecoveryPath(result.recovery_path);
+      toast(`已删除「${name}」`);
       onRemoved();
+      onClose();
     } catch (reason) {
-      if (active.current) setError(errorMessage(reason));
+      if (active.current) setError(reportError(reason) ?? "");
     } finally {
       submitting.current = false;
       if (active.current) setPending(false);
@@ -58,39 +57,29 @@ export function RemoveUnimportedDialog({
   return (
     <DialogShell
       open
-      onOpenChange={(open) => !open && !pending && onClose()}
-      cancel={{
-        label: recoveryPath ? "关闭" : "取消",
-        variant: "outline",
-        disabled: pending,
-        onClick: onClose,
+      onOpenChange={(open) => {
+        if (!open) onClose();
       }}
-      confirm={
-        recoveryPath
-          ? undefined
-          : {
-              label: pending ? "删除中" : "删除",
-              variant: "destructive-fill",
-              disabled: pending,
-              onClick: () => void remove(),
-            }
+      flight={pending}
+      closeTip={pending ? "关闭不等于撤销删除" : undefined}
+      title={
+        <Tip label={`删除未导入文件「${name}」？`}>
+          <span className="block truncate">删除未导入文件「{name}」？</span>
+        </Tip>
       }
+      cancel={{ label: "取消", variant: "secondary", onClick: onClose }}
+      confirm={{
+        label: "删除",
+        variant: "danger-text",
+        onClick: () => void remove(),
+      }}
     >
-      <DialogHeader>
-        <DialogTitle>{recoveryPath ? "已删除文件" : "删除未导入文件"}</DialogTitle>
-        <DialogDescription className="break-all">{name}</DialogDescription>
-      </DialogHeader>
-      {recoveryPath ? (
-        <div role="status" className="space-y-2 text-t-md text-text-3">
-          <p>文件已从工作目录移出。原文件保留在以下位置：</p>
-          <p className="break-all rounded-md bg-muted p-3">{recoveryPath}</p>
-        </div>
-      ) : (
-        <p className="text-t-md text-text-3">
-          此文件将从工作目录移出，不再出现在未导入清单中。原文件会保留在恢复目录；就地采用的文件也会从原位置移出。
-        </p>
+      <p className="text-t-md text-text-3">此文件将从本地永久删除。</p>
+      {error && (
+        <FormError data-dialog-error="" className="text-t-sm text-bad-ink">
+          {error}
+        </FormError>
       )}
-      {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
     </DialogShell>
   );
 }

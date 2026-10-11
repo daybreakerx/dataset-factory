@@ -76,12 +76,13 @@ EXPECTED: list[tuple[type[Exception], int, str, str, str | None]] = [
     (RunOccupiedError, 409, "run-occupied", "工作目录已有跑批在运行", "occupier"),
     (BatchInactiveError, 409, "batch-inactive", "批次已停用", None),
     (RunNotActiveError, 404, "run-not-active", "当前没有进行中的跑批", None),
+    # run ＝损坏所在的那份运行目录名：前端拿它去调清理端点，就地出口才有对象可指。
     (
         RunJournalCorruptedError,
         500,
         "run-journal-corrupted",
         "运行流水损坏",
-        None,
+        "run",
     ),
     (RunError, 500, "run-error", "跑批数据异常", None),
     (
@@ -101,6 +102,7 @@ OCCUPIER: dict[str, Any] = {
     "started_at": "2026-01-01T00:00:00+00:00",
 }
 REJECTIONS: dict[str, str] = {"alpha": "素材缺失，无法重试"}
+RUN_DIR = "20261012-010000-a1b2c3"
 
 MISSING_FRONTEND = Path("__no_such_frontend_dir__")
 
@@ -129,6 +131,8 @@ def _build(
         return RetryItemNotEligibleError(
             message, rejections=REJECTIONS if with_extras else {}
         )
+    if exc_type is RunJournalCorruptedError:
+        return RunJournalCorruptedError(message, run=RUN_DIR if with_extras else None)
     return exc_type(message)
 
 
@@ -175,6 +179,8 @@ def test_problem_response_matches_contract(
         expected_body["occupier"] = OCCUPIER
     if extras_from == "rejections":
         expected_body["rejections"] = REJECTIONS
+    if extras_from == "run":
+        expected_body["run"] = RUN_DIR
 
     response = _client_raising(exc).get("/probe-error")
 
@@ -186,8 +192,12 @@ def test_problem_response_matches_contract(
 
 @pytest.mark.parametrize(
     ("exc_type", "extras_from"),
-    [(RunOccupiedError, "occupier"), (RetryItemNotEligibleError, "rejections")],
-    ids=["run-occupied 无占用者", "retry 无拒绝清单"],
+    [
+        (RunOccupiedError, "occupier"),
+        (RetryItemNotEligibleError, "rejections"),
+        (RunJournalCorruptedError, "run"),
+    ],
+    ids=["run-occupied 无占用者", "retry 无拒绝清单", "journal 叫不出是哪一份"],
 )
 def test_empty_extension_member_is_omitted(
     exc_type: type[Exception], extras_from: str

@@ -278,7 +278,8 @@ it("清理摘要按策略去重统计，并区分已停用策略", async () => {
     "素材 4 · 产物 3 · 2.00 MB",
   );
   expect(screen.getByText("产物 2 / 4")).toBeVisible();
-  expect(cleanup.getByText("2 份 · 3.0 KB · 2026-09-09 → 2026-09-12")).toBeVisible();
+  // 「清理运行记录」独立入口已撤（ADR 2026-10-09）：出口改由出错那一行就地给。
+  expect(screen.queryByText("清理运行记录")).not.toBeInTheDocument();
 });
 
 it("区块顺序与原型一致：基本信息后先清理再策略与危险操作", async () => {

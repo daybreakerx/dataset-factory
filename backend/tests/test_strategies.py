@@ -14,6 +14,7 @@ import pytest
 
 from dataset_factory.llm import create_config, list_configs
 from dataset_factory.prompts import Prompt, delete_prompt, read_prompt, save_prompt
+from dataset_factory.runs.journal import run_dirs_for_batch
 from dataset_factory.skills import get_skill, import_skill
 from dataset_factory.strategies import (
     BatchEntry,
@@ -655,10 +656,14 @@ def test_delete_batch_removes_products_and_snapshot(
         get_batch(workdir, entry.seq)
 
 
-def test_delete_batch_commits_state_before_removing_files(
+def test_delete_batch_removes_files_before_committing_state(
     workdir: Path, assets: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """删批先提交状态、再删文件：删文件失败留下的是无主产物，不是「批次还在、产物少一半」。"""
+    """删批先删附属文件、后提交登记（2026-10-09 用户裁）：失败现场看得见、重删幂等。
+
+    旧顺序（先提交状态再删文件）留下的「批次已不在登记、盘上还有产物」是用户看不见
+    的窟窿——`preview_cleanup` 判孤立只看主干在不在素材集合里，不认批次登记。
+    """
     entry = create_batch(
         workdir,
         name="策略",
@@ -683,8 +688,48 @@ def test_delete_batch_commits_state_before_removing_files(
 
     monkeypatch.undo()
 
-    assert list_batches(workdir) == []
+    assert [batch.seq for batch in list_batches(workdir)] == [entry.seq]
     assert product.exists()
+
+    delete_batch(workdir, entry.seq)
+
+    assert list_batches(workdir) == []
+    assert not product.exists()
+
+
+def test_delete_batch_quarantains_run_records_of_that_batch(
+    workdir: Path, assets: None
+) -> None:
+    """删批次把本批运行记录整份移入可恢复暂存（不硬删），没被点名的记录不动。"""
+    entry = create_batch(
+        workdir,
+        name="策略",
+        description="",
+        endpoint_id="main",
+        prompt_id="详细描述",
+        skill_ids=[],
+    )
+    store = WorkdirStore(workdir)
+    mine = store.runs_dir / "20261012-010000-aaaaaa"
+    others = store.runs_dir / "20261012-020000-bbbbbb"
+    mine.mkdir(parents=True)
+    others.mkdir(parents=True)
+    (mine / "run.json").write_text('{"batch": 1}', encoding="utf-8")
+    (others / "run.json").write_text('{"batch": 2}', encoding="utf-8")
+
+    deleted = delete_batch(
+        workdir, entry.seq, run_dirs=run_dirs_for_batch(store.runs_dir, entry.seq)
+    )
+
+    assert deleted == 0
+    assert not mine.exists()
+    assert others.is_dir()
+    staged = [
+        member.read_text(encoding="utf-8")
+        for member in (workdir / ".dsf" / "trash").rglob("run.json")
+    ]
+    assert staged == ['{"batch": 1}']
+    assert list_batches(workdir) == []
 
 
 def test_parse_seq_strict_format() -> None:

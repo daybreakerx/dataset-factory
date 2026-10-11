@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, errorMessage } from "../../../api";
+import { api, corruptedRunOf, errorMessage } from "../../../api";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
 import type { ItemDelta, ItemUpdate } from "./items-state";
+import { JournalCorruptedLine } from "./journal-corrupted-line";
 import { useRunWatch } from "./use-run-watch";
 
 /** 停止钮的方块（2026-10-06 用户裁「按稿改实现」）：稿 i-square＝rect 6,6→18,18（12×12@24
@@ -64,6 +65,8 @@ interface Props {
    * 语义见 use-run-watch 的同名选项。
    */
   onRunStatus?: (status: string) => void;
+  /** 损坏流水就地清理完成后，重拉条目清单（红字自消之外，左列分组也要跟着回正）。 */
+  onItemsRefresh?: () => void;
   /**
    * 本批的运行史状态（`StrategyView.run_status`：null＝从未跑过，及 failed／running／
    * interrupted／completed）——组显隐按它五态走（对齐批「运行状态组对齐」③；规格权威
@@ -86,8 +89,11 @@ export function RunControl({
   retryRequest,
   onRunStatus,
   runStatus,
+  onItemsRefresh,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  // 后端带出 run 才有就地出口：四处出错面同一把尺，不出现「同一句红字有的面能点、有的面不能点」。
+  const [errorRun, setErrorRun] = useState<string | null>(null);
   const actionPending = useRef(false);
   const {
     status,
@@ -133,7 +139,10 @@ export function RunControl({
         reportStatus("running");
         setAcceptedRunId(accepted.run_id);
       } catch (reason) {
-        if (lifecycle.current === generation) setError(errorMessage(reason));
+        if (lifecycle.current === generation) {
+          setError(errorMessage(reason));
+          setErrorRun(corruptedRunOf(reason));
+        }
       } finally {
         actionPending.current = false;
         if (lifecycle.current === generation) setBusy(false);
@@ -157,7 +166,10 @@ export function RunControl({
     try {
       await api.stopRun(wid, batch);
     } catch (reason) {
-      if (lifecycle.current === generation) setError(errorMessage(reason));
+      if (lifecycle.current === generation) {
+        setError(errorMessage(reason));
+        setErrorRun(corruptedRunOf(reason));
+      }
     } finally {
       actionPending.current = false;
       if (lifecycle.current === generation) setBusy(false);
@@ -175,7 +187,19 @@ export function RunControl({
 
   return (
     <section className="flex items-center gap-3" aria-label="运行控制">
-      {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
+      {errorRun ? (
+        <JournalCorruptedLine
+          wid={wid}
+          run={errorRun}
+          onCleaned={() => {
+            setError("");
+            setErrorRun(null);
+            onItemsRefresh?.();
+          }}
+        />
+      ) : (
+        error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>
+      )}
       {reconnecting && (
         <span role="status" className="text-t-sm text-warn-ink">
           正在重新连接

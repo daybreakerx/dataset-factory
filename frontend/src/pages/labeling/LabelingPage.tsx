@@ -1,6 +1,6 @@
 import { FileImageIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, errorMessage } from "../../api";
+import { api, corruptedRunOf, errorMessage } from "../../api";
 import { DirectoryPicker } from "../../components/DirectoryPicker";
 import { FormError } from "../../components/form-error";
 import { Button } from "../../components/ui/button";
@@ -33,6 +33,7 @@ import {
   withItemUpdate,
   withRetryItems,
 } from "./runs/items-state";
+import { JournalCorruptedLine } from "./runs/journal-corrupted-line";
 import { RunControl } from "./runs/RunControl";
 import { RemoveUnimportedDialog } from "./workdir/RemoveUnimportedDialog";
 import { WorkdirSettings } from "./workdir/WorkdirSettings";
@@ -48,6 +49,8 @@ export function LabelingPage({
   onOpenWorkbench?: () => void;
 } = {}) {
   const [error, setError] = useState("");
+  // 后端叫得出「是哪一份运行记录坏了」时，A／D 两面的错误行换成可点红字（ADR 2026-10-09）。
+  const [errorRun, setErrorRun] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const {
     workdirs,
@@ -196,6 +199,7 @@ export function LabelingPage({
         setItems(itemsFromGroups(view.groups));
         setExportRevision((value) => value + 1);
         setError("");
+        setErrorRun(null);
       } catch (reason) {
         if (
           mounted.current &&
@@ -203,6 +207,7 @@ export function LabelingPage({
           version === refreshVersion.current
         )
           setError(errorMessage(reason));
+        setErrorRun(corruptedRunOf(reason));
         if (requireSuccess) throw reason;
       }
     },
@@ -445,6 +450,7 @@ export function LabelingPage({
                     : { ...current, content: current.content + event.text },
               );
             }}
+            onItemsRefresh={() => void refreshItems()}
           />
         )}
         <Button
@@ -457,8 +463,18 @@ export function LabelingPage({
           <RefreshCwIcon />
         </Button>
       </header>
-      {error && (
-        <FormError className="mx-6 mb-3 text-t-sm text-bad-ink">{error}</FormError>
+      {errorRun && selection ? (
+        <div className="mx-6 mb-3">
+          <JournalCorruptedLine
+            wid={selection.workdirId}
+            run={errorRun}
+            onCleaned={() => void refreshItems()}
+          />
+        </div>
+      ) : (
+        error && (
+          <FormError className="mx-6 mb-3 text-t-sm text-bad-ink">{error}</FormError>
+        )
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-4 pb-6 md:flex-row md:overflow-hidden md:px-6">
         <MaterialsPanel

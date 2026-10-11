@@ -29,6 +29,10 @@ export class ApiError extends Error {
   readonly requestId: string | null;
   /** 字段级错误标记：后端指认 detail 属于哪个输入字段（如 name）；操作级 / 环境类为 null。 */
   readonly field: string | null;
+  /** problem+json 的 type slug（如 run-journal-corrupted）；非 problem 体为 null。 */
+  readonly problemType: string | null;
+  /** problem+json 的扩展字段 `run`：损坏的那份运行目录名＝清理端点的取值；没有则 null。 */
+  readonly run: string | null;
 
   constructor(
     kind: ApiError["kind"],
@@ -36,6 +40,8 @@ export class ApiError extends Error {
     status: number | null,
     requestId: string | null,
     field: string | null = null,
+    problemType: string | null = null,
+    run: string | null = null,
   ) {
     super(message);
     this.name = "ApiError";
@@ -43,7 +49,38 @@ export class ApiError extends Error {
     this.kind = kind;
     this.requestId = requestId;
     this.field = field;
+    this.problemType = problemType;
+    this.run = run;
   }
+}
+
+/**
+ * 这句错误是不是「运行流水损坏、且后端叫得出是哪一份」。
+ *
+ * 就地出口的可用性必须由后端带出的 `run` 决定（ADR 2026-10-09）：四处出错面同一把尺，
+ * 不允许出现「同一句红字有的面能点、有的面不能点」。
+ */
+export function corruptedRunOf(error: unknown): string | null {
+  return error instanceof ApiError &&
+    error.problemType === "run-journal-corrupted" &&
+    error.run
+    ? error.run
+    : null;
+}
+
+/** 从 problem+json 体里取 type 与扩展字段 run（非 problem 体 / 类型不对都回 null）。 */
+function extractProblem(data: unknown): {
+  problemType: string | null;
+  run: string | null;
+} {
+  if (data === null || typeof data !== "object") {
+    return { problemType: null, run: null };
+  }
+  const body = data as { type?: unknown; run?: unknown };
+  return {
+    problemType: typeof body.type === "string" ? body.type : null,
+    run: typeof body.run === "string" ? body.run : null,
+  };
 }
 
 /**
@@ -157,12 +194,15 @@ export async function request<T>(
   if (!response.ok) {
     const suffix =
       requestId === null ? "" : `（请求 id: ${requestId}，可拿它对后端日志）`;
+    const problem = extractProblem(data);
     throw new ApiError(
       "http",
       `${extractDetail(data, response.status)}${suffix}`,
       response.status,
       requestId,
       extractErrorField(data),
+      problem.problemType,
+      problem.run,
     );
   }
   return data as T;

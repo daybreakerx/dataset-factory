@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from dataset_factory.api import create_app
 from dataset_factory.workdir import WorkdirPathError, WorkdirRegistry, WorkdirStore
+from dataset_factory.workdir.assets import registered_origins, unimported_files
 from dataset_factory.workdir.cleanup import remove_unimported
 from dataset_factory.workdir.locks import RunLock, import_guard, maintenance_record
 from dataset_factory.workdir.relocation import relocate_workdir
@@ -17,8 +18,12 @@ from dataset_factory.workdir.relocation import relocate_workdir
 pytestmark = pytest.mark.usefixtures("temp_data_root")
 
 
-def test_remove_unimported_preserves_exact_files_in_recovery(tmp_path: Path) -> None:
-    """按完整名称移出一份文件，保留同主干文件、工具产物和恢复字节。"""
+def test_remove_unimported_deletes_files_permanently(tmp_path: Path) -> None:
+    """未导入文件按完整名称**直接永久删除**（2026-10-11 用户裁），同主干与工具产物不动。
+
+    旧行为是移进 `.dsf/trash/` 留可恢复副本，而软件内没有清空暂存区的入口——等于把
+    「真删」的最后一步推给用户的文件系统；界面说删除就真删，恢复路径不再是本端点的语义。
+    """
     store = WorkdirStore(tmp_path)
     for name in ("sample.png", "sample.jpg", "s1__sample.txt"):
         (tmp_path / name).write_bytes(name.encode())
@@ -26,11 +31,11 @@ def test_remove_unimported_preserves_exact_files_in_recovery(tmp_path: Path) -> 
     result = remove_unimported(tmp_path, ["sample.png", "sample.png"])
 
     assert result.count == 1
-    assert result.recovery_path is not None
-    assert (Path(result.recovery_path) / "sample.png").read_bytes() == b"sample.png"
+    assert result.recovery_path is None
     assert not (tmp_path / "sample.png").exists()
     assert (tmp_path / "sample.jpg").read_bytes() == b"sample.jpg"
     assert (tmp_path / "s1__sample.txt").read_bytes() == b"s1__sample.txt"
+    assert not (tmp_path / ".dsf" / "trash").exists()
     assert store.read_import_records() == []
 
 
@@ -63,8 +68,10 @@ def test_remove_unimported_rejects_whole_stale_selection(
     assert (tmp_path / "s1__a.txt").read_bytes() == b"s1__a.txt"
 
 
-def test_http_remove_unimported_returns_recoverable_file(tmp_path: Path) -> None:
-    """HTTP 精确移出未导入文件，返回可恢复位置，其他文件保持原样。"""
+def test_http_remove_unimported_deletes_permanently_and_clears_the_group(
+    tmp_path: Path,
+) -> None:
+    """HTTP 直删未导入文件：不再回恢复路径，重读清单时该文件已从「未导入」分组消失。"""
     WorkdirStore(tmp_path)
     entry = WorkdirRegistry.register(tmp_path)
     (tmp_path / "sample.png").write_bytes(b"selected")
@@ -76,12 +83,17 @@ def test_http_remove_unimported_returns_recoverable_file(tmp_path: Path) -> None
     )
 
     assert response.status_code == 200
-    assert response.json()["count"] == 1
+    assert response.json() == {"count": 1, "recovery_path": None}
     assert not (tmp_path / "sample.png").exists()
     assert (tmp_path / "sample.jpg").read_bytes() == b"keep"
-    recovery = Path(response.json()["recovery_path"])
-    assert recovery.is_relative_to(tmp_path / ".dsf" / "trash")
-    assert (recovery / "sample.png").read_bytes() == b"selected"
+    assert not list((tmp_path / ".dsf" / "trash").rglob("sample.png"))
+    remaining = {
+        row.name
+        for row in unimported_files(
+            tmp_path, set(registered_origins(WorkdirStore(tmp_path)))
+        )
+    }
+    assert remaining == {"sample.jpg"}
 
 
 def test_http_retry_completes_partial_copy_after_app_restart(tmp_path: Path) -> None:

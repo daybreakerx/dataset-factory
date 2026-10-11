@@ -6,16 +6,21 @@ import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
 import { formatBytes } from "../../../lib/format";
 
-type Entry = { name: string; size: number; batch?: number; modified_at?: number };
+type Entry = { name: string; size: number; batch?: number };
 
+/**
+ * 「清理无素材产物」清单窗（invalid 单实例）。
+ *
+ * 2026-10-11 随 ADR「『清理运行记录』独立入口撤除、出口就地给」去掉 `kind` 双分支：
+ * 运行记录的清理只从出错那一行进（见「清理运行记录弹窗」），端点 `previewRunCleanup` /
+ * `cleanup-runs` 留给那一份弹窗使用。
+ */
 export function CleanupDialog({
   wid,
-  kind,
   onClose,
   onCleaned,
 }: {
   wid: string;
-  kind: "products" | "runs";
   onClose: () => void;
   onCleaned: () => void;
 }) {
@@ -32,7 +37,6 @@ export function CleanupDialog({
   const pending = useRef(false);
   const generation = useRef(0);
   const selectAll = useRef<HTMLInputElement>(null);
-  const title = kind === "products" ? "清理无素材产物" : "清理运行记录";
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: revision retries the preview after a failed read.
   useEffect(() => {
@@ -43,11 +47,9 @@ export function CleanupDialog({
     setResult(null);
     setConfirming(false);
     setError("");
-    const request =
-      kind === "products"
-        ? api.previewProductCleanup(wid).then((value) => value.products)
-        : api.previewRunCleanup(wid);
-    void request
+    void api
+      .previewProductCleanup(wid)
+      .then((value) => value.products)
       .then(
         (value) => {
           if (token === generation.current) setEntries(value);
@@ -62,7 +64,7 @@ export function CleanupDialog({
     return () => {
       generation.current += 1;
     };
-  }, [wid, kind, revision]);
+  }, [wid, revision]);
 
   useEffect(() => {
     if (selectAll.current) {
@@ -78,7 +80,7 @@ export function CleanupDialog({
     setBusy(true);
     setError("");
     try {
-      const value = await api.cleanupWorkdir(wid, kind, [...selected]);
+      const value = await api.cleanupWorkdir(wid, "products", [...selected]);
       if (generation.current !== token) return;
       setResult(value);
       onCleaned();
@@ -94,12 +96,6 @@ export function CleanupDialog({
     (total, entry) => total + (selected.has(entry.name) ? entry.size : 0),
     0,
   );
-  // 最近一次运行挂时效标记（原型口径）：它是当前产物时效判定与出身的凭据，误删会失去判定依据。
-  const latestRunAt =
-    kind === "runs" && entries.length > 0
-      ? Math.max(...entries.map((entry) => entry.modified_at ?? 0))
-      : Number.NaN;
-
   return (
     <DialogShell
       open
@@ -107,10 +103,8 @@ export function CleanupDialog({
         if (!open && !pending.current) onClose();
       }}
       className="max-h-[90dvh] max-w-xl overflow-y-auto"
-      title={title}
-      description={
-        kind === "products" ? "没有素材配对的 txt 产物" : "运行日志与条目记录"
-      }
+      title="清理无素材产物"
+      description="没有素材配对的 txt 产物"
       footer={
         <>
           <Button variant="ghost" disabled={busy} onClick={onClose}>
@@ -202,20 +196,10 @@ export function CleanupDialog({
                       }}
                     />
                     <span className="min-w-0 flex-1 break-all">{entry.name}</span>
-                    {kind === "runs" && entry.modified_at === latestRunAt && (
-                      <span className="inline-flex h-[18px] shrink-0 items-center rounded-sm bg-muted px-2 text-t-xs text-text-3">
-                        最近一次 · 当前产物时效判定用
-                      </span>
-                    )}
                     <span className="shrink-0 text-text-4 tabular-nums">
                       {formatBytes(entry.size, "KB", 1)}
                       {entry.batch !== undefined ? ` · s${entry.batch}` : ""}
                     </span>
-                    {entry.modified_at !== undefined && (
-                      <span className="text-text-4">
-                        {new Date(entry.modified_at * 1000).toLocaleString()}
-                      </span>
-                    )}
                   </label>
                 ))}
               </div>
@@ -225,10 +209,7 @@ export function CleanupDialog({
             </p>
             {confirming && (
               <p className="text-t-sm text-warn-ink">
-                确认删除选中的 {selected.size} 项？
-                {kind === "runs"
-                  ? "对应运行日志将无法再查看。素材与打标产物保留。"
-                  : "素材和其余产物保留。"}
+                确认删除选中的 {selected.size} 项？素材和其余产物保留。
               </p>
             )}
           </>

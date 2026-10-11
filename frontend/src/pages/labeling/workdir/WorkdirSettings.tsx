@@ -33,7 +33,7 @@ export function WorkdirSettings({
   const [creating, setCreating] = useState(false);
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [cleanup, setCleanup] = useState<"products" | "runs" | null>(null);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
   const [relocating, setRelocating] = useState<string | null>(null);
   const [cleaningOld, setCleaningOld] = useState<string | null>(null);
   // 飞行态跨块共享：header 刷新钮与策略块的确认交互同守一个 busy。
@@ -114,7 +114,7 @@ export function WorkdirSettings({
             batches={data.batches}
             cleaningOld={cleaningOld}
             onCleanOld={(oldPath) => void cleanOld(oldPath)}
-            onViewCleanup={setCleanup}
+            onViewCleanup={() => setCleanupOpen(true)}
             onRelocate={setRelocating}
           />
           <WorkdirBatches
@@ -195,11 +195,10 @@ export function WorkdirSettings({
           onSelect={() => {}}
         />
       )}
-      {cleanup && (
+      {cleanupOpen && (
         <CleanupDialog
           wid={wid}
-          kind={cleanup}
-          onClose={() => setCleanup(null)}
+          onClose={() => setCleanupOpen(false)}
           onCleaned={data.refresh}
         />
       )}

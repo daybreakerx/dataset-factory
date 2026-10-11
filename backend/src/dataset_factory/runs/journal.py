@@ -192,6 +192,21 @@ def _run_dir_batch(run_dir: Path) -> int | None:
     return batch if isinstance(batch, int) else None
 
 
+def run_dirs_for_batch(runs_dir: Path, seq: int) -> list[Path]:
+    """本批次的运行目录（删批次时连带清 runs 用），新→旧。
+
+    与 `_recent_run_dirs` 的区别＝不放行「批次字段读不出来」的目录：读不出就不知道它
+    属不属于这一批，删批次时宁可留着别人的记录，也不凭猜测动盘。
+    """
+    if not runs_dir.is_dir():
+        return []
+    return [
+        run_dir
+        for run_dir in sorted(runs_dir.iterdir(), key=lambda p: p.name, reverse=True)
+        if run_dir.is_dir() and _run_dir_batch(run_dir) == seq
+    ]
+
+
 def _recent_run_dirs(runs_dir: Path, seq: int) -> list[Path]:
     """本批次相关的运行目录（新→旧）：他批次按 run.json 预筛整目录跳过。"""
     return [
@@ -292,7 +307,7 @@ def load_latest_item_records(
 
     Raises:
         RunJournalCorruptedError: 某次运行的 items.jsonl 损坏（fail loud——
-            坏流水会让分组判定失真，用户可用「清理运行记录」移除后重试）。
+            坏流水会让分组判定失真，移除该次运行记录后可重试）。
     """
     if not runs_dir.is_dir():
         return {}
@@ -324,8 +339,10 @@ def _read_items_file(path: Path) -> list[dict[str, object]]:
     """读一份 items.jsonl（崩溃安全：砍残缺尾行；中间坏行 fail loud）。"""
 
     def _corrupted() -> RunJournalCorruptedError:
+        # run ＝流水所在的运行目录名，正是清理端点 `names` 的取值——就地出口靠它点名。
         return RunJournalCorruptedError(
-            f"运行流水文件损坏（{path}）——可用「清理运行记录」移除该次运行后重试。"
+            f"运行流水文件损坏（{path}）——移除该次运行记录后可重试。",
+            run=path.parent.name,
         )
 
     try:

@@ -31,6 +31,8 @@ export type DialogShellProps = {
   description?: ReactNode;
   /** 失败行落标题右侧（稿 .modal-head-note，正文是表单字段的弹窗用；单行省略＋即时播报）。 */
   headNote?: ReactNode;
+  /** 标题右侧常驻红字短警示（稿 .modal-hardwarn：破坏性弹窗一句话讲清动作后果，恒在、不随状态出现）。 */
+  hardWarn?: ReactNode;
   /** 页脚左备注槽（稿 .modal-note：mr-auto、13px 正文色，如「此操作不可撤销」）。 */
   note?: ReactNode;
   /** 页脚中段自由位，渲染在备注槽与取消钮之间。 */
@@ -71,6 +73,7 @@ export function DialogShell({
   title,
   description,
   headNote,
+  hardWarn,
   note,
   footerExtra,
   cancel,
@@ -104,6 +107,9 @@ export function DialogShell({
                 标题与右上角 × 钮中轴对齐、正文起点与稿逐像素同（描述顶 = 16+30+8）。 */}
             <div className="flex min-h-(--h-md) items-center gap-3">
               <DialogTitle>{title}</DialogTitle>
+              {hardWarn !== undefined && (
+                <span className="text-t-sm text-bad-ink">{hardWarn}</span>
+              )}
               {headNote !== undefined && (
                 <span
                   role="alert"

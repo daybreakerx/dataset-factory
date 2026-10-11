@@ -50,10 +50,15 @@ class CleanupResult:
 
 
 def remove_unimported(workdir: Path, names: list[str]) -> CleanupResult:
-    """将仍未登记的指定文件移入可恢复暂存区，保留其原始字节。
+    """把仍未登记的指定文件**直接永久删除**（2026-10-11 用户裁）。
 
-    导入锁覆盖资格复查与移动，避免文件已入册却仍按旧清单移出。
-    素材使用完整文件名定位，同主干的其他扩展名不受影响。
+    导入锁覆盖资格复查与删除，避免文件已入册却仍按旧清单删掉；素材用完整文件名
+    定位，同主干的其他扩展名不受影响。不再走 `quarantine_paths`、不产生
+    `.dsf/trash/` 暂存目录——界面上说的是「删除」，就真删（软件内也没有清空
+    暂存区的入口，旧行为等于把最后一步推给用户的文件系统）。
+
+    `recovery_path` 对本端点已无意义，恒为 None：字段本体属清理域共用契约
+    （`cleanup_products` / `cleanup_runs` 仍回显残留位置），不因这一条退役。
     """
     if not workdir.is_dir():
         raise WorkdirPathError("工作目录不存在，请检查路径后重试。")
@@ -68,9 +73,13 @@ def remove_unimported(workdir: Path, names: list[str]) -> CleanupResult:
             }
             selected = list(dict.fromkeys(names))
             if not selected or not set(selected).issubset(candidates):
-                raise WorkdirPathError("选择为空或文件已不在未导入清单，请刷新后重试。")
-            recovery = store.quarantine_paths([workdir / name for name in selected])
-            return CleanupResult(len(selected), str(recovery) if recovery else None)
+                raise WorkdirPathError("找不到该文件，文件已不在未导入清单。")
+            for name in selected:
+                target = confine_to_workdir(workdir, workdir / name)
+                if not target.is_file():
+                    raise WorkdirPathError("找不到该文件，文件已不在未导入清单。")
+                target.unlink()
+            return CleanupResult(len(selected), None)
     finally:
         lock.release()
 
@@ -87,7 +96,7 @@ def cleanup_products(workdir: Path, names: list[str]) -> CleanupResult:
             candidates = {row.name for row in preview_cleanup(workdir)}
             selected = list(dict.fromkeys(names))
             if not selected or not set(selected).issubset(candidates):
-                raise WorkdirPathError("选择为空或文件已不再是孤立产物，请刷新清单。")
+                raise WorkdirPathError("文件列表已过期，请重新进入。")
             recovery = store.quarantine_paths([workdir / name for name in selected])
             return CleanupResult(len(selected), store.finish_cleanup(recovery))
     finally:
@@ -118,7 +127,7 @@ def preview_run_cleanup(workdir: Path) -> list[RunCleanupEntry]:
         total = 0
         for path in directory.rglob("*"):
             if path.is_symlink() or path.is_junction():
-                raise WorkdirPathError("运行记录包含链接，请检查后重试。")
+                raise WorkdirPathError("运行记录包含文件或文件夹的链接，请检查后重试。")
             confine_to_workdir(workdir, path)
             if path.is_file():
                 total += path.stat().st_size
@@ -143,7 +152,7 @@ def cleanup_runs(workdir: Path, names: list[str]) -> CleanupResult:
         candidates = {row.name for row in preview_run_cleanup(workdir)}
         selected = list(dict.fromkeys(names))
         if not selected or not set(selected).issubset(candidates):
-            raise WorkdirPathError("选择为空或运行记录已变化，请刷新清单。")
+            raise WorkdirPathError("运行记录已变化，请重新进入。")
         recovery = store.quarantine_paths([store.runs_dir / name for name in selected])
         return CleanupResult(len(selected), store.finish_cleanup(recovery))
     finally:

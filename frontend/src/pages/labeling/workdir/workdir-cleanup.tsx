@@ -9,16 +9,7 @@ type CleanupSummary = {
   runs: components["schemas"]["RunCleanupEntry"][];
 };
 
-function localDate(seconds: number): string {
-  const date = new Date(seconds * 1000);
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-  ].join("-");
-}
-
-/** 工作目录清理区块：产物/运行记录清理摘要、搬迁记录与旧位置重试入口。 */
+/** 工作目录清理区块：无素材产物摘要、搬迁记录与旧位置重试入口。 */
 export function WorkdirCleanup({
   cleanupSummary,
   summaryError,
@@ -37,7 +28,7 @@ export function WorkdirCleanup({
   batches: Batch[];
   cleaningOld: string | null;
   onCleanOld: (oldPath: string) => void;
-  onViewCleanup: (kind: "products" | "runs") => void;
+  onViewCleanup: () => void;
   onRelocate: (path: string) => void;
 }) {
   const cleanupBatches = new Set(
@@ -46,16 +37,6 @@ export function WorkdirCleanup({
   const hiddenCleanupBatches = batches.filter(
     (batch) => !batch.active && cleanupBatches.has(batch.seq),
   ).length;
-  const runDates = cleanupSummary?.runs.map((entry) => entry.modified_at) ?? [];
-  // Q7（2026-09-21 审计）：同一份运行时两端点相同 → 压缩成单日期，跨天才写区间。
-  const runDateRange = runDates.length
-    ? (() => {
-        const min = localDate(Math.min(...runDates));
-        const max = localDate(Math.max(...runDates));
-        return min === max ? min : `${min} → ${max}`;
-      })()
-    : "";
-
   return (
     <section
       className="mt-4 rounded-xl border border-border bg-card p-4"
@@ -83,29 +64,7 @@ export function WorkdirCleanup({
           variant="ghost"
           size="sm"
           aria-label="查看无素材产物清单"
-          onClick={() => onViewCleanup("products")}
-        >
-          查看清单
-        </Button>
-      </div>
-      <div className="flex items-center gap-3 py-2 text-t-sm">
-        <span className="flex-1">清理运行记录</span>
-        {cleanupSummary && (
-          <span className="text-text-3">
-            {cleanupSummary.runs.length} 份 ·{" "}
-            {formatBytes(
-              cleanupSummary.runs.reduce((total, entry) => total + entry.size, 0),
-              "KB",
-              1,
-            )}
-            {runDateRange && ` · ${runDateRange}`}
-          </span>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label="查看运行记录清单"
-          onClick={() => onViewCleanup("runs")}
+          onClick={onViewCleanup}
         >
           查看清单
         </Button>

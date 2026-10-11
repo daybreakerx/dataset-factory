@@ -21,7 +21,7 @@ import { strategiesApi } from "./strategies";
 import { tasksApi } from "./tasks";
 import { workdirApi } from "./workdir";
 
-export { ApiError, errorMessage } from "./client";
+export { ApiError, corruptedRunOf, errorMessage } from "./client";
 export type {
   EndpointConfigSummary,
   EndpointCreateRequest,

@@ -8,7 +8,6 @@ vi.mock("../../../api", async (original) => ({
   ...(await original<typeof import("../../../api")>()),
   api: {
     previewProductCleanup: vi.fn(),
-    previewRunCleanup: vi.fn(),
     cleanupWorkdir: vi.fn(),
   },
 }));
@@ -28,9 +27,7 @@ it("清理只提交确认后的选择，失败保留选择，成功展示残留�
   const user = userEvent.setup();
   const cleaned = vi.fn();
   vi.mocked(api.cleanupWorkdir).mockRejectedValueOnce(new Error("运行中不可清理"));
-  render(
-    <CleanupDialog wid="w1" kind="products" onClose={vi.fn()} onCleaned={cleaned} />,
-  );
+  render(<CleanupDialog wid="w1" onClose={vi.fn()} onCleaned={cleaned} />);
 
   await user.click(await screen.findByRole("checkbox", { name: "s1__lost.txt" }));
   await user.click(screen.getByRole("button", { name: "清理（1）" }));
@@ -54,40 +51,10 @@ it("清理只提交确认后的选择，失败保留选择，成功展示残留�
   expect(screen.queryByRole("button", { name: "确认清理" })).not.toBeInTheDocument();
 });
 
-it("运行记录全选后清理准确名称，清理期间不可关闭", async () => {
-  const user = userEvent.setup();
-  const close = vi.fn();
-  vi.mocked(api.previewRunCleanup).mockResolvedValue([
-    { name: "run-a", size: 100, modified_at: 1700000000 },
-    { name: "run-b", size: 200, modified_at: 1700000010 },
-  ]);
-  vi.mocked(api.cleanupWorkdir).mockImplementation(() => new Promise(() => {}));
-  render(<CleanupDialog wid="w1" kind="runs" onClose={close} onCleaned={vi.fn()} />);
-
-  await screen.findByRole("checkbox", { name: "run-a" });
-  await user.click(screen.getByRole("checkbox", { name: "全选" }));
-  await user.click(screen.getByRole("button", { name: "清理（2）" }));
-  await user.click(screen.getByRole("button", { name: "确认清理" }));
-  await user.keyboard("{Escape}");
-
-  expect(api.cleanupWorkdir).toHaveBeenCalledExactlyOnceWith("w1", "runs", [
-    "run-a",
-    "run-b",
-  ]);
-  const closeButtons = screen.getAllByRole("button", { name: "关闭" });
-  expect(closeButtons[0]).toBeDisabled();
-  const cornerClose = closeButtons[1];
-  if (!cornerClose) throw new Error("缺少弹窗关闭按钮");
-  await user.click(cornerClose);
-  expect(close).not.toHaveBeenCalled();
-});
-
 it("预览失败可重新读取且不执行清理", async () => {
   const user = userEvent.setup();
   vi.mocked(api.previewProductCleanup).mockRejectedValueOnce(new Error("目录读取失败"));
-  render(
-    <CleanupDialog wid="w1" kind="products" onClose={vi.fn()} onCleaned={vi.fn()} />,
-  );
+  render(<CleanupDialog wid="w1" onClose={vi.fn()} onCleaned={vi.fn()} />);
 
   expect(await screen.findByRole("alert")).toHaveTextContent("目录读取失败");
   await user.click(screen.getByRole("button", { name: "重新读取" }));
@@ -98,28 +65,12 @@ it("预览失败可重新读取且不执行清理", async () => {
   expect(api.cleanupWorkdir).not.toHaveBeenCalled();
 });
 
-it("最近一次运行挂时效判定标记，其余运行与产物清单不挂", async () => {
-  vi.mocked(api.previewRunCleanup).mockResolvedValue([
-    { name: "run-a", size: 100, modified_at: 1700000000 },
-    { name: "run-b", size: 200, modified_at: 1700000010 },
-  ]);
-  render(<CleanupDialog wid="w1" kind="runs" onClose={vi.fn()} onCleaned={vi.fn()} />);
-
-  expect(await screen.findByText("run-a")).toBeInTheDocument();
-  expect(screen.getByText("最近一次 · 当前产物时效判定用")).toBeInTheDocument();
-  // 标记只出现一次，且挂在更晚的 run-b 那一行（同行的名字在标记之前）
-  const row = screen.getByText("最近一次 · 当前产物时效判定用").closest("label");
-  expect(row).not.toBeNull();
-  expect(row?.textContent).toContain("run-b");
-  expect(row?.textContent).not.toContain("run-a");
-});
-
-it("产物清理清单不出现时效判定标记", async () => {
-  render(
-    <CleanupDialog wid="w1" kind="products" onClose={vi.fn()} onCleaned={vi.fn()} />,
-  );
+it("本窗只列无素材产物：运行记录专属形态不再出现", async () => {
+  render(<CleanupDialog wid="w1" onClose={vi.fn()} onCleaned={vi.fn()} />);
   expect(
     await screen.findByRole("checkbox", { name: "s1__lost.txt" }),
   ).toBeInTheDocument();
+
   expect(screen.queryByText("最近一次 · 当前产物时效判定用")).not.toBeInTheDocument();
+  expect(api.previewProductCleanup).toHaveBeenCalledOnce();
 });

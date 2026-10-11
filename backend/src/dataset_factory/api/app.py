@@ -267,8 +267,13 @@ _PROBLEM_RULES: tuple[_ProblemRule, ...] = (
     ),
     _ProblemRule(BatchInactiveError, 409, "batch-inactive", "批次已停用"),
     _ProblemRule(RunNotActiveError, 404, "run-not-active", "当前没有进行中的跑批"),
+    # run（损坏所在的那份运行目录名）进扩展字段：就地出口拿它去调清理端点。
     _ProblemRule(
-        RunJournalCorruptedError, 500, "run-journal-corrupted", "运行流水损坏"
+        RunJournalCorruptedError,
+        500,
+        "run-journal-corrupted",
+        "运行流水损坏",
+        extras_from="run",
     ),
     # runs 域基类兜底：500 档，消息已可操作。
     _ProblemRule(RunError, 500, "run-error", "跑批数据异常"),

@@ -27,8 +27,18 @@ class RunJournalCorruptedError(RunError):
     """历史运行流水（items.jsonl）损坏——HTTP 500 problem+json（run-journal-corrupted）。
 
     续跑判定要读历史流水取「最近一次成功打标的素材哈希」；坏行 fail loud，
-    用户可用「清理运行记录」移除损坏的那次运行后重试。
+    移除损坏的那次运行记录后可重试。
+
+    Attributes:
+        run: 损坏流水所在的运行目录名（＝清理端点 `names` 的取值），由抛出点填；
+            路径类错误（读不出是哪一份）留 None——前端据它决定给不给就地出口，
+            四处出错面同一把尺，不出现「同一句红字有的面能点、有的面不能点」。
     """
+
+    def __init__(self, message: str, *, run: str | None = None) -> None:
+        """消息给人读，run 给机器用（就地出口拿它去调清理端点）。"""
+        super().__init__(message)
+        self.run = run
 
 
 class RetryItemNotEligibleError(RunError):

@@ -243,7 +243,7 @@ describe("打标页读取流程", () => {
     vi.mocked(api.listItems).mockResolvedValue(initial);
     vi.mocked(api.removeUnimported).mockResolvedValue({
       count: 1,
-      recovery_path: "/one/.dsf/trash/selected",
+      recovery_path: null,
     });
     const user = userEvent.setup();
     render(<LabelingPage />);
@@ -261,15 +261,11 @@ describe("打标页读取流程", () => {
     await user.click(dialog.getByRole("button", { name: "删除" }));
 
     expect(api.removeUnimported).toHaveBeenCalledExactlyOnceWith("one", ["first.psd"]);
-    expect(await dialog.findByRole("status")).toHaveTextContent(
-      "/one/.dsf/trash/selected",
-    );
-    const closeButton = dialog.getAllByRole("button", { name: "关闭" }).at(0);
-    if (!closeButton) throw new Error("删除结果缺少关闭按钮");
-    await user.click(closeButton);
+    // 直删改造后不再有待恢复路径的「结果步」：成功即关窗，清单重取后那一行消失。
     expect(
       await screen.findByRole("button", { name: "first.jpg" }),
     ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "删除未导入 first.psd" }),
     ).not.toBeInTheDocument();

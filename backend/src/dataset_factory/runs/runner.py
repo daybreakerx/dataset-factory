@@ -76,7 +76,12 @@ from ..workdir.locks import RunLock
 from ..workdir.store import WorkdirStore
 from .control import stop_requested
 from .errors import BatchInactiveError
-from .journal import RunJournal, empty_counters, load_recent_success_hashes
+from .journal import (
+    RunJournal,
+    empty_counters,
+    load_recent_success_hashes,
+    run_dirs_for_batch,
+)
 from .progress import (
     RUN_STATUS_COMPLETED,
     RUN_STATUS_FAILED,
@@ -1092,11 +1097,22 @@ def clear_retry_list(workdir: Path, seq: int) -> None:
 
 
 def remove_batch(workdir: Path, seq: int) -> int:
-    """删除批次及其附属重试记录，共用一次状态写入和运行锁。"""
+    """删除批次及其附属重试记录与本批次运行记录，共用一次状态写入和运行锁。
+
+    「哪些运行目录属于这一批」的判据在 runs 域（`run_dirs_for_batch`，读 run.json 的
+    batch 字段），strategies 域不反向 import runs——所以由这里挑出目录、交给 delete_batch
+    与产物同一批处理（先删文件后提交登记）。
+    """
 
     def cleanup(state: dict[str, object]) -> None:
         state[_RETRY_LIST_KEY] = [
             record for record in _retry_records(state) if record["batch"] != seq
         ]
 
-    return delete_batch(workdir, seq, cleanup_state=cleanup)
+    store = WorkdirStore(workdir)
+    return delete_batch(
+        workdir,
+        seq,
+        cleanup_state=cleanup,
+        run_dirs=run_dirs_for_batch(store.runs_dir, seq),
+    )
