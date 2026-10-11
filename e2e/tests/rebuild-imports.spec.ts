@@ -314,7 +314,8 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   const removeButton = unregistered.getByRole("button", { name: "删除未导入 sample.psd", exact: true });
   await unregistered.getByText("sample.psd", { exact: true }).hover();
   await removeButton.click();
-  const removeDialog = page.getByRole("dialog", { name: "删除未导入文件", exact: true });
+  // 标题带对象名（删除类族形），页脚只有「取消／删除」两钮。
+  const removeDialog = page.getByRole("dialog", { name: "删除未导入文件「sample.psd」？", exact: true });
   expect(await readFile(path.join(directory, "sample.psd"), "utf8")).toBe("Unsupported same-stem file");
   await expect(removeDialog).toHaveCSS("opacity", "1");
   await expect(removeDialog).toHaveCSS("background-color", "rgb(255, 255, 255)");
@@ -323,9 +324,19 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   await removeDialog.getByRole("button", { name: "删除", exact: true }).click();
   const removed = await (await removalResponse).json();
   expect(removed.count).toBe(1);
-  expect(await readFile(path.join(removed.recovery_path, "sample.psd"), "utf8")).toBe("Unsupported same-stem file");
-  await expect(page.getByRole("dialog").getByRole("status")).toContainText(removed.recovery_path);
-  await page.getByRole("dialog").getByRole("button", { name: "关闭", exact: true }).first().click();
+  // 直删改造（2026-10-11 用户裁）：不产生可恢复暂存目录，字节当场没了；结果态退役＝成功即自动关窗（反馈走浮层）。
+  expect(removed.recovery_path).toBeNull();
+  await expect
+    .poll(async () => {
+      try {
+        await readFile(path.join(directory, "sample.psd"));
+        return true;
+      } catch {
+        return false;
+      }
+    })
+    .toBe(false);
+  await expect(removeDialog).toHaveCount(0);
   await expect(unregistered.getByText("sample.psd", { exact: true })).toHaveCount(0);
   expect(await readFile(assetPath)).toEqual(retainedAsset);
   expect(await readFile(path.join(directory, "s1__sample.txt"))).toEqual(retainedCaption);
