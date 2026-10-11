@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { api } from "../../../api";
@@ -14,15 +14,13 @@ vi.mock("../../../api", async (original) => ({
     listBatches: vi.fn(),
     setBatchActive: vi.fn(),
     updateBatch: vi.fn(),
-    retryRelocationCleanup: vi.fn(),
     currentRun: vi.fn().mockResolvedValue({ status: "completed" }),
     relocationStatus: vi.fn().mockResolvedValue([]),
     previewProductCleanup: vi.fn().mockResolvedValue({ products: [], total_bytes: 0 }),
-    previewRunCleanup: vi.fn().mockResolvedValue([]),
   },
 }));
 
-it("停用策略等待确认，失败保留活跃状态并可重试成功", async () => {
+it("停用运行中的策略先弹确认，失败保留活跃状态并可重试成功", async () => {
   const user = userEvent.setup();
   const changed = vi.fn();
   const batch = {
@@ -33,6 +31,7 @@ it("停用策略等待确认，失败保留活跃状态并可重试成功", asyn
     active: true,
     created_at: "2026-09-17T00:00:00Z",
     product_count: 3,
+    run_status: "completed",
   };
   vi.mocked(api.getWorkdir).mockResolvedValue({
     id: "w1",
@@ -41,30 +40,43 @@ it("停用策略等待确认，失败保留活跃状态并可重试成功", asyn
     last_used_at: 0,
   });
   vi.mocked(api.listBatches).mockResolvedValue([batch]);
+  vi.mocked(api.currentRun).mockResolvedValueOnce({
+    run_id: "run1",
+    batch: 1,
+    status: "running",
+    mode: "full",
+    counters: {},
+    current_item: null,
+    error: null,
+  });
   vi.mocked(api.setBatchActive).mockRejectedValueOnce(new Error("目录暂时被占用"));
   render(<WorkdirSettings wid="w1" onBack={vi.fn()} onChanged={changed} />);
 
-  await user.click(await screen.findByRole("button", { name: "停用" }));
-  const dialog = within(screen.getByRole("dialog", { name: "停用策略？" }));
-  expect(dialog.getByText(/已完成条目与产物保留/)).toBeVisible();
+  await user.click(await screen.findByRole("switch", { name: "启用 详细描述" }));
+  const dialog = within(screen.getByRole("dialog", { name: "停用策略「详细描述」？" }));
+  expect(dialog.getByText(/此策略正在运行。停用会中断本次运行/)).toBeVisible();
+  // 停用窗不写「此操作不可撤销」——拨回来即可续跑，备注槽只随删除窗（稿格 10／格 11 分档）。
+  expect(dialog.queryByText("此操作不可撤销")).not.toBeInTheDocument();
   expect(api.setBatchActive).not.toHaveBeenCalled();
-  await user.click(dialog.getByRole("button", { name: "确认" }));
+  await user.click(dialog.getByRole("button", { name: "中断并停用" }));
 
   expect(await dialog.findByRole("alert")).toHaveTextContent("目录暂时被占用");
   expect(api.setBatchActive).toHaveBeenCalledExactlyOnceWith("w1", "s1", false);
-  expect(screen.getByText("活跃")).toBeVisible();
+  // 弹窗在场时 Radix 把页面内容标成 aria-hidden，状态点要带 hidden 才查得到。
+  expect(screen.getByRole("img", { name: "运行中", hidden: true })).toBeInTheDocument();
   expect(changed).not.toHaveBeenCalled();
 
   vi.mocked(api.setBatchActive).mockResolvedValue({ ...batch, active: false });
   vi.mocked(api.listBatches).mockResolvedValue([{ ...batch, active: false }]);
-  await user.click(dialog.getByRole("button", { name: "确认" }));
+  // 钮文字不换词（飞行期只失效），文案恒「中断并停用」。
+  await user.click(dialog.getByRole("button", { name: "中断并停用" }));
 
-  expect(await screen.findByRole("button", { name: "启用" })).toBeVisible();
+  expect(await screen.findByRole("img", { name: "已停用" })).toBeInTheDocument();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(changed).toHaveBeenCalledOnce();
 });
 
-it("运行中的策略显示运行状态并禁止删除，仍可请求停用", async () => {
+it("运行中的策略出行首蓝点并禁止删除，开关照常可拨", async () => {
   vi.mocked(api.getWorkdir).mockResolvedValue({
     id: "w1",
     path: "/srv/dataset",
@@ -80,6 +92,7 @@ it("运行中的策略显示运行状态并禁止删除，仍可请求停用", a
       active: true,
       created_at: "",
       product_count: 0,
+      run_status: "running",
     },
   ]);
   vi.mocked(api.currentRun).mockResolvedValueOnce({
@@ -93,9 +106,11 @@ it("运行中的策略显示运行状态并禁止删除，仍可请求停用", a
   });
   render(<WorkdirSettings wid="w1" onBack={vi.fn()} onChanged={vi.fn()} />);
 
-  expect(await screen.findByText("运行中")).toBeVisible();
+  expect(await screen.findByRole("img", { name: "运行中" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "删除策略 s1" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "停用" })).toBeEnabled();
+  expect(screen.getByRole("switch", { name: "启用 描述" })).toBeEnabled();
+  // 状态章退役：「活跃」一词不再出现在行内。
+  expect(screen.queryByText("活跃")).not.toBeInTheDocument();
 });
 
 it("取消就地改名不写盘", async () => {
@@ -108,6 +123,7 @@ it("取消就地改名不写盘", async () => {
     active: true,
     created_at: "",
     product_count: 0,
+    run_status: null,
   };
   vi.mocked(api.getWorkdir).mockResolvedValue({
     id: "w1",
@@ -129,7 +145,7 @@ it("取消就地改名不写盘", async () => {
   expect(api.updateBatch).not.toHaveBeenCalled();
 });
 
-it("统计读取失败不阻断维护入口，也不展示零值代替失败", async () => {
+it("统计读取失败给固定因果句、不铺后端原句，也不展示零值代替失败", async () => {
   vi.mocked(api.getWorkdir).mockResolvedValue({
     id: "w1",
     path: "/srv/dataset",
@@ -141,18 +157,22 @@ it("统计读取失败不阻断维护入口，也不展示零值代替失败", a
 
   render(<WorkdirSettings wid="w1" onBack={vi.fn()} onChanged={vi.fn()} />);
 
-  expect(await screen.findByText("统计读取失败")).toBeVisible();
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "素材统计失败，目录在读取时被占用",
+  );
+  expect(screen.queryByText("统计读取失败")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "导入素材" })).toBeEnabled();
   expect(screen.getByRole("region", { name: "基本信息" })).not.toHaveTextContent(
     "素材 0",
   );
 });
 
-it("离开设置页后完成的清理请求不触发刷新", async () => {
-  const user = userEvent.setup();
-  const changed = vi.fn();
+it("清理摘要未回时值位缺席但入口可用，回包后补上读数", async () => {
   let resolveCleanup:
-    | ((value: { old_path: string; cleanup_pending: boolean }) => void)
+    | ((value: {
+        products: { name: string; size: number; batch: number }[];
+        total_bytes: number;
+      }) => void)
     | undefined;
   vi.mocked(api.getWorkdir).mockResolvedValue({
     id: "w1",
@@ -161,23 +181,27 @@ it("离开设置页后完成的清理请求不触发刷新", async () => {
     last_used_at: 0,
   });
   vi.mocked(api.listBatches).mockResolvedValue([]);
-  vi.mocked(api.retryRelocationCleanup).mockReturnValue(
+  vi.mocked(api.previewProductCleanup).mockReturnValue(
     new Promise((resolve) => {
       resolveCleanup = resolve;
     }),
   );
-  vi.mocked(api.relocationStatus).mockResolvedValue([
-    { old_path: "/srv/old", path: "/srv/dataset", status: "cleanup-pending" },
-  ]);
-  const { unmount } = render(
-    <WorkdirSettings wid="w1" onBack={vi.fn()} onChanged={changed} />,
-  );
-  await user.click(await screen.findByRole("button", { name: "重试清理旧位置" }));
-  unmount();
-  resolveCleanup?.({ old_path: "/srv/old", cleanup_pending: false });
+  render(<WorkdirSettings wid="w1" onBack={vi.fn()} onChanged={vi.fn()} />);
 
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  expect(changed).not.toHaveBeenCalled();
+  const card = await screen.findByRole("region", { name: "基本信息" });
+  expect(within(card).getByRole("button", { name: "查看清单" })).toBeEnabled();
+  expect(card).not.toHaveTextContent("无素材产物：");
+
+  await act(async () => {
+    resolveCleanup?.({
+      products: [{ name: "s1__a.txt", size: 1024, batch: 1 }],
+      total_bytes: 1024,
+    });
+  });
+
+  expect(screen.getByRole("region", { name: "基本信息" })).toHaveTextContent(
+    "无素材产物：1 个 txt（1 套策略，含 0 套已停用）· 1.0 KB",
+  );
 });
 
 it("点击策略名就地编辑，失败保留输入，回车重试成功后更新目录", async () => {
@@ -191,6 +215,7 @@ it("点击策略名就地编辑，失败保留输入，回车重试成功后更�
     active: true,
     created_at: "",
     product_count: 2,
+    run_status: null,
   };
   vi.mocked(api.getWorkdir).mockResolvedValue({
     id: "w1",
@@ -207,6 +232,7 @@ it("点击策略名就地编辑，失败保留输入，回车重试成功后更�
   await user.clear(input);
   await user.type(input, "新描述{Enter}");
 
+  // 失败红字落在编辑行内（产物计数右侧），不再另起行下块。
   expect(await screen.findByRole("alert")).toHaveTextContent("保存失败");
   expect(input).toHaveValue("新描述");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -220,7 +246,7 @@ it("点击策略名就地编辑，失败保留输入，回车重试成功后更�
   expect(changed).toHaveBeenCalledOnce();
 });
 
-it("清理摘要按策略去重统计，并区分已停用策略", async () => {
+it("清理摘要按策略去重统计并并进基本信息卡第四行", async () => {
   vi.mocked(api.getWorkdir).mockResolvedValue({
     id: "w1",
     path: "/srv/dataset",
@@ -236,6 +262,7 @@ it("清理摘要按策略去重统计，并区分已停用策略", async () => {
       active: true,
       created_at: "2026-09-17T00:00:00Z",
       product_count: 2,
+      run_status: "completed",
     },
     {
       id: "s2",
@@ -245,6 +272,7 @@ it("清理摘要按策略去重统计，并区分已停用策略", async () => {
       active: false,
       created_at: "2026-09-17T00:00:00Z",
       product_count: 1,
+      run_status: null,
     },
   ]);
   vi.mocked(api.previewProductCleanup).mockResolvedValue({
@@ -255,34 +283,25 @@ it("清理摘要按策略去重统计，并区分已停用策略", async () => {
     ],
     total_bytes: 3072,
   });
-  vi.mocked(api.previewRunCleanup).mockResolvedValue([
-    {
-      name: "later",
-      size: 1024,
-      modified_at: new Date(2026, 8, 12, 12).getTime() / 1000,
-    },
-    {
-      name: "earlier",
-      size: 2048,
-      modified_at: new Date(2026, 8, 9, 12).getTime() / 1000,
-    },
-  ]);
 
   render(<WorkdirSettings wid="w1" onBack={vi.fn()} onChanged={vi.fn()} />);
 
-  const cleanup = within(await screen.findByRole("region", { name: "清理" }));
-  expect(
-    cleanup.getByText("3 个 txt（2 套策略，含 1 套已停用）· 3.0 KB"),
-  ).toBeVisible();
-  expect(screen.getByRole("region", { name: "基本信息" })).toHaveTextContent(
-    "素材 4 · 产物 3 · 2.00 MB",
+  const card = await screen.findByRole("region", { name: "基本信息" });
+  // 值句里数字挂了 tabular-nums 子节点，按文本查询会被拆段——整卡 textContent 才是稳的判法。
+  expect(card).toHaveTextContent(
+    "无素材产物：3 个 txt（2 套策略，含 1 套已停用）· 3.0 KB",
   );
+  expect(card).toHaveTextContent("素材 4 · 产物 3 · 2.00 MB");
+  expect(screen.getByRole("button", { name: "查看清单" })).toBeVisible();
   expect(screen.getByText("产物 2 / 4")).toBeVisible();
-  // 「清理运行记录」独立入口已撤（ADR 2026-10-09）：出口改由出错那一行就地给。
+  // 「清理运行记录」独立入口已撤（ADR 2026-09-21/10-09 线）：出口改由出错那一行就地给。
   expect(screen.queryByText("清理运行记录")).not.toBeInTheDocument();
+  // 清理区不再是独立区块（卡退役④），删除也不再有「危险操作」卡（16z1 条②）。
+  expect(screen.queryByRole("region", { name: "清理" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "危险操作" })).not.toBeInTheDocument();
 });
 
-it("区块顺序与原型一致：基本信息后先清理再策略与危险操作", async () => {
+it("区块只剩基本信息与目录策略两卡，删除钮落在头行题字右侧", async () => {
   vi.mocked(api.getWorkdir).mockResolvedValue({
     id: "w1",
     path: "/srv/dataset",
@@ -297,5 +316,7 @@ it("区块顺序与原型一致：基本信息后先清理再策略与危险操�
   const regions = within(screen.getByRole("region", { name: "工作目录设置" }))
     .getAllByRole("region")
     .map((region) => region.getAttribute("aria-label"));
-  expect(regions).toEqual(["基本信息", "清理", "目录策略", "危险操作"]);
+  expect(regions).toEqual(["基本信息", "目录策略"]);
+  expect(screen.getByRole("button", { name: "删除工作目录" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "返回主页面" })).toBeEnabled();
 });

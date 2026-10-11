@@ -1,23 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError, api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
 
 export type Batch = components["schemas"]["BatchView"];
 export type Directory = components["schemas"]["WorkdirInfo"];
 
-type CleanupSummary = {
-  products: components["schemas"]["CleanupPreview"];
-  runs: components["schemas"]["RunCleanupEntry"][];
-};
-
-/** WorkdirSettings 的查询域收拢：目录元数据与策略列表、运行状态轮询、清理摘要、统计与搬迁记录；mutation 后经 refresh 统一失效重取。 */
+/** WorkdirSettings 的查询域收拢：目录元数据与策略列表、运行状态轮询、清理摘要（无素材产物）、统计与搬迁记录；mutation 后经 refresh 统一失效重取。 */
 export function useWorkdirData(wid: string, onChanged: () => void) {
   const [directory, setDirectory] = useState<Directory | null>(null);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [cleanupSummary, setCleanupSummary] = useState<CleanupSummary | null>(null);
+  const [fetching, setFetching] = useState(true);
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const [cleanupSummary, setCleanupSummary] = useState<
+    components["schemas"]["CleanupPreview"] | null
+  >(null);
   const [summaryError, setSummaryError] = useState("");
   const [stats, setStats] = useState<components["schemas"]["WorkdirStatsView"] | null>(
     null,
@@ -29,6 +27,10 @@ export function useWorkdirData(wid: string, onChanged: () => void) {
     components["schemas"]["WorkdirRelocationStatus"][]
   >([]);
   const [maintenanceError, setMaintenanceError] = useState("");
+  // 换目录（wid 变）才把旧读数整域失效；`refresh()` 只推进 revision——刷新期版面维持上一轮
+  // 读数、不回落（稿 16z1 格 3 裁乙）。判据放在 ref 里、由页面级取数 effect 自查：独立成一个 effect 就得把 `wid` 写进
+  // 一个并不读它的依赖数组——依赖检查判红，又多一条豁免。
+  const lastWid = useRef<string | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -72,11 +74,9 @@ export function useWorkdirData(wid: string, onChanged: () => void) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: revision invalidates the maintenance summaries after mutations.
   useEffect(() => {
     let current = true;
-    setCleanupSummary(null);
-    setSummaryError("");
-    void Promise.all([api.previewProductCleanup(wid), api.previewRunCleanup(wid)]).then(
-      ([products, runs]) => {
-        if (current) setCleanupSummary({ products, runs });
+    void api.previewProductCleanup(wid).then(
+      (value) => {
+        if (current) setCleanupSummary(value);
       },
       (reason: unknown) => {
         if (current) setSummaryError(errorMessage(reason));
@@ -90,8 +90,6 @@ export function useWorkdirData(wid: string, onChanged: () => void) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: revision refreshes physical material statistics after mutations.
   useEffect(() => {
     let current = true;
-    setStats(null);
-    setStatsError("");
     void api.getWorkdirStats(wid).then(
       (value) => {
         if (current) setStats(value);
@@ -108,7 +106,6 @@ export function useWorkdirData(wid: string, onChanged: () => void) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: revision refreshes persistent relocation records after maintenance.
   useEffect(() => {
     let current = true;
-    setMaintenanceError("");
     void api.relocationStatus(wid).then(
       (value) => {
         if (current) setRelocations(value);
@@ -125,7 +122,19 @@ export function useWorkdirData(wid: string, onChanged: () => void) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: revision refreshes directory metadata after mutations.
   useEffect(() => {
     let current = true;
-    setLoading(true);
+    if (lastWid.current !== wid) {
+      lastWid.current = wid;
+      setDirectory(null);
+      setBatches([]);
+      setCleanupSummary(null);
+      setSummaryError("");
+      setStats(null);
+      setStatsError("");
+      setRelocations([]);
+      setMaintenanceError("");
+      setLoadedOnce(false);
+    }
+    setFetching(true);
     setError("");
     void Promise.all([api.getWorkdir(wid), api.listBatches(wid)])
       .then(
@@ -133,6 +142,7 @@ export function useWorkdirData(wid: string, onChanged: () => void) {
           if (current) {
             setDirectory(entry);
             setBatches(list);
+            setLoadedOnce(true);
           }
         },
         (reason: unknown) => {
@@ -140,7 +150,7 @@ export function useWorkdirData(wid: string, onChanged: () => void) {
         },
       )
       .finally(() => {
-        if (current) setLoading(false);
+        if (current) setFetching(false);
       });
     return () => {
       current = false;
@@ -156,7 +166,10 @@ export function useWorkdirData(wid: string, onChanged: () => void) {
     directory,
     batches,
     error,
-    loading,
+    // loading ＝首取且还没有读数（页面级取数中行／整页回落只在这一窗出现）；
+    // refreshing ＝已有读数后的重取（刷新钮的 data-loading）。
+    loading: fetching && !loadedOnce,
+    refreshing: fetching && loadedOnce,
     runStates,
     runError,
     cleanupSummary,

@@ -132,7 +132,7 @@ export function BatchConfiguration({
         创建时间: new Date(snapshot.built_at).toLocaleString(),
       }).map(([label, value]) => (
         <div key={label} className="flex gap-3 py-1">
-          <dt className="w-[84px] shrink-0 text-text-4">{label}</dt>
+          <dt className="w-[76px] shrink-0 text-text-3">{label}</dt>
           <dd className="min-w-0 break-all text-text-2">{value}</dd>
         </div>
       ))}

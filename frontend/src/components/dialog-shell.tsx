@@ -33,6 +33,12 @@ export type DialogShellProps = {
   headNote?: ReactNode;
   /** 标题右侧常驻红字短警示（稿 .modal-hardwarn：破坏性弹窗一句话讲清动作后果，恒在、不随状态出现）。 */
   hardWarn?: ReactNode;
+  /**
+   * 强制画页脚分隔线（稿 §13 的条件式是「有正文段才画」，而 `ui/dialog.tsx` 只认
+   * `DialogDescription` 与失败行两个触发器——正文段由 children 自组的窗（如删除工作目录：
+   * 四态皆有正文）拿不到线，由此位声明）。不传＝随现状条件式，其余各窗形态不变。
+   */
+  footLine?: boolean;
   /** 页脚左备注槽（稿 .modal-note：mr-auto、13px 正文色，如「此操作不可撤销」）。 */
   note?: ReactNode;
   /** 页脚中段自由位，渲染在备注槽与取消钮之间。 */
@@ -74,6 +80,7 @@ export function DialogShell({
   description,
   headNote,
   hardWarn,
+  footLine,
   note,
   footerExtra,
   cancel,
@@ -126,9 +133,11 @@ export function DialogShell({
         )}
         {children}
         {footer !== undefined ? (
-          <DialogFooter>{footer}</DialogFooter>
+          <DialogFooter className={footLine ? "border-t" : undefined}>
+            {footer}
+          </DialogFooter>
         ) : hasStandardFooter ? (
-          <DialogFooter>
+          <DialogFooter className={footLine ? "border-t" : undefined}>
             {note !== undefined && (
               <span className="mr-auto self-center text-t-md text-text-1">{note}</span>
             )}

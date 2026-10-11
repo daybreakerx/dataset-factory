@@ -53,7 +53,7 @@ test("工作目录搬迁经界面确认后保留素材与快照并更新登记",
   await expect(page.getByRole("button", { name: "改名策略 设置新增", exact: true })).toBeVisible();
   expect((await request.get(`/api/workdirs/${wid}/batches/s2/runs/current`)).status()).toBe(200); // L3：空闲 = 200 + null
     expect(await (await request.get(`/api/workdirs/${wid}/batches/s2/runs/current`)).json()).toBeNull();
-  await page.getByRole("button", { name: "返回打标页", exact: true }).click();
+  await page.getByRole("button", { name: "返回主页面", exact: true }).click();
   await page.getByRole("button", { name: "选择工作目录与批次" }).click();
   await page.getByRole("button", { name: "新增策略 搬迁验证", exact: true }).click();
   await expect(strategyDialog).toBeVisible();
@@ -138,7 +138,7 @@ test("工作目录搬迁经界面确认后保留素材与快照并更新登记",
   await expect(page.getByRole("region", { name: "基本信息" })).toContainText(target);
   await writeFile(path.join(target, "s1__lost.txt"), "orphan caption");
   await writeFile(path.join(target, "s1__other.txt"), "retained caption");
-  await page.getByRole("button", { name: "查看无素材产物清单" }).click();
+  await page.getByRole("button", { name: "查看清单", exact: true }).click();
   const cleanup = page.getByRole("dialog", { name: "清理无素材产物", exact: true });
   await cleanup.getByRole("checkbox", { name: "s1__lost.txt", exact: true }).check();
   await cleanup.getByRole("button", { name: "清理（1）", exact: true }).click();
@@ -152,8 +152,8 @@ test("工作目录搬迁经界面确认后保留素材与快照并更新登记",
   const deletes: unknown[] = [];
   page.on("request", (req) => { if (req.method() === "DELETE" && req.url().endsWith(`/workdirs/${wid}`)) deletes.push(req.postDataJSON()); });
   await page.getByRole("button", { name: "删除工作目录", exact: true }).click();
-  const deletion = page.getByRole("dialog", { name: "删除工作目录？", exact: true });
-  await expect(deletion.getByText(target, { exact: true })).toBeVisible();
+  const deletion = page.getByRole("dialog", { name: /^删除工作目录/u });
+  await expect(deletion).toContainText(target);
   expect(deletes).toEqual([]);
   expect((await stat(target)).isDirectory()).toBeTruthy();
   await deletion.getByRole("button", { name: "确认删除", exact: true }).click();

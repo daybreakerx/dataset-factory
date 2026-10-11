@@ -1,10 +1,10 @@
 import { ArrowLeftIcon, RefreshCwIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { api, errorMessage } from "../../../api";
+import { useState } from "react";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
 import { FormError } from "../../../components/form-error";
 import { TrashIcon } from "../../../components/icons";
 import { Button } from "../../../components/ui/button";
+import { Tip } from "../../../components/ui/tooltip";
 import { NewStrategyDialog } from "../batching/NewStrategyDialog";
 import { SnapshotDialog } from "../batching/SnapshotDialog";
 import { CleanupDialog } from "./CleanupDialog";
@@ -13,7 +13,6 @@ import { ImportMaterialsDialog } from "./ImportMaterialsDialog";
 import { RelocateWorkdirDialog } from "./RelocateWorkdirDialog";
 import { useWorkdirData } from "./use-workdir-data";
 import { WorkdirBatches } from "./workdir-batches";
-import { WorkdirCleanup } from "./workdir-cleanup";
 import { WorkdirSummary } from "./workdir-summary";
 
 export function WorkdirSettings({
@@ -35,37 +34,8 @@ export function WorkdirSettings({
   const [deleting, setDeleting] = useState(false);
   const [cleanupOpen, setCleanupOpen] = useState(false);
   const [relocating, setRelocating] = useState<string | null>(null);
-  const [cleaningOld, setCleaningOld] = useState<string | null>(null);
-  // 飞行态跨块共享：header 刷新钮与策略块的确认交互同守一个 busy。
+  // 飞行态跨块共享：策略块的确认交互用它掐自身；头行两钮只随页面级首取禁用，不联动它。
   const [busy, setBusy] = useState(false);
-  const mounted = useRef(false);
-  const cleanupPending = useRef(false);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  async function cleanOld(oldPath: string) {
-    if (cleanupPending.current) return;
-    cleanupPending.current = true;
-    setCleaningOld(oldPath);
-    data.setMaintenanceError("");
-    try {
-      const result = await api.retryRelocationCleanup(wid, oldPath);
-      if (!mounted.current) return;
-      if (result.cleanup_pending)
-        data.setMaintenanceError(`旧位置仍未清理：${result.old_path}`);
-      else data.refresh();
-    } catch (reason) {
-      if (mounted.current) data.setMaintenanceError(errorMessage(reason));
-    } finally {
-      cleanupPending.current = false;
-      if (mounted.current) setCleaningOld(null);
-    }
-  }
 
   return (
     <section
@@ -73,25 +43,45 @@ export function WorkdirSettings({
       aria-label="工作目录设置"
     >
       <header className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack}>
+        <Button variant="ghost" size="lg" onClick={onBack}>
           <ArrowLeftIcon />
-          返回打标页
+          返回主页面
         </Button>
         <h1 className="text-t-xl font-medium">工作目录设置</h1>
-        <Button
-          className="ml-auto"
-          variant="ghost"
-          size="icon"
-          aria-label="刷新工作目录"
-          disabled={data.loading || busy}
-          onClick={data.refresh}
-        >
-          <RefreshCwIcon />
-        </Button>
+        <Tip label="删除工作目录">
+          <Button
+            // 行 gap 12，回拉 8 得稿定的 4px 题钮间距（base.css §31 .wd-del 同款）。
+            className="-ml-2 hover:bg-bad-ink/12 hover:text-bad-ink"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="删除工作目录"
+            disabled={data.loading}
+            onClick={() => setDeleting(true)}
+          >
+            <TrashIcon />
+          </Button>
+        </Tip>
+        <Tip label="刷新">
+          <Button
+            className="ml-auto"
+            variant="ghost"
+            size="icon-lg"
+            aria-label="刷新工作目录"
+            data-loading={data.refreshing || undefined}
+            disabled={data.loading}
+            onClick={data.refresh}
+          >
+            <RefreshCwIcon />
+          </Button>
+        </Tip>
       </header>
-      {data.error && <FormError className="py-3 text-bad-ink">{data.error}</FormError>}
+      {data.error && (
+        <FormError className="py-3 text-t-sm text-bad-ink">
+          工作目录读取失败：{data.error}
+        </FormError>
+      )}
       {data.loading && (
-        <p role="status" className="py-3 text-text-3">
+        <p role="status" className="py-3 text-t-sm text-text-3">
           正在读取工作目录
         </p>
       )}
@@ -102,20 +92,12 @@ export function WorkdirSettings({
             batches={data.batches}
             stats={data.stats}
             statsError={data.statsError}
+            cleanupSummary={data.cleanupSummary}
+            summaryError={data.summaryError}
             onBrowse={() => setBrowse(true)}
             onImport={() => setImporting(true)}
             onRelocate={setRelocating}
-          />
-          <WorkdirCleanup
-            cleanupSummary={data.cleanupSummary}
-            summaryError={data.summaryError}
-            maintenanceError={data.maintenanceError}
-            relocations={data.relocations}
-            batches={data.batches}
-            cleaningOld={cleaningOld}
-            onCleanOld={(oldPath) => void cleanOld(oldPath)}
             onViewCleanup={() => setCleanupOpen(true)}
-            onRelocate={setRelocating}
           />
           <WorkdirBatches
             wid={wid}
@@ -131,25 +113,10 @@ export function WorkdirSettings({
           />
         </>
       )}
-      {!data.loading && data.directory && !data.error && (
-        <section
-          className="mt-4 rounded-xl border border-border bg-card p-4"
-          aria-label="危险操作"
-        >
-          <h2 className="mb-2 text-t-md font-medium">危险操作</h2>
-          <Button
-            variant="destructive-soft"
-            size="sm"
-            onClick={() => setDeleting(true)}
-          >
-            <TrashIcon />
-            删除工作目录
-          </Button>
-        </section>
-      )}
-      {deleting && (
+      {deleting && data.directory && (
         <DeleteWorkdirDialog
           wid={wid}
+          name={data.directory.title}
           onClose={() => setDeleting(false)}
           onDeleted={() => {
             setDeleting(false);

@@ -159,16 +159,17 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
     await page.getByRole("button", { name: "选择工作目录与批次" }).click();
     await page.getByRole("button", { name: "工作目录设置 停止验证", exact: true }).click();
     const settings = page.getByRole("region", { name: "工作目录设置", exact: true });
-    await expect(settings.getByText("运行中", { exact: true })).toBeVisible();
+    // 状态位已从文字章改行首状态点（可访问名＝状态名）；停用／启用改 §8 开关。
+    await expect(settings.getByRole("img", { name: "运行中" })).toBeVisible();
     await expect(settings.getByRole("button", { name: "删除策略 s1" })).toBeDisabled();
-    await settings.getByRole("button", { name: "停用", exact: true }).click();
-    const confirmation = page.getByRole("dialog", { name: "停用策略？", exact: true });
+    await settings.getByRole("switch", { name: /^启用 / }).click();
+    const confirmation = page.getByRole("dialog", { name: /^停用策略/u });
     await expect(confirmation).toContainText("已完成条目与产物保留");
     await confirmation.getByRole("button", { name: "取消", exact: true }).click();
     const batchesUrl = `/api/workdirs/${accepted.workdir.id}/batches`;
     expect((await (await request.get(batchesUrl)).json())[0].active).toBe(true);
-    await settings.getByRole("button", { name: "停用", exact: true }).click();
-    await confirmation.getByRole("button", { name: "确认", exact: true }).click();
+    await settings.getByRole("switch", { name: /^启用 / }).click();
+    await confirmation.getByRole("button", { name: "中断并停用", exact: true }).click();
     await expect(confirmation).toHaveCount(0);
     expect((await (await request.get(batchesUrl)).json())[0].active).toBe(false);
     await request.post("/fake-llm/__test__/gated-release");
@@ -177,9 +178,10 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
       return result.record?.run_id !== latest.record.run_id && result.record?.status === "interrupted";
     }).toBe(true);
     expect(await readFile(path.join(destination, "s1__sample.txt"), "utf8")).toBe("E2E 假模型的打标结果");
-    await settings.getByRole("button", { name: "启用", exact: true }).click();
-    await page.getByRole("dialog", { name: "启用策略？", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
-    await settings.getByRole("button", { name: "返回打标页", exact: true }).click();
+    // 启用（空闲态直接生效）不弹确认——丙·条件式只拦「停用且正在运行」这一真后果。
+    await settings.getByRole("switch", { name: /^启用 / }).click();
+    await expect.poll(async () => (await (await request.get(batchesUrl)).json())[0].active).toBe(true);
+    await settings.getByRole("button", { name: "返回主页面", exact: true }).click();
     await expect(retry.getByText("sample.png", { exact: true })).toHaveCount(0);
     await expect(materials.getByRole("region", { name: "已完成", exact: true }).getByText("sample.png", { exact: true })).toBeVisible();
   } finally {

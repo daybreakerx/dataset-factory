@@ -192,6 +192,19 @@
   animation: dot-run 1.6s var(--ease) infinite;
 }
 
+/* --- 图标钮载入中自转（base.css §7 `.btn--icon[data-loading] .ic` 的构建内适配）----
+   纯图标钮飞行期不出覆盖圈、图标本体原位自转 0.7s（稿 §7 图标钮分支：文字钮才走
+   「文字透明＋覆盖圈」那条，现役实例＝测试连接钮的本地写法）。挂在 data-loading
+   属性上＝声明「这个控件正在飞」的那个契约点，不新增类名。 */
+@keyframes icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+[data-loading="true"] svg {
+  animation: icon-spin 0.7s linear infinite;
+}
+
 /* --- 复选框唯一形态 .cb（2026-09-21 定形）----------------------------
    设计规范定 .cb 为复选框唯一形态（14×14、圆角 4px、选中黑底白勾、暗色自动
    翻深勾）。此份为构建内适配（值同规范）。 */

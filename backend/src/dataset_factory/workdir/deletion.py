@@ -51,7 +51,9 @@ def _files(root: Path) -> dict[str, tuple[int, str]]:
         for name in folders + names:
             path = Path(directory) / name
             if path.is_symlink() or path.is_junction():
-                raise WorkdirPathError("工作目录包含链接，请检查后再删除。")
+                raise WorkdirPathError(
+                    "工作目录内包含文件或文件夹的链接，请检查后再删除。"
+                )
         for name in names:
             path = Path(directory) / name
             relative = path.relative_to(root)
@@ -63,7 +65,7 @@ def _files(root: Path) -> dict[str, tuple[int, str]]:
             ):
                 continue
             if not path.is_file():
-                raise WorkdirPathError("工作目录包含非普通文件，请检查后再删除。")
+                raise WorkdirPathError("工作目录内包含特殊文件，请检查后再删除。")
             digest = hash_file(path)
             result[str(relative)] = (path.stat().st_size, digest)
     return result
