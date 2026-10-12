@@ -298,6 +298,67 @@ def test_snapshot_reads_stored_content_after_library_edit(
     assert path.read_bytes() == original
 
 
+def test_snapshot_freezes_each_skill_package_text_file(
+    client: TestClient, assets: None, wid: str
+) -> None:
+    """Skill 块按文件冻结：视图给逐文件清单（SKILL.md 在首、每份带自己的哈希）。"""
+    client.post(
+        f"/api/workdirs/{wid}/batches",
+        json={
+            "type": "scratch",
+            "name": "测试",
+            "endpoint_id": "main",
+            "prompt_id": "详细描述",
+            "skill_ids": [_SKILL_NAME],
+        },
+    )
+
+    skill = client.get(f"/api/workdirs/{wid}/batches/s1/snapshot").json()["skills"][0]
+
+    assert skill["name"] == _SKILL_NAME
+    assert [item["path"] for item in skill["files"]] == [
+        "SKILL.md",
+        "references/detail.md",
+    ]
+    for item in skill["files"]:
+        assert (
+            item["sha256"] == hashlib.sha256(item["body"].encode("utf-8")).hexdigest()
+        )
+
+
+def test_snapshot_of_legacy_skill_block_falls_back_to_single_file(
+    client: TestClient, assets: None, wid: str
+) -> None:
+    """盘上没有文件级记录的旧快照：读出来回落成一份 SKILL.md，界面不留空块、落盘不改写。"""
+    client.post(
+        f"/api/workdirs/{wid}/batches",
+        json={
+            "type": "scratch",
+            "name": "测试",
+            "endpoint_id": "main",
+            "prompt_id": "详细描述",
+            "skill_ids": [_SKILL_NAME],
+        },
+    )
+    path = WorkdirStore(Path(WorkdirRegistry.get(wid).path)).strategies_dir / "s1.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for block in data["skills"]:
+        block.pop("files")
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    skill = client.get(f"/api/workdirs/{wid}/batches/s1/snapshot").json()["skills"][0]
+
+    assert len(skill["files"]) == 1
+    assert skill["files"][0]["path"] == "SKILL.md"
+    assert (
+        skill["files"][0]["sha256"]
+        == hashlib.sha256(skill["files"][0]["body"].encode("utf-8")).hexdigest()
+    )
+    assert (
+        json.loads(path.read_text(encoding="utf-8"))["skills"][0] == data["skills"][0]
+    )
+
+
 def test_snapshot_warns_after_manual_change_without_rewriting(
     client: TestClient, assets: None, wid: str
 ) -> None:

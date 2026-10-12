@@ -163,7 +163,7 @@
           },
           "skills": {
             "items": {
-              "$ref": "#/components/schemas/SnapshotTextView"
+              "$ref": "#/components/schemas/SnapshotSkillView"
             },
             "title": "Skills",
             "type": "array"
@@ -3140,6 +3140,52 @@
           "sha256"
         ],
         "title": "SnapshotEndpointView",
+        "type": "object"
+      },
+      "SnapshotFileView": {
+        "description": "快照里 Skill 包的一份文本文件：包内路径、全文与该文件自己的哈希（文件级冻结）。",
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "body",
+          "sha256"
+        ],
+        "title": "SnapshotFileView",
+        "type": "object"
+      },
+      "SnapshotSkillView": {
+        "description": "快照里的 Skill：按文件给出（序 = 注入序，SKILL.md 恒在首）。",
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotFileView"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "files"
+        ],
+        "title": "SnapshotSkillView",
         "type": "object"
       },
       "SnapshotTextView": {

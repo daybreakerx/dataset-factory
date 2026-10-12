@@ -128,7 +128,12 @@ beforeEach(() => {
     prompt: { body: "prompt", name: "Mock prompt", sha256: "prompt" },
     recorded_sha256: "snapshot",
     sha256: "snapshot",
-    skills: [{ body: "skill", name: "Mock skill", sha256: "skill" }],
+    skills: [
+      {
+        name: "Mock skill",
+        files: [{ path: "SKILL.md", body: "skill", sha256: "skill" }],
+      },
+    ],
     tool_version: "0.1.0",
   });
 });
@@ -173,7 +178,12 @@ describe("打标页读取流程", () => {
   it("提示词与技能同名时仍分别展示且没有重复 key", async () => {
     const snapshot = await api.getBatchSnapshot("one", "s1");
     snapshot.prompt.name = "shared";
-    snapshot.skills = [{ name: "shared", body: "skill", sha256: "skill" }];
+    snapshot.skills = [
+      {
+        name: "shared",
+        files: [{ path: "SKILL.md", body: "skill", sha256: "skill" }],
+      },
+    ];
     vi.mocked(api.getBatchSnapshot).mockResolvedValue(snapshot);
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     try {

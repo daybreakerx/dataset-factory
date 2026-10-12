@@ -17,7 +17,7 @@ from __future__ import annotations
 from contextlib import suppress
 from dataclasses import asdict
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import ValidationError
@@ -383,6 +383,23 @@ def get_batch_detail(wid: str, sN: str) -> BatchView:
     return _to_batch_view(wid, entry)
 
 
+def _snapshot_skill_files(block: dict[str, Any]) -> dict[str, Any]:
+    """Skill 块的对外形状：按文件给出（文件级冻结，对齐批 #17 C 节⑰）。
+
+    盘上的旧快照只有组装好的注入全文、没有 `files`——读取侧把它呈现成「一份 SKILL.md
+    全文」，不改写落盘文件、也不给界面留空块。
+    """
+    files = block.get("files")
+    if isinstance(files, list) and files:
+        return {"name": block["name"], "files": files}
+    return {
+        "name": block["name"],
+        "files": [
+            {"path": "SKILL.md", "body": block["body"], "sha256": block["sha256"]}
+        ],
+    }
+
+
 @batches_router.get(
     "/{sN}/snapshot",
     response_model=BatchSnapshotView,
@@ -405,6 +422,7 @@ def get_batch_snapshot(wid: str, sN: str) -> BatchSnapshotView:
         return BatchSnapshotView.model_validate(
             {
                 **snapshot.to_json(),
+                "skills": [_snapshot_skill_files(block) for block in snapshot.skills],
                 "sha256": digest,
                 "recorded_sha256": recorded,
                 "changed": recorded is not None and recorded != digest,

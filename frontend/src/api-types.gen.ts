@@ -1842,7 +1842,7 @@ export interface components {
             /** Sha256 */
             sha256: string;
             /** Skills */
-            skills: components["schemas"]["SnapshotTextView"][];
+            skills: components["schemas"]["SnapshotSkillView"][];
             /** Tool Version */
             tool_version: string;
         };
@@ -3508,6 +3508,28 @@ export interface components {
             };
             /** Sha256 */
             sha256: string;
+        };
+        /**
+         * SnapshotFileView
+         * @description 快照里 Skill 包的一份文本文件：包内路径、全文与该文件自己的哈希（文件级冻结）。
+         */
+        SnapshotFileView: {
+            /** Body */
+            body: string;
+            /** Path */
+            path: string;
+            /** Sha256 */
+            sha256: string;
+        };
+        /**
+         * SnapshotSkillView
+         * @description 快照里的 Skill：按文件给出（序 = 注入序，SKILL.md 恒在首）。
+         */
+        SnapshotSkillView: {
+            /** Files */
+            files: components["schemas"]["SnapshotFileView"][];
+            /** Name */
+            name: string;
         };
         /**
          * SnapshotTextView

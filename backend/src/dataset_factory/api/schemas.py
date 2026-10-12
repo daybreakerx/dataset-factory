@@ -795,6 +795,23 @@ class SnapshotTextView(BaseModel):
     sha256: str
 
 
+class SnapshotFileView(BaseModel):
+    """快照里 Skill 包的一份文本文件：包内路径、全文与该文件自己的哈希（文件级冻结）。"""
+
+    model_config = ConfigDict(strict=True)
+    path: str
+    body: str
+    sha256: str
+
+
+class SnapshotSkillView(BaseModel):
+    """快照里的 Skill：按文件给出（序 = 注入序，SKILL.md 恒在首）。"""
+
+    model_config = ConfigDict(strict=True)
+    name: str
+    files: list[SnapshotFileView]
+
+
 class SnapshotEndpointView(BaseModel):
     """快照端点的公开配置白名单，不返回凭据字段。
 
@@ -816,7 +833,7 @@ class BatchSnapshotView(BaseModel):
 
     endpoint: SnapshotEndpointView
     prompt: SnapshotTextView
-    skills: list[SnapshotTextView]
+    skills: list[SnapshotSkillView]
     built_at: str
     tool_version: str
     sha256: str

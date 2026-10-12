@@ -145,6 +145,7 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   const accepted = await created.json();
   await expect.poll(async () => (await (await request.get(`/api/tasks/${accepted.task_id}`)).json()).status).toBe("succeeded");
   const prompts = await (await request.get("/api/prompts")).json();
+  const promptName: string = prompts[0].name;
   const batch = await request.post(`/api/workdirs/${accepted.workdir.id}/batches`, { data: { type: "scratch", name: "重建验证", endpoint_id: ((await (await request.get("/api/endpoints")).json()).find((e) => e.name === "default")?.id ?? "default"), prompt_id: prompts[0].id, skill_ids: [] } });
   expect(batch.ok()).toBeTruthy();
   await writeFile(path.join(directory, "s1__sample.txt"), "Existing caption");
@@ -187,7 +188,8 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   expect(diskRun.counters.failed).toBe(0);
   await page.getByRole("button", { name: "快照", exact: true }).click();
   const snapshotDialog = page.getByRole("dialog", { name: "策略快照", exact: true });
-  await expect(snapshotDialog.getByText("端点与生成参数", { exact: true })).toBeVisible();
+  // 分段控件取代三分区堆叠（对齐批 #17 笔①②）：默认落配置段，读取正常时无 alert。
+  await expect(snapshotDialog.getByRole("tablist", { name: "快照内容" })).toBeVisible();
   await expect(snapshotDialog.getByRole("alert")).toHaveCount(0);
   await snapshotDialog.getByRole("button", { name: "关闭", exact: true }).first().click();
   const snapshotPath = path.join(directory, ".dsf", "strategies", "s1.json");
@@ -196,7 +198,11 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   await writeFile(snapshotPath, JSON.stringify(savedSnapshot));
   const changedSnapshotBytes = await readFile(snapshotPath);
   await page.getByRole("button", { name: "快照", exact: true }).click();
-  await expect(snapshotDialog.getByRole("alert")).toContainText("快照哈希与最近一次运行记录不一致");
+  // 警告行改挂标题行右侧、换精简句、不再当 alert 播报（笔③⑬）。
+  await expect(
+    snapshotDialog.getByText("快照可能被手动修改，后续跑批将使用当前快照。"),
+  ).toBeVisible();
+  await snapshotDialog.getByRole("tab", { name: promptName, exact: true }).click();
   await expect(snapshotDialog.locator("pre").first()).toHaveText(savedSnapshot.prompt.body);
   expect(await readFile(snapshotPath)).toEqual(changedSnapshotBytes);
   await expect(snapshotDialog).toHaveCSS("opacity", "1");

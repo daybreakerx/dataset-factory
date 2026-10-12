@@ -101,6 +101,16 @@ test("打标页顶栏窄屏三段：折行、反馈行图标档、极窄档收�
   const chain = page.getByRole("region", { name: "策略配置" });
   const group = page.getByRole("region", { name: "运行控制" });
   const containerWidth = () => topbar.evaluate((element) => element.clientWidth);
+  // 容器查询量的是**内容盒**宽（clientWidth 含内距），档位判断要用这一把尺。
+  const contentWidth = () =>
+    topbar.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return (
+        element.clientWidth -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight)
+      );
+    });
   // 阈值量的是容器宽（顶栏挂 @container lbctx 的那层），不是视口宽——侧栏与内距都在外面扣掉，
   // 而侧栏本身还会随视口折收（差值不是常数）。故按「读回的容器宽」迭代补差，收敛到目标宽。
   let offset = 1440 - (await containerWidth());
@@ -154,6 +164,9 @@ test("打标页顶栏窄屏三段：折行、反馈行图标档、极窄档收�
 
   // 段三·反馈行图标档（<663）：文字隐、14px 图标显（全文进 aria-label）、组内间距收到 8。
   await setContainerWidth(662);
+  // 先把「确实进了图标档」当断言前提钉住：CI 侧再红时能当场指认是没进到那一档、还是档位行为不对
+  //（本地单跑与全量都绿，CI run 38231115948 红在这一行的 toBeHidden）。
+  expect(await contentWidth()).toBeLessThan(663);
   await expect(chain.getByText("Example · caption-model")).toBeVisible();
   await expect(alert.getByText("运行失败，请查看运行日志。")).toBeHidden();
   await expect(

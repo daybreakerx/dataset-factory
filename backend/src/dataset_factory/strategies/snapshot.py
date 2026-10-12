@@ -6,7 +6,9 @@
 
 结构（design 定案）：端点（ID / 显示名 / base_url / 模型名 / 生成参数）+ 基础提示词
 全文 + 启用 Skill 全文 + 各自内容哈希 + 快照时间 + 工具版本号；库应用来源
-（库 ID + 应用时刻组合哈希）由批次侧附加，供将来的「从库更新」比对。
+（库 ID + 应用时刻组合哈希）由批次侧附加，供将来的「从库更新」比对。Skill 块另带
+**文件级冻结**（包内每份参与注入的文本文件一项：路径 / 全文 / 该文件哈希，2026-10-12
+随对齐批 #17 C 节落——「快照里存的到底是哪几份文本」从此可查，assets 与 scripts 不在内）。
 
 身份口径（2026-09-23 ID 化）：端点 / 提示词 / Skill 块各冻结一个 `id`（运行期凭据
 密钥解析按它定位，**改名不影响任何已建批次**）；`name` 是显示名的展示性存档。
@@ -28,7 +30,12 @@ from ..llm.endpoints import (
     validated_request_params,
 )
 from ..prompts.store import read_prompt
-from ..skills.store import get_skill, read_skill
+from ..skills.store import (
+    get_skill,
+    list_skill_files,
+    read_skill,
+    read_skill_file,
+)
 
 __all__ = ["StrategySnapshot", "build_snapshot", "tool_version"]
 
@@ -57,7 +64,8 @@ class StrategySnapshot:
         endpoint: 端点块（id / name / base_url / model / api_format / request_params /
             sha256）。id 是密钥解析的稳定键；name 是显示名的展示性存档。
         prompt: 基础提示词块（id / name / body / sha256）。
-        skills: 启用 Skill 块清单（id / name / body / sha256，序 = 注入序）。
+        skills: 启用 Skill 块清单（id / name / body / sha256 / files，序 = 注入序）。
+            files 是文件级冻结：包内每份参与注入的文本文件一项（path / body / sha256）。
         built_at: 快照装配时刻（UTC ISO 8601）。
         tool_version: 装配时的工具版本号。
         source: 库应用来源（strategy_id + strategy_sha256）；从零配置的批次为 None。
@@ -149,12 +157,24 @@ def build_snapshot(
     for sid in skill_ids:
         meta = get_skill(sid)
         body = read_skill(sid)
+        # 文件级冻结（对齐批 #17 C 节⑯）：包内每份参与注入的文本文件（SKILL.md 与
+        # references/ 下全部）各存一份全文与自己的哈希——「这轮跑的是哪几份文本」从此可查；
+        # assets / scripts 不冻结，口径同注入范围（2026-09-14 ADR）。
+        files: list[dict[str, Any]] = []
+        for entry in list_skill_files(sid):
+            if not entry.previewable:
+                continue
+            text = read_skill_file(sid, entry.path)
+            files.append(
+                {"path": entry.path, "body": text, "sha256": _sha256_text(text)}
+            )
         skill_blocks.append(
             {
                 "id": sid,
                 "name": meta.name,
                 "body": body,
                 "sha256": _sha256_text(body),
+                "files": files,
             },
         )
     return StrategySnapshot(
