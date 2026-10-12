@@ -20,6 +20,13 @@ interface Options {
   onCurrentItem?: (item: string | null) => void;
   externalRunId?: string;
   /**
+   * SSE 断流上报（E5「已中断」停因机制）：订阅中的连接意外断开、进入重连退避时调一次
+   * （每次连接最多一次）——父层据此把「当前产出」标成网络异常中断（红）。
+   */
+  onStreamDrop?: () => void;
+  /** 重连成功且运行仍在：父层清掉网络中断标记（半截内容恢复流动）。 */
+  onStreamRestore?: () => void;
+  /**
    * 报告本批次运行状态的每一次变化（进行中与终态都报），供顶栏状态章显示。
    *
    * 报的是「服务端说的事实」：受理成功报 running、SSE 终态报 run-finished 里的
@@ -43,6 +50,8 @@ export function useRunWatch({
   onCurrentItem,
   externalRunId,
   onRunStatus,
+  onStreamDrop,
+  onStreamRestore,
 }: Options) {
   const [status, setStatus] = useState<RunStatus | null>(null);
   const [current, setCurrent] = useState<string | null>(null);
@@ -61,6 +70,10 @@ export function useRunWatch({
   currentItemRef.current = onCurrentItem;
   const runStatusRef = useRef(onRunStatus);
   runStatusRef.current = onRunStatus;
+  const streamDropRef = useRef(onStreamDrop);
+  streamDropRef.current = onStreamDrop;
+  const streamRestoreRef = useRef(onStreamRestore);
+  streamRestoreRef.current = onStreamRestore;
   // 命令侧发车受理成功也要上报状态章（原 start 里的 runStatusRef 消费点）。
   const reportStatus = useCallback((value: string) => {
     runStatusRef.current?.(value);
@@ -112,6 +125,9 @@ export function useRunWatch({
       source?.close();
       source = null;
       setReconnecting(true);
+      // E5：订阅中的连接断了（非正常关闭）——报一次断流，父层把「当前产出」
+      // 标成网络异常中断（红）。正常收尾（finish）不走这里。
+      streamDropRef.current?.();
       timer = setTimeout(() => void connect(), delay);
       delay = Math.min(delay * 2, 10000);
     }
@@ -202,6 +218,8 @@ export function useRunWatch({
             delay = 1000;
             setError("");
             setReconnecting(false);
+            // E5：重连成功且观测恢复——父层清掉网络中断标记（若还标着）。
+            streamRestoreRef.current?.();
           } catch (reason) {
             if (!isCurrent()) return;
             setError(errorMessage(reason));

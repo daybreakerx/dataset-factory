@@ -33,6 +33,7 @@ export function NewStrategyDialog({
   onCreated,
   onNavigateToSettings,
   onOpenWorkbench,
+  onRepointStrategy,
 }: {
   wid: string;
   title: string;
@@ -44,6 +45,9 @@ export function NewStrategyDialog({
   onNavigateToSettings?: () => void;
   /** 提示词那枚齿轮的去处＝策略页（在那里新建，保存后自动同步到此处）。 */
   onOpenWorkbench?: () => void;
+  /** 引用缺失行的修复出口（2026-10-13 E4）：点坏行先关本窗再唤起「重新指定」弹窗
+   *  （弹窗不叠弹窗——串行替换，修完回新建批次表单重选）。 */
+  onRepointStrategy?: (strategy: components["schemas"]["StrategyView"]) => void;
 }) {
   const id = useId();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -205,17 +209,24 @@ export function NewStrategyDialog({
           ...(catalog?.strategies ?? []).map((entry) => ({
             value: entry.id,
             name: entry.name,
-            // 坏行（笔⑭）：红缀短式＋去处句第二行，本窗不给处置出口（弹窗不叠弹窗）。
+            // 坏行（笔⑭）：红缀短式＋描述位第二行；2026-10-13 E4 起点行唤起
+            // 「重新指定」弹窗（先关本窗、不叠层），不再只写去处句。
             desc: entry.available
               ? [
                   entry.endpoint_name,
                   entry.prompt_name,
                   `Skill ${entry.skill_ids.length}`,
                 ].join(" ｜ ")
-              : "不可应用 · 到「策略」页重新指定后可用",
+              : "不可应用 · 点击重新指定",
             bad: !entry.available,
             badge: entry.available ? undefined : "引用缺失",
             disabled: !entry.available,
+            repair: entry.available
+              ? undefined
+              : () => {
+                  onRepointStrategy?.(entry);
+                  onClose();
+                },
           })),
         ]}
         emptyText={stateText || "还没有可用的策略"}

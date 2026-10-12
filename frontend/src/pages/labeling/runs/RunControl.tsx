@@ -105,6 +105,16 @@ interface Props {
    * 语义见 use-run-watch 的同名选项。
    */
   onRunStatus?: (status: string) => void;
+  /**
+   * 发车受理成功上报（T14）：带这一场的模式（full／retry）——父层据此冻结「这一场
+   * 吃哪几行」的名单，做左列排队中的视图层覆盖（实现侧名单住在后端，前端发车时
+   * 按当前清单快照冻结）。
+   */
+  onRunStarted?: (mode: "full" | "retry") => void;
+  /** SSE 断流上报（E5「已中断」停因机制）：订阅中的连接意外断开进重连退避时调一次。 */
+  onStreamDrop?: () => void;
+  /** 重连成功且运行仍在：父层清掉网络中断标记。 */
+  onStreamRestore?: () => void;
   /** 损坏流水就地清理完成后，重拉条目清单（红字自消之外，左列分组也要跟着回正）。 */
   onItemsRefresh?: () => void;
   /**
@@ -128,6 +138,9 @@ export function RunControl({
   externalRunId,
   retryRequest,
   onRunStatus,
+  onRunStarted,
+  onStreamDrop,
+  onStreamRestore,
   runStatus,
   onItemsRefresh,
 }: Props) {
@@ -139,6 +152,10 @@ export function RunControl({
   // 后端带出 run 才有就地出口：四处出错面同一把尺，不出现「同一句红字有的面能点、有的面不能点」。
   const [errorRun, setErrorRun] = useState<string | null>(null);
   const actionPending = useRef(false);
+  // T14：onRunStarted 走 ref 承接——它常是父层内联函数（身份每渲染变），直接进
+  // start 的 deps 会让 retry effect 依赖漂移、重复发车（rebuild-imports e2e 实锤）。
+  const runStartedRef = useRef(onRunStarted);
+  runStartedRef.current = onRunStarted;
   const {
     status,
     current,
@@ -159,6 +176,8 @@ export function RunControl({
     onCurrentItem,
     externalRunId,
     onRunStatus,
+    onStreamDrop,
+    onStreamRestore,
   });
 
   const start = useCallback(
@@ -182,6 +201,8 @@ export function RunControl({
         });
         reportStatus("running");
         setAcceptedRunId(accepted.run_id);
+        // T14：这一场的名单由父层按当前清单快照冻结（视图层覆盖用）。
+        runStartedRef.current?.(mode);
       } catch (reason) {
         if (lifecycle.current === generation) {
           setError(errorMessage(reason));
@@ -192,7 +213,15 @@ export function RunControl({
         if (lifecycle.current === generation) setBusy(false);
       }
     },
-    [batch, wid, lifecycle, setError, setStatus, reportStatus, setAcceptedRunId],
+    [
+      batch,
+      wid,
+      lifecycle,
+      setError,
+      setStatus,
+      reportStatus,
+      setAcceptedRunId,
+    ],
   );
 
   // 左列组头的「开始重试」：令牌从 0 起，父层点一次加一；切换批次时父层清零，

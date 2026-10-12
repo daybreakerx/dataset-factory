@@ -49,6 +49,23 @@ export function useBatchFormLists() {
     };
   }, []);
 
+  /** 重拉四表（「重新指定」弹窗修好策略引用后：坏行当场回 healthy）。 */
+  function reload(): void {
+    void Promise.all([
+      api.listStrategies(),
+      api.listEndpoints(),
+      api.listPrompts(),
+      api.listSkills(),
+    ]).then(([libraryItems, endpointItems, promptItems, skillItems]) => {
+      setStrategies(libraryItems);
+      setEndpoints(endpointItems);
+      setPrompts(promptItems);
+      setSkills(skillItems);
+      setError("");
+      setLoaded(true);
+    });
+  }
+
   return {
     strategies,
     endpoints,
@@ -57,6 +74,7 @@ export function useBatchFormLists() {
     loaded,
     error,
     setError,
+    reload,
     endpoint,
     setEndpoint,
     prompt,

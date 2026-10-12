@@ -288,6 +288,14 @@ function ExportList({
                 {row.integrity === "changed" && (
                   <span className="text-warn-ink"> 打标后素材已变更</span>
                 )}
+                {/* 关态同名行（仅大小写不同）：仍入包，行内琥珀标记一句即含出路
+                    （2026-10-13 稿㉑；文案逐字在稿，开回顺序重命名即消）。 */}
+                {row.name_conflict && (
+                  <span className="text-warn-ink">
+                    {" "}
+                    有同名文件(仅大小写不同)，建议开启顺序重命名
+                  </span>
+                )}
               </span>
             </li>
           );

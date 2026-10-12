@@ -74,15 +74,29 @@ class _Candidate:
 
 
 def ensure_importable_source(workdir: Path, source: Path) -> None:
-    """校验复制导入的来源目录可用：存在、是目录、与工作目录不同且互不嵌套。
+    """校验复制导入的来源可用：存在（目录或单个文件）、与工作目录不冲突。
+
+    单个文件也是合法来源（2026-10-13 补后端单文件能力，导入素材弹窗稿格 10／
+    D16：目录选择弹窗「选择此文件」）——文件落在工作目录内即冲突（复制会自我
+    覆盖，该用就地导入）；文件本身不受支持（扩展名／大小）不在本层拒，扫描层
+    按「不可导入的不进列表」给空态（稿状态矩阵行 5）。
 
     Raises:
-        WorkdirPathError: 来源不存在或不是目录。
-        ImportSourceConflictError: 来源与工作目录相同或互为嵌套（复制会自我覆盖）。
+        WorkdirPathError: 来源不存在或不可读取。
+        ImportSourceConflictError: 来源与工作目录相同、互为嵌套，或来源文件
+            已在工作目录内。
     """
+    if source.is_file():
+        real_workdir = os.path.realpath(workdir)
+        real_source = os.path.realpath(source)
+        if real_source.startswith(real_workdir + os.sep):
+            raise ImportSourceConflictError(
+                f"来源文件「{source}」已在工作目录内——请选择就地导入。",
+            )
+        return
     if not source.is_dir():
         raise WorkdirPathError(
-            f"来源目录「{source}」不存在或不是目录——请检查后重试。",
+            f"来源「{source}」不存在或不可读取——请检查后重试。",
         )
     real_workdir = os.path.realpath(workdir)
     real_source = os.path.realpath(source)
@@ -100,6 +114,9 @@ def ensure_importable_source(workdir: Path, source: Path) -> None:
 
 def preview_import_source(workdir: Path, source: Path) -> list[tuple[str, int]]:
     """按来源扫一遍，只列「即将导入的文件」（名称，字节数）。
+
+    来源可以是目录（平铺扫描）或单个文件（支持性直判）——单文件不受支持时
+    候选为空，界面按空态处理（「没有可以导入的文件」，稿状态矩阵行 5）。
 
     进不了清单的两类一律不列（2026-10-10 用户裁「显示框的语义就是即将导入的文件，
     而不是所有文件」）：白名单外与超限的由 `_scan_assets` 挡下，同名已在册的复制进去
@@ -129,15 +146,19 @@ def size_limit(suffix: str) -> int:
     return MAX_VIDEO_BYTES if suffix.lower() in VIDEO_EXTENSIONS else MAX_IMAGE_BYTES
 
 
-def _scan_assets(directory: Path) -> tuple[list[_Candidate], list[dict[str, str]]]:
-    """平铺扫描一个目录（不递归），按窄清单与大小护栏分成候选与拒绝两组。
+def _scan_assets(source: Path) -> tuple[list[_Candidate], list[dict[str, str]]]:
+    """扫描一个来源，按窄清单与大小护栏分成候选与拒绝两组。
 
-    只认文件（子目录跳过）；扩展名大小写不敏感；白名单外与超限的文件进拒绝组
-    并带标准原因——它们会出现在「未导入」反馈里由用户处置。
+    目录来源＝平铺扫描（不递归）：只认文件（子目录跳过），扩展名大小写不敏感，
+    白名单外与超限的文件进拒绝组并带标准原因。单文件来源＝支持性直判
+    （2026-10-13 补后端单文件能力）：不支持的同样进拒绝组，由调用方按
+    「不可导入的不进列表」处理（稿状态矩阵行 5）。
     """
+    if source.is_file():
+        return _scan_single_file(source)
     candidates: list[_Candidate] = []
     rejected: list[dict[str, str]] = []
-    for entry in sorted(directory.iterdir(), key=lambda item: item.name):
+    for entry in sorted(source.iterdir(), key=lambda item: item.name):
         if not entry.is_file():
             continue
         suffix = entry.suffix.lower()
@@ -152,6 +173,17 @@ def _scan_assets(directory: Path) -> tuple[list[_Candidate], list[dict[str, str]
             continue
         candidates.append(_Candidate(name=entry.name, path=entry, size=size))
     return candidates, rejected
+
+
+def _scan_single_file(file: Path) -> tuple[list[_Candidate], list[dict[str, str]]]:
+    """单文件来源的支持性检测：过窄清单与大小护栏即候选，否则拒绝组带标准原因。"""
+    suffix = file.suffix.lower()
+    if suffix not in ASSET_EXTENSIONS:
+        return [], [{"name": file.name, "reason": REASON_UNSUPPORTED_EXTENSION}]
+    size = file.stat().st_size
+    if size > size_limit(suffix):
+        return [], [{"name": file.name, "reason": REASON_OVERSIZE}]
+    return [_Candidate(name=file.name, path=file, size=size)], []
 
 
 def _copy_into_workdir(store: WorkdirStore, source_file: Path, dest_name: str) -> str:
@@ -253,8 +285,9 @@ def import_assets(
 ) -> dict[str, Any]:
     """持目录级导入锁执行素材导入，跨 CLI 与 HTTP 进程防止登记丢失。
 
-    source 缺省为就地采用；force_names 控制异名同容文件的强制导入。
-    should_stop 与 progress 分别接收取消信号和文件级进度回调。
+    source 缺省为就地采用；目录平铺扫描（不递归）、单个文件支持性直判
+    （2026-10-13 补后端单文件能力，稿格 10／D16）。force_names 控制异名同容
+    文件的强制导入。should_stop 与 progress 分别接收取消信号和文件级进度回调。
     """
     if not workdir.is_dir():
         raise WorkdirPathError("工作目录不存在，请检查路径后重试。")
@@ -282,8 +315,10 @@ def _import_assets(
 
     Args:
         workdir: 工作目录路径（须已登记；``.dsf/`` 结构由 WorkdirStore 确保）。
-        source: 来源目录；``None`` = 就地采用（来源记工作目录自身、不复制）。
-            提供时经 :func:`ensure_importable_source` 校验。
+        source: 来源目录或单个文件；``None`` = 就地采用（来源记工作目录自身、
+            不复制）。目录提供时平铺扫描（不递归）；单文件提供时支持性直判
+            （2026-10-13 补后端单文件能力，稿格 10／D16）。两种都经
+            :func:`ensure_importable_source` 校验。
         force_names: 异名同容时仍按新名强制导入的源文件名清单（同名异容不受
             影响——本版不提供替换操作）。
         names: 只处理指定文件名；None 表示扫描全部，不接受路径。
@@ -302,8 +337,9 @@ def _import_assets(
         （白名单外 / 超限 / 主干冲突，含原因）。
 
     Raises:
-        WorkdirPathError: 来源目录不存在或不是目录。
-        ImportSourceConflictError: 来源与工作目录相同或互为嵌套。
+        WorkdirPathError: 来源不存在或不可读取。
+        ImportSourceConflictError: 来源与工作目录相同、互为嵌套，或来源文件
+            已在工作目录内。
         WorkdirError: 复制失败（磁盘 / 权限等，消息带文件名）。
         TaskCancelledError: 取消信号置位。
     """

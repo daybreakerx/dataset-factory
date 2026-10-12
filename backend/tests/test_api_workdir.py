@@ -497,6 +497,42 @@ def test_import_preview_reports_same_directory_conflict(
     assert response.json()["detail"] == "当前选择的目录即为工作目录，请选择就地导入。"
 
 
+def test_import_preview_accepts_single_file(client: TestClient, tmp_path: Path) -> None:
+    """扫描预览接受单个文件来源（2026-10-13 稿格 10／D16）：列出该文件即「即将导入」。"""
+    target = tmp_path / "photos"
+    target.mkdir()
+    entry = WorkdirRegistry.register(target, title="")
+    picked = tmp_path / "picked.jpg"
+    picked.write_bytes(_PNG_BYTES)
+
+    response = client.get(
+        f"/api/workdirs/{entry.id}/import-preview", params={"source": str(picked)}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "files": [{"name": "picked.jpg", "size": len(_PNG_BYTES)}]
+    }
+
+
+def test_import_preview_single_file_unsupported_returns_empty(
+    client: TestClient, tmp_path: Path
+) -> None:
+    """扫描预览的单文件不受支持 → 空列表（界面按稿矩阵行 5 走空态，不报错）。"""
+    target = tmp_path / "photos"
+    target.mkdir()
+    entry = WorkdirRegistry.register(target, title="")
+    picked = tmp_path / "notes.txt"
+    picked.write_bytes(b"plain-text-not-an-asset")
+
+    response = client.get(
+        f"/api/workdirs/{entry.id}/import-preview", params={"source": str(picked)}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"files": []}
+
+
 def test_import_endpoint_unknown_wid_returns_problem_json(
     tmp_path: Path, temp_data_root: Path
 ) -> None:

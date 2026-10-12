@@ -677,8 +677,73 @@ def test_source_missing_rejected(
     workdir: Path, tmp_path: Path, temp_data_root: Path
 ) -> None:
     """来源不存在 → WorkdirPathError（400 档）。"""
-    with pytest.raises(WorkdirPathError, match="来源目录"):
+    with pytest.raises(WorkdirPathError, match="来源"):
         import_assets(workdir, tmp_path / "nope")
+
+
+def test_single_file_source_imports(
+    workdir: Path, tmp_path: Path, temp_data_root: Path
+) -> None:
+    """单文件来源（2026-10-13 稿格 10／D16）：支持性过 → 复制进工作目录并登记。"""
+    source_file = _write(tmp_path, "picked.jpg", _PNG_BYTES)
+
+    report = import_assets(workdir, source_file)
+
+    assert (workdir / "picked.jpg").read_bytes() == _PNG_BYTES
+    assert report["imported"] == ["picked.jpg"]
+    records = _read_records(workdir)
+    assert records[0]["source"] == str(source_file)
+    assert records[0]["files"] == [{"name": "picked.jpg", "sha256": _sha(_PNG_BYTES)}]
+
+
+def test_single_file_unsupported_extension_rejected(
+    workdir: Path, tmp_path: Path, temp_data_root: Path
+) -> None:
+    """单文件来源不受支持（扩展名）：不导入、拒绝组带标准原因（稿矩阵行 5 空态的数据源）。"""
+    _write(tmp_path, "notes.txt", b"text")
+
+    report = import_assets(workdir, tmp_path / "notes.txt")
+
+    assert report["imported"] == []
+    assert not (workdir / "notes.txt").exists()
+    rejected = {item["name"]: item["reason"] for item in report["rejected"]}
+    assert rejected["notes.txt"] == "扩展名不支持"
+    assert _read_records(workdir)[0]["files"] == []
+
+
+def test_single_file_oversize_rejected(
+    workdir: Path,
+    tmp_path: Path,
+    temp_data_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """单文件来源超出大小护栏：不导入、拒绝组＝超出大小上限。"""
+    monkeypatch.setattr(importer_module, "MAX_IMAGE_BYTES", 10)
+    _write(tmp_path, "big.jpg", b"12345678901")
+
+    report = import_assets(workdir, tmp_path / "big.jpg")
+
+    assert report["imported"] == []
+    rejected = {item["name"]: item["reason"] for item in report["rejected"]}
+    assert rejected["big.jpg"] == "超出大小上限"
+
+
+def test_single_file_inside_workdir_rejected(
+    workdir: Path, temp_data_root: Path
+) -> None:
+    """单文件来源已在工作目录内 → 冲突（复制会自我覆盖，该用就地导入）。"""
+    _write(workdir, "cat_001.jpg", _PNG_BYTES)
+
+    with pytest.raises(ImportSourceConflictError, match="就地导入"):
+        import_assets(workdir, workdir / "cat_001.jpg")
+
+
+def test_single_file_missing_rejected(
+    workdir: Path, tmp_path: Path, temp_data_root: Path
+) -> None:
+    """单文件来源路径不存在 → WorkdirPathError（400 档）。"""
+    with pytest.raises(WorkdirPathError, match="来源"):
+        import_assets(workdir, tmp_path / "nope.jpg")
 
 
 def test_copy_failure_fails_loud_with_filename(

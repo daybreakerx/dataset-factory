@@ -163,6 +163,35 @@ export function withRetryItems(items: ItemMap, retry: readonly string[]): ItemMa
   return next;
 }
 
+/**
+ * T14 发车覆盖（条目行⑨）：这一场在飞的条目在**视图层**置「排队中」——原分组计数减一、
+ * 失败原因行撤下（reason_code／message 清空）。run 终态即失效（名单由父层清）。
+ *
+ * 只服务分组呈现：磁盘态、后端流水与选中键都不受影响（`withItemUpdate` 收到 started
+ * 时本来就把该行改 queued，覆盖只是把这个既有行为提前到「还没收到 started 事件的
+ * 在飞行」上——两条路径的选中键因此收敛到同一形）。done／unimported 不动；
+ * `in_retry` 保留（名单身份不是显示分组问题）。
+ */
+export function withInflightOverride(
+  items: ItemMap,
+  inflight: ReadonlySet<string>,
+): ItemMap {
+  if (inflight.size === 0) return items;
+  const next = new Map(items);
+  for (const key of inflight) {
+    const row = items.get(key);
+    if (
+      row === undefined ||
+      row.status === "queued" ||
+      row.status === "done" ||
+      row.status === "unimported"
+    )
+      continue;
+    next.set(key, { ...row, status: "queued", reason_code: null, message: null });
+  }
+  return next;
+}
+
 export function groupedItems(items: ItemMap, query: string): Record<string, ItemRow[]> {
   const groups: Record<string, ItemRow[]> = Object.fromEntries(
     ITEM_GROUPS.map(([key]) => [key, []]),

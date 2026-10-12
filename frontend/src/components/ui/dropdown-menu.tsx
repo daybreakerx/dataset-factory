@@ -67,6 +67,23 @@ function DropdownMenuContent({
       ) ?? content.querySelector<HTMLElement>('[role="menuitem"]:not([data-disabled])');
     (target ?? content).focus({ preventScroll: true });
   }, [open]);
+  useEffect(() => {
+    // T16 保活切页自愈（挂起清单「保活切页 aria-hidden 残留」）：弹窗开着跨切页往返时，
+    // 两层（dialog＋menu）hideOthers 的 effect 在 Activity 隐藏期卸载、切回重建——重建的
+    // 时序会把本菜单的 portal 壳误标 aria-hidden（菜单看得见点得动、可及性树里整块消失）。
+    // 修法＝菜单打开期间，下一帧把自家 portal 壳上的误标清掉（菜单开着时必须可及，被标即误标）；
+    // 晚于两层 hideOthers 的 commit effect 执行，不改任何 UX（关层后的恢复仍由 Radix 接管）。
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      const wrapper = contentRef.current?.parentElement ?? null;
+      if (wrapper === null) return;
+      if (wrapper.getAttribute("aria-hidden") === "true") {
+        wrapper.removeAttribute("aria-hidden");
+        wrapper.removeAttribute("data-aria-hidden");
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content

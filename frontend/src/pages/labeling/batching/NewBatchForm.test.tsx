@@ -411,7 +411,7 @@ describe("新建批次·表单头与素材来源", () => {
     expect(screen.queryByText("还没有可用的端点配置")).not.toBeInTheDocument();
   });
 
-  it("不可用的库策略是坏行：名降色、那句真话在场、行不可点", async () => {
+  it("不可用的库策略是坏行：红缀短式＋点行唤起「重新指定」弹窗（2026-10-13 E4）", async () => {
     const user = userEvent.setup();
     vi.mocked(api.listStrategies).mockResolvedValue([
       {
@@ -436,10 +436,13 @@ describe("新建批次·表单头与素材来源", () => {
     await user.click(screen.getByRole("button", { name: "策略来源" }));
 
     const row = await screen.findByRole("menuitem", { name: /库策略/ });
-    expect(row).toHaveAttribute("aria-disabled", "true");
     expect(row).toHaveAttribute("data-row", "bad");
-    // 坏行档＝名行红缀短式＋描述位去处句（与新增策略弹窗同族同句）；不承诺行内点击出口。
+    // 坏行档＝名行红缀短式＋描述位点击出口（E4 后不再写「去策略页」去处句）。
     expect(row).toHaveTextContent("引用缺失");
-    expect(row).toHaveTextContent("不可应用 · 到「策略」页重新指定后可用");
+    expect(row).toHaveTextContent("不可应用 · 点击重新指定");
+    // 出口＝本表单点坏行直接开「重新指定」弹窗（来源下拉收起、不叠层）。
+    await user.click(row);
+
+    expect(await screen.findByText("重新指定「库策略」")).toBeInTheDocument();
   });
 });

@@ -220,6 +220,7 @@ describe("批次概览", () => {
           asset_bytes: 12,
           caption_bytes: 6,
           reason: "用户排除",
+          name_conflict: false,
         },
       ],
       total_bytes: 0,

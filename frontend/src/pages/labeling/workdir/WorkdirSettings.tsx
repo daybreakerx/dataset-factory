@@ -1,12 +1,14 @@
 import { ArrowLeftIcon, RefreshCwIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../../api";
+import type { components } from "../../../api-types.gen";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
 import { FormError } from "../../../components/form-error";
 import { TrashIcon } from "../../../components/icons";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
 import { NewStrategyDialog } from "../batching/NewStrategyDialog";
+import { RepointStrategyDialog } from "../batching/RepointStrategyDialog";
 import { SnapshotDialog } from "../batching/SnapshotDialog";
 import { CleanupDialog } from "./CleanupDialog";
 import { DeleteWorkdirDialog } from "./DeleteWorkdirDialog";
@@ -31,6 +33,10 @@ export function WorkdirSettings({
   const [browse, setBrowse] = useState(false);
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
+  // 「重新指定」弹窗（2026-10-13 E4）：新增策略弹窗的引用缺失行点出来的修复出口。
+  const [repointing, setRepointing] = useState<
+    components["schemas"]["StrategyView"] | null
+  >(null);
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [cleanupOpen, setCleanupOpen] = useState(false);
@@ -172,11 +178,24 @@ export function WorkdirSettings({
               ? Math.max(...data.batches.map((entry) => entry.seq)) + 1
               : 1
           }
+          onRepointStrategy={(entry) => {
+            setCreating(false);
+            setRepointing(entry);
+          }}
           onClose={() => setCreating(false)}
           onCreated={() => {
             setCreating(false);
             data.refresh();
           }}
+        />
+      )}
+      {repointing && (
+        <RepointStrategyDialog
+          key={repointing.id}
+          strategy={repointing}
+          onClose={() => setRepointing(null)}
+          // 只修引用、不建批次：本页无策略库清单要刷（NewStrategyDialog 每次开窗自拉）。
+          onRepointed={() => setRepointing(null)}
         />
       )}
       {relocating && data.directory && (

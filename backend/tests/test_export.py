@@ -179,19 +179,52 @@ def test_sequence_width_expands_at_one_thousand(tmp_path: Path) -> None:
     assert plan.included[-1].caption_name == "1000.txt"
 
 
-def test_original_names_exclude_case_insensitive_caption_collisions(
+def test_original_names_keep_case_insensitive_dupes_with_marker(
     tmp_path: Path,
 ) -> None:
-    """保留原名时，大小写不同但会解压成同名 caption 的素材提前列为冲突。"""
+    """关态同名（仅大小写不同）仍入包＋行内标记（2026-10-13 稿㉑：默认入包＋琥珀警告）。
+
+    翻案前＝整批移入被排除（配对冲突）；裁后＝不排除、不报错，行上带
+    name_conflict 供界面挂「有同名文件(仅大小写不同)，建议开启顺序重命名」。
+    """
     _pair(tmp_path, "Photo.jpg")
     _pair(tmp_path, "photo.png")
     _register(tmp_path, ["Photo.jpg", "photo.png"])
 
     plan = build_export_plan(tmp_path, 1, labeling_hashes={}, sequential=False)
 
-    assert not plan.included
-    assert len(plan.excluded) == 2
-    assert all(row.reason == "配对冲突" for row in plan.excluded)
+    assert len(plan.included) == 2
+    assert all(row.name_conflict for row in plan.included)
+    assert all(row.reason is None for row in plan.excluded)
+
+
+def test_export_disambiguates_case_collisions_in_zip(tmp_path: Path) -> None:
+    """关态同名行照常入包，写包层对撞名条目随行消歧（稿㉑兜底，不硬失败）。"""
+    _pair(tmp_path, "Photo.jpg")
+    _pair(tmp_path, "photo.png")
+    _register(tmp_path, ["Photo.jpg", "photo.png"])
+
+    plan = build_export_plan(tmp_path, 1, labeling_hashes={}, sequential=False)
+    output = write_export(tmp_path, plan, tmp_path / "dataset.zip")
+
+    with ZipFile(output) as archive:
+        assert archive.namelist() == [
+            "Photo.jpg",
+            "Photo.txt",
+            "photo.png",
+            "photo (2).txt",
+        ]
+
+
+def test_sequential_numbering_never_marks_name_conflict(tmp_path: Path) -> None:
+    """顺序态编号唯一：同名素材（仅大小写不同）不落 name_conflict 标记。"""
+    _pair(tmp_path, "Photo.jpg")
+    _pair(tmp_path, "photo.png")
+    _register(tmp_path, ["Photo.jpg", "photo.png"])
+
+    plan = build_export_plan(tmp_path, 1, labeling_hashes={})
+
+    assert all(not row.name_conflict for row in plan.included)
 
 
 @pytest.mark.parametrize("changed_name", ["a.jpg", "s1__a.txt"])
@@ -278,17 +311,30 @@ def test_existing_output_is_not_overwritten(tmp_path: Path) -> None:
     assert output.read_bytes() == b"existing"
 
 
-@pytest.mark.parametrize("name", ["../a.jpg", "..\\a.jpg", "001.txt"])
-def test_unsafe_or_conflicting_output_names_are_rejected(
-    tmp_path: Path, name: str
-) -> None:
-    """库调用方传入包含路径或图文重名的计划时，不生成危险 ZIP。"""
+@pytest.mark.parametrize("name", ["../a.jpg", "..\\a.jpg"])
+def test_unsafe_output_names_are_rejected(tmp_path: Path, name: str) -> None:
+    """库调用方传入含路径段的计划名时不生成危险 ZIP（撞名不再拒——2026-10-13 稿㉑）。"""
     _pair(tmp_path, "a.jpg")
     _register(tmp_path, ["a.jpg"])
     plan = build_export_plan(tmp_path, 1, labeling_hashes={})
     plan = replace(plan, included=[replace(plan.included[0], asset_name=name)])
 
-    with pytest.raises(ExportError, match="冲突"):
+    with pytest.raises(ExportError, match="路径"):
         write_export(tmp_path, plan, tmp_path / "dataset.zip")
 
     assert not (tmp_path / "dataset.zip").exists()
+
+
+def test_duplicate_output_names_are_disambiguated_not_rejected(
+    tmp_path: Path,
+) -> None:
+    """图文重名的计划不再整包拒绝（2026-10-13 稿㉑兜底改消歧）：ZIP 照常生成。"""
+    _pair(tmp_path, "a.jpg")
+    _register(tmp_path, ["a.jpg"])
+    plan = build_export_plan(tmp_path, 1, labeling_hashes={})
+    plan = replace(plan, included=[replace(plan.included[0], asset_name="001.txt")])
+
+    output = write_export(tmp_path, plan, tmp_path / "dataset.zip")
+
+    with ZipFile(output) as archive:
+        assert archive.namelist() == ["001.txt", "001 (2).txt"]

@@ -1094,6 +1094,10 @@ class ExportPlanRow(BaseModel):
         default=None,
         description="来源那儿还有没有这份素材（null＝本行不是缺失行）",
     )
+    name_conflict: bool = Field(
+        default=False,
+        description="关态同名行（仅大小写不同）标记：仍入包，界面行内挂琥珀提示（2026-10-13 稿㉑）",
+    )
 
 
 class ExportPlanView(BaseModel):

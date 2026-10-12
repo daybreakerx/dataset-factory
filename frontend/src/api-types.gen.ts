@@ -2358,6 +2358,12 @@ export interface components {
              */
             name: string;
             /**
+             * Name Conflict
+             * @description 关态同名行（仅大小写不同）标记：仍入包，界面行内挂琥珀提示（2026-10-13 稿㉑）
+             * @default false
+             */
+            name_conflict: boolean;
+            /**
              * Reason
              * @description 被排除的具体原因
              */

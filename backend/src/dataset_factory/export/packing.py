@@ -35,6 +35,8 @@ class ExportRow:
 
     ``source`` / ``recoverable`` 只在「缺失」排除行上填：界面据此决定给
     「重新导入」（来源还在）还是「重新指定」（来源已没了）——与左列缺失行同一把尺。
+    ``name_conflict`` 只在关态同名行上置位（2026-10-13 稿㉑）：照常入包，
+    界面行内挂琥珀标记「有同名文件(仅大小写不同)，建议开启顺序重命名」。
     """
 
     item: str
@@ -49,6 +51,7 @@ class ExportRow:
     reason: str | None = None
     source: str | None = None
     recoverable: bool | None = None
+    name_conflict: bool = False
 
 
 # 「素材在、本批还没有可用产物」的两类：不入将入包、也不进被排除清单——它们的家在
@@ -82,7 +85,9 @@ def build_export_plan(
     """扫描当前批次配对，按导入顺序生成清单；过期和未知锚点不自动排除。
 
     批次存在性、活跃状态与运行流水由入口层核实并传入；本模块只依赖工作目录域。
-    磁盘上的同主干多素材按配对冲突排除，避免悄悄选择其中一份交付。
+    磁盘上的同主干多素材（顺序态也用 001 编号之外的物理撞名）按配对冲突排除，
+    避免悄悄选择其中一份交付；关态用原名时的同类名（仅大小写不同）不再排除
+    （2026-10-13 稿㉑）——仍入包、行内挂标记，出路＝开回顺序重命名。
     """
     _check_cancel(should_stop)
     if seq < 1:
@@ -148,17 +153,21 @@ def build_export_plan(
             ExportRow(Path(unimported.name).stem, unimported.name, reason="未登记")
         )
     if not sequential:
+        # 关态用原名：同类名（仅大小写不同）不再整批移入被排除——2026-10-13
+        # 稿㉑「默认入包＋琥珀色警告」：仍入包、行内挂标记（一句即含出路＝
+        # 开回顺序重命名得 001／002 天然不撞名）；打包层对撞名行随行消歧，
+        # 不硬失败（原 ExportError 兜底让 Linux 用户打不出包）。
         stems: dict[str, int] = {}
         for row in included:
             key = row.item.casefold()
             stems[key] = stems.get(key, 0) + 1
         conflicts = {key for key, count in stems.items() if count > 1}
-        excluded.extend(
-            replace(row, reason="配对冲突")
-            for row in included
+        included = [
+            replace(row, name_conflict=row.item.casefold() in conflicts)
             if row.item.casefold() in conflicts
-        )
-        included = [row for row in included if row.item.casefold() not in conflicts]
+            else row
+            for row in included
+        ]
     width = max(3, len(str(len(included))))
     included = [
         replace(
@@ -181,6 +190,24 @@ def build_export_plan(
         sum(row.asset_bytes + row.caption_bytes for row in included),
         not sequential and any(not row.name.isascii() for row in included),
     )
+
+
+def _disambiguate(name: str, used: set[str]) -> str:
+    """ZIP 内条目名撞名（仅大小写不同）时随行加序号后缀，返回可用的条目名。
+
+    2026-10-13 稿㉑兜底：关态同名行照常入包，写包层不再整包失败——对撞名行
+    逐个消歧（``stem (2).ext`` 起，资源管理器同款），顺序态编号唯一本是 no-op。
+    """
+    if name.casefold() not in used:
+        used.add(name.casefold())
+        return name
+    stem, suffix = Path(name).stem, Path(name).suffix
+    index = 2
+    while f"{stem} ({index}){suffix}".casefold() in used:
+        index += 1
+    unique = f"{stem} ({index}){suffix}"
+    used.add(unique.casefold())
+    return unique
 
 
 def _check_cancel(should_stop: Event | None) -> None:
@@ -222,6 +249,8 @@ def write_export(
 
     临时包与目标位于同一文件系统；Windows 用不覆盖改名，Unix 用硬链接原子发布。
     失败或取消只清除本次临时包，不修改素材、caption 和已存在的交付物。
+    条目名撞名（关态同名行的两类文件）随行消歧加序号后缀（2026-10-13 稿㉑），
+    不整包失败——提示与出路在计划行 ``name_conflict`` 标记。
     """
     _check_cancel(should_stop)
     if not plan.included:
@@ -233,16 +262,13 @@ def write_export(
         raise ExportError("输出文件必须使用 .zip 扩展名。")
     if not destination.parent.is_dir():
         raise ExportError("输出目录不存在，请选择已有目录。")
-    names: set[str] = set()
     for row in plan.included:
         for name in (row.asset_name, row.caption_name):
-            if (
-                not name
-                or not is_single_path_segment(name)
-                or (name.casefold() in names)
-            ):
-                raise ExportError("导出文件名存在路径或配对冲突，请重新生成导出计划。")
-            names.add(name.casefold())
+            if not name or not is_single_path_segment(name):
+                raise ExportError("导出文件名存在路径问题，请重新生成导出计划。")
+            # 撞名不再整包失败（2026-10-13 稿㉑）：写入时随行消歧（见 _disambiguate），
+            # 提示与出路在计划行 name_conflict 标记（界面琥珀句）。
+    used: set[str] = set()
     with tempfile.NamedTemporaryFile(
         dir=destination.parent, prefix=".dsf-export-", suffix=".tmp", delete=False
     ) as handle:
@@ -256,12 +282,16 @@ def write_export(
                 asset = confine_to_workdir(workdir, workdir / row.name)
                 caption = product_path(workdir, plan.batch, row.item)
                 _write_member(
-                    archive, asset, str(row.asset_name), row.asset_hash, should_stop
+                    archive,
+                    asset,
+                    _disambiguate(str(row.asset_name), used),
+                    row.asset_hash,
+                    should_stop,
                 )
                 _write_member(
                     archive,
                     caption,
-                    str(row.caption_name),
+                    _disambiguate(str(row.caption_name), used),
                     row.caption_hash,
                     should_stop,
                 )

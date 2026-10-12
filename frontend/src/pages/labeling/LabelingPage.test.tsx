@@ -23,6 +23,7 @@ vi.mock("../../api", () => ({
     getTask: vi.fn(),
     cancelTask: vi.fn(),
     getBatchSnapshot: vi.fn(),
+    startRun: vi.fn().mockResolvedValue({ run_id: "run" }),
     currentRun: vi.fn().mockResolvedValue({ status: "completed" }),
     latestRun: vi.fn(),
     exportPlan: vi.fn().mockResolvedValue({
@@ -258,6 +259,144 @@ describe("打标页读取流程", () => {
     expect(
       screen.queryByRole("heading", { name: "second.jpg" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("立即中断后半截留在原地并挂「已中断」琥珀标签（E5 稿矩阵⑨）", async () => {
+    // jsdom 的 dispatchEvent 不联动 onopen handler 属性（实测），mock 类自带 fireOpen。
+    let source: (EventTarget & { fireOpen: () => void }) | undefined;
+    vi.stubGlobal(
+      "EventSource",
+      class extends EventTarget {
+        onopen: ((event: Event) => void | Promise<void>) | null = null;
+        constructor() {
+          super();
+          source = this;
+        }
+        close(): void {}
+        fireOpen(): void {
+          void this.onopen?.(new Event("open"));
+        }
+      },
+    );
+    vi.mocked(api.currentRun).mockResolvedValue({
+      run_id: "run",
+      status: "running",
+      batch: 1,
+      mode: "full",
+      counters: { planned: 2, attempted: 0 },
+      current_item: "first",
+      error: null,
+    });
+    vi.mocked(api.listItems).mockResolvedValue(view("first"));
+    render(<LabelingPage />);
+
+    // 跟随在飞条目 → 条目预览挂载；开层就绪后 started＋一段正文增量下半截在场。
+    await screen.findByRole("heading", { name: "first.jpg" });
+    await act(async () => {
+      source?.fireOpen();
+      // onopen 链是 async（syncProgress＋onFinish 各一拍），补拍确保 ready 落定后再发事件。
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      source?.dispatchEvent(
+        new MessageEvent("item-updated", {
+          data: JSON.stringify({
+            item: "first",
+            batch: 1,
+            status: "started",
+            attempt: 0,
+            can_retry: false,
+            reason_code: null,
+            message: null,
+          }),
+        }),
+      );
+    });
+    await act(async () => {
+      source?.dispatchEvent(
+        new MessageEvent("item-delta", {
+          data: JSON.stringify({
+            item: "first",
+            batch: 1,
+            delta: "content",
+            text: "一位年轻女性站在米白色纱帘前",
+          }),
+        }),
+      );
+    });
+    expect(await screen.findByText(/纱帘前/)).toBeInTheDocument();
+
+    // run-finished(interrupted)＝手动停止：半截不清空、标签出场（琥珀）。
+    await act(async () => {
+      source?.dispatchEvent(
+        new MessageEvent("run-finished", {
+          data: JSON.stringify({
+            run_id: "run",
+            batch: 1,
+            status: "interrupted",
+            counters: { planned: 2, attempted: 1 },
+          }),
+        }),
+      );
+    });
+
+    expect(screen.getByText(/纱帘前/)).toBeInTheDocument();
+    expect(screen.getByText("已中断")).toBeInTheDocument();
+  });
+
+  it("开始重试发车后：在飞的失败行视图层转「排队中」、撤出原分组且不带原因（T14 条目行⑨）", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "EventSource",
+      class extends EventTarget {
+        close(): void {}
+      },
+    );
+    vi.mocked(api.currentRun).mockResolvedValue({
+      run_id: "run",
+      status: "running",
+      batch: 1,
+      mode: "retry",
+      counters: { planned: 1, attempted: 0 },
+      current_item: null,
+      error: null,
+    });
+    const failed = view("first");
+    failed.groups.done = [];
+    failed.groups.failed = [
+      {
+        item: "first",
+        name: "first.jpg",
+        status: "failed",
+        media: "image",
+        in_retry: true,
+        can_retry: true,
+        reason_code: "timeout",
+        message: "端点超时",
+      },
+    ];
+    failed.groups.retry = [...failed.groups.failed];
+    vi.mocked(api.listItems).mockResolvedValue(failed);
+    render(<LabelingPage />);
+
+    // 初始：失败行在「未完成」组、原因行在场（行同时在重试清单里，按组取）。
+    await screen.findByRole("region", { name: "未完成" });
+    expect(
+      within(screen.getByRole("region", { name: "未完成" })).getByText("端点超时"),
+    ).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /开始重试/ }));
+
+    // 发车受理后（run 在飞）：视图层转「排队中」——原分组撤出、失败原因不带。
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("region", { name: "排队中" })).getByText("first.jpg"),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      within(screen.getByRole("region", { name: "未完成" })).queryByText("first.jpg"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("端点超时")).not.toBeInTheDocument();
   });
 
   it("未导入删除先确认，成功刷新清单且保留同主干在册素材", async () => {

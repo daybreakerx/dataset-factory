@@ -235,11 +235,13 @@ test.describe("页面状态保持", () => {
     await page.getByRole("button", { name: "返回工作区" }).click();
     // 切回来什么都不丢：表单值还在、弹层还开着；隐藏期「挂载即取数」的 effect 随保活机制卸载、
     // 切回重建时又拉了一遍，所以新端点不用重开弹窗就进了列表（笔⑦同一机制的跨页那一面）。
-    // 这一段按节点／文本取而不按可及名：保活把 dialog 与弹层两层 hideOthers 的存取序打乱了，
-    // 切回后两层 portal 上残留 aria-hidden="true"（看得见、点得动，可及性树里没它——挂起清单那笔）。
+    // T16 修复后（2026-10-13，残留自愈在 ui/dropdown-menu 的 DropdownMenuContent）：弹层 portal
+    // 不再残留 aria-hidden——menu 项按**可及角色**就能拿到（修复前的防线写法是 CSS 属性选择器）。
+    // dialog 内的 input 仍按节点取：menu 开着时 dialog 处在嵌套 hideOthers 的遮蔽下（Radix 嵌套
+    // 常态——未切页时也如此），不是保活缺陷。
     await expect(dialogNode.locator("input")).toHaveValue("切页不该丢");
     await expect(
-      page.locator('[role="menuitem"]', { hasText: "跨切页端点 · relisted" }),
+      page.getByRole("menuitem", { name: /跨切页端点 · relisted/ }),
     ).toBeVisible();
   });
 });

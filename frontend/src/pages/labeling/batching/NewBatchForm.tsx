@@ -9,10 +9,12 @@ import { parseImportReport } from "../runs/import-report";
 import type { BatchSelection } from "./BatchSelector";
 import { BatchSourceFields, idleInfo, type SourceInfo } from "./batch-source-fields";
 import { BatchStrategyFields } from "./batch-strategy-fields";
+import { RepointStrategyDialog } from "./RepointStrategyDialog";
 import { useBatchFormLists } from "./use-batch-form-lists";
 
 type Workdir = components["schemas"]["WorkdirInfo"];
 type ScanPreviewView = components["schemas"]["ScanPreviewView"];
+type StrategyView = components["schemas"]["StrategyView"];
 
 /** 导入／登记完成后的信息位（§22 .nb-doneinfo 的取数）。 */
 interface DoneInfo {
@@ -30,6 +32,8 @@ interface Props {
   onNavigateToSettings?: () => void;
   /** 跳策略页对话区（「拿不准效果？先在对话中用单张试标」动线）。 */
   onOpenWorkbench?: () => void;
+  /** 外部驱动的四表重拉信号（「重新指定」弹窗修好策略引用后＋1：坏行当场回 healthy）。 */
+  refreshKey?: number;
 }
 
 /**
@@ -44,6 +48,7 @@ export function NewBatchForm({
   onCreated,
   onNavigateToSettings,
   onOpenWorkbench,
+  refreshKey = 0,
 }: Props) {
   const id = useId();
   const lists = useBatchFormLists();
@@ -71,10 +76,19 @@ export function NewBatchForm({
   // 创建批次（头行主钮）两件：在飞与失败真话——都落头行消息槽，一槽一消息互斥替换。
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
+  // 「重新指定」弹窗（2026-10-13 E4）：策略来源下拉的引用缺失行点出来的修复出口。
+  const [repointing, setRepointing] = useState<StrategyView | null>(null);
   const mounted = useRef(false);
   const pending = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const wake = useRef<(() => void) | undefined>(undefined);
+  // 外部重拉信号（refreshKey 变化＝「重新指定」弹窗修好了策略引用）：重拉四表、
+  // 不重挂表单（取最新闭包用 ref 承接，先例＝NewStrategyDialog 的 load ref）。
+  const reloadLists = useRef(lists.reload);
+  reloadLists.current = lists.reload;
+  useEffect(() => {
+    if (refreshKey > 0) reloadLists.current();
+  }, [refreshKey]);
 
   useEffect(() => {
     mounted.current = true;
@@ -344,6 +358,7 @@ export function NewBatchForm({
           onSelectedSkillsChange={setSelectedSkills}
           onNavigateToSettings={onNavigateToSettings}
           onOpenWorkbench={onOpenWorkbench}
+          onRepointStrategy={setRepointing}
         />
         {/* 试标动线（策略件笔⑩）：hint 一句＋accent 小钮，去向＝策略页对话区。
             原第二行「体积上限…」meter 撤——体积与扩展名范围已进扫描钮气泡（笔⑦）。 */}
@@ -356,6 +371,17 @@ export function NewBatchForm({
           </div>
         )}
       </div>
+      {repointing && (
+        <RepointStrategyDialog
+          key={repointing.id}
+          strategy={repointing}
+          onClose={() => setRepointing(null)}
+          onRepointed={() => {
+            setRepointing(null);
+            lists.reload();
+          }}
+        />
+      )}
     </section>
   );
 }

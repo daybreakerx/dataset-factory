@@ -1146,6 +1146,12 @@
             "title": "Name",
             "type": "string"
           },
+          "name_conflict": {
+            "default": false,
+            "description": "关态同名行（仅大小写不同）标记：仍入包，界面行内挂琥珀提示（2026-10-13 稿㉑）",
+            "title": "Name Conflict",
+            "type": "boolean"
+          },
           "reason": {
             "anyOf": [
               {

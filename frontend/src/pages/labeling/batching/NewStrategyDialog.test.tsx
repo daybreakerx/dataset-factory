@@ -47,6 +47,7 @@ function renderDialog(props: {
   onClose?: () => void;
   onNavigateToSettings?: () => void;
   onOpenWorkbench?: () => void;
+  onRepointStrategy?: (strategy: typeof BROKEN) => void;
 }): ReactElement {
   return (
     <NewStrategyDialog
@@ -57,6 +58,7 @@ function renderDialog(props: {
       onCreated={props.onCreated ?? vi.fn()}
       onNavigateToSettings={props.onNavigateToSettings}
       onOpenWorkbench={props.onOpenWorkbench}
+      onRepointStrategy={props.onRepointStrategy}
     />
   );
 }
@@ -196,19 +198,23 @@ describe("新增策略弹窗", () => {
     expect(screen.getByRole("button", { name: "Skill" })).toHaveTextContent("未选");
   });
 
-  it("引用缺失的库项是坏行：红缀短式＋去处句、aria-disabled 不给处置出口", async () => {
+  it("引用缺失的库项是坏行：红缀短式＋点行唤起「重新指定」并关本窗（2026-10-13 E4）", async () => {
     const user = userEvent.setup();
+    const onRepointStrategy = vi.fn();
+    const onClose = vi.fn();
     vi.mocked(api.listStrategies).mockResolvedValue([AVAILABLE, BROKEN]);
-    render(renderDialog({}));
+    render(renderDialog({ onRepointStrategy, onClose }));
 
     await user.click(screen.getByRole("button", { name: "策略来源" }));
     const broken = await screen.findByRole("menuitem", { name: /实验·极简/ });
-    expect(broken).toHaveAttribute("aria-disabled", "true");
     expect(broken).toHaveTextContent("引用缺失");
-    expect(broken).toHaveTextContent("不可应用 · 到「策略」页重新指定后可用");
-    await user.keyboard("{Escape}");
+    expect(broken).toHaveTextContent("不可应用 · 点击重新指定");
+    // 出口＝本窗点坏行：转交「重新指定」弹窗（父层串行开），本窗随之关闭（不叠层）。
+    await user.click(broken);
 
-    // 本窗不给处置出口（弹窗不叠弹窗）：来源仍是「从零配置」。
+    expect(onRepointStrategy).toHaveBeenCalledExactlyOnceWith(BROKEN);
+    expect(onClose).toHaveBeenCalledOnce();
+    // 没选中坏行：来源仍是「从零配置」（下拉随默认关层行为收起）。
     expect(screen.getByRole("button", { name: "策略来源" })).toHaveTextContent(
       "从零配置",
     );

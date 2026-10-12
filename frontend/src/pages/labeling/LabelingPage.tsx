@@ -1,6 +1,7 @@
 import { FileImageIcon, PanelLeftOpenIcon, PlusIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, corruptedRunOf, errorMessage } from "../../api";
+import type { components } from "../../api-types.gen";
 import { DirectoryPicker } from "../../components/DirectoryPicker";
 import { FormError } from "../../components/form-error";
 import { Button } from "../../components/ui/button";
@@ -17,6 +18,7 @@ import { BatchConfiguration } from "./batching/BatchConfiguration";
 import { BatchSelector } from "./batching/BatchSelector";
 import { NewBatchForm } from "./batching/NewBatchForm";
 import { NewStrategyDialog } from "./batching/NewStrategyDialog";
+import { RepointStrategyDialog } from "./batching/RepointStrategyDialog";
 import { useBatchRunState } from "./hooks/use-batch-run-state";
 import { loadWorkdirBatches, useWorkdirBatches } from "./hooks/use-workdir-batches";
 import {
@@ -33,6 +35,7 @@ import {
   itemKeyFromSelection,
   itemsFromGroups,
   selectionKey,
+  withInflightOverride,
   withItemUpdate,
   withRetryItems,
 } from "./runs/items-state";
@@ -89,19 +92,42 @@ export function LabelingPage({
   const [creating, setCreating] = useState(false);
   const [settingsWid, setSettingsWid] = useState<string | null>(null);
   const [newStrategyWid, setNewStrategyWid] = useState<string | null>(null);
+  // 「重新指定」弹窗（2026-10-13 E4）：新增策略弹窗的引用缺失行点出来的修复出口
+  // （与素材域的 repoint 是两回事——那个选文件，这个改策略引用）。
+  const [repointStrategy, setRepointStrategy] = useState<
+    components["schemas"]["StrategyView"] | null
+  >(null);
+  // 「重新指定」成功后的重拉信号：驱动新建批次表单重拉四表（坏行当场回 healthy）。
+  const [listsRevision, setListsRevision] = useState(0);
   // 跑批中点条目会停跟随——给可见提示 + 「继续跟随」钮，不再静默停。
   const [followPaused, setFollowPaused] = useState(false);
   // 跑批中的「当前产出」逐字呈现（思考只展示不落盘，关掉页面即没）。
+  // stopped＝中断停因（E5，产出区稿矩阵⑨）：user＝手动停止（琥珀）／network＝SSE
+  // 断流（红）；半截内容只活内存，刷新/切页/换条目即丢（后端本就不落半截）。
   const [liveOutput, setLiveOutput] = useState<{
     item: string;
     reasoning: string;
     content: string;
+    stopped?: "user" | "network" | null;
   } | null>(null);
+  // liveOutput 的 ref 镜像：终态事件与 setLiveOutput 在同一事件循环里先后到达
+  // （run-finished → onRunStatus → finish → onCurrentItem(null)），state 还没落盘，
+  // 收起跟随的判断必须读 ref（与 followRun 同模式）。
+  const liveOutputRef = useRef(liveOutput);
+  const applyLiveOutput = useCallback((next: typeof liveOutput) => {
+    liveOutputRef.current = next;
+    setLiveOutput(next);
+  }, []);
   const identity = `${selection?.workdirId}/${selection?.batchId}`;
   const identityRef = useRef(identity);
   identityRef.current = identity;
   const mounted = useRef(false);
   const refreshVersion = useRef(0);
+  // T14：这一场在飞的条目名单（发车时按清单快照冻结）＋ items 的 ref 镜像
+  // （发车上报与 setState 在同一事件循环里先后到达，读 ref 取最新清单）。
+  const [inflight, setInflight] = useState<ReadonlySet<string>>(new Set());
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -126,7 +152,11 @@ export function LabelingPage({
     setRetryRequest(0);
     setSaving(false);
     setRepoint(null);
+    setRepointStrategy(null);
     setRemoval(null);
+    // 换目录/批次：中断半截随之丢（稿矩阵⑨退出路径——换条目即不保留）。
+    applyLiveOutput(null);
+    setInflight(new Set());
     void api
       .listItems(selection.workdirId, selection.batchId)
       .then((view) => {
@@ -154,7 +184,7 @@ export function LabelingPage({
     return () => {
       current = false;
     };
-  }, [selection]);
+  }, [selection, applyLiveOutput]);
 
   const { batchRunState, setBatchRunState, setRunStateRevision } =
     useBatchRunState(selection);
@@ -314,6 +344,12 @@ export function LabelingPage({
       if (mounted.current && identityRef.current === identity) setSaving(false);
     }
   }
+  // T14：run 在飞时左列分组按覆盖名单呈现（在飞行＝排队中）；名单空或不在飞即原样。
+  const runInflight = batchRunState === "running" || batchRunState === "pending";
+  const displayItems = useMemo(
+    () => (runInflight ? withInflightOverride(items, inflight) : items),
+    [runInflight, items, inflight],
+  );
   // 展开钮＝稿 §22 .lb-list-toggle：仅窄屏显形（宽屏两列常驻、此钮恒无）；悬停＝暂展、
   // 点击／键盘＝暂展并把焦点送进层头返回钮；暂展期占位保留但不可见不可聚焦（出口改层头返回钮）。
   const listToggle = narrow ? (
@@ -376,6 +412,10 @@ export function LabelingPage({
           })()}
           onNavigateToSettings={onNavigateToSettings}
           onOpenWorkbench={onOpenWorkbench}
+          onRepointStrategy={(entry) => {
+            setNewStrategyWid(null);
+            setRepointStrategy(entry);
+          }}
           onClose={() => setNewStrategyWid(null)}
           onCreated={(batch) => {
             setWorkdirs((previous) =>
@@ -405,6 +445,18 @@ export function LabelingPage({
           files
           onClose={() => setRepoint(null)}
           onSelect={(picked) => void repointPicked(picked)}
+        />
+      )}
+      {repointStrategy && (
+        <RepointStrategyDialog
+          key={repointStrategy.id}
+          strategy={repointStrategy}
+          onClose={() => setRepointStrategy(null)}
+          onRepointed={() => {
+            setRepointStrategy(null);
+            // 策略健康度变了：新建批次表单的策略来源下拉要重拉（坏行当场回 healthy）。
+            setListsRevision((value) => value + 1);
+          }}
         />
       )}
       {/* 顶栏＝§22 .lb-topbar：两列网格（左列 --w-col-left 320、右列吃满），右段内「胶囊串内容给宽、
@@ -467,6 +519,22 @@ export function LabelingPage({
               batch={selection.batchId}
               retryRequest={retryRequest}
               runStatus={batchRunState}
+              onRunStarted={(mode) => {
+                // T14：冻结这一场的名单——retry＝重试清单在飞的那些行；full＝当前
+                // 排队中＋未完成（全量计划吃的正是这些；done 与缺失不占位）。
+                const frozen = new Set<string>();
+                for (const [key, row] of itemsRef.current) {
+                  if (row.status === "unimported") continue;
+                  if (
+                    mode === "retry"
+                      ? row.in_retry === true
+                      : row.status === "queued" || row.status === "failed"
+                  ) {
+                    frozen.add(key);
+                  }
+                }
+                setInflight(frozen);
+              }}
               onRunStatus={(status) => {
                 // "idle" = RunControl 探测到空闲（空闲哨兵）：不抹状态章，改触发
                 // latestRun 重读——抹空会把刚从磁盘读到的「已完成」等终态一并抹掉
@@ -475,9 +543,21 @@ export function LabelingPage({
                 if (status === "idle") setRunStateRevision((value) => value + 1);
                 else setBatchRunState(status);
                 // 终态 = 跟随提示与「当前产出」都收场（运行结束后回到普通概览）。
+                // 例外＝ interrupted（手动停止，稿矩阵⑨）：半截内容留在原地、题字右侧
+                // 挂「已中断」标签（琥珀），不随终态清空——清掉的只有正常跑完/失败。
                 if (status !== "running" && status !== "pending") {
                   setFollowPaused(false);
-                  setLiveOutput(null);
+                  if (status === "interrupted") {
+                    applyLiveOutput(
+                      liveOutputRef.current === null
+                        ? null
+                        : { ...liveOutputRef.current, stopped: "user" },
+                    );
+                  } else {
+                    applyLiveOutput(null);
+                  }
+                  // T14：run 收场（含 idle 哨兵）＝视图层覆盖失效。
+                  setInflight(new Set());
                   // ⑬ 跑批终态＝完整性报告已过时（失败同样）：递一次全量同步号触发自动重扫。
                   // 「idle」是空闲哨兵、不算终态，不在此列（否则每次空闲都会重扫）。
                   if (status !== "idle") setExportRevision((value) => value + 1);
@@ -488,6 +568,9 @@ export function LabelingPage({
                 // ⑫ 跑批跟随＝从别处跳转，落原分组那行；读数还没到位时按「排队中」占位。
                 if (!followRun.current) return;
                 if (item === null) {
+                  // E5：中断后半截要留在原地（稿矩阵⑨）——终态的「收起跟随」让位，
+                  // 否则右画布回概览、半截连标签一起被卸载。
+                  if (liveOutputRef.current?.stopped) return;
                   setSelectedItem(null);
                   return;
                 }
@@ -497,20 +580,39 @@ export function LabelingPage({
               onItemUpdate={(event) => {
                 refreshVersion.current += 1;
                 if (event.status === "started") {
-                  setLiveOutput({ item: event.item, reasoning: "", content: "" });
+                  // 新一轮开打：中断标记随空上下文一起复位（续跑重打该条）。
+                  applyLiveOutput({ item: event.item, reasoning: "", content: "" });
                 }
                 setItems((previous) => withItemUpdate(previous, event));
               }}
               onItemDelta={(event) => {
-                setLiveOutput((current) =>
-                  current === null || current.item !== event.item
-                    ? current
-                    : event.delta === "reasoning"
-                      ? { ...current, reasoning: current.reasoning + event.text }
-                      : { ...current, content: current.content + event.text },
+                // 读 ref 追加（与 applyLiveOutput 同一轨道）：updater 形式不写 ref，
+                // 后续中断标记会用旧 ref 把刚到的半截冲掉（E5 实锤）。
+                const current = liveOutputRef.current;
+                if (current === null || current.item !== event.item) return;
+                applyLiveOutput(
+                  event.delta === "reasoning"
+                    ? { ...current, reasoning: current.reasoning + event.text }
+                    : { ...current, content: current.content + event.text },
                 );
               }}
               onItemsRefresh={() => void refreshItems()}
+              onStreamDrop={() =>
+                // SSE 断流：半截内容停在原处、标网络异常（红）；重连恢复即清。
+                applyLiveOutput(
+                  liveOutputRef.current === null || liveOutputRef.current.stopped
+                    ? liveOutputRef.current
+                    : { ...liveOutputRef.current, stopped: "network" as const },
+                )
+              }
+              onStreamRestore={() =>
+                applyLiveOutput(
+                  liveOutputRef.current === null ||
+                    liveOutputRef.current.stopped !== "network"
+                    ? liveOutputRef.current
+                    : { ...liveOutputRef.current, stopped: null },
+                )
+              }
             />
           )}
         </div>
@@ -522,7 +624,7 @@ export function LabelingPage({
           暂展＝左列作浮出层叠在画布上（画布不位移）——不再上下堆叠，滚动归画布自身。 */}
       <div className="relative flex min-h-0 flex-1 gap-4 overflow-hidden px-4 pb-6 md:px-6">
         <MaterialsPanel
-          items={items}
+          items={displayItems}
           selection={selection}
           loading={loading}
           loadError={itemsError}
@@ -554,6 +656,7 @@ export function LabelingPage({
               onBack={() => setCreating(false)}
               onNavigateToSettings={onNavigateToSettings}
               onOpenWorkbench={onOpenWorkbench}
+              refreshKey={listsRevision}
               onCreated={(value) => {
                 setCreating(false);
                 setSelection(value);

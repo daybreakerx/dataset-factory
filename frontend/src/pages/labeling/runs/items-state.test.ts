@@ -5,6 +5,7 @@ import {
   type ItemRow,
   itemKey,
   itemsFromGroups,
+  withInflightOverride,
   withItemUpdate,
   withRetryItems,
 } from "./items-state";
@@ -94,5 +95,42 @@ describe("素材 Map", () => {
     expect(next.get("second")).toBe(items.get("second"));
     expect(next.get("first")).not.toBe(items.get("first"));
     expect(items.get("first")?.in_retry).toBe(false);
+  });
+
+  it("发车覆盖：在飞的失败行视图层转排队中、原分组计数减一（T14）", () => {
+    const failedRow: ItemRow = {
+      ...first,
+      status: "failed",
+      can_retry: true,
+      reason_code: "timeout",
+      message: "端点超时",
+    };
+    const items = itemsFromGroups({ failed: [failedRow], done: [second] });
+
+    const next = withInflightOverride(items, new Set(["first", "second"]));
+
+    const groups = groupedItems(next, "");
+    expect(groups.queued?.map((row) => row.item)).toEqual(["first"]);
+    expect(groups.failed).toEqual([]);
+    // 「不带原失败原因」：失败行原因撤下；done 行不占位、不在场行不发明。
+    expect(next.get("first")?.message).toBeNull();
+    expect(next.get("first")?.reason_code).toBeNull();
+    expect(next.get("second")?.status).toBe("done");
+    expect(next.get("second")).toBe(items.get("second"));
+  });
+
+  it("发车覆盖：名单空即原样返回、重试名单身份保留（T14）", () => {
+    const items = itemsFromGroups({ done: [first] });
+
+    expect(withInflightOverride(items, new Set())).toBe(items);
+
+    const retryFailed = withRetryItems(
+      itemsFromGroups({ failed: [{ ...first, status: "failed" }] }),
+      ["first"],
+    );
+    const next = withInflightOverride(retryFailed, new Set(["first"]));
+    expect(next.get("first")?.status).toBe("queued");
+    // in_retry 是名单身份、不是显示分组问题：覆盖只动 status 与原因。
+    expect(next.get("first")?.in_retry).toBe(true);
   });
 });

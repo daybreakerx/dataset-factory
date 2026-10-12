@@ -10,7 +10,13 @@ interface Props {
   compared: string[];
   onToggleCompared: (id: string) => void;
   /** 跑批中的「当前产出」逐字流（A2）；本件只在有产出流的那一条上挂载。 */
-  liveOutput: { item: string; reasoning: string; content: string };
+  liveOutput: {
+    item: string;
+    reasoning: string;
+    content: string;
+    /** 中断停因（E5，稿矩阵⑨）：user＝手动停止（琥珀）／network＝SSE 断流（红）；null/缺省＝在飞。 */
+    stopped?: "user" | "network" | null;
+  };
   /** 媒体舞台折叠态：解除正文 180px 上限、吃满剩余空间（稿 §23 .capbox--unfolded）。 */
   unfolded: boolean;
 }
@@ -30,15 +36,28 @@ export function LiveOutput({
   liveOutput,
   unfolded,
 }: Props) {
+  const stopped = liveOutput.stopped ?? null;
   return (
     // .live-box＝白卡（§18 .ai-box 同底同圆角档）
     <section
       className="mt-4 rounded-xl border border-border bg-card p-4"
       aria-label="当前产出"
     >
-      {/* .live-head：题字 flex-none 恒不让位＋右端策略对比 chips（两态都恒出，⑨） */}
+      {/* .live-head：题字 flex-none 恒不让位＋中断标签（E5）＋右端策略对比 chips（两态都恒出，⑨） */}
       <div className="mb-2 flex min-w-0 items-baseline gap-3">
         <h3 className="shrink-0 text-t-md font-medium">当前产出</h3>
+        {/* 「已中断」无底彩字标签（base.css §18 .msg-partial 两档）：手动停止＝琥珀、
+            网络异常＝红；它已自说明停因，不再叠 Tip（稿 Tip 清单）。 */}
+        {stopped !== null && (
+          <span
+            className={cn(
+              "shrink-0 text-t-xs",
+              stopped === "user" ? "text-warn-ink" : "text-bad-ink",
+            )}
+          >
+            已中断
+          </span>
+        )}
         {!!available.length && (
           <ComparePicker
             batch={batch}
@@ -68,7 +87,9 @@ export function LiveOutput({
       ) : (
         <p
           className={cn(
-            "text-t-md leading-(--lh-loose) text-foreground whitespace-pre-wrap",
+            "text-t-md leading-(--lh-loose) whitespace-pre-wrap",
+            // 中断后半截弱一档（稿样图格⑩：正文取 --text-3）；在飞＝正文色。
+            stopped !== null ? "text-text-3" : "text-foreground",
             !unfolded && "max-h-[180px] overflow-y-auto",
           )}
         >

@@ -372,6 +372,9 @@ interface CfgPopOption {
   badge?: string;
   /** 不可点（坏行／锁定项）：Radix 置 aria-disabled 并跳过键盘落点。 */
   disabled?: boolean;
+  /** 坏行的修复出口（2026-10-13 E4）：带它＝行保持可达，点击不选中、唤起调用方的处置
+   *  （策略引用缺失行 → 「重新指定」弹窗）；与 disabled 互斥（同时给以 repair 为准）。 */
+  repair?: () => void;
 }
 
 /** 弹层头行的齿轮位入参（族「不写计数」条：取数中／失败时只给库名，不编假数）。 */
@@ -490,8 +493,16 @@ function CfgPopSelect({
               key={option.value}
               current={option.value === value && !option.bad}
               bad={option.bad}
-              disabled={option.disabled}
-              onSelect={() => onSelect(option.value)}
+              disabled={option.disabled && option.repair === undefined}
+              onSelect={() => {
+                // 坏行带修复出口（E4）：不选中（来源不变），其余走默认——关层，
+                // 调用方的「重新指定」弹窗接着开（本窗先关的那处由调用方负责）。
+                if (option.repair !== undefined) {
+                  option.repair();
+                  return;
+                }
+                onSelect(option.value);
+              }}
             >
               <CfgPopRowMain
                 name={option.name}
@@ -525,7 +536,7 @@ function CfgPopMultiSelect({
 }: {
   ariaLabel: string;
   head: CfgPopHeadSpec | null;
-  options: { value: string; name: string; desc?: string }[];
+  options: { value: string; name: string; desc?: string; disabled?: boolean }[];
   selected: string[];
   /** 触发件回显由调用方给：库应用态要吃来源快照的名字，不只看眼下的候选。 */
   text: string;
@@ -551,6 +562,7 @@ function CfgPopMultiSelect({
               checked={selected.includes(option.value)}
               name={option.name}
               desc={option.desc}
+              disabled={option.disabled}
               onCheckedChange={() => onToggle(option.value)}
             />
           ))

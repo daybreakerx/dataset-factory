@@ -24,6 +24,7 @@ const row: components["schemas"]["ExportPlanRow"] = {
   asset_bytes: 1024,
   caption_bytes: 32,
   integrity: "changed",
+  name_conflict: false,
 };
 const plan: components["schemas"]["ExportPlanView"] = {
   batch: 1,
@@ -158,6 +159,38 @@ it("默认顺序命名、变更素材仍入包，关闭后展示原名与非 ASC
   // 关态：符号换加号、归一名段只剩 txt 名（原名不重复出现两遍），压缩截断只发生在原名列。
   await expectPacked("photo.jpg+照片.txt");
   expect(screen.getByText(/跨平台解压可能导致/)).toBeInTheDocument();
+});
+
+it("关态同名行仍入包并行内挂琥珀标记（2026-10-13 稿㉑）", async () => {
+  const user = userEvent.setup();
+  render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
+  await expectPacked("001.jpg + 001.txt");
+  vi.mocked(api.exportPlan).mockResolvedValue({
+    ...plan,
+    sequential: false,
+    included: [
+      {
+        ...row,
+        integrity: null,
+        name: "Photo.jpg",
+        caption_name: "Photo.txt",
+        name_conflict: true,
+      },
+    ],
+  });
+
+  await user.click(screen.getByRole("switch"));
+
+  // 仍入包（不进被排除清单），标记逐字在稿：一句即含出路＝开回顺序重命名。
+  await expectPacked("Photo.jpg+Photo.txt");
+  expect(
+    within(screen.getByRole("region", { name: "将入包清单" })).getByText(
+      "有同名文件(仅大小写不同)，建议开启顺序重命名",
+    ),
+  ).toBeInTheDocument();
+  expect(
+    within(screen.getByRole("region", { name: "被排除清单" })).queryByText("配对冲突"),
+  ).not.toBeInTheDocument();
 });
 
 it("打包成功先于取消失败返回时保留下载结果", async () => {

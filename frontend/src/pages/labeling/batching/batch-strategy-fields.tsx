@@ -38,6 +38,7 @@ export function BatchStrategyFields({
   onSelectedSkillsChange,
   onNavigateToSettings,
   onOpenWorkbench,
+  onRepointStrategy,
 }: {
   id: string;
   library: string;
@@ -61,6 +62,8 @@ export function BatchStrategyFields({
   onNavigateToSettings?: () => void;
   /** 提示词的去处＝策略页（在那里新建，保存后自动同步回本表单）。 */
   onOpenWorkbench?: () => void;
+  /** 引用缺失行的修复出口（2026-10-13 E4）：点坏行唤起「重新指定」弹窗。 */
+  onRepointStrategy?: (strategy: StrategyView) => void;
 }) {
   const scratch = library === "scratch";
   const source = strategies.find((entry) => entry.id === library);
@@ -99,20 +102,20 @@ export function BatchStrategyFields({
             value: entry.id,
             name: entry.name,
             // 两行式第二行＝「端点 ｜ 提示词 ｜ Skill 数」摘要（笔③样图第三段写法）；
-            // 不可用项＝族里坏行档：名行红缀短式「引用缺失」＋描述位去处句、行不可点——
-            // 2026-10-12 批末按独立审计打回项订正：原描述位写「… · 点击处理」承诺了不存在的
-            // 出口（本窗无「重新指定」弹窗），改与新增策略弹窗同族同句（格 4 裁乙口径：
-            // 不给处置出口、去处写进描述位；重新指定弹窗立不立另呈用户裁）。
+            // 坏行＝族里坏行档：名行红缀短式「引用缺失」＋描述位去处句，点行唤起
+            // 「重新指定」弹窗（2026-10-13 E4 补建——原「本窗不给出口」口径随弹窗
+            // 立起作废，出口就在本窗、不再让用户跑去策略页）。
             desc: entry.available
               ? [
                   entry.endpoint_name,
                   entry.prompt_name,
                   `Skill ${entry.skill_ids.length}`,
                 ].join(" ｜ ")
-              : "不可应用 · 到「策略」页重新指定后可用",
+              : "不可应用 · 点击重新指定",
             badge: entry.available ? undefined : "引用缺失",
             bad: !entry.available,
             disabled: !entry.available,
+            repair: entry.available ? undefined : () => onRepointStrategy?.(entry),
           })),
         ]}
         emptyText={stateText || "还没有可用的策略"}
