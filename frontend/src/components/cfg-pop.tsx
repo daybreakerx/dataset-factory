@@ -6,14 +6,17 @@
  * Tab 关菜单＋焦点移出）与三态轮换随其生效；表单 Select 实例走 select.tsx，同守族规则。
  */
 
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, SettingsIcon } from "lucide-react";
 import type { ComponentProps, ReactElement, ReactNode, RefObject } from "react";
 
 import { cn } from "../lib/utils";
+import { Button } from "./ui/button";
 import {
+  DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Tip } from "./ui/tooltip";
 
@@ -337,6 +340,226 @@ function CfgPopStateRow({ children }: { children: ReactNode }): ReactElement {
   );
 }
 
+/** 表单行的标签列（§22 `.nb-sline`＋`.nb-slabel`：76px 标签＋控件吃满剩余）。
+ *  两枚选择器与两处实例（新建批次策略段／新增策略弹窗）共用——「同一套类，建类一次两件共用」。 */
+function CfgPopFieldRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}): ReactElement {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="w-[76px] flex-none text-t-sm text-muted-foreground">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+/** 单值选择器的一行（触发件回显取 `name`）。 */
+interface CfgPopOption {
+  value: string;
+  /** 行内名字，也是触发件当前值。 */
+  name: string;
+  /** 行内第二行（两行式：摘要／描述／去处句）。 */
+  desc?: string;
+  /** 坏行（引用缺失这类）：名字降色，行不给当前态。 */
+  bad?: boolean;
+  /** 行名右侧红缀短式（11px，如「引用缺失」）。 */
+  badge?: string;
+  /** 不可点（坏行／锁定项）：Radix 置 aria-disabled 并跳过键盘落点。 */
+  disabled?: boolean;
+}
+
+/** 弹层头行的齿轮位入参（族「不写计数」条：取数中／失败时只给库名，不编假数）。 */
+interface CfgPopHeadSpec {
+  label: string;
+  /** 齿轮的 aria／气泡文案（笔⑥：按去处说，如「前往设置 · 端点配置」）。 */
+  manageLabel?: string;
+  onManage?: () => void;
+}
+
+function PopHead({ head }: { head: CfgPopHeadSpec | null }): ReactElement | null {
+  if (head === null) return null;
+  return (
+    <CfgPopHead
+      label={head.label}
+      action={
+        head.onManage !== undefined && head.manageLabel !== undefined
+          ? {
+              label: head.manageLabel,
+              icon: <SettingsIcon />,
+              onClick: head.onManage,
+            }
+          : null
+      }
+    />
+  );
+}
+
+/** `.select` 同构的触发件（§8：h-lg 34／内距 --s-3／t-md／值档 --text-2、箭头取说明档灰、
+ *  值单行省略＋悬停全文）。`inert`＝飞行期「只失效不换装」（aria-disabled＋掐指针，外观不变）；
+ *  与 `disabled`（原生灰档＝持续不可用）分两档，同一时刻至多一个成立。 */
+function PopTrigger({
+  ariaLabel,
+  text,
+  disabled,
+  inert = false,
+}: {
+  ariaLabel: string;
+  text: string;
+  disabled: boolean;
+  inert?: boolean;
+}): ReactElement {
+  return (
+    <Tip label={text}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          aria-label={ariaLabel}
+          disabled={disabled}
+          aria-disabled={inert || undefined}
+          className={cn(
+            "h-(--h-lg) min-w-0 flex-1 justify-between px-3 font-normal text-t-md text-text-2",
+            inert && "aria-disabled:pointer-events-none",
+          )}
+        >
+          <span className="min-w-0 truncate">{text}</span>
+          <ChevronDownIcon className="flex-none text-text-3" />
+        </Button>
+      </DropdownMenuTrigger>
+    </Tip>
+  );
+}
+
+/**
+ * 表单里的库弹层支单值选择器（§8 `.select` 触发件 × cfg-pop 弹层；族稿「下拉选择器」的表单实例）。
+ *
+ * 两处同规实例＝新建批次策略段与新增策略弹窗（对齐批「新建批次·策略与发车段」笔②③／
+ * 「新增策略弹窗」笔⑯——建类一次两件共用）。形态：弹层宽下限＝触发件实测宽；头行＝库名＋右端
+ * 齿轮（**不写计数**）；行＝族行形态，当前行 tint、坏行走 bad 档。
+ */
+function CfgPopSelect({
+  ariaLabel,
+  head,
+  value,
+  options,
+  emptyText,
+  disabled = false,
+  inert = false,
+  placeholder = "请选择",
+  onReopen,
+  onSelect,
+}: {
+  ariaLabel: string;
+  /** 弹层头行；null＝无头行（策略来源那枚按稿不带，笔③）。 */
+  head: CfgPopHeadSpec | null;
+  value: string;
+  options: CfgPopOption[];
+  /** 空清单那一行的文案（族句式「还没有可用的 X」）。 */
+  emptyText: string;
+  disabled?: boolean;
+  /** 飞行期只失效不换装（笔⑧：与 `disabled` 的持续禁用分档）。 */
+  inert?: boolean;
+  placeholder?: string;
+  /** 每次开层回调（笔⑦「重开弹层即重拉＝重试」的接线点）。 */
+  onReopen?: () => void;
+  onSelect: (value: string) => void;
+}): ReactElement {
+  const current = options.find((option) => option.value === value);
+  const shown = current?.name ?? placeholder;
+  return (
+    <DropdownMenu onOpenChange={(open) => open && onReopen?.()}>
+      <PopTrigger
+        ariaLabel={ariaLabel}
+        text={shown}
+        disabled={disabled}
+        inert={inert}
+      />
+      <CfgPopContent anchor="trigger">
+        <PopHead head={head} />
+        {options.length === 0 ? (
+          <CfgPopStateRow>{emptyText}</CfgPopStateRow>
+        ) : (
+          options.map((option) => (
+            <CfgPopRow
+              key={option.value}
+              current={option.value === value && !option.bad}
+              bad={option.bad}
+              disabled={option.disabled}
+              onSelect={() => onSelect(option.value)}
+            >
+              <CfgPopRowMain
+                name={option.name}
+                desc={option.desc}
+                badge={option.badge}
+              />
+            </CfgPopRow>
+          ))
+        )}
+      </CfgPopContent>
+    </DropdownMenu>
+  );
+}
+
+/**
+ * 库弹层支的多选选择器（Skill 这类「一字段多值」的表单实例）：触发件回显＝顿号拼接的纯文字
+ * （胶囊撤，2026-10-09 用户裁）、单行固定＋超宽省略悬停全文；弹层＝勾选行，点选不关层、
+ * 无当前行 tint。两处同规实例同上（2026-10-11 用户令「同族两窗同规」）。
+ */
+function CfgPopMultiSelect({
+  ariaLabel,
+  head,
+  options,
+  selected,
+  text,
+  emptyText,
+  disabled = false,
+  inert = false,
+  onReopen,
+  onToggle,
+}: {
+  ariaLabel: string;
+  head: CfgPopHeadSpec | null;
+  options: { value: string; name: string; desc?: string }[];
+  selected: string[];
+  /** 触发件回显由调用方给：库应用态要吃来源快照的名字，不只看眼下的候选。 */
+  text: string;
+  emptyText: string;
+  disabled?: boolean;
+  /** 飞行期只失效不换装（笔⑧）。 */
+  inert?: boolean;
+  /** 每次开层回调（笔⑦「重开弹层即重拉＝重试」的接线点）。 */
+  onReopen?: () => void;
+  onToggle: (value: string) => void;
+}): ReactElement {
+  return (
+    <DropdownMenu onOpenChange={(open) => open && onReopen?.()}>
+      <PopTrigger ariaLabel={ariaLabel} text={text} disabled={disabled} inert={inert} />
+      <CfgPopContent anchor="trigger">
+        <PopHead head={head} />
+        {options.length === 0 ? (
+          <CfgPopStateRow>{emptyText}</CfgPopStateRow>
+        ) : (
+          options.map((option) => (
+            <CfgPopCheckRow
+              key={option.value}
+              checked={selected.includes(option.value)}
+              name={option.name}
+              desc={option.desc}
+              onCheckedChange={() => onToggle(option.value)}
+            />
+          ))
+        )}
+      </CfgPopContent>
+    </DropdownMenu>
+  );
+}
+
 /** 库弹层触发件的框内下拉钮（`.wt-name-chev`）：24×24、图标 16、绝对贴名字框右缘 2px。
  *  经 Radix Trigger asChild 注入 props（ref／onClick／aria-expanded 等）——组件须透传。 */
 function CfgNameChevron({
@@ -365,9 +588,12 @@ export {
   CfgNameChevron,
   CfgPopCheckRow,
   CfgPopContent,
+  CfgPopFieldRow,
   CfgPopHead,
+  CfgPopMultiSelect,
   CfgPopRow,
   CfgPopRowIconButton,
   CfgPopRowMain,
+  CfgPopSelect,
   CfgPopStateRow,
 };

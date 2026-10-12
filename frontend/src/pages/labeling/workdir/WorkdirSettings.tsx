@@ -172,7 +172,6 @@ export function WorkdirSettings({
               ? Math.max(...data.batches.map((entry) => entry.seq)) + 1
               : 1
           }
-          existingCount={data.batches.length}
           onClose={() => setCreating(false)}
           onCreated={() => {
             setCreating(false);

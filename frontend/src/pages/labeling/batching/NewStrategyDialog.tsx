@@ -1,29 +1,14 @@
-import { ChevronDownIcon, RefreshCwIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
+import {
+  CfgPopFieldRow,
+  CfgPopMultiSelect,
+  CfgPopSelect,
+} from "../../../components/cfg-pop";
 import { DialogShell } from "../../../components/dialog-shell";
-import { FormError } from "../../../components/form-error";
-import { Button } from "../../../components/ui/button";
-import {
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "../../../components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
+import { DialogHeader, DialogTitle } from "../../../components/ui/dialog";
 import { Input } from "../../../components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../../components/ui/select";
 import { Tip } from "../../../components/ui/tooltip";
 
 type Catalog = {
@@ -33,25 +18,36 @@ type Catalog = {
   skills: Awaited<ReturnType<typeof api.listSkills>>;
 };
 
+/**
+ * 新增策略弹窗（稿 #18，14 格；600 档壳实例）。
+ *
+ * 两挂载点同实例、只有创建成功后的去向不同（打标页＝新批次自动选中；工作目录设置＝只重拉
+ * 本页）。取数中的等待与失败都只写在弹层内一行（笔⑦）——**重开弹层即重拉＝重试**，
+ * 所以这里不再摆表单级进度行与页脚重试钮；创建失败落标题行右侧消息槽（笔④）。
+ */
 export function NewStrategyDialog({
   wid,
   title,
   nextSeq,
-  existingCount,
   onClose,
   onCreated,
+  onNavigateToSettings,
+  onOpenWorkbench,
 }: {
   wid: string;
   title: string;
-  /** 本工作目录下一个可用批次序号（= 既有批次最大 seq + 1），发车前预告产物前缀。 */
+  /** 本工作目录下一个可用批次序号（= 既有批次最大 seq + 1），名框标签旁那一处。 */
   nextSeq: number;
-  existingCount: number;
   onClose: () => void;
   onCreated: (batch: components["schemas"]["BatchView"]) => void;
+  /** 齿轮＝跳该库管理处**且不关本窗**（格 5 裁甲；打标页由 `<Activity>` 保活，切回时列表重拉）。 */
+  onNavigateToSettings?: () => void;
+  /** 提示词那枚齿轮的去处＝策略页（在那里新建，保存后自动同步到此处）。 */
+  onOpenWorkbench?: () => void;
 }) {
   const id = useId();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [revision, setRevision] = useState(0);
+  const [loadError, setLoadError] = useState("");
   const [library, setLibrary] = useState("scratch");
   const [name, setName] = useState("");
   const [endpoint, setEndpoint] = useState("");
@@ -63,11 +59,10 @@ export function NewStrategyDialog({
   const completed = useRef(false);
   const lifetime = useRef<object | null>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: revision retries catalog loading without losing form inputs.
-  useEffect(() => {
+  function loadCatalog(): void {
     const current = {};
     lifetime.current = current;
-    setError("");
+    setLoadError("");
     void Promise.all([
       api.listStrategies(),
       api.listEndpoints(),
@@ -86,20 +81,40 @@ export function NewStrategyDialog({
         setPrompt((value) => value || prompts[0]?.id || "");
       },
       (reason: unknown) => {
-        if (lifetime.current === current) setError(errorMessage(reason));
+        if (lifetime.current === current) setLoadError(errorMessage(reason));
       },
     );
+  }
+
+  // 只在开窗那一次拉四张库表；此后**每次开弹层都重拉一遍**（笔⑦「重开弹层即重拉＝重试」，
+  // 连带格 5 裁甲「齿轮跳去建端点、切回来列表已重拉」——两条同一机制）。
+  // 取最新闭包用 ref 承接（先例＝WorkdirSettings 的 `refresh`），免得为「跑一次」写依赖豁免。
+  const load = useRef(loadCatalog);
+  load.current = loadCatalog;
+
+  useEffect(() => {
+    load.current();
     return () => {
       lifetime.current = null;
     };
-  }, [revision]);
+  }, []);
 
+  const scratch = library === "scratch";
   const source = catalog?.strategies.find((entry) => entry.id === library);
+  const skillName = (value: string): string =>
+    catalog?.skills.find((entry) => entry.id === value)?.name ?? value;
+  const shownSkillIds = scratch ? skills : (source?.skill_ids ?? []);
   const valid =
     !!catalog &&
-    (library === "scratch"
-      ? !!name.trim() && !!endpoint && !!prompt
-      : !!source?.available);
+    (scratch ? !!name.trim() && !!endpoint && !!prompt : !!source?.available);
+  // 等待与失败只在弹层里那一行说话（笔⑦＋§17 族「同一行的三态轮换」）。
+  const stateText = loadError
+    ? `${loadError}——关掉再开此层可重试`
+    : catalog === null
+      ? "正在读取策略配置"
+      : "";
+  const libraryValue = source?.endpoint_id ?? endpoint;
+  const promptValue = source?.prompt_id ?? prompt;
 
   async function create() {
     if (pending.current || completed.current || !valid) return;
@@ -111,7 +126,7 @@ export function NewStrategyDialog({
     try {
       batch = await api.createBatch(
         wid,
-        library === "scratch"
+        scratch
           ? {
               type: "scratch",
               name: name.trim(),
@@ -122,10 +137,8 @@ export function NewStrategyDialog({
           : { type: "library", id: library, name: name.trim() || null },
       );
     } catch (reason) {
-      if (lifetime.current === current) {
-        setError(errorMessage(reason));
-        setBusy(false);
-      }
+      if (lifetime.current === current) setError(errorMessage(reason));
+      setBusy(false);
       pending.current = false;
       return;
     }
@@ -133,191 +146,164 @@ export function NewStrategyDialog({
     if (lifetime.current === current) onCreated(batch);
   }
 
-  function picker(
-    label: string,
-    value: string,
-    change: (value: string) => void,
-    options: { value: string; label: string; disabled?: boolean }[],
-    disabled = false,
-  ) {
-    return (
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="w-20 shrink-0 text-t-sm text-text-4">{label}</span>
-        <Select
-          value={value}
-          onValueChange={change}
-          disabled={busy || !catalog || disabled}
-        >
-          <SelectTrigger aria-label={label} className="min-w-0 flex-1">
-            <SelectValue placeholder="请选择" />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((entry) => (
-              <SelectItem
-                key={entry.value}
-                value={entry.value}
-                disabled={entry.disabled}
-              >
-                {entry.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    );
-  }
-
   return (
     <DialogShell
       open
-      onOpenChange={(open) => {
-        if (!open && !pending.current) onClose();
-      }}
-      className="max-h-[90vh] max-w-(--w-modal-600) overflow-y-auto p-4"
-      note={`新策略为 s${nextSeq}，与既有 ${existingCount} 套并存`}
-      footerExtra={
-        !catalog && error ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="重试读取配置"
-            onClick={() => setRevision((value) => value + 1)}
-          >
-            <RefreshCwIcon />
-          </Button>
-        ) : undefined
-      }
-      cancel={{ label: "取消", variant: "ghost", disabled: busy, onClick: onClose }}
+      // 飞行期不拦退出（笔⑨，格 9 裁甲）：关掉的是界面、不撤销已发出的请求。
+      onOpenChange={(open) => !open && onClose()}
+      className="max-h-[90vh] w-[min(var(--w-modal-600),calc(100vw-48px))] overflow-y-auto"
+      cancel={{ label: "取消", onClick: onClose }}
       confirm={{
-        label: busy ? "正在创建" : "创建策略",
-        variant: "default",
-        disabled: !valid || busy,
+        label: "创建策略",
+        disabled: !valid,
+        flight: busy,
         onClick: () => void create(),
       }}
     >
-      <DialogHeader className="flex-row flex-wrap items-baseline gap-3 pr-[42px]">
-        <DialogTitle>新增策略</DialogTitle>
-        <DialogDescription className="min-w-0 break-all">
-          工作目录：{title}
-        </DialogDescription>
+      {/* 标题行（稿 .ns-head）：基线对齐、不折行——副题与失败行都在行内自己省略，
+          不整块顶到第二行；副题写在标题行内＝不算正文段，页脚因此无线（笔⑥）。 */}
+      <DialogHeader className="flex-row items-baseline gap-3 space-y-0 pr-[42px]">
+        <DialogTitle className="flex-none">新增策略</DialogTitle>
+        <Tip label={`工作目录：${title}`}>
+          <span className="min-w-0 flex-1 truncate text-t-sm text-text-3">
+            工作目录：{title}
+          </span>
+        </Tip>
+        {error !== "" && (
+          <Tip label={error}>
+            <span
+              role="alert"
+              className="min-w-[14em] flex-1 truncate text-t-sm text-bad-ink"
+            >
+              {error}
+            </span>
+          </Tip>
+        )}
       </DialogHeader>
-      {picker(
-        "策略来源",
-        library,
-        (value) => {
+      <label
+        htmlFor={`${id}-library`}
+        className="mb-1 block text-t-md font-medium text-text-1"
+      >
+        策略来源
+      </label>
+      <CfgPopSelect
+        ariaLabel="策略来源"
+        head={null}
+        value={library}
+        disabled={busy}
+        onReopen={loadCatalog}
+        onSelect={(value) => {
           setLibrary(value);
           setName(catalog?.strategies.find((entry) => entry.id === value)?.name ?? "");
-        },
-        [
-          { value: "scratch", label: "从零配置" },
+        }}
+        options={[
+          {
+            value: "scratch",
+            name: "从零配置",
+            desc: "端点、提示词与 Skill 在下面自己选",
+          },
           ...(catalog?.strategies ?? []).map((entry) => ({
             value: entry.id,
-            label: `${entry.name}${entry.available ? "" : " · 引用缺失"}`,
+            name: entry.name,
+            // 坏行（笔⑭）：红缀短式＋去处句第二行，本窗不给处置出口（弹窗不叠弹窗）。
+            desc: entry.available
+              ? [
+                  entry.endpoint_name,
+                  entry.prompt_name,
+                  `Skill ${entry.skill_ids.length}`,
+                ].join(" ｜ ")
+              : "不可应用 · 到「策略」页重新指定后可用",
+            bad: !entry.available,
+            badge: entry.available ? undefined : "引用缺失",
             disabled: !entry.available,
           })),
-        ],
-      )}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <label htmlFor={`${id}-name`} className="text-t-sm text-text-4">
-            策略名
-          </label>
-          <span className="text-t-xs text-text-3">{`将分配序号 s${nextSeq}`}</span>
-        </div>
-        <Input
-          id={`${id}-name`}
-          value={name}
-          disabled={busy}
-          onChange={(event) => setName(event.currentTarget.value)}
-        />
+        ]}
+        emptyText={stateText || "还没有可用的策略"}
+      />
+      <div className="mb-1 mt-4 flex items-baseline gap-2">
+        <label htmlFor={`${id}-name`} className="text-t-md font-medium text-text-1">
+          策略名
+        </label>
+        <span className="min-w-0 flex-1 truncate text-t-xs text-text-3">
+          {`将分配序号 s${nextSeq}`}
+        </span>
       </div>
-      <fieldset className="min-w-0 space-y-2" disabled={busy}>
-        <legend className="mb-2 text-t-sm text-text-4">策略内容</legend>
-        {picker(
-          "端点配置",
-          source?.endpoint_id ?? endpoint,
-          setEndpoint,
-          (catalog?.endpoints ?? []).map((entry) => ({
-            value: entry.id,
-            label: `${entry.name} · ${entry.model}`,
-          })),
-          library !== "scratch",
-        )}
-        {picker(
-          "基础提示词",
-          source?.prompt_id ?? prompt,
-          setPrompt,
-          (catalog?.prompts ?? []).map((entry) => ({
-            value: entry.id,
-            label: entry.name,
-          })),
-          library !== "scratch",
-        )}
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="w-20 shrink-0 text-t-sm text-text-4">Skill</span>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="h-(--h-lg) min-w-0 flex-1 justify-between"
-                aria-label="选择 Skill"
-                disabled={busy || !catalog || library !== "scratch"}
-              >
-                {/* 触发钮当前值为多 Skill 名拼接、单行省略——悬停给全文（DESIGN.md 六）。 */}
-                <Tip
-                  label={
-                    (source?.skill_ids ?? skills)
-                      .map(
-                        (sid) =>
-                          catalog?.skills.find((entry) => entry.id === sid)?.name ??
-                          sid,
-                      )
-                      .join(" · ") || "无"
-                  }
-                >
-                  <span className="truncate">
-                    {(source?.skill_ids ?? skills)
-                      .map(
-                        (sid) =>
-                          catalog?.skills.find((entry) => entry.id === sid)?.name ??
-                          sid,
-                      )
-                      .join(" · ") || "无"}
-                  </span>
-                </Tip>
-                <ChevronDownIcon />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="max-h-64 max-w-80 overflow-auto">
-              {catalog?.skills.map((entry) => (
-                <DropdownMenuCheckboxItem
-                  key={entry.name}
-                  checked={skills.includes(entry.name)}
-                  onSelect={(event) => event.preventDefault()}
-                  onCheckedChange={(checked) =>
-                    setSkills((previous) =>
-                      checked
-                        ? [...previous, entry.name]
-                        : previous.filter((name) => name !== entry.name),
-                    )
-                  }
-                >
-                  {entry.name}
-                </DropdownMenuCheckboxItem>
-              ))}
-              {catalog?.skills.length === 0 && (
-                <p className="p-2 text-t-sm text-text-3">没有可用 Skill</p>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </fieldset>
-      {error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>}
-      {!catalog && !error && (
-        <p role="status" className="text-t-sm text-text-3">
-          正在读取策略配置
-        </p>
-      )}
+      <Input
+        id={`${id}-name`}
+        value={name}
+        placeholder="例如：标签式短句"
+        disabled={busy}
+        onChange={(event) => setName(event.currentTarget.value)}
+      />
+      <div className="mb-1 mt-4 text-t-md font-medium text-text-1">策略内容</div>
+      {/* 组卡与三行（笔③）：与新建批次策略段同一套类（§22 .nb-strat-group／.nb-sline）。 */}
+      <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border px-4 py-3">
+        <CfgPopFieldRow label="端点配置">
+          <CfgPopSelect
+            ariaLabel="端点配置"
+            head={{
+              label: "端点",
+              manageLabel: "前往设置 · 端点配置",
+              onManage: onNavigateToSettings,
+            }}
+            value={libraryValue}
+            disabled={busy || !scratch}
+            onReopen={loadCatalog}
+            onSelect={setEndpoint}
+            options={(catalog?.endpoints ?? []).map((entry) => ({
+              value: entry.id,
+              name: `${entry.name} · ${entry.model}`,
+            }))}
+            emptyText={stateText || "还没有可用的端点配置"}
+          />
+        </CfgPopFieldRow>
+        <CfgPopFieldRow label="基础提示词">
+          <CfgPopSelect
+            ariaLabel="基础提示词"
+            head={{
+              label: "提示词",
+              manageLabel: "前往策略页新建提示词，保存后自动同步到此处",
+              onManage: onOpenWorkbench,
+            }}
+            value={promptValue}
+            disabled={busy || !scratch}
+            onReopen={loadCatalog}
+            onSelect={setPrompt}
+            options={(catalog?.prompts ?? []).map((entry) => ({
+              value: entry.id,
+              name: entry.name,
+            }))}
+            emptyText={stateText || "还没有可用的基础提示词"}
+          />
+        </CfgPopFieldRow>
+        <CfgPopFieldRow label="Skill">
+          <CfgPopMultiSelect
+            ariaLabel="Skill"
+            head={{
+              label: "Skill 库",
+              manageLabel: "前往设置 · 技能",
+              onManage: onNavigateToSettings,
+            }}
+            options={(catalog?.skills ?? []).map((entry) => ({
+              value: entry.id,
+              name: entry.name,
+              desc: entry.description,
+            }))}
+            selected={shownSkillIds}
+            text={shownSkillIds.map(skillName).join("、") || "未选"}
+            emptyText={stateText || "还没有可用的 Skill"}
+            disabled={busy || !scratch}
+            onReopen={loadCatalog}
+            onToggle={(value) =>
+              setSkills((previous) =>
+                previous.includes(value)
+                  ? previous.filter((entry) => entry !== value)
+                  : [...previous, value],
+              )
+            }
+          />
+        </CfgPopFieldRow>
+      </div>
     </DialogShell>
   );
 }

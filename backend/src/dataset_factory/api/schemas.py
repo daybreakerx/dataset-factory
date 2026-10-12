@@ -855,23 +855,26 @@ class BatchCreateRequest(BaseModel):
 
     @model_validator(mode="after")
     def _by_type(self) -> BatchCreateRequest:
-        """按 type 校验必填组合（缺了当场 422，不到业务层才发现）。"""
+        """按 type 校验必填组合（缺了当场 422，不到业务层才发现）。
+
+        三句都是「正常操作走不到」的兜底（前端 `valid` 已拦），故按界面上说人话的口径写：
+        报的是用户看得见的东西（策略名／端点／提示词），不是裸字段名（对齐批「新增策略弹窗」⑳）。
+        """
         if self.type == "library":
             if not self.id:
-                raise ValueError("type = library 时必须提供库策略 id。")
+                raise ValueError("库策略还没选定。")
             return self
         if self.type == "scratch":
+            labels = {"name": "策略名", "endpoint_id": "端点", "prompt_id": "提示词"}
             missing = [
-                field_name
+                labels[field_name]
                 for field_name in ("name", "endpoint_id", "prompt_id")
                 if getattr(self, field_name) is None
             ]
             if missing:
-                raise ValueError(
-                    "type = scratch 时必须提供 " + "、".join(missing) + "。"
-                )
+                raise ValueError("从零配置时" + "、".join(missing) + "还没选。")
             return self
-        raise ValueError("type 必须是 library 或 scratch。")
+        raise ValueError("策略来源只能是从零配置或库策略。")
 
 
 class BatchUpdateRequest(BaseModel):

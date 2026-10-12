@@ -6,7 +6,9 @@
  * 在切页与重启后确实还在，隐藏页以 display:none 常驻 DOM，重启直达上次页面。
  */
 import { expect, test } from "@playwright/test";
-import { isolatedBaseURL } from "./fixtures/isolated-servers";
+import { isolatedBaseURL, isolatedFakeLlmURL } from "./fixtures/isolated-servers";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 // 本文件打真后端，用自己那份服务与数据根（隔离口径与其余 spec 相同）。
 test.use({ baseURL: isolatedBaseURL("page-state.spec.ts") });
@@ -168,5 +170,76 @@ test.describe("页面状态保持", () => {
     await page.getByRole("button", { name: "切换策略" }).click();
     await page.getByRole("button", { name: "新建策略" }).click();
     await expect(page.getByText("草稿桶的一句话")).toBeVisible();
+  });
+
+  test("新增策略弹窗开着跨切页不丢：齿轮跳设置、端点列表切回来已重拉", async ({
+    page,
+    request,
+  }, testInfo) => {
+    // 稿 #18 格 5 裁甲的体验级依据（jsdom 只验了副作用解除）：打标页由 <Activity> 保活，
+    // 齿轮跳该库管理处**不关本窗**，切回来时弹层重开即重拉列表。
+    const directory = testInfo.outputPath("materials");
+    await mkdir(directory, { recursive: true });
+    await writeFile(
+      path.join(directory, "sample.png"),
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
+    const registered = await request.post("/api/workdirs", {
+      data: { path: directory, title: "跨切页弹窗" },
+    });
+    expect(registered.status()).toBe(202);
+    const accepted = await registered.json();
+    await expect
+      .poll(
+        async () =>
+          (await (await request.get(`/api/tasks/${accepted.task_id}`)).json())
+            .status,
+      )
+      .toBe("succeeded");
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "打标", exact: true }).click();
+    await page.getByRole("button", { name: "选择工作目录与批次" }).click();
+    await page.getByRole("button", { name: /新增策略 跨切页弹窗/ }).click();
+    const dialog = page.getByRole("dialog", { name: "新增策略" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("textbox", { name: "策略名" }).fill("切页不该丢");
+
+    await dialog.getByRole("button", { name: "端点配置" }).click();
+    // 弹层内容挂在 body 下的 portal 里（不在 dialog 元素内），齿轮要从全局取。
+    await page.getByRole("button", { name: "前往设置 · 端点配置" }).click();
+
+    // 跳页连弹层一起带走、什么都不丢：弹窗节点随保活的打标页被标 display:none（不是被卸载），
+    // 切回来它就在原地——这一条正是「保活与切页即卸载的直觉相反」的体验级证据（稿 #18
+    // 格 5 裁甲；机制探针在 evidence/Qoder-2026-1009-1437-newstrategy/）。
+    // 隐藏期连标题一起 display:none，可及名算不出来（aria-labelledby 指向隐藏节点），
+    // 这一段只能用 role 属性选择器量「节点在不在、藏没藏」。
+    const dialogNode = page.locator('[role="dialog"]');
+    await expect(dialogNode).toBeAttached();
+    await expect(dialogNode).toBeHidden();
+    await expect(page.getByTestId("page-labeling")).not.toBeVisible();
+    const added = await request.post("/api/endpoints", {
+      data: {
+        name: "跨切页端点",
+        base_url: isolatedFakeLlmURL("page-state.spec.ts"),
+        model: "relisted",
+        api_key: "sk-e2e-not-a-real-key", // pragma: allowlist secret
+      },
+    });
+    expect(added.ok()).toBeTruthy();
+
+    // 设置页的侧栏整条换成设置导航（没有「打标」那枚），回打标走「返回工作区」。
+    await page.getByRole("button", { name: "返回工作区" }).click();
+    // 切回来什么都不丢：表单值还在、弹层还开着；隐藏期「挂载即取数」的 effect 随保活机制卸载、
+    // 切回重建时又拉了一遍，所以新端点不用重开弹窗就进了列表（笔⑦同一机制的跨页那一面）。
+    // 这一段按节点／文本取而不按可及名：保活把 dialog 与弹层两层 hideOthers 的存取序打乱了，
+    // 切回后两层 portal 上残留 aria-hidden="true"（看得见、点得动，可及性树里没它——挂起清单那笔）。
+    await expect(dialogNode.locator("input")).toHaveValue("切页不该丢");
+    await expect(
+      page.locator('[role="menuitem"]', { hasText: "跨切页端点 · relisted" }),
+    ).toBeVisible();
   });
 });

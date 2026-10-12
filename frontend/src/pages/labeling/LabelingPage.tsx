@@ -374,9 +374,8 @@ export function LabelingPage({
               ? Math.max(...batches.map((entry) => entry.seq)) + 1
               : 1;
           })()}
-          existingCount={
-            workdirs.find((entry) => entry.id === newStrategyWid)?.batches.length ?? 0
-          }
+          onNavigateToSettings={onNavigateToSettings}
+          onOpenWorkbench={onOpenWorkbench}
           onClose={() => setNewStrategyWid(null)}
           onCreated={(batch) => {
             setWorkdirs((previous) =>
