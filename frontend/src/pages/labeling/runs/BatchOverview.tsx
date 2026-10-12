@@ -1,4 +1,5 @@
 import { BookOpenIcon, ChevronDownIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
@@ -30,6 +31,8 @@ interface Props {
   /** 打包清单「加入重试」成功后回灌左列名单。 */
   onRetryChanged?: (items: string[]) => void;
   onRunStarted?: (id: string) => void;
+  /** 窄屏展收的展开钮（状态住在页面层；稿 §22＝概览视图挂大题行最左）。 */
+  listToggle?: ReactNode;
 }
 
 const integrityLabels = {
@@ -51,6 +54,7 @@ export function BatchOverview({
   onRepoint,
   onRetryChanged,
   onRunStarted,
+  listToggle,
 }: Props) {
   const [rebuildOpen, setRebuildOpen] = useState(false);
   const [snapshotIdentity, setSnapshotIdentity] = useState<string | null>(null);
@@ -194,6 +198,7 @@ export function BatchOverview({
         />
       )}
       <div className="mb-3 flex items-center gap-3">
+        {listToggle}
         <h2 className="text-t-xl font-medium">批次概览</h2>
         <Button
           variant="ghost"

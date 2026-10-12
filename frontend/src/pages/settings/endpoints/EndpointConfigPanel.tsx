@@ -16,11 +16,11 @@ import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
 import { UnsavedConfirmDialog } from "../../../components/unsaved-confirm-dialog";
 import { useVscrollColumn } from "../../../components/vscroll";
+import { usePeekList } from "../../../hooks/use-peek-list";
 import { errorField, type Feedback, reportError } from "../../../lib/feedback";
 import { toast } from "../../../lib/toast";
 import type { PanelUnsavedActions } from "../../../lib/unsaved-actions";
 import { cn } from "../../../lib/utils";
-import { usePeekList } from "../use-peek-list";
 import {
   type AdvJsonState,
   collectAdvParams,

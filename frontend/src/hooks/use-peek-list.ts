@@ -1,13 +1,13 @@
 /**
- * 设置面板窄屏列表展收（对齐批「窄屏列表展收 · 两态交互实现」；规格权威＝零件稿
- * 窄屏列表展收.html、态类 base.css §21）：<768 时左列收起为自动默认，详情头最左的
- * 展开钮承担「展开」——悬停／键盘 Enter／Space 进暂展浮出层（叠详情上、详情不位移），
- * Esc／层头返回钮／点行收起。端点与技能两面板同构共用；≥768 两列常驻、展收交互整体
- * 不存在（断点跨线复位收起）。
+ * 窄屏列表展收（跨页共享；规格权威＝零件稿「窄屏列表展收.html」、态类 base.css §21／§22）：
+ * <768 时左列收起为自动默认，画布／详情头行最左的展开钮承担「展开」——悬停／键盘 Enter／Space
+ * 进暂展浮出层（叠在画布上、画布不位移），Esc／层头返回钮／点行收起。落位＝2026-10-11 用户裁
+ * 「上移共享」（对齐批「窄屏列表展收」条），先例＝同目录 use-media-query；
+ * 现役实例＝设置页端点／技能两面板＋打标页左列。≥768 两列常驻、展收交互整体不存在（断点跨线复位收起）。
  */
 import type { RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useMediaQuery } from "../../hooks/use-media-query";
+import { useMediaQuery } from "./use-media-query";
 
 /** 窄屏断点：与稿 base.css <768 块同值（767.98px 防亚像素跨界）。 */
 const NARROW_QUERY = "(max-width: 767.98px)";

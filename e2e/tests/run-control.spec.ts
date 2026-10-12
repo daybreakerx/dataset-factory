@@ -137,12 +137,15 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
     await page.getByRole("button", { name: "刷新条目", exact: true }).click();
     const materials = page.getByRole("complementary", { name: "素材条目" });
     await materials.getByRole("button", { name: "选择", exact: true }).click();
-    await materials.getByRole("button", { name: "已完成全选" }).click();
+    // 全选钮＝三态换形的图标钮（aria 随态说「全选本组／清除本组选择」）；「清空选择」文字钮随多选条撤除，
+    // 清除动作由已全选态再点一次承担（对齐批「多选选择条」③）。
+    const done = materials.getByRole("region", { name: "已完成", exact: true });
+    await done.getByRole("button", { name: "全选本组" }).click();
     await expect(materials.getByRole("checkbox", { name: "选择 sample.png" })).toBeChecked();
-    await materials.getByRole("button", { name: "清空选择", exact: true }).click();
+    await done.getByRole("button", { name: "清除本组选择" }).click();
     await expect(materials.getByRole("checkbox", { name: "选择 sample.png" })).not.toBeChecked();
-    await materials.getByRole("button", { name: "已完成全选" }).click();
-    await materials.getByRole("button", { name: "加入重试", exact: true }).click();
+    await done.getByRole("button", { name: "全选本组" }).click();
+    await materials.getByRole("button", { name: /^加入重试\(/ }).click();
     const retry = materials.getByRole("region", { name: "重试列表", exact: true });
     await expect(retry.getByText("sample.png", { exact: true })).toBeVisible();
     await page.reload();

@@ -1,10 +1,17 @@
-import { FileImageIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
+import {
+  FileImageIcon,
+  PanelLeftOpenIcon,
+  PlusIcon,
+  RefreshCwIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, corruptedRunOf, errorMessage } from "../../api";
 import { DirectoryPicker } from "../../components/DirectoryPicker";
 import { FormError } from "../../components/form-error";
 import { Button } from "../../components/ui/button";
 import { Tip } from "../../components/ui/tooltip";
+import { usePeekList } from "../../hooks/use-peek-list";
+import { reportError } from "../../lib/feedback";
 import { toast } from "../../lib/toast";
 import {
   LABELING_SELECTED_ITEM_KEY,
@@ -49,6 +56,10 @@ export function LabelingPage({
   onOpenWorkbench?: () => void;
 } = {}) {
   const [error, setError] = useState("");
+  // 条目取数失败固定句（列表槽一行）；操作级失败仍走上面的页面错误条——两条分道随「分组头」⑨。
+  const [itemsError, setItemsError] = useState("");
+  // 窄屏列表展收（稿 §22，与设置页同构；hook 已上移共享）。
+  const { narrow, peek, toggleRef, backRef, openPeek, closePeek } = usePeekList();
   // 后端叫得出「是哪一份运行记录坏了」时，A／D 两面的错误行换成可点红字（ADR 2026-10-09）。
   const [errorRun, setErrorRun] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -199,14 +210,18 @@ export function LabelingPage({
         setItems(itemsFromGroups(view.groups));
         setExportRevision((value) => value + 1);
         setError("");
+        setItemsError("");
         setErrorRun(null);
       } catch (reason) {
         if (
           mounted.current &&
           identityRef.current === identity &&
           version === refreshVersion.current
-        )
-          setError(errorMessage(reason));
+        ) {
+          // 条目取数失败与操作级失败分道：连接类走全局浮层，其余在列表槽里给固定句
+          // （不拼后端 message——稿「分组头」⑨「列表三态对齐」）。
+          if (reportError(reason) !== null) setItemsError("条目读取失败");
+        }
         setErrorRun(corruptedRunOf(reason));
         if (requireSuccess) throw reason;
       }
@@ -289,6 +304,8 @@ export function LabelingPage({
       if (!mounted.current || identityRef.current !== identity) return;
       retryChanged(result.items);
       setChecked(new Set());
+      // 加入重试成功＝回常态（稿「头行 · 加入重试后」）；失败分支相反——留在多选态、勾选保留可重试。
+      setSelectionMode(false);
     } catch (reason) {
       if (mounted.current && identityRef.current === identity)
         setError(errorMessage(reason));
@@ -296,6 +313,24 @@ export function LabelingPage({
       if (mounted.current && identityRef.current === identity) setSaving(false);
     }
   }
+  // 展开钮＝稿 §22 .lb-list-toggle：仅窄屏显形（宽屏两列常驻、此钮恒无）；悬停＝暂展、
+  // 点击／键盘＝暂展并把焦点送进层头返回钮；暂展期占位保留但不可见不可聚焦（出口改层头返回钮）。
+  const listToggle = narrow ? (
+    <Button
+      ref={toggleRef}
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label="展开条目列表"
+      aria-controls="lb-itemcol"
+      aria-expanded={peek}
+      className={peek ? "invisible" : undefined}
+      onMouseEnter={() => openPeek(false)}
+      onClick={() => openPeek(true)}
+    >
+      <PanelLeftOpenIcon />
+    </Button>
+  ) : undefined;
   const asset =
     selected && selection
       ? `/api/workdirs/${encodeURIComponent(selection.workdirId)}/items/${encodeURIComponent(selected.item)}/asset`
@@ -476,11 +511,19 @@ export function LabelingPage({
           <FormError className="mx-6 mb-3 text-t-sm text-bad-ink">{error}</FormError>
         )
       )}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-4 pb-6 md:flex-row md:overflow-hidden md:px-6">
+      {/* 主区＝§22 .lb-grid：宽屏两列（左列 320＋画布吃满剩余）；<768 收起＝左列隐、画布满宽，
+          暂展＝左列作浮出层叠在画布上（画布不位移）——不再上下堆叠，滚动归画布自身。 */}
+      <div className="relative flex min-h-0 flex-1 gap-4 overflow-hidden px-4 pb-6 md:px-6">
         <MaterialsPanel
           items={items}
           selection={selection}
           loading={loading}
+          loadError={itemsError}
+          narrow={narrow}
+          peek={peek}
+          backRef={backRef}
+          onPeekBack={() => closePeek(true)}
+          onPeekLeave={() => closePeek(false)}
           saving={saving}
           selectionMode={selectionMode}
           setSelectionMode={setSelectionMode}
@@ -496,7 +539,7 @@ export function LabelingPage({
           repoint={(name) => setRepoint(name)}
           requestRemoval={requestRemoval}
         />
-        <div className="flex min-w-0 shrink-0 flex-col lg:flex-1 lg:overflow-auto">
+        <div className="flex min-w-0 flex-1 flex-col overflow-auto">
           {creating ? (
             // L1（2026-09-21 审计）：新建跑批改为画布内换块——顶栏与左列保留，
             // 返回后选择、折叠与滚动位置都还在（不再整页卸载）。无选中批次时同样可用。
@@ -538,6 +581,7 @@ export function LabelingPage({
               {!selected && selection && !loading && (
                 <BatchOverview
                   key={identity}
+                  listToggle={listToggle}
                   wid={selection.workdirId}
                   batch={selection.batchId}
                   items={items}
@@ -560,6 +604,7 @@ export function LabelingPage({
               {selected && (
                 <MaterialDetail
                   identity={identity}
+                  listToggle={listToggle}
                   selectedItem={selectedItem}
                   selected={selected}
                   asset={asset}

@@ -264,8 +264,12 @@ def _missing_row(stem: str, origin: ImportOrigin, in_retry: bool) -> ItemRow:
 
     探测只看来源那儿还有没有这份文件（``is_file``，不复制不写盘）——就地采用的
     来源就是工作目录自身，素材既然没了，探测自然落空，界面据此改走「从别处导入」。
+
+    原因行两句由后端出（2026-10-07 裁「短句直接后端出」）：界面那一行只放得下十几个字，
+    把判定结果翻成人话放在数据里，前端不再自写「原始来源不可用」这类第三套措辞。
     """
     source_file = Path(origin.source) / origin.name
+    recoverable = source_file.is_file()
     return ItemRow(
         item=stem,
         name=origin.name,
@@ -275,7 +279,8 @@ def _missing_row(stem: str, origin: ImportOrigin, in_retry: bool) -> ItemRow:
         can_retry=False,
         in_retry=in_retry,
         source=str(source_file),
-        recoverable=source_file.is_file(),
+        recoverable=recoverable,
+        message="可从来源找回" if recoverable else "来源已失效",
     )
 
 

@@ -1,5 +1,5 @@
 import { ArrowLeftIcon, Maximize2Icon, Minimize2Icon } from "lucide-react";
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
@@ -19,6 +19,8 @@ export function MaterialDetail({
   setFoldedItem,
   onBack,
   onRetryChange,
+  /** 窄屏展收的展开钮（状态住在页面层；稿 §22＝预览视图挂预览头行最左、居「返回概览」之前）。 */
+  listToggle,
 }: {
   identity: string;
   selectedItem: string | null;
@@ -30,6 +32,7 @@ export function MaterialDetail({
   setFoldedItem: Dispatch<SetStateAction<string | null>>;
   onBack: () => void;
   onRetryChange: (retry: string[]) => void;
+  listToggle?: ReactNode;
 }) {
   /** 预览舞台 HUD 的媒体元信息：从加载后的媒体元素读取，无需额外接口。 */
   const [mediaMeta, setMediaMeta] = useState<{
@@ -45,6 +48,7 @@ export function MaterialDetail({
   return (
     <>
       <div className="mb-3 flex min-w-0 items-center gap-3">
+        {listToggle}
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeftIcon />
           返回概览

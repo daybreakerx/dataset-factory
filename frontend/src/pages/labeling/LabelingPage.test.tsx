@@ -318,11 +318,11 @@ describe("打标页读取流程", () => {
     expect(screen.getByRole("heading", { name: "first.psd" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "产物预览" })).not.toBeInTheDocument();
     // 组头「一键导入」两枚已撤（2026-10-10 用户裁）；行内「导入」点击直接补登记、不经弹窗。
+    // 「导入」＝纯图标钮（条目行②），文件名进 aria-label、不合资格的仍不亮。
     const unimported = within(screen.getByRole("region", { name: "未导入" }));
     expect(screen.queryByRole("button", { name: "一键导入" })).not.toBeInTheDocument();
-    const [blocked, eligible] = unimported.getAllByRole("button", { name: "导入" });
-    if (!blocked || !eligible)
-      throw new Error("未导入组应给出两枚「导入」钮（一灰一可点）");
+    const blocked = unimported.getByRole("button", { name: "导入 first.psd" });
+    const eligible = unimported.getByRole("button", { name: "导入 new.jpg" });
     expect(blocked).toBeDisabled();
     await user.click(eligible);
 
@@ -442,20 +442,29 @@ describe("打标页读取流程", () => {
         { name: "选择" },
       ),
     );
-    await user.click(screen.getByRole("button", { name: "已完成全选" }));
+    await user.click(
+      within(screen.getByRole("region", { name: "已完成" })).getByRole("button", {
+        name: "全选本组",
+      }),
+    );
     expect(screen.getByRole("checkbox", { name: "选择 first.jpg" })).toBeChecked();
-    await user.click(screen.getByRole("button", { name: "加入重试" }));
+    await user.click(screen.getByRole("button", { name: "加入重试(1)" }));
 
     expect(api.addRetryItems).toHaveBeenCalledWith("one", "s1", ["first"]);
-    expect(screen.getByText("已选 0")).toBeInTheDocument();
+    // 「已选 N」文字随多选条撤除；加入重试成功＝退出多选态（头行回到「选择」钮、勾选整排撤下），
+    // 同一条素材在「已完成」与「重试列表」两组各留一份（不是搬走，只是勾不掉了）。
+    expect(
+      within(screen.getByRole("complementary", { name: "素材条目" })).getByRole(
+        "button",
+        { name: "选择" },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryAllByRole("checkbox", { name: "选择 first.jpg" })).toHaveLength(
+      0,
+    );
     expect(
       screen.getAllByRole("button", { name: /first.jpg/, pressed: false }),
     ).toHaveLength(2);
-    expect(
-      screen
-        .getAllByRole("checkbox", { name: "选择 first.jpg" })
-        .every((checkbox) => !(checkbox as HTMLInputElement).checked),
-    ).toBe(true);
   });
 
   it("重试行逐条移出后原分组素材保留，整体清空同样以服务器结果更新", async () => {

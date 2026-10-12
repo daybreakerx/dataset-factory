@@ -244,7 +244,7 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   await page.getByRole("button", { name: "刷新条目", exact: true }).click();
   const missing = page.getByRole("region", { name: "缺失", exact: true });
   await expect(missing.getByText("recover.png", { exact: true })).toBeVisible();
-  await expect(missing.getByText("原始来源不可用", { exact: true })).toBeVisible();
+  await expect(missing.getByText("来源已失效", { exact: true })).toBeVisible();
   // 两枚组头「一键导入」与「重新导入缺失素材」弹窗已撤（2026-10-10 用户裁）：行内动作直接执行。
   await expect(missing.getByRole("button", { name: "一键导入", exact: true })).toHaveCount(0);
   const recoverRow = missing.locator("div.group", { hasText: "recover.png" });
@@ -283,13 +283,13 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   const unregistered = page.getByRole("region", { name: "未导入", exact: true });
   await expect(unregistered.getByText("sample.psd", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "已完成", exact: true }).getByText("sample.png", { exact: true })).toBeVisible();
-  // 行内「导入」＝点击直接补登记（不经确认、不经弹窗）；扩展名不支持的那一行钮置灰。
+  // 行内「导入」＝纯图标钮（文件名进 aria-label）＋点击直接补登记（不经确认、不经弹窗）；扩展名不支持的那一行钮置灰。
   const blockedRow = unregistered.locator("div.group", { hasText: "sample.psd" });
   await blockedRow.hover();
-  await expect(blockedRow.getByRole("button", { name: "导入", exact: true })).toBeDisabled();
+  await expect(blockedRow.getByRole("button", { name: "导入 sample.psd", exact: true })).toBeDisabled();
   const registerRow = unregistered.locator("div.group", { hasText: "unregistered.png" });
   await registerRow.hover();
-  await registerRow.getByRole("button", { name: "导入", exact: true }).click();
+  await registerRow.getByRole("button", { name: "导入 unregistered.png", exact: true }).click();
   await expect(unregistered.getByText("unregistered.png", { exact: true })).toHaveCount(0, {
     timeout: 30_000,
   });

@@ -33,23 +33,24 @@ const buttonVariants = cva(
         sm: "h-(--h-sm) px-2 text-t-sm",
         lg: "h-(--h-lg) px-4 text-t-lg",
         mini: "h-4 rounded-none bg-transparent px-0 text-t-sm text-text-3 hover:bg-transparent hover:text-text-1 disabled:bg-transparent [&_svg]:size-(--icon-sm)",
-        icon: "size-(--h-md) p-0",
-        "icon-sm": "size-(--h-sm) p-0 [&_svg]:size-(--icon-md)",
-        "icon-lg": "size-(--h-lg) p-0 [&_svg]:size-(--icon-lg)",
+        icon: "btn-icon size-(--h-md) gap-0 p-0",
+        "icon-sm": "btn-icon size-(--h-sm) gap-0 p-0 [&_svg]:size-(--icon-md)",
+        "icon-lg": "btn-icon size-(--h-lg) gap-0 p-0 [&_svg]:size-(--icon-lg)",
         // icon-xs（22px 盒）低于触控目标 24×24（DESIGN.md 七·7）：透明伪元素把命中区
         // 外扩 1px（base.css §7 .btn--icon.btn--xs::before 同款）——纯热区、视觉零变，
-        // 全档使用点一起受益（对齐批「请求链胶囊对齐」⑦）。
+        // 全档使用点一起受益（对齐批「请求链胶囊对齐」⑦）。热区挂 ::after，
+        // ::before 让给图标钮的基线零宽空格（见 globals.css 的 .btn-icon）。
         "icon-xs":
-          "relative size-(--h-xs) rounded-md p-0 before:absolute before:-inset-px before:content-[''] [&_svg]:size-(--icon-xs)",
+          "btn-icon relative size-(--h-xs) gap-0 rounded-md p-0 after:absolute after:-inset-px after:content-[''] [&_svg]:size-(--icon-xs)",
       },
     },
     compoundVariants: [
       {
-        // 无底图标钮的禁用档（base.css §17；2026-10-02 用户裁 B「不要加实底」）：
-        // 禁用只把图标压到 --n-400、底保持透明——不走 base 的 disabled:bg-muted 实底。
-        // twMerge 保后者：compound 在 cva 输出里排在 base 之后，disabled:bg 同组覆盖。
+        // 无底族的禁用档（base.css §18；2026-10-02 用户裁 B「不要加实底」、2026-10-06 扩到
+        // ghost 文字钮）：分类轴＝**常态有没有实底**——永远无底的 ghost 文字钮与图标钮一族
+        // 没有「换灰底」这件手段，禁用只压字色、底保持透明；有底钮（primary／danger 等）
+        // 照常走 base 的 disabled:bg-muted。twMerge 保后者：compound 排在 base 之后，同组覆盖。
         variant: "ghost",
-        size: ["icon", "icon-sm", "icon-lg", "icon-xs"],
         className: "disabled:bg-transparent",
       },
     ],

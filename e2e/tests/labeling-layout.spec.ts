@@ -49,7 +49,8 @@ test("打标页长名称下顶栏与条目列保持原型尺寸和对齐", async
   expect(createBox.height).toBe(34);
   expect(createBox.width).toBe(34);
   expect(createBox.x + createBox.width).toBe(listBox.x + listBox.width - 12);
-  expect(searchBox.height).toBe(26);
+  // 搜索框统一 §8 .search 高版（对齐批「条目标题行与搜索行」②，2026-10-06 用户裁「仍统一高版、不立密集档」）＝34。
+  expect(searchBox.height).toBe(34);
   expect(selectorBox.x + selectorBox.width).toBeLessThan(createBox.x);
   const context = page.getByRole("region", { name: "策略配置" });
   // 2026-09-21 定形：健康信息移入自研气泡，章内文本 = 「端点 · 模型」——
@@ -87,12 +88,19 @@ test("打标页长名称下顶栏与条目列保持原型尺寸和对齐", async
   await page.getByRole("button", { name: "返回概览" }).click();
   await expect(image).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
-  const mobileColumn = await column.boundingBox();
+  // 窄屏（<768）默认收起＝左列不占位、画布满宽；出口是画布大题行最左的展开钮（稿 §22）。
+  await expect(column).toBeHidden();
+  const listToggle = page.getByRole("button", { name: "展开条目列表" });
+  await expect(listToggle).toBeVisible();
   const mobileCreate = await create.boundingBox();
-  if (!mobileColumn || !mobileCreate) throw new Error("缺少窄屏布局元素");
-  expect(mobileColumn.width).toBe(358);
+  if (!mobileCreate) throw new Error("缺少窄屏布局元素");
   expect(mobileCreate.x + mobileCreate.width).toBeLessThanOrEqual(390);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  await listToggle.click();
+  await expect(column).toBeVisible();
+  expect((await column.boundingBox())?.width).toBe(320);
+  await page.getByRole("button", { name: "收起列表" }).click();
+  await expect(column).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath("labeling-mobile.png"), fullPage: true });
   expect(errors).toEqual([]);
 });
