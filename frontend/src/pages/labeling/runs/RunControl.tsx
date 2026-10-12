@@ -213,15 +213,7 @@ export function RunControl({
         if (lifecycle.current === generation) setBusy(false);
       }
     },
-    [
-      batch,
-      wid,
-      lifecycle,
-      setError,
-      setStatus,
-      reportStatus,
-      setAcceptedRunId,
-    ],
+    [batch, wid, lifecycle, setError, setStatus, reportStatus, setAcceptedRunId],
   );
 
   // 左列组头的「开始重试」：令牌从 0 起，父层点一次加一；切换批次时父层清零，
