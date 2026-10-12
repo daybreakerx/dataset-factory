@@ -304,4 +304,97 @@ describe("新建批次·表单头与素材来源", () => {
     expect(screen.getByRole("button", { name: "扫描" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "登记" })).not.toBeInTheDocument();
   });
+
+  it("选中库策略后策略内容三行只读在场、值取来源引用、策略名回填", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.listStrategies).mockResolvedValue([
+      {
+        id: "lib-1",
+        name: "库策略",
+        description: "",
+        endpoint_id: "e-model-x1111",
+        endpoint_name: "model",
+        prompt_id: "p-caption-01",
+        prompt_name: "caption",
+        skill_ids: [],
+        available: true,
+        damaged: false,
+        missing_refs: [],
+        body_chars: 10,
+        created_at: "",
+        updated_at: "",
+      },
+    ]);
+    renderForm();
+
+    await user.click(screen.getByRole("button", { name: "策略来源" }));
+    await user.click(await screen.findByRole("menuitem", { name: /库策略/ }));
+
+    // 归一补笔：三行恒渲染，库应用态是只读展示（灰底＝disabled）、值取来源引用。
+    expect(screen.getByRole("textbox", { name: "策略名" })).toHaveValue("库策略");
+    for (const label of ["端点配置", "基础提示词", "Skill"]) {
+      expect(screen.getByRole("button", { name: label })).toBeDisabled();
+    }
+    expect(screen.getByRole("button", { name: "端点配置" })).toHaveTextContent("model");
+    expect(screen.getByRole("button", { name: "基础提示词" })).toHaveTextContent(
+      "caption",
+    );
+    expect(screen.getByRole("button", { name: "Skill" })).toHaveTextContent("未选");
+    // 库策略态的解禁条件不再吃从零那三项（笔⑥：策略齐＝来源已定）。
+    await user.type(screen.getByRole("textbox", { name: "来源目录" }), "/source");
+    await user.type(screen.getByRole("textbox", { name: "工作目录" }), "/work");
+    await user.click(screen.getByRole("button", { name: "扫描" }));
+    await user.click(screen.getByRole("button", { name: "导入" }));
+    await waitFor(() => expect(infoLine()).toHaveTextContent("已导入 3 项"));
+    expect(screen.getByRole("button", { name: "创建批次" })).toBeEnabled();
+  });
+
+  it("Skill 弹层按 id 勾选、回显顿号，停用候选不列出，提交体吃 id", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.listSkills).mockResolvedValue([
+      {
+        id: "sk-1",
+        name: "风格约束",
+        description: "口语化",
+        enabled: true,
+        body_chars: 12,
+        damage_file: "",
+        damage_kind: null,
+      },
+      {
+        id: "sk-2",
+        name: "结构检查",
+        description: "",
+        enabled: false,
+        body_chars: 6,
+        damage_file: "",
+        damage_kind: null,
+      },
+    ]);
+    renderForm();
+    await user.type(screen.getByRole("textbox", { name: "来源目录" }), "/source");
+    await user.type(screen.getByRole("textbox", { name: "工作目录" }), "/work");
+    await user.type(screen.getByRole("textbox", { name: "策略名" }), "Test");
+
+    await user.click(screen.getByRole("button", { name: "Skill" }));
+    // 停用候选不列（笔④「过滤不列」——「（已停用）」缀与禁用行一并撤）。
+    await screen.findByRole("menuitemcheckbox", { name: /风格约束/ });
+    expect(
+      screen.queryByRole("menuitemcheckbox", { name: /结构检查/ }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /风格约束/ }));
+    // 点选不关层（族规）——关层后才回看触发件的回显（层开着时页面内容 aria-hidden）。
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Skill" })).toHaveTextContent("风格约束");
+
+    await user.click(screen.getByRole("button", { name: "扫描" }));
+    await user.click(screen.getByRole("button", { name: "导入" }));
+    await waitFor(() => expect(infoLine()).toHaveTextContent("已导入 3 项"));
+    await user.click(screen.getByRole("button", { name: "创建批次" }));
+
+    await waitFor(() => expect(api.createBatch).toHaveBeenCalledOnce());
+    expect(vi.mocked(api.createBatch).mock.calls[0]?.[1]).toMatchObject({
+      skill_ids: ["sk-1"],
+    });
+  });
 });

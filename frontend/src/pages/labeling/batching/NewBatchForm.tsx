@@ -330,7 +330,6 @@ export function NewBatchForm({
           prompts={lists.prompts}
           skills={lists.skills}
           busy={creating}
-          batchLocked={false}
           onLibraryChange={(value) => {
             setLibrary(value);
             setName(lists.strategies.find((entry) => entry.id === value)?.name ?? "");
@@ -340,6 +339,7 @@ export function NewBatchForm({
           onPromptChange={lists.setPrompt}
           onSelectedSkillsChange={setSelectedSkills}
           onNavigateToSettings={onNavigateToSettings}
+          onOpenWorkbench={onOpenWorkbench}
         />
         {/* 试标动线（策略件笔⑩）：hint 一句＋accent 小钮，去向＝策略页对话区。
             原第二行「体积上限…」meter 撤——体积与扩展名范围已进扫描钮气泡（笔⑦）。 */}
