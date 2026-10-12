@@ -486,6 +486,12 @@ describe("运行控制", () => {
     expect(await screen.findByRole("dialog", { name: "停止跑批？" })).toHaveTextContent(
       "当前条目正在生成中，是否等待条目完成后中断？",
     );
+    // 默认焦点落右位主行动「确认」（稿格 17：族规「危险右位」不适用）——否则 Radix
+    // 聚焦页脚首个可聚焦件＝左位「立即中断」，键盘用户回车即触发危险档。
+    // （焦点经 rAF 落定：晚于 Portal 内容挂载与 FocusScope 的开层自动聚焦。）
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "确认" })).toHaveFocus(),
+    );
     await user.click(screen.getByRole("button", { name: "确认" }));
     await waitFor(() =>
       expect(api.stopRun).toHaveBeenCalledWith("work", "s1", "graceful"),

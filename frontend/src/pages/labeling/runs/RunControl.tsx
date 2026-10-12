@@ -231,7 +231,25 @@ export function RunControl({
 
   if (historyState === "completed" && !status) {
     // 已完成：整组不渲染（右段只剩请求链只读胶囊）；观测与令牌照常运行（hooks 已走）。
-    return null;
+    // 最小例外（稿样图 09，2026-10-10 用户裁「放宽」）：原「已完成 → 整组不渲染」遇损坏
+    // 无容器（红字链接没处可去）——放宽为组渲染、仅渲染该行（任何动作钮仍不出）。
+    if (errorRun === null) return null;
+    return (
+      <section
+        className="ml-auto flex min-w-0 shrink-0 items-center"
+        aria-label="运行控制"
+      >
+        <JournalCorruptedLine
+          wid={wid}
+          run={errorRun}
+          onCleaned={() => {
+            setError("");
+            setErrorRun(null);
+            onItemsRefresh?.();
+          }}
+        />
+      </section>
+    );
   }
 
   const attempted = status?.counters.attempted ?? 0;
@@ -247,6 +265,7 @@ export function RunControl({
         <JournalCorruptedLine
           wid={wid}
           run={errorRun}
+          iconTier
           onCleaned={() => {
             setError("");
             setErrorRun(null);
@@ -365,11 +384,14 @@ export function RunControl({
       {stopDialog && (
         // 停止确认弹窗（稿「运行状态组」格 17）：两行动题、无取消项——Esc 与右上角 × 就是
         // 「不停、照常跑」；「立即中断」取红字描边档居左、「确认」（等条目打完）在右位。
+        // 默认焦点落右位主行动（格 17 同笔：族规「危险右位」不适用）——否则 Radix 聚焦
+        // 页脚首个可聚焦件＝左位「立即中断」，键盘用户回车即触发危险档、与稿意图相反。
         <DialogShell
           open
           onOpenChange={(value) => !value && setStopDialog(false)}
           title="停止跑批？"
           description="当前条目正在生成中，是否等待条目完成后中断？"
+          initialFocus="confirm"
           cancel={{
             label: "立即中断",
             variant: "danger-text",

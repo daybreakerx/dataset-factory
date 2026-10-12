@@ -1,4 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
+import { useEffect, useRef } from "react";
 
 import { Button } from "./ui/button";
 import {
@@ -47,6 +48,15 @@ export type DialogShellProps = {
   cancel?: DialogAction;
   /** 行尾主动作钮，缺省不渲染。 */
   confirm?: DialogAction;
+  /**
+   * 开窗默认焦点落位（可选档，不传＝Radix 现状：聚焦页脚第一个可聚焦件）。
+   * 用于「危险动作不在默认位」的弹窗——如停止确认（稿「运行状态组」格 17：二行动题、
+   * 无取消项，族规「危险右位」不适用、默认焦点落主行动右位＝「确认」；否则键盘用户
+   * 回车即触发左位危险档，与稿意图相反）。只在新传本档的实例上生效，族内其余窗形态不变。
+   * 落点手法＝dropdown-menu.tsx 同款：挂 open 翻真的 effect（晚于 Radix FocusScope 的
+   * 开层自动聚焦，把焦点挪到目标钮）。
+   */
+  initialFocus?: "cancel" | "confirm";
   /** 自由页脚（多钮状态机等）；传入时整行替换 cancel/confirm/note 组合。 */
   footer?: ReactNode;
   /**
@@ -88,6 +98,7 @@ export function DialogShell({
   footer,
   flight,
   closeTip,
+  initialFocus,
   className,
   children,
 }: DialogShellProps) {
@@ -101,6 +112,20 @@ export function DialogShell({
   // 挂 aria-disabled ＋掐掉 onClick（键盘 Enter 路径一并拦），外观同形；
   // 实例可用 action.flight 覆盖壳级（关机弹窗飞行期只锁确认钮——稿 底部钮组）。
   const inFlight = (action: DialogAction): boolean => action.flight ?? flight ?? false;
+  // initialFocus 档（见 props 注）：目标钮挂 ref，开窗后把焦点从 Radix 的默认首位挪过来。
+  // 时机：Radix 的 Portal 首渲染延一 commit 挂载内容（presence 的 mounted 态），壳层本 effect
+  // 跑时 ref 尚为空——故落 rAF（晚于内容提交与 FocusScope 的开层自动聚焦，后者聚焦页脚
+  // 首个可聚焦件）。dropdown-menu.tsx 的「open 翻真」effect 是同一手法的常驻包装版。
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open || initialFocus === undefined) return;
+    const raf = requestAnimationFrame(() => {
+      const target = initialFocus === "cancel" ? cancelRef.current : confirmRef.current;
+      target?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [open, initialFocus]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -145,6 +170,7 @@ export function DialogShell({
             {cancel !== undefined && (
               <Button
                 type="button"
+                ref={cancelRef}
                 variant={cancel.variant ?? "outline"}
                 size={cancel.size}
                 disabled={inFlight(cancel) ? undefined : cancel.disabled}
@@ -158,6 +184,7 @@ export function DialogShell({
             {confirm !== undefined && (
               <Button
                 type="button"
+                ref={confirmRef}
                 variant={confirm.variant ?? "default"}
                 size={confirm.size}
                 disabled={inFlight(confirm) ? undefined : confirm.disabled}

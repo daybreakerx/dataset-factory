@@ -14,7 +14,13 @@ const buttonVariants = cva(
           // 禁用档补 hairline 边（稿 base.css §7「.btn:disabled 只换灰底」+ 重建弹窗条⑪）：
           // 灰底与卡片同色时无边就看不出这里有个钮。
           "bg-primary text-primary-foreground border-input hover:bg-primary-hover active:bg-primary-press disabled:border",
-        destructive: "bg-transparent text-bad-ink hover:bg-bad-bg",
+        // 危险图标钮档（base.css §7「危险图标钮」＝.btn--ghost.btn--icon.danger 同款）：
+        // 红是状态色、不常驻——静止中性 --text-3、悬停才显红（--bad-ink 字＋--bad-ink/.12 墨底）。
+        // 2026-10-12 对齐批批末按 §7 注（原「随对齐批改」）归一：原「红字常驻＋--bad-bg 实浅底」两点差异消除；
+        // 现役调用点均已走 .danger 类挂法（material-row／workdir-batches／config-form／skill-detail／WorkdirSettings），
+        // 本变体只剩 story 演示，归一后演示形态与规范档一致。
+        destructive:
+          "bg-transparent text-text-3 hover:bg-bad-ink/12 hover:text-bad-ink",
         "destructive-fill": "bg-bad-ink text-on-ink hover:bg-bad-ink-strong",
         // 红字描边钮（稿 base.css §7 .btn--danger-text）：确认弹窗里的破坏性动作——
         // 静止态轮廓与取消钮同档（--input），红只作语义信号不铺面积。

@@ -11,9 +11,21 @@ class LLMError(Exception):
     """llm 调用相关错误的基类。
 
     类属性 retryable 标记该类错误是否值得重试，子类按需覆盖。
+
+    Attributes:
+        short: 一行放得下的短句版（给条目行原因行这类 ≈16 汉字的窄槽位用）；不传＝
+            调用方没有短句需求，取 message 本身。诊断细节（含端点响应体摘要）走
+            message 全句、进 run.log——2026-10-12 对齐批「LLM 错误文案改短句」条：
+            界面吃短句、日志吃短句＋detail，2026-09-14「端点的一面之词交给用户自己判断」
+            的定夺在日志侧保留（界面侧不撤）。
     """
 
     retryable: bool = False
+
+    def __init__(self, message: str, *, short: str = "") -> None:
+        """构造；``short`` 见类 docstring（空＝沿用全句）。"""
+        super().__init__(message)
+        self.short = short or message
 
 
 class LLMAuthError(LLMError):
@@ -30,9 +42,11 @@ class LLMRateLimitError(LLMError):
 
     retryable = True
 
-    def __init__(self, message: str, *, retry_after: float | None = None) -> None:
+    def __init__(
+        self, message: str, *, retry_after: float | None = None, short: str = ""
+    ) -> None:
         """带可选的 Retry-After 秒数构造（一期调用点不传即沿用原语义）。"""
-        super().__init__(message)
+        super().__init__(message, short=short)
         self.retry_after = retry_after
 
 

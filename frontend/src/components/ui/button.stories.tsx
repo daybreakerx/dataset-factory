@@ -29,7 +29,7 @@ export const Ghost: Story = {
   args: { variant: "ghost", children: "次级" },
 };
 
-/** 危险红字（destructive）：透明底红字，悬停红底。 */
+/** 危险（destructive，§7 危险图标钮档）：静止中性灰字、悬停才显红（红字＋半透明墨底）。 */
 export const DestructiveText: Story = {
   args: { variant: "destructive", children: "删除" },
 };

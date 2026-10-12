@@ -630,9 +630,12 @@ class BatchRunner:
                 and not self._should_stop()
             ):
                 delay = failure.retry_after or _backoff_seconds(attempt)
+                detail_log = (
+                    f"｜诊断：{_one_line(failure.detail)}" if failure.detail else ""
+                )
                 journal.append_log_line(
                     f"[{now_log_stamp()}] {item} 尝试 {attempt} 失败"
-                    f"（{failure.reason_code}：{_one_line(failure.message)}）；"
+                    f"（{failure.reason_code}：{_one_line(failure.message)}{detail_log}）；"
                     f"{delay:.1f}s 后重试"
                 )
                 self._sleep(delay)
@@ -681,9 +684,12 @@ class BatchRunner:
                     message=_one_line(failure.message),
                 )
             )
+            detail_log = (
+                f"｜诊断：{_one_line(failure.detail)}" if failure.detail else ""
+            )
             journal.append_log_line(
                 f"[{now_log_stamp()}] {item} 失败（{failure.reason_code}："
-                f"{_one_line(failure.message)}）"
+                f"{_one_line(failure.message)}{detail_log}）"
             )
             return False
 
@@ -763,10 +769,14 @@ class BatchRunner:
             reason_code, retryable = _classify_llm_error(exc)
             return _Failure(
                 reason_code,
-                str(exc),
+                # 界面槽位（条目行原因行）吃短句；全句（含端点响应体摘要与建议）进 detail、
+                # 只落 run.log——2026-10-12 对齐批「LLM 错误文案改短句」条（选项①两层化；
+                # 2026-09-14「端点的一面之词交给用户自己判断」在日志侧保留、不撤）。
+                exc.short,
                 retryable=retryable,
                 retry_after=getattr(exc, "retry_after", None),
                 elapsed_ms=_elapsed(),
+                detail=str(exc),
             )
         # 成功：产物原子写（只有完整产物算已有产物，中断不留半截；流式增量同样
         # 只活内存——写盘的只有这份 strip 过的终稿，A2 半截产物语义）。
@@ -834,13 +844,20 @@ class BatchRunner:
 
 @dataclass(frozen=True)
 class _Failure:
-    """一次尝试的失败信息（内部中间对象，不进流水——落盘前拆成字段）。"""
+    """一次尝试的失败信息（内部中间对象，不进流水——落盘前拆成字段）。
+
+    Attributes:
+        detail: 诊断细节（LLM 类的端点响应体摘要与可操作建议全句）——只进 run.log，
+            不进界面槽位与 items.jsonl（条目行原因行放不下；2026-10-12 对齐批
+            「LLM 错误文案改短句」条：界面吃 message 短句、日志吃短句＋detail）。
+    """
 
     reason_code: str
     message: str
     retryable: bool = False
     retry_after: float | None = None
     elapsed_ms: int = 0
+    detail: str = ""
 
 
 def _plan_full(

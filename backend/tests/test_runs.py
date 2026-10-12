@@ -241,8 +241,48 @@ def test_endpoint_key_echo_is_absent_from_run_files(
     assert marker not in caplog.text
     for name in ("run.log", "items.jsonl", "run.json"):
         assert marker not in (report.run_dir / name).read_text(encoding="utf-8")
-    for name in ("run.log", "items.jsonl"):
-        assert "*****" in (report.run_dir / name).read_text(encoding="utf-8")
+    # 掩码断言只落 run.log 与应用日志：items.jsonl 的 message 自 2026-10-12 两层化后
+    # 只带短句（无端点响应体摘要，天然不含密钥回显）；诊断全句（脱敏后）只在 run.log。
+    assert "*****" in (report.run_dir / "run.log").read_text(encoding="utf-8")
+    assert "*****" in caplog.text
+
+
+def test_llm_failure_splits_short_row_and_detail_log(batch: Path) -> None:
+    """LLM 失败两层落点：条目行（items.jsonl）吃短句，run.log 吃短句＋诊断全句。
+
+    2026-10-12 对齐批「LLM 错误文案改短句」条选项①：界面一行放不下长句，诊断细节
+    （含端点响应体摘要）只进日志——2026-09-14 定夺在日志侧保留。
+    """
+    error = openai.BadRequestError.__new__(openai.BadRequestError)
+    error.body = {"code": 20015, "message": "The parameter is invalid."}
+    sdk = MagicMock()
+    sdk.chat.completions.create.side_effect = error
+    client = OpenAIChatClient(cast(openai.OpenAI, sdk), "test-model")
+    image = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAA"
+        "AABJRU5ErkJggg=="
+    )
+    for name in ("cat_001.jpg", "cat_002.jpg"):
+        (batch / name).write_bytes(image)
+
+    report = _runner(batch, client).run()
+
+    assert report.counters["failed"] == 2
+    items = [
+        json.loads(line)
+        for line in (report.run_dir / "items.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    # 条目行槽位：短句、无端点摘要
+    assert items[0]["message"] == "请求被端点拒绝"
+    assert "端点返回：" not in items[0]["message"]
+    # run.log：短句＋诊断全句（含端点响应体摘要）
+    log_text = (report.run_dir / "run.log").read_text(encoding="utf-8")
+    assert "请求被端点拒绝" in log_text
+    assert "诊断：" in log_text
+    assert "端点返回：" in log_text
+    assert "20015" in log_text
 
 
 def test_run_info_removed_and_lock_released_after_run(batch: Path) -> None:

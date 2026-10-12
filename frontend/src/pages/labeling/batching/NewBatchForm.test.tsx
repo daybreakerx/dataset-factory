@@ -438,6 +438,8 @@ describe("新建批次·表单头与素材来源", () => {
     const row = await screen.findByRole("menuitem", { name: /库策略/ });
     expect(row).toHaveAttribute("aria-disabled", "true");
     expect(row).toHaveAttribute("data-row", "bad");
-    expect(row).toHaveTextContent("引用缺失，暂时不可用 · 点击处理");
+    // 坏行档＝名行红缀短式＋描述位去处句（与新增策略弹窗同族同句）；不承诺行内点击出口。
+    expect(row).toHaveTextContent("引用缺失");
+    expect(row).toHaveTextContent("不可应用 · 到「策略」页重新指定后可用");
   });
 });

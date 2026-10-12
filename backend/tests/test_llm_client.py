@@ -251,6 +251,30 @@ def test_translate_without_body_keeps_clean_message() -> None:
     assert "端点返回：" not in str(excinfo.value)
 
 
+def test_translate_splits_short_and_full_messages() -> None:
+    """两层消息：short 短句进界面窄槽（条目行原因行），全句（含端点摘要）进 detail。
+
+    2026-10-12 对齐批「LLM 错误文案改短句」条选项①：界面吃短句、run.log 吃短句＋
+    detail；2026-09-14「端点的一面之词交给用户自己判断」在日志侧保留（不撤）。
+    """
+    exc = _bare_sdk_error(openai.BadRequestError)
+    exc.body = {"code": 20015, "message": "The parameter is invalid."}
+    client = _client_raising(exc)
+
+    with pytest.raises(LLMBadRequestError) as excinfo:
+        client.complete([Message(role="user", parts=(TextPart("hi"),))])
+
+    # 短句：一行放得下、不带端点摘要与操作建议
+    assert excinfo.value.short == "请求被端点拒绝"
+    assert "端点返回：" not in excinfo.value.short
+    # 全句：原样保留（含端点响应体摘要），进 run.log
+    assert "请求被端点判为非法" in str(excinfo.value)
+    assert "端点返回：" in str(excinfo.value)
+    # 未显式给 short 的类（如空稿护栏）回落全句，两层同值
+    bare = LLMError("模型返回了空白描述；请重试或调整输入。")
+    assert bare.short == str(bare)
+
+
 def test_error_summary_masks_api_key_in_endpoint_body() -> None:
     """端点在错误体里回显密钥时，摘要与用户消息对密钥定点掩码（audit 2026-09-14）。"""
     exc = _bare_sdk_error(openai.BadRequestError)

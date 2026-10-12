@@ -136,7 +136,10 @@ export function BatchConfiguration({
         创建时间: new Date(snapshot.built_at).toLocaleString(),
       }).map(([label, value]) => (
         <div key={label} className="flex gap-3 py-1">
-          <dt className="w-[76px] shrink-0 text-text-3">{label}</dt>
+          {/* 键列随 §10 .kv .k 实体（84px／--text-4）——16d 稿明文「不写死数值、随实体」；
+              76px 是 16z1 设置行族（.wd-slabel）的裁决，用户 2026-10-11 裁「其他几处不管、
+              症状不同构不推广」，.kv 实体未改档（对齐批批末挂起清单「键列 76px」条据此订正）。 */}
+          <dt className="w-[84px] shrink-0 text-text-4">{label}</dt>
           <dd className="min-w-0 break-all text-text-2">{value}</dd>
         </div>
       ))}

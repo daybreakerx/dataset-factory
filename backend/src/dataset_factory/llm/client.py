@@ -525,10 +525,11 @@ def _translate_sdk_error(exc: openai.APIError, secret: str | None = None) -> LLM
     """把 openai SDK 的分类异常翻译成项目自己的类型化异常。
 
     按「先具体后一般」判类型：APITimeoutError 是 APIConnectionError 的子类、各 HTTP
-    状态异常是 APIStatusError 的子类，故先判子类再判父类。用户可见消息只说「哪里错、
-    怎么修」，不回显 SDK 原始消息（避免泄密钥 / 甩栈）；HTTP 状态类错误在其后附上
-    **端点响应体摘要**（2026-09-14 用户定夺）——端点的一面之词交给用户自己判断
-    （如「模型不存在」在部分端点是 400 而非 404，摘要能直接看到端点怎么说）。
+    状态异常是 APIStatusError 的子类，故先判子类再判父类。每条产出两层消息：全句
+    （「哪里错、怎么修」＋ **端点响应体摘要**〔2026-09-14 用户定夺——端点的一面之词
+    交给用户自己判断，如「模型不存在」在部分端点是 400 而非 404〕）与 ``short`` 短句
+    （给条目行原因行这类窄槽位；界面吃短句、run.log 吃全句，2026-10-12 对齐批条）。
+    两层都不回显 SDK 原始消息（避免泄密钥 / 甩栈）。
     ``secret`` 是当前配置的密钥明文：摘要生成后对它定点掩码——端点可配任意 base_url，
     错误体若回显了请求内容（含密钥），不能让它经界面 / 日志二次泄漏（audit 2026-09-14）。
     """
@@ -538,44 +539,67 @@ def _translate_sdk_error(exc: openai.APIError, secret: str | None = None) -> LLM
         else ""
     )
     suffix = f"（端点返回：{secret_summary}）" if secret_summary else ""
+    # 短句层（2026-10-12 对齐批「LLM 错误文案改短句」条）：条目行原因行一行放不下几个字，
+    # 界面吃 short、run.log 吃全句（含端点响应体摘要与可操作建议——2026-09-14 用户定夺
+    # 「端点的一面之词交给用户自己判断」在日志侧保留）。两条都由本函数一处产出。
     if isinstance(exc, openai.APITimeoutError):
         return LLMTimeoutError(
-            "调用模型超时；网络较慢或模型响应久，可稍后重试（大图 / 慢模型可调大 timeout）。"
+            "调用模型超时；网络较慢或模型响应久，可稍后重试（大图 / 慢模型可调大 timeout）。",
+            short="模型调用超时",
         )
     if isinstance(exc, openai.APIConnectionError):
         return LLMConnectionError(
-            "无法连接到模型端点；请检查网络与 base_url 是否可达。"
+            "无法连接到模型端点；请检查网络与 base_url 是否可达。",
+            short="连不上模型端点",
         )
     if isinstance(exc, openai.AuthenticationError):
         return LLMAuthError(
             "鉴权失败：API 密钥无效或过期；请用 `dsf config set` 重新设置密钥。"
-            + suffix
+            + suffix,
+            short="API 密钥无效或过期",
         )
     if isinstance(exc, openai.PermissionDeniedError):
-        return LLMAuthError("无权访问该端点或模型；请检查密钥权限。" + suffix)
+        return LLMAuthError(
+            "无权访问该端点或模型；请检查密钥权限。" + suffix,
+            short="密钥无权访问该模型",
+        )
     if isinstance(exc, openai.RateLimitError):
         return LLMRateLimitError(
             "触发限流（请求过多或额度用尽）；请稍后重试或检查配额。" + suffix,
             retry_after=_extract_retry_after(exc),
+            short="触发端点限流",
         )
     if isinstance(exc, openai.NotFoundError):
         return LLMNotFoundError(
-            "端点或模型不存在；请检查 base_url 与模型名是否正确。" + suffix
+            "端点或模型不存在；请检查 base_url 与模型名是否正确。" + suffix,
+            short="端点或模型不存在",
         )
     if isinstance(exc, openai.BadRequestError):
         return LLMBadRequestError(
-            "请求被端点判为非法（消息 / 图片 / 参数不合法）；请检查输入。" + suffix
+            "请求被端点判为非法（消息 / 图片 / 参数不合法）；请检查输入。" + suffix,
+            short="请求被端点拒绝",
         )
     if isinstance(exc, openai.UnprocessableEntityError):
-        return LLMBadRequestError("请求格式端点无法处理；请检查输入。" + suffix)
+        return LLMBadRequestError(
+            "请求格式端点无法处理；请检查输入。" + suffix,
+            short="请求格式无法处理",
+        )
     if isinstance(exc, openai.InternalServerError):
-        return LLMServerError("模型服务端错误（5xx）；请稍后重试。" + suffix)
+        return LLMServerError(
+            "模型服务端错误（5xx）；请稍后重试。" + suffix,
+            short="模型服务端错误",
+        )
     if isinstance(exc, openai.APIStatusError):
         if exc.status_code >= 500:
             return LLMServerError(
-                f"模型服务端错误（HTTP {exc.status_code}）；请稍后重试。{suffix}"
+                f"模型服务端错误（HTTP {exc.status_code}）；请稍后重试。{suffix}",
+                short="模型服务端错误",
             )
         return LLMUnexpectedError(
-            f"模型端点返回意外错误（HTTP {exc.status_code}）。{suffix}"
+            f"模型端点返回意外错误（HTTP {exc.status_code}）。{suffix}",
+            short="端点返回意外错误",
         )
-    return LLMUnexpectedError("调用模型时发生意外错误；请重试或检查端点配置。")
+    return LLMUnexpectedError(
+        "调用模型时发生意外错误；请重试或检查端点配置。",
+        short="调用模型发生意外错误",
+    )
