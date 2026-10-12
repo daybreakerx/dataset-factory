@@ -161,6 +161,17 @@ export function MaterialsPanel({
       ? "全选（部分已选）"
       : "全选";
 
+  // 真缩略图 URL（稿 §34 .row-thumb--media，2026-10-13 E1 施工）：图片／视频行走素材域
+  // 现成 asset 端点（与媒体舞台同一份、单一事实源）；缺失行（素材不在盘上）与未导入行
+  // （未登记、端点按条目解析不到）不发请求，直接走图标占位。视频行由 MediaThumb 取首帧。
+  const assetUrlFor = (row: ItemRow): string | null =>
+    row.media !== "file" &&
+    row.status !== "missing" &&
+    row.status !== "unimported" &&
+    selection !== null
+      ? `/api/workdirs/${encodeURIComponent(selection.workdirId)}/items/${encodeURIComponent(row.item)}/asset`
+      : null;
+
   return (
     <aside
       id="lb-itemcol"
@@ -393,6 +404,7 @@ export function MaterialsPanel({
                       toggleCheck={toggleCheck}
                       saving={saving}
                       selectedItem={selectedItem}
+                      assetUrlFor={assetUrlFor}
                       choose={(row) => {
                         choose(row, key);
                         // 点行即收（稿「暂展」出口）：选中并切换画布，浮出层收起、不夺焦点。
@@ -425,6 +437,7 @@ function GroupBody({
   toggleCheck,
   saving,
   selectedItem,
+  assetUrlFor,
   choose,
   recover,
   repoint,
@@ -441,6 +454,8 @@ function GroupBody({
   toggleCheck: (item: string) => void;
   saving: boolean;
   selectedItem: string | null;
+  /** 真缩略图 URL 构造（面板持 selection；缺失／未导入行返回 null 走图标占位）。 */
+  assetUrlFor: (row: ItemRow) => string | null;
   choose: (row: ItemRow) => void;
   recover: (row: ItemRow) => void;
   repoint: (name: string) => void;
@@ -467,6 +482,7 @@ function GroupBody({
           onRecover={recover}
           onRepoint={repoint}
           onRemoveUnimported={requestRemoval}
+          assetUrl={assetUrlFor(row)}
         />
       ))}
       {rest > 0 && (

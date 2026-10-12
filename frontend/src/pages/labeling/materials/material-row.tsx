@@ -1,6 +1,14 @@
-import { FileIcon, FileImageIcon, FilmIcon, ImportIcon, XIcon } from "lucide-react";
+import {
+  FileIcon,
+  FileImageIcon,
+  FilmIcon,
+  ImportIcon,
+  PlayIcon,
+  XIcon,
+} from "lucide-react";
 import { memo } from "react";
 import { TrashIcon } from "../../../components/icons";
+import { MediaThumb } from "../../../components/media-thumb";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
 import { formatBytesAuto } from "../../../lib/format";
@@ -24,6 +32,7 @@ export const MaterialRow = memo(function MaterialRow({
   onRecover,
   onRepoint,
   onRemoveUnimported,
+  assetUrl,
 }: {
   row: ItemRow;
   selected: boolean;
@@ -38,6 +47,8 @@ export const MaterialRow = memo(function MaterialRow({
   /** 缺失行「重新指定」：来源已失效，开目录选择弹窗选定新来源。 */
   onRepoint: (name: string) => void;
   onRemoveUnimported: (row: ItemRow) => void;
+  /** 真缩略图 URL（稿 §34 .row-thumb--media）；非媒体行／缺失／未导入传 null 走图标占位。 */
+  assetUrl: string | null;
 }) {
   // 行盒＝§34 .lb-itrow：1px 描边槽常驻（透明），选中显色时行盒不跳；纵向内距随之减 1 补偿。
   // 选中＝弹层当前行同款三件套（ tint ＋ 描边 ＋ 名字转主色），悬停不换装。
@@ -67,13 +78,37 @@ export const MaterialRow = memo(function MaterialRow({
         onClick={() => onSelect(row)}
         className={`flex min-w-0 flex-1 items-center gap-2 text-left ${row.status === "missing" ? "opacity-[0.62]" : ""}`}
       >
-        <span className="flex h-[27px] w-9 shrink-0 items-center justify-center rounded-sm border border-border bg-muted/60 text-text-3">
-          {row.media === "video" ? (
+        {/* §34 .row-thumb--media：36×27 裁切格——图片／视频行给真缩略图（视频取首帧
+            ＋播放角标），其余与非媒体行落类型图标占位。 */}
+        <span className="relative flex h-[27px] w-9 shrink-0 items-center justify-center overflow-hidden rounded-sm border border-border bg-muted/60 text-text-3">
+          {assetUrl !== null ? (
+            <MediaThumb
+              key={assetUrl}
+              src={assetUrl}
+              kind={row.media === "video" ? "video" : "image"}
+              fallback={
+                row.media === "video" ? (
+                  <FilmIcon className="size-(--icon-sm)" />
+                ) : (
+                  <FileImageIcon className="size-(--icon-sm)" />
+                )
+              }
+            />
+          ) : row.media === "video" ? (
             <FilmIcon className="size-(--icon-sm)" />
           ) : row.media === "image" ? (
             <FileImageIcon className="size-(--icon-sm)" />
           ) : (
             <FileIcon className="size-(--icon-sm)" />
+          )}
+          {/* 视频播放角标（§34 .lb-itplay）：14×14 黑底白三角、行内小图标档（9px）。 */}
+          {row.media === "video" && (
+            <span
+              aria-hidden
+              className="absolute left-1/2 top-1/2 flex size-(--icon-sm) -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm bg-black/58 text-white"
+            >
+              <PlayIcon className="size-[9px]" />
+            </span>
           )}
         </span>
         <span className="min-w-0 flex-1">

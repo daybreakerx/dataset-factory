@@ -7,8 +7,9 @@ import {
   ImageIcon,
   PlayIcon,
 } from "lucide-react";
-import { type ReactElement, useState } from "react";
+import type { ReactElement } from "react";
 import type { MediaPreviewTarget } from "../../../components/media-lightbox";
+import { MediaThumb } from "../../../components/media-thumb";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
 import { durationBadge, formatDuration } from "../../../lib/format";
@@ -73,42 +74,6 @@ function Thinking({
   );
 }
 
-/** 视频封面缺失时的现解码兜底（仅历史消息走得到）：`#t=0.1` 媒体片段让浏览器渲染首帧；解不出落图标。 */
-function VideoThumbFrame({ src }: { src: string }): ReactElement {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
-    return <FilmIcon className="size-5 text-text-3" />;
-  }
-  return (
-    <video
-      src={`${src}#t=0.1`}
-      preload="metadata"
-      muted
-      playsInline
-      tabIndex={-1}
-      aria-hidden
-      onError={() => setFailed(true)}
-      className="pointer-events-none size-full object-cover"
-    />
-  );
-}
-
-/** 图片加载失败的图标回退（与视频侧胶片回退同款、同 20px／text-3）：历史消息的附件文件已不在时 src 失效，落图标而非浏览器破图。 */
-function ImageThumbFrame({ src }: { src: string }): ReactElement {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
-    return <ImageIcon className="size-5 text-text-3" />;
-  }
-  return (
-    <img
-      src={src}
-      alt=""
-      onError={() => setFailed(true)}
-      className="size-full object-cover"
-    />
-  );
-}
-
 /** 用户消息的附件缩略图：当轮有封面/字节、历史有字节地址，都没有再落图标。点击开大图预览。 */
 function AttachmentThumb({
   message,
@@ -155,13 +120,21 @@ function AttachmentThumb({
               </span>
             </>
           ) : message.attachmentUrl !== undefined ? (
-            <VideoThumbFrame src={message.attachmentUrl} />
+            <MediaThumb
+              src={message.attachmentUrl}
+              kind="video"
+              fallback={<FilmIcon className="size-5 text-text-3" />}
+            />
           ) : (
             // 当轮没抽到封面 = 本浏览器解不了这段视频（同一套解码器），<video> 兜底没有意义。
             <FilmIcon className="size-5 text-text-3" />
           )
         ) : src !== undefined ? (
-          <ImageThumbFrame src={src} />
+          <MediaThumb
+            src={src}
+            kind="image"
+            fallback={<ImageIcon className="size-5 text-text-3" />}
+          />
         ) : (
           <ImageIcon className="size-5 text-text-3" />
         )}
