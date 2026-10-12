@@ -36,6 +36,16 @@ export function SquareFrameIcon(props: ComponentProps<"svg">) {
   );
 }
 
+/** 停止／取消方块（稿「i-square」＝18×18／rx 5 同源，lucide SquareIcon 的 rx 2 不合）：
+ *  「取消导出」那枚实底钮的前置图标，与全选三态同基座但语义不同，故单列一名。 */
+export function SquareStopIcon(props: ComponentProps<"svg">) {
+  return (
+    <SquareBase {...props}>
+      <rect width="18" height="18" x="3" y="3" rx="5" />
+    </SquareBase>
+  );
+}
+
 /** 半选（方框＋横杠）＝点下去补齐全选。 */
 export function SquareMinusIcon(props: ComponentProps<"svg">) {
   return (

@@ -95,7 +95,7 @@ def test_rebuild_rejects_ambiguous_stems(tmp_path: Path) -> None:
     (tmp_path / "a.png").write_bytes(b"first")
     (tmp_path / "a.jpg").write_bytes(b"second")
 
-    with pytest.raises(WorkdirPathError, match="主干冲突"):
+    with pytest.raises(WorkdirPathError, match="存在格式不同的同名文件"):
         rebuild_import_records(tmp_path)
 
     assert not WorkdirStore(tmp_path).imports_file.exists()

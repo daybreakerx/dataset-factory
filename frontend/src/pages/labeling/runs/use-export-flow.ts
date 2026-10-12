@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { ApiError, api, errorMessage, type TaskView } from "../../../api";
+import {
+  ApiError,
+  api,
+  corruptedRunOf,
+  errorMessage,
+  type TaskView,
+} from "../../../api";
 import type { components } from "../../../api-types.gen";
 
 type Plan = components["schemas"]["ExportPlanView"];
@@ -22,6 +28,8 @@ export function useExportFlow(
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
   const [planError, setPlanError] = useState("");
+  // 计划取数撞坏运行记录（RunJournalCorruptedError）：不报通用错误句，改给可点出口（⑰）。
+  const [planCorruptRun, setPlanCorruptRun] = useState<string | null>(null);
   const [task, setTask] = useState<TaskView | null>(null);
   const [pollFailed, setPollFailed] = useState(false);
   const [pollRevision, setPollRevision] = useState(0);
@@ -37,6 +45,7 @@ export function useExportFlow(
     setDownload(null);
     setError("");
     setPlanError("");
+    setPlanCorruptRun(null);
     setPollFailed(false);
     onIdentityReset();
   }, [wid, batch, onIdentityReset]);
@@ -45,15 +54,19 @@ export function useExportFlow(
   useEffect(() => {
     let current = true;
     setLoading(true);
-    setPlan(null);
     setPlanError("");
+    setPlanCorruptRun(null);
     api
       .exportPlan(wid, batch, sequential)
       .then((value) => {
         if (current) setPlan(value);
       })
       .catch((reason) => {
-        if (current) setPlanError(errorMessage(reason));
+        if (!current) return;
+        // 重取失败不撤旧读数（稿格 9／10／14「摘要显旧值、清单不撤」），坏记录走可点出口。
+        const corruptRun = corruptedRunOf(reason);
+        setPlanCorruptRun(corruptRun);
+        if (corruptRun === null) setPlanError(errorMessage(reason));
       })
       .finally(() => {
         if (current) setLoading(false);
@@ -126,6 +139,7 @@ export function useExportFlow(
     plan,
     loading,
     planError,
+    planCorruptRun,
     sequential,
     setSequential,
     revision,

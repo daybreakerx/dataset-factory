@@ -38,7 +38,9 @@ test("首次复制导入的跳过项不再弹导入结果窗，来源与同名�
   await page.getByRole("textbox", { name: "策略名", exact: true }).fill("重复报告验证");
   await page.getByRole("button", { name: "开始打标", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "导入素材", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "本次运行" }).getByText("已完成", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "本次运行" }).getByText("成功", { exact: true }),
+  ).toBeVisible();
   expect(starts).toHaveLength(1);
   expect(await readFile(path.join(destination, "changed.png"))).toEqual(original);
   expect(await readFile(path.join(destination, "s1__same.txt"), "utf8")).toBe("E2E 假模型的打标结果");
@@ -126,13 +128,18 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   await page.goto("/");
   await page.getByRole("button", { name: "打标", exact: true }).click();
   await page.getByRole("button", { name: "校验素材完整性", exact: true }).click();
-  await expect(page.getByText("缺少导入记录，无法完成缺失对账。")).toBeVisible();
-  await page.getByRole("button", { name: "重建导入记录", exact: true }).click();
+  const missingLedger = page.getByRole("button", {
+    name: "校验失败，缺失导入记录",
+    exact: true,
+  });
+  await expect(missingLedger).toBeVisible();
+  await missingLedger.click();
   const dialog = page.getByRole("dialog", { name: "重建导入记录" });
   await dialog.getByRole("button", { name: "重建导入记录", exact: true }).click();
-  await expect(dialog.getByText("重建完成 · 登记素材 1 条")).toBeVisible();
-  await dialog.getByRole("button", { name: "关闭", exact: true }).first().click();
-  await expect(page.getByText("缺少导入记录，无法完成缺失对账。")).toHaveCount(0);
+  // 成功＝自动关窗＋浮层汇报（对齐批「重建导入记录弹窗」⑥）；句随重扫自消。
+  await expect(page.getByText("重建完成 · 登记素材 1 条")).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  await expect(missingLedger).toHaveCount(0);
   await expect(page.getByRole("region", { name: "条目汇总" }).getByText("总数").locator("..")).toContainText("1");
   const record = JSON.parse((await readFile(path.join(directory, ".dsf", "imports.jsonl"), "utf8")).trim());
   expect(record.kind).toBe("rebuild");
@@ -141,7 +148,7 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   expect(rebuildRequests).toHaveLength(1);
   await page.getByRole("button", { name: "开始打标", exact: true }).click();
   const overview = page.getByRole("region", { name: "本次运行" });
-  await expect(overview.getByText("已完成", { exact: true })).toBeVisible();
+  await expect(overview.getByText("成功", { exact: true })).toBeVisible();
   const historyResponse = await request.get(`/api/workdirs/${accepted.workdir.id}/batches/s1/runs/latest`);
   expect(historyResponse.ok()).toBeTruthy();
   const history = await historyResponse.json();
@@ -169,9 +176,10 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   await page.screenshot({ path: testInfo.outputPath("snapshot-warning.png"), fullPage: true, animations: "disabled" });
   await snapshotDialog.getByRole("button", { name: "关闭", exact: true }).first().click();
   await expect(overview.getByText("成功", { exact: true }).locator("..")).toContainText("1");
-  await expect(overview.getByText("日志路径", { exact: true }).locator("..")).toContainText(history.log_path);
   await page.getByRole("button", { name: "查看日志", exact: true }).click();
   const logDialog = page.getByRole("dialog", { name: "运行日志" });
+  // 日志路径的落点＝日志弹窗头行描述槽（概览分区那六行键值组 2026-10-07 用户裁撤）。
+  await expect(logDialog.getByText(history.log_path)).toBeVisible();
   await expect(logDialog.locator("pre")).toHaveText(
     (await readFile(path.join(runDirectory, "run.log"), "utf8"))
       .replace(/\n$/, "")
@@ -194,17 +202,17 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   page.on("request", (req) => {
     if (req.method() === "POST" && req.url().endsWith("/batches/s1/runs")) redoRequests.push(req.postDataJSON());
   });
-  await changed.getByRole("button", { name: "重打", exact: true }).click();
-  const redoDialog = page.getByRole("dialog", { name: "重打选中的 1 条", exact: true });
-  await expect(redoDialog.getByText("sample.png", { exact: true })).toBeVisible();
+  await changed.getByRole("button", { name: "加入重试", exact: true }).click();
+  const retryList = page.getByRole("region", { name: "重试列表", exact: true });
+  await expect(retryList.getByText("sample.png", { exact: true })).toBeVisible();
+  // 本件只写名单、不起跑批（独立「重打」与确认弹窗已撤）；发车出口在左列组头。
   expect(redoRequests).toEqual([]);
-  await redoDialog.getByRole("button", { name: "重打这 1 条", exact: true }).click();
-  await expect(redoDialog).toHaveCount(0);
+  await retryList.getByRole("button", { name: /开始重试/ }).click();
   await expect.poll(async () => {
     const latest = await (await request.get(`/api/workdirs/${accepted.workdir.id}/batches/s1/runs/latest`)).json();
     return latest.record.run_id !== history.record.run_id && latest.record.counters.succeeded === 1;
   }).toBe(true);
-  expect(redoRequests).toEqual([{ mode: "retry", items: ["sample"] }]);
+  expect(redoRequests).toEqual([{ mode: "retry" }]);
   await expect(changed).toHaveCount(0);
   expect(await readFile(path.join(directory, "s1__sample.txt"), "utf8")).toBe("E2E 假模型的打标结果");
   const included = page.getByRole("region", { name: "将入包清单" });
@@ -215,13 +223,13 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   });
   await included.getByRole("button", { name: "选择", exact: true }).click();
   await included.getByRole("button", { name: "全选", exact: true }).click();
-  await included.getByRole("button", { name: "排除选中的", exact: true }).click();
+  await included.getByRole("button", { name: /^排除\(/ }).click();
   const excluded = page.getByRole("region", { name: "被排除清单" });
   await expect(excluded.getByText("用户排除", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "导出当前策略", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "打包导出", exact: true })).toBeDisabled();
   await excluded.getByRole("button", { name: "撤销排除", exact: true }).click();
   await expect(included.getByText("001.png + 001.txt", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "导出当前策略", exact: true }).click();
+  await page.getByRole("button", { name: "打包导出", exact: true }).click();
   const link = page.getByRole("link", { name: "下载 ZIP", exact: true });
   await expect(link).toBeVisible();
   const downloadEvent = page.waitForEvent("download");

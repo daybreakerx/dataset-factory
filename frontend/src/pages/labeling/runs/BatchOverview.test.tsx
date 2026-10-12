@@ -13,6 +13,8 @@ vi.mock("../../../api", async (original) => ({
     latestRun: vi.fn(),
     setExclusions: vi.fn(),
     startRun: vi.fn(),
+    addRetryItems: vi.fn(),
+    removeRetryItem: vi.fn(),
     exportPlan: vi.fn().mockResolvedValue({
       batch: 1,
       included: [],
@@ -92,6 +94,12 @@ beforeEach(() => {
     sequential: true,
     non_ascii_names: false,
   });
+  vi.mocked(api.addRetryItems).mockResolvedValue({
+    id: "s1",
+    seq: 1,
+    items: ["photo"],
+  });
+  vi.mocked(api.removeRetryItem).mockResolvedValue({ id: "s1", seq: 1, items: [] });
   vi.mocked(api.scanIntegrity).mockResolvedValue(report);
   vi.mocked(api.latestRun).mockResolvedValue({
     record: null,
@@ -101,56 +109,102 @@ beforeEach(() => {
 });
 
 describe("批次概览", () => {
-  it("变更素材重打必须确认，失败可重试且只提交选中的素材", async () => {
+  it("变更素材的动作＝加入重试（只写名单不起跑批），失败给后端真话且可再点", async () => {
     const user = userEvent.setup();
-    const onRunStarted = vi.fn();
-    const onImported = vi.fn();
+    const onRetryChanged = vi.fn();
+    vi.mocked(api.addRetryItems).mockRejectedValueOnce(
+      new Error("选中条目中存在不可重打的素材"),
+    );
     render(
       <BatchOverview
         wid="work"
+        workdirPath="/srv/work"
         batch="s1"
-        items={items}
+        items={itemsFromGroups({
+          done: [
+            {
+              item: "photo",
+              name: "photo.jpg",
+              status: "done",
+              can_retry: true,
+              in_retry: false,
+              media: "image",
+            },
+          ],
+        })}
         onSelect={vi.fn()}
-        onRunStarted={onRunStarted}
-        onImported={onImported}
+        onRetryChanged={onRetryChanged}
       />,
     );
     await user.click(screen.getByRole("button", { name: "校验素材完整性" }));
     const changed = within(
       await screen.findByRole("region", { name: "打标后素材已变更" }),
     );
-    await user.click(changed.getByRole("button", { name: "重打" }));
-    const dialog = within(screen.getByRole("dialog"));
-    expect(dialog.getByText("photo.jpg")).toBeInTheDocument();
+
+    await user.click(changed.getByRole("button", { name: "加入重试" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("不可重打");
     expect(api.startRun).not.toHaveBeenCalled();
-    vi.mocked(api.startRun).mockRejectedValueOnce(new Error("目录已占用"));
+    vi.mocked(api.addRetryItems).mockResolvedValue({
+      id: "s1",
+      seq: 1,
+      items: ["photo"],
+    });
+    await user.click(changed.getByRole("button", { name: "加入重试" }));
 
-    await user.click(dialog.getByRole("button", { name: "重打这 1 条" }));
+    expect(api.addRetryItems).toHaveBeenLastCalledWith("work", "s1", ["photo"]);
+    expect(onRetryChanged).toHaveBeenCalledExactlyOnceWith(["photo"]);
+    expect(api.startRun).not.toHaveBeenCalled();
+  });
 
-    expect(await dialog.findByRole("alert")).toHaveTextContent("目录已占用");
-    expect(onRunStarted).not.toHaveBeenCalled();
-    vi.mocked(api.startRun).mockResolvedValue({ run_id: "selected-run" });
-    await user.click(dialog.getByRole("button", { name: "重打这 1 条" }));
+  it("已入名单的变更行给「移出重试」文字钮，叉号只留在左列", async () => {
+    const user = userEvent.setup();
+    const onRetryChanged = vi.fn();
+    render(
+      <BatchOverview
+        wid="work"
+        workdirPath="/srv/work"
+        batch="s1"
+        items={items}
+        onSelect={vi.fn()}
+        onRetryChanged={onRetryChanged}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "校验素材完整性" }));
+    const changed = within(
+      await screen.findByRole("region", { name: "打标后素材已变更" }),
+    );
 
-    expect(api.startRun).toHaveBeenLastCalledWith("work", "s1", "retry", ["photo"]);
-    expect(onRunStarted).toHaveBeenCalledExactlyOnceWith("selected-run");
-    expect(onImported).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(changed.getByRole("button", { name: "移出重试" }));
+
+    expect(api.removeRetryItem).toHaveBeenCalledExactlyOnceWith("work", "s1", "photo");
+    expect(onRetryChanged).toHaveBeenCalledExactlyOnceWith([]);
+    expect(
+      changed.queryByRole("button", { name: /^加入重试/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("变更清单排除失败保留选择，成功后退出并同步导出清单", async () => {
     const user = userEvent.setup();
-    render(<BatchOverview wid="work" batch="s1" items={items} onSelect={vi.fn()} />);
+    render(
+      <BatchOverview
+        wid="work"
+        workdirPath="/srv/work"
+        batch="s1"
+        items={items}
+        onSelect={vi.fn()}
+      />,
+    );
     await user.click(screen.getByRole("button", { name: "校验素材完整性" }));
     const changed = within(
       await screen.findByRole("region", { name: "打标后素材已变更" }),
     );
     await user.click(changed.getByRole("button", { name: "选择" }));
-    expect(changed.getByRole("button", { name: "排除打包（0）" })).toBeDisabled();
+    expect(changed.getByRole("button", { name: "排除打包(0)" })).toBeDisabled();
     await user.click(changed.getByRole("button", { name: "全选" }));
     vi.mocked(api.setExclusions).mockRejectedValueOnce(new Error("保存失败"));
 
-    await user.click(changed.getByRole("button", { name: "排除打包（1）" }));
+    await user.click(changed.getByRole("button", { name: "排除打包(1)" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("保存失败");
     expect(
@@ -172,7 +226,7 @@ describe("批次概览", () => {
       sequential: true,
       non_ascii_names: false,
     });
-    await user.click(changed.getByRole("button", { name: "排除打包（1）" }));
+    await user.click(changed.getByRole("button", { name: "排除打包(1)" }));
 
     expect(await screen.findByText("用户排除")).toBeInTheDocument();
     expect(api.setExclusions).toHaveBeenLastCalledWith("work", "s1", ["photo"], true);
@@ -186,6 +240,7 @@ describe("批次概览", () => {
     const { rerender } = render(
       <BatchOverview
         wid="work"
+        workdirPath="/srv/work"
         batch="s1"
         items={items}
         exportRevision={0}
@@ -202,6 +257,7 @@ describe("批次概览", () => {
     rerender(
       <BatchOverview
         wid="work"
+        workdirPath="/srv/work"
         batch="s1"
         items={updated}
         exportRevision={0}
@@ -213,6 +269,7 @@ describe("批次概览", () => {
     rerender(
       <BatchOverview
         wid="work"
+        workdirPath="/srv/work"
         batch="s1"
         items={updated}
         exportRevision={1}
@@ -225,24 +282,40 @@ describe("批次概览", () => {
     expect(api.exportPlan).toHaveBeenLastCalledWith("work", "s1", true);
   });
 
-  it("条目汇总不重复计入重试条目且不计未导入，失败条目可直接预览", async () => {
-    const user = userEvent.setup();
-    const onSelect = vi.fn();
-    render(<BatchOverview wid="work" batch="s1" items={items} onSelect={onSelect} />);
+  it("条目汇总不重复计入重试条目且不计未导入", async () => {
+    render(
+      <BatchOverview
+        wid="work"
+        workdirPath="/srv/work"
+        batch="s1"
+        items={items}
+        onSelect={vi.fn()}
+      />,
+    );
 
     expect(
       within(screen.getByRole("region", { name: "条目汇总" })).getByText("总数")
         .nextElementSibling,
     ).toHaveTextContent("2");
     expect(api.scanIntegrity).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: /clip\.mp4格式不支持/ }));
-    expect(onSelect).toHaveBeenCalledWith(items.get("clip"));
+    // 未完成那一档不再由概览出清单（① 整段撤出，落点归打包与导出件）。
+    expect(
+      screen.queryByRole("region", { name: "未完成清单" }),
+    ).not.toBeInTheDocument();
   });
 
   it("手动校验展示当前批次问题，失败时保留上次报告", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
-    render(<BatchOverview wid="work" batch="s1" items={items} onSelect={onSelect} />);
+    render(
+      <BatchOverview
+        wid="work"
+        workdirPath="/srv/work"
+        batch="s1"
+        items={items}
+        onSelect={onSelect}
+      />,
+    );
     await user.click(screen.getByRole("button", { name: "校验素材完整性" }));
 
     expect(api.scanIntegrity).toHaveBeenCalledExactlyOnceWith("work", "s1");
@@ -269,10 +342,24 @@ describe("批次概览", () => {
         }),
     );
     const { rerender } = render(
-      <BatchOverview wid="work" batch="s1" items={items} onSelect={vi.fn()} />,
+      <BatchOverview
+        wid="work"
+        workdirPath="/srv/work"
+        batch="s1"
+        items={items}
+        onSelect={vi.fn()}
+      />,
     );
     await user.click(screen.getByRole("button", { name: "校验素材完整性" }));
-    rerender(<BatchOverview wid="work" batch="s2" items={items} onSelect={vi.fn()} />);
+    rerender(
+      <BatchOverview
+        wid="work"
+        workdirPath="/srv/work"
+        batch="s2"
+        items={items}
+        onSelect={vi.fn()}
+      />,
+    );
     await act(async () => {
       finish?.(report);
     });
@@ -290,11 +377,19 @@ describe("批次概览", () => {
       imports_available: false,
       batches: [{ batch: "s1", items: [] }],
     });
-    render(<BatchOverview wid="work" batch="s1" items={items} onSelect={vi.fn()} />);
+    render(
+      <BatchOverview
+        wid="work"
+        workdirPath="/srv/work"
+        batch="s1"
+        items={items}
+        onSelect={vi.fn()}
+      />,
+    );
     await user.click(screen.getByRole("button", { name: "校验素材完整性" }));
 
     expect(
-      await screen.findByText("缺少导入记录，无法完成缺失对账。"),
+      await screen.findByRole("button", { name: "校验失败，缺失导入记录" }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/校验通过/)).not.toBeInTheDocument();
   });

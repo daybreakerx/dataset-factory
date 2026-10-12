@@ -8,6 +8,24 @@ export function itemKey(row: ItemRow): string {
   return row.status === "unimported" ? `unimported/${row.name}` : row.item;
 }
 
+/**
+ * 选中位＝「触发源组 ＋ 条目」复合键（组 id ＋ 冒号 ＋ 条目键）。
+ *
+ * `groupedItems` 把 `in_retry` 的条目同时放进「重试列表」组和它原属的 status 组，
+ * 用裸条目键判选中会让两行同时亮、还会在同一渲染里撞 React key。带上组之后：
+ * 从列表点只亮点的那一行，从别处跳转（概览「查看」／跑批跟随／跨重启恢复）由调用方
+ * 显式取原分组（`row.status`）。
+ */
+export function selectionKey(group: string, row: ItemRow): string {
+  return `${group}:${itemKey(row)}`;
+}
+
+/** 从复合键取回条目键——详情取数只认条目，不认组。 */
+export function itemKeyFromSelection(selection: string): string {
+  const cut = selection.indexOf(":");
+  return cut === -1 ? selection : selection.slice(cut + 1);
+}
+
 export interface ItemUpdate {
   batch: number;
   item: string;

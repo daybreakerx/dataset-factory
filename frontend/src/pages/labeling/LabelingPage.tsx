@@ -35,12 +35,12 @@ import { BatchOverview } from "./runs/BatchOverview";
 import {
   type ItemMap,
   type ItemRow,
-  itemKey,
+  itemKeyFromSelection,
   itemsFromGroups,
+  selectionKey,
   withItemUpdate,
   withRetryItems,
 } from "./runs/items-state";
-import { JournalCorruptedLine } from "./runs/journal-corrupted-line";
 import { RunControl } from "./runs/RunControl";
 import { RemoveUnimportedDialog } from "./workdir/RemoveUnimportedDialog";
 import { WorkdirSettings } from "./workdir/WorkdirSettings";
@@ -74,10 +74,6 @@ export function LabelingPage({
   } = useWorkdirBatches({ setLoading });
   const [items, setItems] = useState<ItemMap>(new Map());
   const [exportRevision, setExportRevision] = useState(0);
-  const [externalRun, setExternalRun] = useState<{
-    identity: string;
-    id: string;
-  } | null>(null);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   // 选中素材跨重启恢复：只在启动后的首次装载生效一次，换批次 / 换条目的
   // 既有清空语义不变。素材 id 批次内有效，恢复时对装载结果校验，对不上就放弃。
@@ -117,7 +113,8 @@ export function LabelingPage({
       mounted.current = false;
     };
   }, []);
-  const selected = selectedItem ? (items.get(selectedItem) ?? null) : null;
+  const selectedKey = selectedItem === null ? null : itemKeyFromSelection(selectedItem);
+  const selected = selectedKey ? (items.get(selectedKey) ?? null) : null;
 
   useEffect(() => {
     if (!selection) return;
@@ -142,10 +139,15 @@ export function LabelingPage({
         const loaded = itemsFromGroups(view.groups);
         setItems(loaded);
         // 跨重启恢复选中素材：只在首次装载生效一次；对装载结果校验不过就放弃。
+        // ⑫ 旧档存的是裸条目键（无组前缀），退化成落原分组那行。
         const wanted = restoredItemRef.current;
         if (wanted !== null) {
           restoredItemRef.current = null;
-          if (loaded.has(wanted)) setSelectedItem(wanted);
+          const row = loaded.get(itemKeyFromSelection(wanted));
+          if (row)
+            setSelectedItem(
+              wanted.includes(":") ? wanted : selectionKey(row.status, row),
+            );
         }
       })
       .catch((reason: unknown) => {
@@ -161,13 +163,14 @@ export function LabelingPage({
 
   const { batchRunState, setBatchRunState, setRunStateRevision } =
     useBatchRunState(selection);
-  const choose = useCallback((row: ItemRow) => {
+  /** ⑫ 选中位带触发源组：列表点行由面板传本组 id，从别处跳转（概览「查看」／跑批跟随）缺省落原分组。 */
+  const choose = useCallback((row: ItemRow, group: string = row.status) => {
     if (followRun.current) {
       // 从「跟随」切到「手动看」：跑批中这不是静默的——出可见提示（L2）。
       setFollowPaused(true);
     }
     followRun.current = false;
-    setSelectedItem(itemKey(row));
+    setSelectedItem(selectionKey(group, row));
   }, []);
   // 选中素材落盘（跨重启恢复的写入侧）：换批次 / 换条目的清空也如实记 null。
   useEffect(() => {
@@ -447,9 +450,6 @@ export function LabelingPage({
             key={`${selection.workdirId}/${selection.batchId}`}
             wid={selection.workdirId}
             batch={selection.batchId}
-            externalRunId={
-              externalRun?.identity === identity ? externalRun.id : undefined
-            }
             retryRequest={retryRequest}
             runStatus={batchRunState}
             onRunStatus={(status) => {
@@ -463,11 +463,21 @@ export function LabelingPage({
               if (status !== "running" && status !== "pending") {
                 setFollowPaused(false);
                 setLiveOutput(null);
+                // ⑬ 跑批终态＝完整性报告已过时（失败同样）：递一次全量同步号触发自动重扫。
+                // 「idle」是空闲哨兵、不算终态，不在此列（否则每次空闲都会重扫）。
+                if (status !== "idle") setExportRevision((value) => value + 1);
               }
             }}
             onFinish={() => refreshItems(true)}
             onCurrentItem={(item) => {
-              if (followRun.current) setSelectedItem(item);
+              // ⑫ 跑批跟随＝从别处跳转，落原分组那行；读数还没到位时按「排队中」占位。
+              if (!followRun.current) return;
+              if (item === null) {
+                setSelectedItem(null);
+                return;
+              }
+              const row = items.get(item);
+              setSelectedItem(row ? selectionKey(row.status, row) : `queued:${item}`);
             }}
             onItemUpdate={(event) => {
               refreshVersion.current += 1;
@@ -498,18 +508,8 @@ export function LabelingPage({
           <RefreshCwIcon />
         </Button>
       </header>
-      {errorRun && selection ? (
-        <div className="mx-6 mb-3">
-          <JournalCorruptedLine
-            wid={selection.workdirId}
-            run={errorRun}
-            onCleaned={() => void refreshItems()}
-          />
-        </div>
-      ) : (
-        error && (
-          <FormError className="mx-6 mb-3 text-t-sm text-bad-ink">{error}</FormError>
-        )
+      {error && !errorRun && (
+        <FormError className="mx-6 mb-3 text-t-sm text-bad-ink">{error}</FormError>
       )}
       {/* 主区＝§22 .lb-grid：宽屏两列（左列 320＋画布吃满剩余）；<768 收起＝左列隐、画布满宽，
           暂展＝左列作浮出层叠在画布上（画布不位移）——不再上下堆叠，滚动归画布自身。 */}
@@ -583,12 +583,16 @@ export function LabelingPage({
                   key={identity}
                   listToggle={listToggle}
                   wid={selection.workdirId}
+                  workdirPath={
+                    workdirs.find((entry) => entry.id === selection.workdirId)?.path ??
+                    ""
+                  }
                   batch={selection.batchId}
                   items={items}
                   exportRevision={exportRevision}
                   running={batchRunState === "running" || batchRunState === "pending"}
                   liveOutput={liveOutput}
-                  onRunStarted={(id) => setExternalRun({ identity, id })}
+                  journalRun={errorRun}
                   onSelect={choose}
                   onImported={() => void refreshItems()}
                   onRepoint={(name) => setRepoint(name)}
@@ -605,7 +609,7 @@ export function LabelingPage({
                 <MaterialDetail
                   identity={identity}
                   listToggle={listToggle}
-                  selectedItem={selectedItem}
+                  selectedItem={selectedKey}
                   selected={selected}
                   asset={asset}
                   selection={selection}

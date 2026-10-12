@@ -1,6 +1,6 @@
-import { CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, RefreshCwIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, errorMessage } from "../../../api";
+import { api } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import { Tip } from "../../../components/ui/tooltip";
+import { reportError } from "../../../lib/feedback";
 import { formatDuration } from "../../../lib/format";
 import { useLatestRun } from "./use-latest-run";
 
@@ -91,11 +92,15 @@ function RunLogDialog({
     null,
   );
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
   const [copyState, setCopyState] = useState<"ok" | "fail" | null>(null);
+  // 刷新在飞（非首读）：页脚两钮同禁，Esc 与关闭钮一并拦住（③⑫，快照弹窗同构）。
+  const refreshing = loading && revision > 0;
   // biome-ignore lint/correctness/useExhaustiveDependencies: revision explicitly reloads the selected tab.
   useEffect(() => {
     let current = true;
+    setLoading(true);
     setError("");
     api
       .readRunText(wid, batch, runId, tab)
@@ -103,7 +108,13 @@ function RunLogDialog({
         if (current) setResult(value);
       })
       .catch((reason) => {
-        if (current) setError(errorMessage(reason));
+        if (!current) return;
+        // ⑪ 环境类（连不上／超时）走全局浮层、不落就地红字；其余用后端真话就地给。
+        const inline = reportError(reason);
+        if (inline !== null) setError(inline);
+      })
+      .finally(() => {
+        if (current) setLoading(false);
       });
     return () => {
       current = false;
@@ -122,6 +133,23 @@ function RunLogDialog({
       tab === "items.jsonl" ? latestByItem(parseItemRecords(result?.text ?? "")) : null,
     [tab, result],
   );
+  // ②③ 复制钮禁用四态：读取中／读取失败／空态（有读数但无正文）／刷新在飞；Tip 随态三说（④）。
+  const emptyContent = result !== null && result.text.trim() === "";
+  const copyDisabled = loading || error !== "" || result === null || emptyContent;
+  const copyLabel =
+    copyState === "ok"
+      ? "已复制"
+      : copyState === "fail"
+        ? "复制失败，请检查剪贴板权限"
+        : "复制";
+  const copyTip =
+    error !== ""
+      ? "读取失败，请先刷新"
+      : loading
+        ? "正在读取"
+        : emptyContent
+          ? "暂无记录，没有可复制的内容"
+          : copyLabel;
   const copy = async () => {
     const text =
       tab === "run.log"
@@ -151,12 +179,17 @@ function RunLogDialog({
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open && !refreshing) onClose();
       }}
     >
-      <DialogContent className="grid-cols-[minmax(0,1fr)] max-h-[90dvh] w-[min(var(--w-modal-780),100%)] max-w-none overflow-y-auto">
+      <DialogContent
+        className="grid-cols-[minmax(0,1fr)] max-h-[90dvh] w-[min(var(--w-modal-780),100%)] max-w-none overflow-y-auto"
+        onEscapeKeyDown={(event) => refreshing && event.preventDefault()}
+        onInteractOutside={(event) => refreshing && event.preventDefault()}
+      >
         <DialogHeader className="flex-row items-center gap-3 space-y-0">
           <DialogTitle className="shrink-0">运行日志</DialogTitle>
+          {/* 分段控件＝§12 .seg／.seg-item 族（①）：容器 2px 缝＋内距、钮 --h-sm 档、选中白底＋sh-1。 */}
           <div
             role="tablist"
             aria-label="日志视图"
@@ -173,7 +206,7 @@ function RunLogDialog({
                 type="button"
                 role="tab"
                 aria-selected={tab === value}
-                className={`h-(--h-sm) rounded-sm px-3 text-t-sm ${
+                className={`h-(--h-sm) rounded-md px-3 text-t-sm ${
                   tab === value
                     ? "bg-card font-medium text-text-1 shadow-(--sh-1)"
                     : "text-text-3"
@@ -192,19 +225,24 @@ function RunLogDialog({
         </DialogHeader>
         {error && <FormError className="text-bad-ink">{error}</FormError>}
         {tab === "run.log" ? (
+          // 日志块＝§29 .log-box.log-box--wrap 族（⑧：底色改画布底、折行 anywhere）；限高 384 属件级。
           <pre
             data-testid="run-log-body"
-            className="max-h-96 overflow-auto rounded-md bg-muted p-3 font-sans text-t-sm whitespace-pre-wrap break-all"
+            className="max-h-96 overflow-auto rounded-md bg-background p-3 font-sans text-t-sm leading-(--lh-base) text-text-2 whitespace-pre-wrap break-anywhere"
           >
             {result ? displayText || "暂无记录" : "正在读取"}
           </pre>
         ) : (
           <div className="max-h-96 overflow-auto rounded-md border border-border">
-            <table className="w-full text-t-sm">
-              <thead className="sticky top-0 bg-muted text-left text-text-3">
+            {/* 流水表＝§11 .table 族（⑨：表头吸顶 30 高／muted 底／text-3，行分隔改 border-bottom，td 32 定高）。 */}
+            <table className="w-full border-collapse text-t-sm">
+              <thead>
                 <tr>
                   {["素材", "状态", "尝试", "耗时", "素材哈希", "说明"].map((label) => (
-                    <th key={label} className="px-3 py-2 font-medium">
+                    <th
+                      key={label}
+                      className="sticky top-0 z-(--z-sticky) h-(--h-md) border-b border-border bg-muted px-3 text-left font-medium text-text-3 whitespace-nowrap"
+                    >
                       {label}
                     </th>
                   ))}
@@ -213,9 +251,11 @@ function RunLogDialog({
               <tbody>
                 {itemRows?.length ? (
                   itemRows.map((row) => (
-                    <tr key={row.item} className="border-t border-border/60">
-                      <td className="px-3 py-1.5 break-all">{row.item}</td>
-                      <td className="px-3 py-1.5">
+                    <tr key={row.item}>
+                      <td className="h-8 border-b border-border px-3 break-all text-text-2">
+                        {row.item}
+                      </td>
+                      <td className="h-8 border-b border-border px-3 text-text-2">
                         <span
                           className={
                             row.status === "succeeded" ? "text-ok-ink" : "text-bad-ink"
@@ -224,14 +264,25 @@ function RunLogDialog({
                           {row.status === "succeeded" ? "成功" : "失败"}
                         </span>
                       </td>
-                      <td className="px-3 py-1.5 tabular-nums">{row.attempt ?? "—"}</td>
-                      <td className="px-3 py-1.5 tabular-nums">
+                      <td className="h-8 border-b border-border px-3 text-text-2 tabular-nums">
+                        {row.attempt ?? "—"}
+                      </td>
+                      <td className="h-8 border-b border-border px-3 text-text-2 tabular-nums">
                         {formatElapsed(row.elapsed_ms)}
                       </td>
-                      <td className="px-3 py-1.5 tabular-nums">
-                        {row.asset_hash ? `${row.asset_hash.slice(0, 6)}…` : "—"}
+                      <td className="h-8 border-b border-border px-3 text-text-2 tabular-nums">
+                        {/* ⑩ 截断的哈希悬停给全文（DESIGN.md 六）。 */}
+                        {row.asset_hash ? (
+                          <Tip label={row.asset_hash}>
+                            <span className="block truncate">
+                              {`${row.asset_hash.slice(0, 6)}…`}
+                            </span>
+                          </Tip>
+                        ) : (
+                          "—"
+                        )}
                       </td>
-                      <td className="min-w-0 max-w-60 px-3 py-1.5 text-text-3">
+                      <td className="h-8 max-w-60 border-b border-border px-3 text-text-2">
                         <Tip label={row.message || ""}>
                           <span className="block truncate">{row.message || "—"}</span>
                         </Tip>
@@ -240,7 +291,10 @@ function RunLogDialog({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-3 py-4 text-center text-text-3">
+                    <td
+                      colSpan={6}
+                      className="h-8 border-b border-border px-3 text-center text-text-3"
+                    >
                       {result ? "暂无记录" : "正在读取"}
                     </td>
                   </tr>
@@ -249,40 +303,39 @@ function RunLogDialog({
             </table>
           </div>
         )}
-        {copyState === "ok" && (
-          <p role="status" className="text-t-sm text-text-3">
-            已复制
-          </p>
-        )}
-        {copyState === "fail" && (
-          <p role="status" className="text-bad-ink text-t-sm">
-            复制失败
-          </p>
-        )}
-        <div className="flex items-center gap-2">
-          {tab === "run.log" && (
-            <span className="text-t-sm text-text-3">
-              最新在最上 · 显示尾部 {LOG_TAIL_LINES} 行
-            </span>
-          )}
-          <div className="ml-auto flex gap-2">
-            <Tip label="复制">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="复制"
-                onClick={() => void copy()}
-              >
+        <div className="flex items-center justify-end gap-2">
+          {/* ④ 复制反馈＝钮本体换装（对勾／红叉），文字行退役；②③ 未就绪与刷新在飞都禁用。 */}
+          <Tip label={copyTip}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={copyLabel}
+              disabled={copyDisabled || refreshing}
+              onClick={() => void copy()}
+            >
+              {copyState === "ok" ? (
+                <CheckIcon />
+              ) : copyState === "fail" ? (
+                <XIcon className="text-bad-ink" />
+              ) : (
                 <CopyIcon />
-              </Button>
-            </Tip>
-            <Button variant="ghost" onClick={() => setRevision((value) => value + 1)}>
-              刷新
+              )}
             </Button>
-            <Button variant="ghost" className="text-text-1" onClick={() => onClose()}>
-              关闭
+          </Tip>
+          <Tip label="刷新最新日志">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="刷新"
+              disabled={refreshing}
+              onClick={() => setRevision((value) => value + 1)}
+            >
+              <RefreshCwIcon />
             </Button>
-          </div>
+          </Tip>
+          <Button variant="secondary" onClick={onClose}>
+            关闭
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -313,43 +366,56 @@ export function RunOverview({ wid, batch, refreshKey, fallback }: Props) {
         (Date.parse(record.finished_at) - Date.parse(record.started_at)) / 1000,
       )
     : null;
+  const startedText = new Date(record?.started_at ?? 0).toLocaleString();
+  const endedText = record?.finished_at
+    ? new Date(record.finished_at).toLocaleTimeString()
+    : "正在跑批";
+  const elapsedText =
+    elapsed === null ? "" : ` · 耗时 ${formatDuration(elapsed * 1000)}`;
   return (
     <section aria-label={record ? "本次运行" : "条目汇总"}>
+      {/* 分区头（稿「标题行与运行统计」格 1／5／6）：题＋错误行（紧跟题右 12px、不占满剩余）
+          ＋时间行（可截断，悬停给完整起止与耗时）＋查看日志钮右置。 */}
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <h3 className="text-t-md font-medium">{record ? "本次运行" : "条目汇总"}</h3>
-        {record && (
+        <h3 className="shrink-0 text-t-md font-medium">
+          {record ? "本次运行" : "条目汇总"}
+        </h3>
+        {error && (
           <>
-            <span className="text-t-xs text-text-4">
-              {new Date(record.started_at).toLocaleString()} →{" "}
-              {record.finished_at
-                ? new Date(record.finished_at).toLocaleTimeString()
-                : "未记录结束时间"}
-              {elapsed !== null ? ` · ${formatDuration(elapsed * 1000)}` : ""}
+            <span role="alert" className="min-w-0 truncate text-t-sm text-bad-ink">
+              {error}
             </span>
-            <div className="ml-auto flex gap-2">
+            <Tip label="重新查询">
               <Button
                 variant="ghost"
-                size="mini"
-                onClick={() => setLog({ runId: record.run_id })}
+                size="icon-xs"
+                aria-label="重新查询"
+                onClick={() => setRevision((value) => value + 1)}
               >
-                查看日志
+                <RefreshCwIcon />
               </Button>
-            </div>
+            </Tip>
+          </>
+        )}
+        {record && (
+          <>
+            <Tip label={`${startedText} → ${endedText}${elapsedText}`}>
+              <span className="min-w-0 flex-1 truncate text-t-xs text-text-4">
+                {startedText} → {endedText}
+                {elapsedText}
+              </span>
+            </Tip>
+            <Button
+              className="ml-auto shrink-0"
+              variant="ghost"
+              size="sm"
+              onClick={() => setLog({ runId: record.run_id })}
+            >
+              查看日志
+            </Button>
           </>
         )}
       </div>
-      {error && (
-        <div className="mb-3 flex items-center gap-2">
-          <FormError className="text-bad-ink">{error}</FormError>
-          <Button
-            variant="ghost"
-            size="mini"
-            onClick={() => setRevision((value) => value + 1)}
-          >
-            重新查询
-          </Button>
-        </div>
-      )}
       <dl className="grid max-w-115 grid-cols-3 gap-3">
         {[
           ["总数", counts.total],
@@ -366,36 +432,6 @@ export function RunOverview({ wid, batch, refreshKey, fallback }: Props) {
           </div>
         ))}
       </dl>
-      {record && (
-        <dl className="mt-3 space-y-1 text-t-sm">
-          {[
-            [
-              "计划",
-              `${record.counters.planned} 条 · 跳过 ${record.counters.skipped} 条 · 未跑 ${Math.max(0, record.counters.planned - record.counters.attempted)} 条`,
-            ],
-            ["模式", record.mode === "retry" ? "重试" : "全量"],
-            ["触发方", record.trigger === "cli" ? "CLI" : "Web"],
-            [
-              "状态",
-              (
-                {
-                  completed: "已完成",
-                  interrupted: "已中断",
-                  failed: "失败",
-                  running: "运行中",
-                } as Record<string, string>
-              )[record.status] ?? record.status,
-            ],
-            ["快照哈希", record.strategy_hash],
-            ["日志路径", history.log_path ?? ""],
-          ].map(([label, value]) => (
-            <div key={label} className="flex gap-3">
-              <dt className="w-21 shrink-0 text-text-4">{label}</dt>
-              <dd className="min-w-0 break-all text-text-2">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
       {log && (
         <RunLogDialog
           key={`${wid}/${batch}/${log.runId}`}

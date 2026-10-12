@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { ApiError, api } from "../../../api";
@@ -40,6 +40,13 @@ beforeEach(() => {
   vi.mocked(api.startExport).mockResolvedValue({ task_id: "export-task" });
 });
 
+/** 入包行的归一名段拆在三枚节点里（素材名｜「 + 」｜txt 名），整段文本按清单区取。 */
+async function expectPacked(text: string): Promise<void> {
+  await waitFor(() =>
+    expect(screen.getByRole("region", { name: "将入包清单" })).toHaveTextContent(text),
+  );
+}
+
 it("取消请求受理后继续查询原任务，取消终态不提供下载", async () => {
   const user = userEvent.setup();
   const running = {
@@ -52,8 +59,8 @@ it("取消请求受理后继续查询原任务，取消终态不提供下载", a
   vi.mocked(api.getTask).mockResolvedValue(running);
   vi.mocked(api.cancelTask).mockResolvedValue(running);
   render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
-  await screen.findByText("001.jpg + 001.txt");
-  await user.click(screen.getByRole("button", { name: "导出当前策略" }));
+  await expectPacked("001.jpg + 001.txt");
+  await user.click(screen.getByRole("button", { name: "打包导出" }));
   await screen.findByText("正在打包 · 30%");
   vi.mocked(api.getTask).mockResolvedValue({ ...running, status: "cancelled" });
 
@@ -80,14 +87,15 @@ it("取消失败保留运行和原句柄，可再次取消", async () => {
     .mockRejectedValueOnce(new Error("取消请求网络中断"))
     .mockResolvedValue(running);
   render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
-  await screen.findByText("001.jpg + 001.txt");
-  await user.click(screen.getByRole("button", { name: "导出当前策略" }));
+  await expectPacked("001.jpg + 001.txt");
+  await user.click(screen.getByRole("button", { name: "打包导出" }));
   await screen.findByText("正在打包 · 30%");
 
   await user.click(screen.getByRole("button", { name: "取消导出" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("取消请求网络中断");
-  expect(screen.getByRole("button", { name: "导出当前策略" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "打包导出" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "取消导出" })).toBeEnabled();
   await user.click(screen.getByRole("button", { name: "取消导出" }));
   expect(await screen.findByText("正在取消 · 30%")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "取消导出" })).toBeDisabled();
@@ -112,8 +120,8 @@ it("切换批次后迟到的取消失败不污染新批次", async () => {
       }),
   );
   const { rerender } = render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
-  await screen.findByText("001.jpg + 001.txt");
-  await user.click(screen.getByRole("button", { name: "导出当前策略" }));
+  await expectPacked("001.jpg + 001.txt");
+  await user.click(screen.getByRole("button", { name: "打包导出" }));
   await screen.findByText("正在打包 · 30%");
   await user.click(screen.getByRole("button", { name: "取消导出" }));
 
@@ -122,15 +130,15 @@ it("切换批次后迟到的取消失败不污染新批次", async () => {
     rejectCancel?.(new Error("旧批次取消失败"));
   });
 
-  await screen.findByText("001.jpg + 001.txt");
+  await expectPacked("001.jpg + 001.txt");
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "导出当前策略" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "打包导出" })).toBeEnabled();
 });
 
 it("默认顺序命名、变更素材仍入包，关闭后展示原名与非 ASCII 风险", async () => {
   const user = userEvent.setup();
   render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
-  expect(await screen.findByText("001.jpg + 001.txt")).toBeInTheDocument();
+  await expectPacked("001.jpg + 001.txt");
   expect(screen.getByRole("switch")).toBeChecked();
   expect(
     within(screen.getByRole("region", { name: "将入包清单" })).getByText(
@@ -147,7 +155,8 @@ it("默认顺序命名、变更素材仍入包，关闭后展示原名与非 ASC
   await user.click(screen.getByRole("switch"));
 
   expect(api.exportPlan).toHaveBeenLastCalledWith("work", "s1", false);
-  expect(await screen.findByText("照片.jpg + 照片.txt")).toBeInTheDocument();
+  // 关态：符号换加号、归一名段只剩 txt 名（原名不重复出现两遍），压缩截断只发生在原名列。
+  await expectPacked("photo.jpg+照片.txt");
   expect(screen.getByText(/跨平台解压可能导致/)).toBeInTheDocument();
 });
 
@@ -163,8 +172,8 @@ it("打包成功先于取消失败返回时保留下载结果", async () => {
       }),
   );
   render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
-  await screen.findByText("001.jpg + 001.txt");
-  await user.click(screen.getByRole("button", { name: "导出当前策略" }));
+  await expectPacked("001.jpg + 001.txt");
+  await user.click(screen.getByRole("button", { name: "打包导出" }));
   await screen.findByText("查询中断");
   await user.click(screen.getByRole("button", { name: "取消导出" }));
   vi.mocked(api.getTask).mockResolvedValue({
@@ -190,7 +199,7 @@ it("打包成功先于取消失败返回时保留下载结果", async () => {
 it("批量排除后重读服务器计划，撤销只作用于手动排除条目", async () => {
   const user = userEvent.setup();
   render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
-  await screen.findByText("001.jpg + 001.txt");
+  await expectPacked("001.jpg + 001.txt");
   const included = within(screen.getByRole("region", { name: "将入包清单" }));
   await user.click(included.getByRole("button", { name: "选择" }));
   await user.click(included.getByRole("button", { name: "全选" }));
@@ -200,7 +209,7 @@ it("批量排除后重读服务器计划，撤销只作用于手动排除条目"
     excluded: [...plan.excluded, { ...row, reason: "用户排除" }],
   });
 
-  await user.click(included.getByRole("button", { name: "排除选中的" }));
+  await user.click(included.getByRole("button", { name: /^排除\(/ }));
 
   expect(api.setExclusions).toHaveBeenCalledWith("work", "s1", ["photo"], true);
   await screen.findByText("用户排除");
@@ -213,13 +222,13 @@ it("批量排除后重读服务器计划，撤销只作用于手动排除条目"
   if (!undo) throw new Error("缺少撤销按钮");
   await user.click(undo);
   expect(api.setExclusions).toHaveBeenLastCalledWith("work", "s1", ["photo"], false);
-  expect(await screen.findByText("001.jpg + 001.txt")).toBeInTheDocument();
+  await expectPacked("001.jpg + 001.txt");
 });
 
 it("后台刷新计划保留选择模式与仍然有效的勾选，刷新期间不能操作旧数据", async () => {
   const user = userEvent.setup();
   const { rerender } = render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
-  await screen.findByText("001.jpg + 001.txt");
+  await expectPacked("001.jpg + 001.txt");
   const included = within(screen.getByRole("region", { name: "将入包清单" }));
   await user.click(included.getByRole("button", { name: "选择" }));
   await user.click(included.getByRole("checkbox", { name: "选择 photo.jpg" }));
@@ -233,14 +242,17 @@ it("后台刷新计划保留选择模式与仍然有效的勾选，刷新期间�
 
   rerender(<ExportPanel wid="work" batch="s1" refreshKey={1} />);
 
-  expect(screen.queryByRole("region", { name: "将入包清单" })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "导出当前策略" })).toBeDisabled();
+  // 刷新期间清单不撤旧值（稿格 9／14），但整组动作与主钮暂失效——不给操作旧数据。
+  expect(screen.getByRole("region", { name: "将入包清单" })).toBeInTheDocument();
+  expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "打包导出" })).toBeDisabled();
+  expect(included.getByRole("button", { name: /^排除\(/ })).toBeDisabled();
   await act(async () => {
     resolvePlan?.(plan);
   });
   expect(included.getByRole("button", { name: "退出选择" })).toBeVisible();
   expect(included.getByRole("checkbox", { name: "选择 photo.jpg" })).toBeChecked();
-  await user.click(included.getByRole("button", { name: "排除选中的" }));
+  await user.click(included.getByRole("button", { name: /^排除\(/ }));
   expect(api.setExclusions).toHaveBeenCalledExactlyOnceWith(
     "work",
     "s1",
@@ -253,8 +265,8 @@ it("任务查询失败可重查原句柄，成功后才出现下载链接", asyn
   const user = userEvent.setup();
   vi.mocked(api.getTask).mockRejectedValueOnce(new Error("网络中断"));
   render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
-  await screen.findByText("001.jpg + 001.txt");
-  await user.click(screen.getByRole("button", { name: "导出当前策略" }));
+  await expectPacked("001.jpg + 001.txt");
+  await user.click(screen.getByRole("button", { name: "打包导出" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("网络中断");
   expect(screen.queryByRole("link", { name: "下载 ZIP" })).not.toBeInTheDocument();
   const url = "/api/workdirs/work/export/files/s1-0123456789abcdef01234567.zip";
@@ -280,17 +292,17 @@ it("空任务编号不能进入无法查询的打包状态，重查后可重新�
   const user = userEvent.setup();
   vi.mocked(api.startExport).mockResolvedValueOnce({ task_id: "" });
   render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
-  await screen.findByText("001.jpg + 001.txt");
+  await expectPacked("001.jpg + 001.txt");
 
-  await user.click(screen.getByRole("button", { name: "导出当前策略" }));
+  await user.click(screen.getByRole("button", { name: "打包导出" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("导出任务编号无效");
   expect(screen.queryByText(/正在打包/)).not.toBeInTheDocument();
   expect(api.getTask).not.toHaveBeenCalled();
   expect(screen.queryByRole("link", { name: "下载 ZIP" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "重新查询" }));
-  await screen.findByText("001.jpg + 001.txt");
-  expect(screen.getByRole("button", { name: "导出当前策略" })).toBeEnabled();
+  await expectPacked("001.jpg + 001.txt");
+  expect(screen.getByRole("button", { name: "打包导出" })).toBeEnabled();
   expect(api.startExport).toHaveBeenCalledTimes(1);
 });
 
@@ -310,8 +322,10 @@ it("切换批次丢弃迟到计划和原选择", async () => {
     resolveOld?.(plan);
   });
 
-  expect(screen.queryByText("001.jpg + 001.txt")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "导出当前策略" })).toBeDisabled();
+  expect(screen.getByRole("region", { name: "将入包清单" })).not.toHaveTextContent(
+    "001.jpg",
+  );
+  expect(screen.getByRole("button", { name: "打包导出" })).toBeDisabled();
 });
 
 it("任务丢失后必须重查计划，且不会自动重新提交导出", async () => {
@@ -320,18 +334,18 @@ it("任务丢失后必须重查计划，且不会自动重新提交导出", asyn
     new ApiError("http", "任务不存在", 404, null),
   );
   const { rerender } = render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
-  await screen.findByText("001.jpg + 001.txt");
-  await user.click(screen.getByRole("button", { name: "导出当前策略" }));
+  await expectPacked("001.jpg + 001.txt");
+  await user.click(screen.getByRole("button", { name: "打包导出" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("导出任务已丢失");
 
   rerender(<ExportPanel wid="work" batch="s1" refreshKey={1} />);
-  await screen.findByText("001.jpg + 001.txt");
+  await expectPacked("001.jpg + 001.txt");
   expect(screen.getByRole("alert")).toHaveTextContent("导出任务已丢失");
-  expect(screen.getByRole("button", { name: "导出当前策略" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "打包导出" })).toBeDisabled();
   await user.click(screen.getByRole("button", { name: "重新查询" }));
-  await screen.findByText("001.jpg + 001.txt");
+  await expectPacked("001.jpg + 001.txt");
 
-  expect(screen.getByRole("button", { name: "导出当前策略" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "打包导出" })).toBeEnabled();
   expect(api.startExport).toHaveBeenCalledTimes(1);
   expect(api.getTask).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole("link", { name: "下载 ZIP" })).not.toBeInTheDocument();
@@ -340,17 +354,20 @@ it("任务丢失后必须重查计划，且不会自动重新提交导出", asyn
 it("计划刷新失败后不允许操作旧清单，重查成功才恢复", async () => {
   const user = userEvent.setup();
   const { rerender } = render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
-  await screen.findByText("001.jpg + 001.txt");
+  await expectPacked("001.jpg + 001.txt");
   vi.mocked(api.exportPlan).mockRejectedValueOnce(new Error("计划读取失败"));
 
   rerender(<ExportPanel wid="work" batch="s1" refreshKey={1} />);
 
   expect(await screen.findByRole("alert")).toHaveTextContent("计划读取失败");
-  expect(screen.queryByText("001.jpg + 001.txt")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "导出当前策略" })).toBeDisabled();
+  // 稿格 9：错误句并进分区头、清单不撤旧值；主钮禁用不给发车。
+  expect(screen.getByRole("region", { name: "将入包清单" })).toHaveTextContent(
+    "001.jpg + 001.txt",
+  );
+  expect(screen.getByRole("button", { name: "打包导出" })).toBeDisabled();
   await user.click(screen.getByRole("button", { name: "重查导出计划" }));
-  await screen.findByText("001.jpg + 001.txt");
-  expect(screen.getByRole("button", { name: "导出当前策略" })).toBeEnabled();
+  await expectPacked("001.jpg + 001.txt");
+  expect(screen.getByRole("button", { name: "打包导出" })).toBeEnabled();
 });
 
 it.each([
@@ -366,11 +383,11 @@ it.each([
     error: null,
   });
   render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
-  await screen.findByText("001.jpg + 001.txt");
-  await user.click(screen.getByRole("button", { name: "导出当前策略" }));
+  await expectPacked("001.jpg + 001.txt");
+  await user.click(screen.getByRole("button", { name: "打包导出" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(message);
   expect(screen.queryByRole("link", { name: "下载 ZIP" })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "导出当前策略" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "取消导出" })).toBeInTheDocument();
   const url = "/api/workdirs/work/export/files/s1-0123456789abcdef01234567.zip";
   vi.mocked(api.getTask).mockResolvedValue({
     id: "export-task",
@@ -389,4 +406,54 @@ it.each([
   expect(api.getTask).toHaveBeenCalledTimes(2);
   expect(api.getTask).toHaveBeenLastCalledWith("export-task");
   expect(api.startExport).toHaveBeenCalledExactlyOnceWith("work", "s1", true);
+});
+
+it("摘要只给图片／视频／体积三段，打包中取消钮在左、进度紧邻其右", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.getTask).mockResolvedValue({
+    id: "export-task",
+    status: "running",
+    progress: 0.43,
+    result: null,
+    error: null,
+  });
+  render(
+    <ExportPanel
+      wid="work"
+      batch="s1"
+      refreshKey={0}
+      mediaSummary={{ images: 125, videos: 2 }}
+    />,
+  );
+  await expectPacked("001.jpg + 001.txt");
+  const section = screen.getByRole("region", { name: "打包与导出" });
+  expect(within(section).getByText(/图片 125 · 视频 2/)).toBeInTheDocument();
+  expect(section).not.toHaveTextContent("含变更素材");
+
+  await user.click(screen.getByRole("button", { name: "打包导出" }));
+
+  const cancel = await screen.findByRole("button", { name: "取消导出" });
+  expect(cancel.nextElementSibling).toHaveTextContent("正在打包 · 43%");
+  expect(screen.queryByRole("button", { name: "打包导出" })).not.toBeInTheDocument();
+});
+
+it("取导出计划撞坏运行记录：给可点固定短句、不出通用错误句也不给播报", async () => {
+  vi.mocked(api.exportPlan).mockRejectedValue(
+    new ApiError(
+      "http",
+      "运行流水损坏",
+      500,
+      null,
+      null,
+      "run-journal-corrupted",
+      "s7",
+    ),
+  );
+  render(<ExportPanel wid="work" batch="s1" refreshKey={0} />);
+
+  expect(
+    await screen.findByRole("button", { name: "运行记录文件损坏" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "打包导出" })).toBeDisabled();
 });

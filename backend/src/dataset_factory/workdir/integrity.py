@@ -123,7 +123,7 @@ def _rebuild_import_records(
         if path.stat().st_size > size_limit(path.suffix):
             continue
         if path.stem in stems:
-            raise WorkdirPathError("素材主干冲突，请重命名其中一份后重建。")
+            raise WorkdirPathError("存在格式不同的同名文件，无法重建导入记录。")
         stems.add(path.stem)
         files.append({"name": path.name, "sha256": hash_file(path)})
     if should_stop is not None and should_stop.is_set():

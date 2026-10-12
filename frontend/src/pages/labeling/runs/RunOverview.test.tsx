@@ -42,8 +42,10 @@ it("最近一次重试的统计不能用整个批次的素材数替代，日志�
   render(<RunOverview wid="work" batch="s1" refreshKey={0} fallback={fallback} />);
   const region = await screen.findByRole("region", { name: "本次运行" });
   expect(within(region).getByText("总数").nextElementSibling).toHaveTextContent("1");
-  expect(within(region).getByText(/未跑 2 条/)).toBeInTheDocument();
-  expect(within(region).getByText("CLI")).toBeInTheDocument();
+  expect(within(region).getByText(/耗时/)).toBeInTheDocument();
+  expect(
+    within(region).queryByText(/模式|触发方|快照哈希|日志路径|未跑/),
+  ).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "查看日志" }));
   expect(await screen.findByText("运行已中断")).toBeInTheDocument();
   expect(api.readRunText).toHaveBeenCalledExactlyOnceWith(
@@ -52,6 +54,20 @@ it("最近一次重试的统计不能用整个批次的素材数替代，日志�
     "run1",
     "run.log",
   );
+});
+
+it("运行中的时间行尾写「正在跑批」，且不挂耗时", async () => {
+  const base = history.record;
+  if (!base) throw new Error("缺少运行记录");
+  vi.mocked(api.latestRun).mockResolvedValue({
+    ...history,
+    record: { ...base, status: "running", finished_at: null },
+  });
+  render(<RunOverview wid="work" batch="s1" refreshKey={0} fallback={fallback} />);
+
+  const region = await screen.findByRole("region", { name: "本次运行" });
+  expect(within(region).getByText(/正在跑批/)).toBeInTheDocument();
+  expect(within(region).queryByText(/耗时/)).not.toBeInTheDocument();
 });
 
 it("切换批次丢弃旧批次的迟到运行摘要", async () => {
@@ -162,7 +178,7 @@ it("逐条流水切换为按条目聚合的表格并重新取数", async () => {
   expect(within(rowB).getByText("不支持的图片格式")).toBeInTheDocument();
 });
 
-it("复制把当前显示的内容写入剪贴板并短暂确认", async () => {
+it("复制把当前显示的内容写入剪贴板，钮本体原地换装成「已复制」", async () => {
   const user = userEvent.setup();
   const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue();
   Object.defineProperty(navigator, "clipboard", {
@@ -173,6 +189,21 @@ it("复制把当前显示的内容写入剪贴板并短暂确认", async () => {
   await screen.findByRole("region", { name: "本次运行" });
   await user.click(screen.getByRole("button", { name: "查看日志" }));
   await user.click(await screen.findByRole("button", { name: "复制" }));
+
   expect(writeText).toHaveBeenCalledWith("运行已中断");
-  expect(await screen.findByText("已复制")).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "已复制" })).toBeInTheDocument();
+  expect(screen.queryByText("已复制")).not.toBeInTheDocument();
+});
+
+it("读取中与读取失败与空态三种未就绪都不给复制出口", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.readRunText).mockResolvedValue({ path: "p", text: "" });
+  render(<RunOverview wid="work" batch="s1" refreshKey={0} fallback={fallback} />);
+  await screen.findByRole("region", { name: "本次运行" });
+  await user.click(screen.getByRole("button", { name: "查看日志" }));
+
+  const copy = await screen.findByRole("button", { name: "复制" });
+  expect(copy).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "刷新" }));
+  expect(api.readRunText).toHaveBeenCalledTimes(2);
 });

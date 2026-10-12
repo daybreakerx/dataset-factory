@@ -57,6 +57,19 @@ function view(name: string): components["schemas"]["ItemListView"] {
   };
 }
 
+/** ⑫ 同一条目在两组各占一行：原分组那行带「重打」章、可及名不止文件名，故按分组区取行。 */
+function retriedRowPair() {
+  const original = within(screen.getByRole("region", { name: "已完成" })).getByRole(
+    "button",
+    { name: /first\.jpg/ },
+  );
+  const retry = within(screen.getByRole("region", { name: "重试列表" })).getByRole(
+    "button",
+    { name: "first.jpg" },
+  );
+  return { original, retry };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   // 切页记忆走 localStorage：清档防止用例间串状态。
@@ -493,6 +506,27 @@ describe("打标页读取流程", () => {
     expect(screen.getByRole("button", { name: "first.jpg" })).toBeInTheDocument();
   });
 
+  it("同一条目在两组各占一行：点哪行只亮哪行，不再两行同时亮", async () => {
+    const user = userEvent.setup();
+    const initial = view("first");
+    const row = initial.groups.done?.[0];
+    if (!row) throw new Error("缺少测试素材");
+    row.in_retry = true;
+    initial.groups.retry = [row];
+    vi.mocked(api.listItems).mockResolvedValue(initial);
+    render(<LabelingPage />);
+
+    await screen.findByRole("button", { name: "移出重试 first.jpg" });
+    const { original, retry } = retriedRowPair();
+    await user.click(retry);
+
+    expect(retry).toHaveAttribute("aria-pressed", "true");
+    expect(original).toHaveAttribute("aria-pressed", "false");
+    await user.click(original);
+    expect(original).toHaveAttribute("aria-pressed", "true");
+    expect(retry).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("清空请求失败时保留重试名单并呈现原因", async () => {
     const user = userEvent.setup();
     const initial = view("first");
@@ -751,6 +785,46 @@ describe("跨重启恢复", () => {
 
     const row = await screen.findByRole("button", { name: "first.jpg" });
     await waitFor(() => expect(row).toHaveAttribute("aria-pressed", "true"));
+  });
+
+  it("存档带组前缀：恢复只亮存的那个组那行", async () => {
+    const initial = view("first");
+    const row = initial.groups.done?.[0];
+    if (!row) throw new Error("缺少测试素材");
+    row.in_retry = true;
+    initial.groups.retry = [row];
+    vi.mocked(api.listItems).mockResolvedValue(initial);
+    localStorage.setItem(
+      "dsf-labeling-selection",
+      JSON.stringify({ workdirId: "one", batchId: "s1" }),
+    );
+    localStorage.setItem("dsf-labeling-selected-item", JSON.stringify("retry:first"));
+    render(<LabelingPage />);
+
+    await screen.findByRole("button", { name: "移出重试 first.jpg" });
+    const { original, retry } = retriedRowPair();
+    await waitFor(() => expect(retry).toHaveAttribute("aria-pressed", "true"));
+    expect(original).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("旧档存裸条目键（无组）：恢复退化落原分组那行", async () => {
+    const initial = view("first");
+    const row = initial.groups.done?.[0];
+    if (!row) throw new Error("缺少测试素材");
+    row.in_retry = true;
+    initial.groups.retry = [row];
+    vi.mocked(api.listItems).mockResolvedValue(initial);
+    localStorage.setItem(
+      "dsf-labeling-selection",
+      JSON.stringify({ workdirId: "one", batchId: "s1" }),
+    );
+    localStorage.setItem("dsf-labeling-selected-item", JSON.stringify("first"));
+    render(<LabelingPage />);
+
+    await screen.findByRole("button", { name: "移出重试 first.jpg" });
+    const { original, retry } = retriedRowPair();
+    await waitFor(() => expect(original).toHaveAttribute("aria-pressed", "true"));
+    expect(retry).toHaveAttribute("aria-pressed", "false");
   });
 
   it("恢复的素材 id 已不在装载结果里：静默放弃，不误选", async () => {

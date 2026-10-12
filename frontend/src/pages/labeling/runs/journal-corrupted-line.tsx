@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { cn } from "../../../lib/utils";
 import { CleanupRunDialog } from "../workdir/CleanupRunDialog";
 
 /**
@@ -12,17 +13,23 @@ export function JournalCorruptedLine({
   wid,
   run,
   onCleaned,
+  className,
 }: {
   wid: string;
   run: string;
   onCleaned: () => void;
+  /** 挂载位档：独立一行取默认（13px），概览分区头副行取 `text-t-xs`。 */
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
         type="button"
-        className="text-t-sm text-bad-ink underline hover:text-bad-ink-hover"
+        className={cn(
+          "text-t-sm text-bad-ink underline hover:text-bad-ink-hover",
+          className,
+        )}
         onClick={() => setOpen(true)}
       >
         运行记录文件损坏

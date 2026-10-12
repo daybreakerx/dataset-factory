@@ -11,7 +11,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-press",
+          // 禁用档补 hairline 边（稿 base.css §7「.btn:disabled 只换灰底」+ 重建弹窗条⑪）：
+          // 灰底与卡片同色时无边就看不出这里有个钮。
+          "bg-primary text-primary-foreground border-input hover:bg-primary-hover active:bg-primary-press disabled:border",
         destructive: "bg-transparent text-bad-ink hover:bg-bad-bg",
         "destructive-fill": "bg-bad-ink text-on-ink hover:bg-bad-ink-strong",
         // 红字描边钮（稿 base.css §7 .btn--danger-text）：确认弹窗里的破坏性动作——

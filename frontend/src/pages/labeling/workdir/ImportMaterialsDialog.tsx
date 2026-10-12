@@ -410,7 +410,7 @@ export function ImportMaterialsDialog({
             type="button"
             role="tab"
             aria-selected={mode === value}
-            className={`h-(--h-sm) rounded-sm px-3 text-t-sm ${
+            className={`h-(--h-sm) rounded-md px-3 text-t-sm ${
               mode === value
                 ? "bg-card font-medium text-text-1 shadow-(--sh-1)"
                 : "text-text-3"

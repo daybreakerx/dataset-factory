@@ -23,7 +23,7 @@ import {
   ITEM_GROUPS,
   type ItemMap,
   type ItemRow,
-  itemKey,
+  selectionKey,
 } from "../runs/items-state";
 import { MaterialRow } from "./material-row";
 
@@ -82,8 +82,9 @@ export function MaterialsPanel({
   addSelected: () => Promise<void>;
   removeRetry: (item?: string) => Promise<void>;
   setRetryRequest: Dispatch<SetStateAction<number>>;
+  /** 选中位＝「触发源组＋条目」复合键（⑫）：同一条目在重试列表与原分组各占一行，只亮点的那一行。 */
   selectedItem: string | null;
-  choose: (row: ItemRow) => void;
+  choose: (row: ItemRow, group: string) => void;
   /** 行内「导入」／「重新导入」：点击直接执行，不经弹窗（2026-10-10 用户裁）。 */
   recover: (row: ItemRow) => void;
   /** 缺失行「重新指定」：来源已失效，开目录选择弹窗选定新来源。 */
@@ -393,7 +394,7 @@ export function MaterialsPanel({
                       saving={saving}
                       selectedItem={selectedItem}
                       choose={(row) => {
-                        choose(row);
+                        choose(row, key);
                         // 点行即收（稿「暂展」出口）：选中并切换画布，浮出层收起、不夺焦点。
                         if (narrow && peek) onPeekLeave();
                       }}
@@ -453,9 +454,9 @@ function GroupBody({
     <>
       {shown.map((row) => (
         <MaterialRow
-          key={itemKey(row)}
+          key={selectionKey(collapsedKey, row)}
           row={row}
-          selected={selectedItem === itemKey(row)}
+          selected={selectedItem === selectionKey(collapsedKey, row)}
           onSelect={choose}
           selectionMode={selectionMode}
           checked={checked.has(row.item)}
