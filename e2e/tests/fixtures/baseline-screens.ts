@@ -171,10 +171,10 @@ export function defineBaselineScreens(
     await snap(page, sink, "09-labeling-dark");
   });
 
-  test("10 打标-新建跑批弹窗", async ({ page }) => {
+  test("10 打标-新建批次弹窗", async ({ page }) => {
     const sink = await boot(page);
     await openLabeling(page);
-    await page.getByRole("button", { name: "新建跑批", exact: true }).click();
+    await page.getByRole("button", { name: "新建批次", exact: true }).click();
     await snap(page, sink, "10-labeling-new-batch");
   });
 

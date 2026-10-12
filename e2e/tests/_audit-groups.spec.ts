@@ -231,18 +231,18 @@ test.describe("分组取证", () => {
     }
   });
 
-  test("组 7 · 新建跑批：实际走一遍并截", async ({ page }) => {
+  test("组 7 · 新建批次：实际走一遍并截", async ({ page }) => {
     mkdirSync(OUT, { recursive: true });
     await page.setViewportSize(VIEW);
     await stubApi(page, []);
     await page.waitForFunction(() => document.fonts.status === "loaded");
     await gotoLabeling(page);
 
-    const start = page.getByRole("button", { name: "新建跑批" });
+    const start = page.getByRole("button", { name: "新建批次" });
     if ((await start.count()) === 0) return;
     await start.first().click();
     await page.waitForTimeout(600);
-    await shot(page, "g7-新建跑批-第一步");
+    await shot(page, "g7-新建批次-第一步");
 
     // 表单里的三处下拉：逐一点开截图（组 3 的第三个样张来源）
     for (const label of ["提示词", "端点", "技能"]) {
@@ -256,7 +256,7 @@ test.describe("分组取证", () => {
         await shotEl(
           page,
           '[data-slot="dropdown-menu-content"], [role="menu"], [data-slot="select-content"]',
-          `g3-新建跑批-${label}下拉`,
+          `g3-新建批次-${label}下拉`,
         );
         await page.keyboard.press("Escape");
         await page.waitForTimeout(200);
@@ -268,8 +268,8 @@ test.describe("分组取证", () => {
     if ((await imp.count()) > 0) {
       await imp.first().click();
       await page.waitForTimeout(600);
-      await shotEl(page, '[data-slot="dialog-content"]', "g7-新建跑批-导入素材弹窗");
-      await shot(page, "g7-新建跑批-导入素材-整屏");
+      await shotEl(page, '[data-slot="dialog-content"]', "g7-新建批次-导入素材弹窗");
+      await shot(page, "g7-新建批次-导入素材-整屏");
       await page.keyboard.press("Escape");
     }
   });

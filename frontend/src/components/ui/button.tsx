@@ -33,7 +33,9 @@ const buttonVariants = cva(
         default: "h-(--h-md) px-3",
         xs: "h-(--h-xs) rounded-full px-3 text-t-xs",
         sm: "h-(--h-sm) px-2 text-t-sm",
-        lg: "h-(--h-lg) px-4 text-t-lg",
+        // 图标档随尺寸升一档（base.css §7 `.btn--lg .ic`＝--icon-lg 18px，非基类的 16）：
+        // 头行「返回主页面」这类 lg 文字钮按稿取 18。
+        lg: "h-(--h-lg) px-4 text-t-lg [&_svg]:size-(--icon-lg)",
         mini: "h-4 rounded-none bg-transparent px-0 text-t-sm text-text-3 hover:bg-transparent hover:text-text-1 disabled:bg-transparent [&_svg]:size-(--icon-sm)",
         icon: "btn-icon size-(--h-md) gap-0 p-0",
         "icon-sm": "btn-icon size-(--h-sm) gap-0 p-0 [&_svg]:size-(--icon-md)",

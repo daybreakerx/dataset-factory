@@ -45,7 +45,7 @@ export function LabelingPage({
   onNavigateToSettings,
   onOpenWorkbench,
 }: {
-  /** 跳应用级设置页（新建跑批的三个下拉要有「去设置」的出口）。 */
+  /** 跳应用级设置页（新建批次的三个下拉要有「去设置」的出口）。 */
   onNavigateToSettings?: () => void;
   /** 跳对话工作台（「拿不准效果？先试标」动线）。 */
   onOpenWorkbench?: () => void;
@@ -413,34 +413,42 @@ export function LabelingPage({
           对齐批「顶栏窄屏」①②）：<874 折行（右段 display:contents，运行组占第一行右、胶囊串掉第二行
           跨满）、触发件列渐缩 minmax(240,320)；<512 左列恒 240 不回涨。 */}
       <header className="grid shrink-0 grid-cols-[var(--w-col-left)_minmax(0,1fr)] items-center gap-x-4 gap-y-3 px-4 pt-4 pb-3 @max-[874px]/lbctx:grid-cols-[minmax(240px,320px)_minmax(auto,1fr)] @max-[512px]/lbctx:grid-cols-[240px_minmax(0,1fr)] lg:px-6">
+        {/* 顶栏左段在 creating 态整段让位（对齐批「表单头与素材来源」②）——新建批次自己的
+            头行（返回＋页题＋创建钮）住在画布里的表单上，两处不并排；空格子留着，
+            右段仍按同一列几何排（不因为左段空了就整段左移）。 */}
         <div className="flex min-w-0 items-center gap-3 pr-3">
-          <div className="min-w-0 flex-1">
-            <BatchSelector
-              workdirs={workdirs}
-              value={selection}
-              onChange={setSelection}
-              onSettings={setSettingsWid}
-              onNewStrategy={setNewStrategyWid}
-              runState={batchRunState}
-              loading={flight}
-              loadError={loadError}
-              onOpen={() => setDirectoriesRevision((revision) => revision + 1)}
-            />
-          </div>
-          {/* 圆角统一 --r-md（对齐批「悬停/按压归一 + 顶部件三笔」⑥：基类 rounded-md＝
-              --r-sm 8px，与同排选择器 chip 的 --r-md 12px 不同档，DESIGN.md 3.4 同行共用
-              一套圆角基准）；补 Tip（⑤，图标钮必配气泡）。 */}
-          <Tip label="新建跑批">
-            <Button
-              variant="ghost"
-              size="icon-lg"
-              className="rounded-lg"
-              aria-label="新建跑批"
-              onClick={() => setCreating(true)}
-            >
-              <PlusIcon />
-            </Button>
-          </Tip>
+          {!creating && (
+            <>
+              <div className="min-w-0 flex-1">
+                <BatchSelector
+                  workdirs={workdirs}
+                  value={selection}
+                  onChange={setSelection}
+                  onSettings={setSettingsWid}
+                  onNewStrategy={setNewStrategyWid}
+                  runState={batchRunState}
+                  loading={flight}
+                  loadError={loadError}
+                  onOpen={() => setDirectoriesRevision((revision) => revision + 1)}
+                />
+              </div>
+              {/* 圆角统一 --r-md（对齐批「悬停/按压归一 + 顶部件三笔」⑥：基类 rounded-md＝
+                  --r-sm 8px，与同排选择器 chip 的 --r-md 12px 不同档，DESIGN.md 3.4 同行共用
+                  一套圆角基准）；补 Tip（⑤，图标钮必配气泡）。边界名随 2026-10-11 用户裁
+                  「新建跑批 → 新建批次」改名收口（对齐批「表单头与素材来源」⑱）。 */}
+              <Tip label="新建批次">
+                <Button
+                  variant="ghost"
+                  size="icon-lg"
+                  className="rounded-lg"
+                  aria-label="新建批次"
+                  onClick={() => setCreating(true)}
+                >
+                  <PlusIcon />
+                </Button>
+              </Tip>
+            </>
+          )}
         </div>
         {/* 右段＝§22 .lb-topbar-right：折行档（<874）转 display:contents，让胶囊串与运行组直接落进
             顶栏网格——组钉第一行右缘、胶囊串掉第二行跨整行（让位秩序由两处子件自己声明）。 */}
@@ -541,7 +549,7 @@ export function LabelingPage({
         />
         <div className="flex min-w-0 flex-1 flex-col overflow-auto">
           {creating ? (
-            // L1（2026-09-21 审计）：新建跑批改为画布内换块——顶栏与左列保留，
+            // L1（2026-09-21 审计）：新建批次改为画布内换块——顶栏与左列保留，
             // 返回后选择、折叠与滚动位置都还在（不再整页卸载）。无选中批次时同样可用。
             <NewBatchForm
               onBack={() => setCreating(false)}

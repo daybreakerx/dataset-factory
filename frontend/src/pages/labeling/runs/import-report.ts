@@ -1,6 +1,8 @@
 export interface ImportReport {
   source: string;
   imported: string[];
+  imported_images: number;
+  imported_videos: number;
   skipped_identical: string[];
   skipped_conflict: {
     name: string;
@@ -41,6 +43,9 @@ export function parseImportReport(value: unknown): ImportReport {
   return {
     source: text(report.source),
     imported: entries(report.imported, text),
+    // 文件形态分档由后端算好（扩展名白名单只有一份，界面不抄对照表）。
+    imported_images: bytes(report.imported_images),
+    imported_videos: bytes(report.imported_videos),
     skipped_identical: entries(report.skipped_identical, text),
     skipped_conflict: entries(report.skipped_conflict, (entry) => {
       const row = record(entry);

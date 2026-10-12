@@ -3,28 +3,42 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ApiError, api, errorMessage, type TaskView } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
-import { DialogShell } from "../../../components/dialog-shell";
-import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
-import { exclusionLabel } from "../material-actions";
+import { cn } from "../../../lib/utils";
 import { parseImportReport } from "../runs/import-report";
-import { ImportMaterialsDialog } from "../workdir/ImportMaterialsDialog";
 import type { BatchSelection } from "./BatchSelector";
-import { BatchSourceFields } from "./batch-source-fields";
+import { BatchSourceFields, idleInfo, type SourceInfo } from "./batch-source-fields";
 import { BatchStrategyFields } from "./batch-strategy-fields";
 import { useBatchFormLists } from "./use-batch-form-lists";
 
 type Workdir = components["schemas"]["WorkdirInfo"];
-type Batch = components["schemas"]["BatchView"];
+type ScanPreviewView = components["schemas"]["ScanPreviewView"];
+
+/** 导入／登记完成后的信息位（§22 .nb-doneinfo 的取数）。 */
+interface DoneInfo {
+  verb: "已导入" | "已登记";
+  total: number;
+  images: number;
+  videos: number;
+  rejected: number;
+}
+
 interface Props {
   onBack: () => void;
   onCreated: (selection: BatchSelection) => void;
   /** 跳应用级设置页（下拉的齿轮出口——想加端点 / 启用 Skill 不必自己摸路）。 */
   onNavigateToSettings?: () => void;
-  /** 跳对话工作台（「拿不准效果？先在对话中用单张试标」动线）。 */
+  /** 跳策略页对话区（「拿不准效果？先在对话中用单张试标」动线）。 */
   onOpenWorkbench?: () => void;
 }
 
+/**
+ * 新建批次（稿 #15a＋#15b，2026-10-09 交互流重设计／2026-10-11 头行改版）。
+ *
+ * 三段流程各自一个出口，不再一钮跑到底：**扫描**（读素材来源目录，不登记）→
+ * **导入／登记**（登记工作目录并把素材收进来）→ 头行**创建批次**（只建批次，成功即
+ * 回主页面）。启动跑批不在这里——回到主页面由「开始打标」（运行状态组现役件）承担。
+ */
 export function NewBatchForm({
   onBack,
   onCreated,
@@ -34,52 +48,30 @@ export function NewBatchForm({
   const id = useId();
   const lists = useBatchFormLists();
   const [mode, setMode] = useState<"copy" | "inplace">("copy");
-  const [path, setPath] = useState("");
   const [source, setSource] = useState("");
-  const [acknowledged, setAcknowledged] = useState(false);
+  const [path, setPath] = useState("");
   const [library, setLibrary] = useState("scratch");
   const [name, setName] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState("");
-  const [workdir, setWorkdir] = useState<Workdir | null>(null);
-  const [batch, setBatch] = useState<Batch | null>(null);
-  const [taskId, setTaskId] = useState<string | null>(null);
-  const [importDone, setImportDone] = useState(false);
-  const rejectedImports = useRef<{ name: string; reason: string }[]>([]);
-  const [unimported, setUnimported] = useState<
-    { name: string; reason: string | null | undefined }[] | null
-  >(null);
-  const [importOpen, setImportOpen] = useState(false);
   const [directoryField, setDirectoryField] = useState<"source" | "path" | null>(null);
+  // 扫描三件：结果、失败真话、在飞（扫描对象＝来源目录，就地态＝那一份目录）。
+  const [scan, setScan] = useState<ScanPreviewView | null>(null);
+  const [scanError, setScanError] = useState("");
+  const [scanning, setScanning] = useState(false);
+  // 导入／登记三件：登记到的工作目录、可续接的长任务句柄、完成位。
+  const [workdir, setWorkdir] = useState<Workdir | null>(null);
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [percent, setPercent] = useState<number | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [done, setDone] = useState<DoneInfo | null>(null);
+  const [actionError, setActionError] = useState("");
+  // 创建批次（头行主钮）两件：在飞与失败真话——都落头行消息槽，一槽一消息互斥替换。
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
   const mounted = useRef(false);
   const pending = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const wake = useRef<(() => void) | undefined>(undefined);
-  // 发车前摘要：登记完成后（拿到 wid）拉一次扫描预览——
-  // 「这一跑会吃多少、收哪些、不收哪些、为什么」在发车按钮上方一眼可读。
-  const [scan, setScan] = useState<components["schemas"]["ScanPreviewView"] | null>(
-    null,
-  );
-
-  useEffect(() => {
-    if (workdir === null) {
-      setScan(null);
-      return;
-    }
-    let current = true;
-    api
-      .scanPreview(workdir.id)
-      .then((value) => {
-        if (current) setScan(value);
-      })
-      .catch(() => {
-        // 摘要读不到不挡发车（主流程自己会报错），留空即可。
-      });
-    return () => {
-      current = false;
-    };
-  }, [workdir]);
 
   useEffect(() => {
     mounted.current = true;
@@ -90,16 +82,40 @@ export function NewBatchForm({
     };
   }, []);
 
-  async function run(skipConfirmation = false) {
-    if (pending.current) return;
+  const scanTarget = (mode === "copy" ? source : path).trim();
+
+  /** 来源变了，旧扫描就不作数了——信息行退回就地警告（笔⑪：扫描后被顶掉、改动后回显）。 */
+  function invalidateScan(): void {
+    setScan(null);
+    setScanError("");
+  }
+
+  async function runScan(): Promise<void> {
+    if (scanTarget === "" || scanning || done !== null) return;
+    setScanning(true);
+    setScanError("");
+    try {
+      setScan(await api.scanSource(scanTarget));
+    } catch (reason) {
+      setScan(null);
+      // 后端有真话用真话；一句都没有才落稿的示意句（笔⑫，撤原空 catch 静默）。
+      setScanError(errorMessage(reason) || "扫描失败，请重试");
+    } finally {
+      if (mounted.current) setScanning(false);
+    }
+  }
+
+  /** 导入／登记：copy＝登记工作目录并从来源复制进来；就地＝登记该目录并把素材记进册（不动素材）。 */
+  async function runImport(): Promise<void> {
+    if (pending.current || (workdir !== null && done !== null)) return;
     pending.current = true;
-    setBusy(true);
-    lists.setError("");
+    setImporting(true);
+    setActionError("");
+    setScanError("");
     try {
       let directory = workdir;
-      let importTask = taskId;
-      if (!directory) {
-        setProgress("正在登记工作目录");
+      let handle = taskId;
+      if (directory === null) {
         const accepted = await api.createWorkdir({
           path: path.trim(),
           source: mode === "copy" ? source.trim() : null,
@@ -107,112 +123,121 @@ export function NewBatchForm({
         });
         if (!mounted.current) return;
         directory = accepted.workdir;
-        importTask = accepted.task_id;
+        handle = accepted.task_id;
         setWorkdir(directory);
-        setTaskId(importTask);
+        setTaskId(handle);
       }
-      if (!importDone && !importTask) {
+      if (handle === null) {
+        // 目录已登记、任务句柄却没了（服务重启丢掉在飞任务）：补发一次导入续上，
+        // 不重复登记工作目录（createWorkdir 只在 directory===null 那一段发过）。
         const accepted = await api.importMaterials(directory.id, {
           source: mode === "copy" ? source.trim() : null,
         });
         if (!mounted.current) return;
-        importTask = accepted.task_id;
-        setTaskId(importTask);
+        handle = accepted.task_id;
+        setTaskId(handle);
       }
-      if (!importDone && importTask) {
-        while (mounted.current) {
-          const task: TaskView = await api
-            .getTask(importTask)
-            .catch((reason: unknown) => {
-              if (
-                mounted.current &&
-                reason instanceof ApiError &&
-                reason.status === 404
-              ) {
-                setTaskId(null);
-                throw new Error("上次任务已丢失（服务重启过），可重新执行");
-              }
-              throw reason;
-            });
-          if (!mounted.current) return;
-          if (task.id !== importTask) throw new Error("导入任务响应不一致");
-          setProgress(`正在导入 · ${Math.round(task.progress * 100)}%`);
-          if (task.status === "succeeded") {
-            const report = parseImportReport(task.result);
-            rejectedImports.current = report.rejected;
-            setProgress(`导入完成 · 新增 ${report.imported.length} 项`);
-            setImportDone(true);
-            break;
-          }
-          if (task.status !== "running") {
+      while (mounted.current) {
+        const task: TaskView = await api.getTask(handle).catch((reason: unknown) => {
+          if (mounted.current && reason instanceof ApiError && reason.status === 404) {
             setTaskId(null);
-            throw new Error(task.error || "导入未完成，可重新执行");
+            throw new Error("上次任务已丢失（服务重启过），可重新执行");
           }
-          await new Promise<void>((resolve) => {
-            wake.current = resolve;
-            timer.current = setTimeout(resolve, 2000);
+          throw reason;
+        });
+        if (!mounted.current) return;
+        if (task.id !== handle) throw new Error("导入任务响应不一致");
+        setPercent(Math.round(task.progress * 100));
+        if (task.status === "succeeded") {
+          const report = parseImportReport(task.result);
+          setDone({
+            verb: mode === "copy" ? "已导入" : "已登记",
+            total: report.imported.length,
+            images: report.imported_images,
+            videos: report.imported_videos,
+            rejected: report.rejected.length,
           });
+          setScan(null);
+          break;
         }
-      }
-      if (!mounted.current) return;
-      let createdBatch = batch;
-      if (!createdBatch) {
-        setProgress("正在创建批次");
-        createdBatch = await api.createBatch(
-          directory.id,
-          library === "scratch"
-            ? {
-                type: "scratch",
-                name: name.trim(),
-                endpoint_id: lists.endpoint,
-                prompt_id: lists.prompt,
-                skill_ids: selectedSkills,
-              }
-            : { type: "library", id: library, name: name.trim() || null },
-        );
-        if (!mounted.current) return;
-        setBatch(createdBatch);
-      }
-      if (!skipConfirmation) {
-        const view = await api.listItems(directory.id, createdBatch.id);
-        if (!mounted.current) return;
-        const registered = new Set(
-          Object.entries(view.groups)
-            .filter(([group]) => group !== "unimported")
-            .flatMap(([, rows]) => rows.map((row) => row.name)),
-        );
-        const omitted = new Map(
-          rejectedImports.current
-            .filter((row) => !registered.has(row.name))
-            .map((row) => [row.name, row]),
-        );
-        for (const row of view.groups.unimported ?? [])
-          omitted.set(row.name, { name: row.name, reason: row.reason ?? "未登记" });
-        if (omitted.size) {
-          setUnimported([...omitted.values()]);
-          return;
+        if (task.status !== "running") {
+          setTaskId(null);
+          throw new Error(task.error || "导入未完成，可重新执行");
         }
+        await new Promise<void>((resolve) => {
+          wake.current = resolve;
+          timer.current = setTimeout(resolve, 2000);
+        });
       }
-      setProgress("正在启动");
-      await api.startRun(directory.id, createdBatch.id, "full");
-      if (mounted.current)
-        onCreated({ workdirId: directory.id, batchId: createdBatch.id });
     } catch (reason) {
-      if (mounted.current) lists.setError(errorMessage(reason));
+      if (mounted.current) setActionError(errorMessage(reason));
     } finally {
       pending.current = false;
-      if (mounted.current) setBusy(false);
+      if (mounted.current) {
+        setImporting(false);
+        setPercent(null);
+      }
     }
   }
 
-  const valid =
+  /** 创建批次＝只做 createBatch；成功即回主页面，启动归主页面的「开始打标」（笔⑥）。 */
+  async function runCreate(): Promise<void> {
+    if (workdir === null || creating) return;
+    setCreating(true);
+    setCreateError("");
+    try {
+      const created = await api.createBatch(
+        workdir.id,
+        library === "scratch"
+          ? {
+              type: "scratch",
+              name: name.trim(),
+              endpoint_id: lists.endpoint,
+              prompt_id: lists.prompt,
+              skill_ids: selectedSkills,
+            }
+          : { type: "library", id: library, name: name.trim() || null },
+      );
+      onCreated({ workdirId: workdir.id, batchId: created.id });
+    } catch (reason) {
+      if (mounted.current) {
+        setCreateError(errorMessage(reason) || "创建批次失败，可重新执行");
+      }
+    } finally {
+      if (mounted.current) setCreating(false);
+    }
+  }
+
+  const info: SourceInfo =
+    done !== null
+      ? { kind: "done", ...done }
+      : percent !== null
+        ? {
+            kind: "progress",
+            verb: mode === "copy" ? "正在导入" : "正在登记",
+            percent,
+          }
+        : actionError
+          ? { kind: "error", text: actionError }
+          : scanError
+            ? { kind: "error", text: scanError }
+            : scan !== null
+              ? { kind: "scan", view: scan }
+              : idleInfo(mode);
+  const flight = scanning || importing;
+  const canCreate =
+    done !== null &&
+    !creating &&
     lists.loaded &&
-    !!path.trim() &&
-    (mode === "copy" ? !!source.trim() : acknowledged) &&
     (library !== "scratch" || (!!name.trim() && !!lists.endpoint && !!lists.prompt));
+  const message = creating
+    ? { role: "status" as const, tone: "text-info-ink", text: "正在创建批次" }
+    : createError
+      ? { role: "alert" as const, tone: "text-bad-ink", text: createError }
+      : null;
 
   return (
-    <section aria-label="新建跑批" className="h-full overflow-auto px-6 py-4">
+    <section aria-label="新建批次" className="h-full overflow-auto px-6 py-4">
       {directoryField && (
         <DirectoryPicker
           initialPath={directoryField === "source" ? source : path}
@@ -222,48 +247,77 @@ export function NewBatchForm({
           onSelect={(value) => {
             if (directoryField === "source") setSource(value);
             else setPath(value);
+            invalidateScan();
             setDirectoryField(null);
           }}
         />
       )}
-      {workdir && importOpen && (
-        <ImportMaterialsDialog
-          wid={workdir.id}
-          workdirPath={workdir.path}
-          initialMode={mode}
-          initialSource={source.trim()}
-          onClose={() => setImportOpen(false)}
-          onImported={() => {
-            setUnimported(null);
-          }}
-        />
-      )}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="返回打标页"
-            disabled={busy}
-            onClick={onBack}
+      {/* 头行＝§22 .nb-topbar：返回钮＋页题＋消息槽（flex:1 吃满中段）＋行尾主钮。
+          页题复用 §31 .wd-title（t-xl／medium），题不再在卡内。 */}
+      <header className="mb-2 flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="lg"
+          aria-label="返回主页面"
+          disabled={importing || creating}
+          onClick={onBack}
+        >
+          <ArrowLeftIcon />
+          返回主页面
+        </Button>
+        <h1 className="shrink-0 text-t-xl font-medium leading-tight text-text-1">
+          新建批次
+        </h1>
+        {message && (
+          <span
+            role={message.role}
+            className={cn("min-w-0 flex-1 truncate text-t-sm", message.tone)}
           >
-            <ArrowLeftIcon />
-          </Button>
-          <h1 className="text-t-2xl font-semibold">新建跑批</h1>
-        </div>
+            {message.text}
+          </span>
+        )}
+        <Button
+          variant="default"
+          size="lg"
+          disabled={!canCreate}
+          aria-disabled={creating || undefined}
+          className={cn("ml-auto", creating && "aria-disabled:pointer-events-none")}
+          onClick={() => void runCreate()}
+        >
+          创建批次
+        </Button>
+      </header>
+      {/* 表单白卡＝§22 .nb-card：内距 --s-6、圆角 --r-lg、sh-1；卡内两区头各领一段。 */}
+      <div className="flex min-w-0 flex-col rounded-xl border border-border bg-card p-6 shadow-(--sh-1)">
+        <h2 className="mb-4 text-t-xl font-medium leading-tight text-text-1">素材</h2>
         <BatchSourceFields
           id={id}
           mode={mode}
           source={source}
           path={path}
-          acknowledged={acknowledged}
-          disabled={busy || !!workdir}
-          onModeChange={setMode}
-          onSourceChange={setSource}
-          onPathChange={setPath}
-          onAcknowledgeChange={setAcknowledged}
+          info={info}
+          frozen={done !== null}
+          flight={flight}
+          canScan={scanTarget !== ""}
+          onModeChange={(value) => {
+            setMode(value);
+            invalidateScan();
+          }}
+          onSourceChange={(value) => {
+            setSource(value);
+            invalidateScan();
+          }}
+          onPathChange={(value) => {
+            setPath(value);
+            invalidateScan();
+          }}
           onPickDirectory={setDirectoryField}
+          onScan={() => void runScan()}
+          onImport={() => void runImport()}
         />
+        <h2 className="mb-4 mt-8 text-t-xl font-medium leading-tight text-text-1">
+          策略
+        </h2>
         <BatchStrategyFields
           id={id}
           library={library}
@@ -275,8 +329,8 @@ export function NewBatchForm({
           endpoints={lists.endpoints}
           prompts={lists.prompts}
           skills={lists.skills}
-          busy={busy}
-          batchLocked={!!batch}
+          busy={creating}
+          batchLocked={false}
           onLibraryChange={(value) => {
             setLibrary(value);
             setName(lists.strategies.find((entry) => entry.id === value)?.name ?? "");
@@ -287,88 +341,14 @@ export function NewBatchForm({
           onSelectedSkillsChange={setSelectedSkills}
           onNavigateToSettings={onNavigateToSettings}
         />
-        {scan !== null && (
-          // 扫描摘要行：登记完成后、发车之前，先告诉用户
-          // 这一跑会吃多少、收哪些、不收哪些、为什么。
-          <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-t-sm">
-            <span className="font-medium">
-              扫描到 {scan.total} 项：图片 {scan.images} · 视频 {scan.videos}
-            </span>
-            <span className="text-muted-foreground">
-              ；未导入 {scan.unimported.length} 项
-              {scan.unimported.length > 0 ? "（明细在发车前确认里）" : ""}
-            </span>
-          </div>
-        )}
-        {lists.error && !unimported && (
-          <FormError className="text-bad-ink">{lists.error}</FormError>
-        )}
-        {progress && (
-          <p role="status" className="text-t-sm text-muted-foreground">
-            {progress}
-          </p>
-        )}
-        <DialogShell
-          open={!!unimported && !importOpen}
-          onOpenChange={(open) => !open && !busy && setUnimported(null)}
-          title="开始打标前确认"
-          description={<>有 {unimported?.length ?? 0} 个素材未导入，本次不会打标。</>}
-          cancel={{
-            label: "先去导入",
-            variant: "ghost",
-            size: "sm",
-            disabled: busy,
-            onClick: () => setImportOpen(true),
-          }}
-          confirm={{
-            label: "仍要开始",
-            variant: "default",
-            size: "sm",
-            disabled: busy,
-            onClick: () => void run(true),
-          }}
-        >
-          <ul className="max-h-48 overflow-auto text-t-sm" aria-label="未导入素材">
-            {unimported?.map((row) => (
-              <li
-                key={row.name}
-                className="flex flex-wrap gap-2 border-b border-border/60 py-2 last:border-0"
-              >
-                <span className="break-all font-medium">{row.name}</span>
-                <span className="break-words text-muted-foreground">
-                  {exclusionLabel(row.reason)}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {lists.error && (
-            <FormError className="text-t-sm text-bad-ink">{lists.error}</FormError>
-          )}
-        </DialogShell>
-        {!unimported && (
-          <div className="space-y-3 border-t border-border pt-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                className="ml-auto"
-                disabled={!valid || busy}
-                onClick={() => void run()}
-              >
-                {busy ? "正在处理" : "开始打标"}
-              </Button>
-            </div>
-            {/* 底部动线与体积预告。 */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-t-xs text-muted-foreground">
-              {onOpenWorkbench !== undefined && (
-                <button
-                  type="button"
-                  className="text-primary underline underline-offset-4"
-                  onClick={onOpenWorkbench}
-                >
-                  拿不准效果？先在对话中用单张试标
-                </button>
-              )}
-              <span className="ml-auto">体积上限：单图 ≤ 20 MB · 单视频 ≤ 100 MB</span>
-            </div>
+        {/* 试标动线（策略件笔⑩）：hint 一句＋accent 小钮，去向＝策略页对话区。
+            原第二行「体积上限…」meter 撤——体积与扩展名范围已进扫描钮气泡（笔⑦）。 */}
+        {onOpenWorkbench !== undefined && (
+          <div className="mt-4 flex items-center gap-3 text-t-sm text-text-3">
+            <span>拿不准效果？先在对话中用单张试标，满意后再跑整批。</span>
+            <Button variant="accent" size="xs" onClick={onOpenWorkbench}>
+              前往策略页面调试
+            </Button>
           </div>
         )}
       </div>

@@ -7,6 +7,13 @@ import type { components } from "../api-types.gen";
 import { request } from "./client";
 
 export const filesystemApi = {
+  /** 素材来源目录的导入预演（新建批次「扫描」钮——那时目录还没登记，只有这条路径可问）。 */
+  scanSource: (path: string) =>
+    request<components["schemas"]["ScanPreviewView"]>(
+      "GET",
+      `/api/filesystem/source-scan?path=${encodeURIComponent(path)}`,
+    ),
+
   listDirectory: (
     path: string,
     showFiles = false,

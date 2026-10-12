@@ -326,3 +326,58 @@ def unimported_files(workdir: Path, registered: set[str]) -> list[UnimportedFile
             )
         )
     return result
+
+
+def preview_source_import(
+    directory: Path,
+) -> tuple[list[Path], list[UnimportedFile]]:
+    """按「素材来源目录」预演一次导入：哪些文件会成为素材、哪些进不了、为什么。
+
+    新建批次表单的「扫描」吃这条（那时候目录还没登记，没有 wid 可查）。与
+    :func:`unimported_files` 的差别在参照系：那边对着已登记的工作目录算「在册之外」，
+    这边目录还没登记，进不了清单的只有扩展名不支持与超出大小上限两类——「未登记」
+    这一类在这里不存在（没有册，也就没有「该登记却没登记」）。可导入那份沿用
+    :func:`scan_assets` 的主干去重，与跑批取数同一口径。
+
+    Args:
+        directory: 素材来源目录（不存在时两份都为空）。
+
+    Returns:
+        （将被导入的素材路径，不会成为条目的文件清单），均按文件名排序。
+    """
+    if not directory.is_dir():
+        return [], []
+    accepted: list[Path] = []
+    rejected: list[UnimportedFile] = []
+    for path in scan_assets(directory).values():
+        suffix = path.suffix.lower()
+        size = path.stat().st_size
+        limit = size_limit(suffix)
+        if size > limit:
+            rejected.append(
+                UnimportedFile(
+                    name=path.name,
+                    reason=REASON_OVERSIZE,
+                    size=size,
+                    limit=limit,
+                )
+            )
+            continue
+        accepted.append(path)
+    for entry in sorted(directory.iterdir(), key=lambda p: p.name):
+        if (
+            not entry.is_file()
+            or entry.suffix.lower() in ASSET_EXTENSIONS
+            or is_product_name(entry.name)
+        ):
+            continue
+        rejected.append(
+            UnimportedFile(
+                name=entry.name,
+                reason=REASON_UNSUPPORTED_EXTENSION,
+                size=entry.stat().st_size,
+                limit=None,
+            )
+        )
+    rejected.sort(key=lambda item: item.name)
+    return accepted, rejected

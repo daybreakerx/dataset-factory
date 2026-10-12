@@ -2611,7 +2611,7 @@
         "type": "object"
       },
       "ScanPreviewView": {
-        "description": "GET /api/workdirs/{wid}/scan-preview 的响应体：新建跑批的发车前摘要。\n\n回答「这一跑会吃多少、收哪些、不收哪些、为什么」：total / images / videos 数的是\n登记在册且在盘的素材（会被逐张打标的部分）；unimported 是不会成为条目的文件清单。",
+        "description": "扫描预览响应体，两个入口共用同一形状。\n\n回答「会吃多少、收哪些、不收哪些、为什么」：\n\n- `GET /api/filesystem/source-scan?path=`——新建批次表单的扫描钮，对着**还没登记的\n  素材来源目录**算：total 是会被导入的素材数，unimported 只有「扩展名不支持／超出\n  大小上限」两类（没有册，也就没有「未登记」）。\n- `GET /api/workdirs/{wid}/scan-preview`——导入弹窗对着**已登记的工作目录**算：\n  total 数「登记在册且在盘」的素材，unimported 另含「未登记」那类。",
         "properties": {
           "images": {
             "description": "其中图片数",
@@ -2619,7 +2619,7 @@
             "type": "integer"
           },
           "total": {
-            "description": "将被打标的素材总数（登记在册且在盘）",
+            "description": "会被处理（导入／打标）的素材总数",
             "title": "Total",
             "type": "integer"
           },
@@ -4282,6 +4282,55 @@
           }
         },
         "summary": "Rename Directory",
+        "tags": [
+          "服务器目录"
+        ]
+      }
+    },
+    "/api/filesystem/source-scan": {
+      "get": {
+        "description": "按「素材来源目录」预演一次导入：会收多少张、哪些收不进来、为什么。\n\n新建批次表单的扫描钮吃这条——点扫描时目录还没登记（没有 wid），扫描对象是\n素材来源目录本身，与工作目录无关（2026-10-09 用户裁「扫描独立」）。只读现算、\n不落任何状态。",
+        "operationId": "scan_source_directory_api_filesystem_source_scan_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanPreviewView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "路径无效（相对路径或含空字符）"
+          },
+          "404": {
+            "description": "目录不存在或不是目录"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Scan Source Directory",
         "tags": [
           "服务器目录"
         ]
@@ -10122,7 +10171,7 @@
     },
     "/api/workdirs/{wid}/scan-preview": {
       "get": {
-        "description": "扫描素材目录的发车前摘要（新建跑批表单的「扫描到 N 项」行）。\n\n只读现算不落任何状态：total / images / videos 数「登记在册且在盘」的素材\n（本次跑批会逐张处理的部分）；unimported 列出不会成为条目的文件与原因。",
+        "description": "扫描工作目录现状的发车前摘要（导入素材弹窗的「扫描到 N 项」行）。\n\n只读现算不落任何状态：total / images / videos 数「登记在册且在盘」的素材\n（本次跑批会逐张处理的部分）；unimported 列出不会成为条目的文件与原因。\n新建批次表单不吃这条——那时目录还没登记，它扫的是来源目录\n（`GET /api/filesystem/source-scan`）。",
         "operationId": "scan_preview_api_workdirs__wid__scan_preview_get",
         "parameters": [
           {

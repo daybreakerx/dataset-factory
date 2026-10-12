@@ -474,13 +474,18 @@ class ScanPreviewItem(BaseModel):
 
 
 class ScanPreviewView(BaseModel):
-    """GET /api/workdirs/{wid}/scan-preview 的响应体：新建跑批的发车前摘要。
+    """扫描预览响应体，两个入口共用同一形状。
 
-    回答「这一跑会吃多少、收哪些、不收哪些、为什么」：total / images / videos 数的是
-    登记在册且在盘的素材（会被逐张打标的部分）；unimported 是不会成为条目的文件清单。
+    回答「会吃多少、收哪些、不收哪些、为什么」：
+
+    - `GET /api/filesystem/source-scan?path=`——新建批次表单的扫描钮，对着**还没登记的
+      素材来源目录**算：total 是会被导入的素材数，unimported 只有「扩展名不支持／超出
+      大小上限」两类（没有册，也就没有「未登记」）。
+    - `GET /api/workdirs/{wid}/scan-preview`——导入弹窗对着**已登记的工作目录**算：
+      total 数「登记在册且在盘」的素材，unimported 另含「未登记」那类。
     """
 
-    total: int = Field(description="将被打标的素材总数（登记在册且在盘）")
+    total: int = Field(description="会被处理（导入／打标）的素材总数")
     images: int = Field(description="其中图片数")
     videos: int = Field(description="其中视频数")
     unimported: list[ScanPreviewItem] = Field(description="不会成为条目的文件清单")

@@ -294,7 +294,9 @@ def _import_assets(
 
     Returns:
         导入报告（任务结果载荷 / 界面三态反馈的数据源）：``imported_at``、
-        ``source``、``imported``（新进工作目录）、``skipped_identical``（同名
+        ``source``、``imported``（新进工作目录）、``imported_images``／
+        ``imported_videos``（那一份的文件形态分档，界面「图片 N · 视频 N」直读）、
+        ``skipped_identical``（同名
         同容，已重登记）、``skipped_conflict``（同名异容，含新旧大小与哈希
         对照）、``skipped_duplicate``（异名同容，含撞容条目名）、``rejected``
         （白名单外 / 超限 / 主干冲突，含原因）。
@@ -443,6 +445,14 @@ def _import_assets(
         "imported_at": record["imported_at"],
         "source": record["source"],
         "imported": imported,
+        # 图片／视频分档就地算好给界面（「已导入 N 项（图片 N · 视频 1）」那一句）——
+        # 扩展名白名单的归属留在后端这一层，前端不再抄一份对照表。
+        "imported_images": sum(
+            1 for name in imported if Path(name).suffix.lower() in IMAGE_EXTENSIONS
+        ),
+        "imported_videos": sum(
+            1 for name in imported if Path(name).suffix.lower() in VIDEO_EXTENSIONS
+        ),
         "skipped_identical": skipped_identical,
         "skipped_conflict": skipped_conflict,
         "skipped_duplicate": skipped_duplicate,

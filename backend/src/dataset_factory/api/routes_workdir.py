@@ -453,10 +453,12 @@ def verify_integrity(wid: str, batch: str | None = None) -> IntegrityReport:
     responses={404: {"model": Problem, "description": "工作目录不存在"}},
 )
 def scan_preview(wid: str) -> ScanPreviewView:
-    """扫描素材目录的发车前摘要（新建跑批表单的「扫描到 N 项」行）。
+    """扫描工作目录现状的发车前摘要（导入素材弹窗的「扫描到 N 项」行）。
 
     只读现算不落任何状态：total / images / videos 数「登记在册且在盘」的素材
     （本次跑批会逐张处理的部分）；unimported 列出不会成为条目的文件与原因。
+    新建批次表单不吃这条——那时目录还没登记，它扫的是来源目录
+    （`GET /api/filesystem/source-scan`）。
     """
     workdir = workdir_root(wid)
     if not workdir.is_dir():

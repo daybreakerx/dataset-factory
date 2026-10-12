@@ -12,7 +12,7 @@ import {
 } from "../../../components/ui/select";
 import { Tip } from "../../../components/ui/tooltip";
 
-/** 新建跑批·策略配置段：策略来源、策略名与从零配置段（端点／提示词／Skill）。 */
+/** 新建批次·策略配置段：策略来源、策略名与从零配置段（端点／提示词／Skill）。 */
 export function BatchStrategyFields({
   id,
   library,

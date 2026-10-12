@@ -31,6 +31,8 @@ const completed: TaskView = {
   result: {
     source: "/source",
     imported: ["new.jpg"],
+    imported_images: 1,
+    imported_videos: 0,
     skipped_identical: [],
     skipped_conflict: [],
     skipped_duplicate: [],
@@ -211,6 +213,8 @@ it("导入成功自动关窗，完成与各类跳过逐条浮现为浮层", asyn
     result: {
       source: "/source",
       imported: ["new.jpg"],
+      imported_images: 1,
+      imported_videos: 0,
       skipped_identical: ["a.jpg", "b.jpg", "c.jpg"],
       skipped_conflict: [
         {

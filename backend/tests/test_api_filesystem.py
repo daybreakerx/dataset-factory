@@ -14,7 +14,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from dataset_factory.api import create_app, routes_filesystem
-from dataset_factory.workdir import WorkdirRegistry
+from dataset_factory.workdir import (
+    REASON_OVERSIZE,
+    REASON_UNSUPPORTED_EXTENSION,
+    WorkdirRegistry,
+    assets,
+)
 from dataset_factory.workdir.locks import RunLock
 
 pytestmark = pytest.mark.usefixtures("temp_data_root")
@@ -467,3 +472,49 @@ def test_open_directory_passes_path_as_single_argument(
     assert response.status_code == 204
     assert launch.call_args.args == (["manager", str(target)],)
     assert "shell" not in launch.call_args.kwargs
+
+
+def test_source_scan_lists_importable_assets_and_rejection_reasons(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """来源目录预演：白名单内且不超限的计入 total，超限与扩展名两类各给一句原因。
+
+    大小护栏用 monkeypatch 压低到 5 字节——真写一个 20MB 文件只为撞上限，测试成本不划算。
+    """
+
+    def stub_limit(suffix: str) -> int:
+        return 5
+
+    monkeypatch.setattr(assets, "size_limit", stub_limit)
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "cat.jpg").write_bytes(b"x" * 3)
+    (source / "clip.mp4").write_bytes(b"y" * 4)
+    (source / "huge.png").write_bytes(b"w" * 9)
+    (source / "notes.txt").write_bytes(b"z" * 3)
+    (source / "s1__cat.txt").write_bytes(b"old product")
+    client = TestClient(create_app(frontend_dir=tmp_path / "frontend"))
+
+    response = client.get("/api/filesystem/source-scan", params={"path": str(source)})
+
+    body = response.json()
+    assert response.status_code == 200
+    assert (body["total"], body["images"], body["videos"]) == (2, 1, 1)
+    assert [(row["name"], row["reason"]) for row in body["unimported"]] == [
+        ("huge.png", REASON_OVERSIZE),
+        ("notes.txt", REASON_UNSUPPORTED_EXTENSION),
+    ]
+
+
+def test_source_scan_reports_invalid_and_missing_paths(tmp_path: Path) -> None:
+    """相对路径回 400、目录不存在回 404，两句都是可操作的下一步。"""
+    client = TestClient(create_app(frontend_dir=tmp_path / "frontend"))
+
+    relative = client.get("/api/filesystem/source-scan", params={"path": "source"})
+    missing = client.get(
+        "/api/filesystem/source-scan", params={"path": str(tmp_path / "gone")}
+    )
+
+    assert relative.status_code == 400
+    assert missing.status_code == 404
+    assert "不存在或不是目录" in missing.json()["detail"]

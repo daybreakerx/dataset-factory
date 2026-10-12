@@ -183,6 +183,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/filesystem/source-scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Scan Source Directory
+         * @description 按「素材来源目录」预演一次导入：会收多少张、哪些收不进来、为什么。
+         *
+         *     新建批次表单的扫描钮吃这条——点扫描时目录还没登记（没有 wid），扫描对象是
+         *     素材来源目录本身，与工作目录无关（2026-10-09 用户裁「扫描独立」）。只读现算、
+         *     不落任何状态。
+         */
+        get: operations["scan_source_directory_api_filesystem_source_scan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/label": {
         parameters: {
             query?: never;
@@ -1677,10 +1701,12 @@ export interface paths {
         };
         /**
          * Scan Preview
-         * @description 扫描素材目录的发车前摘要（新建跑批表单的「扫描到 N 项」行）。
+         * @description 扫描工作目录现状的发车前摘要（导入素材弹窗的「扫描到 N 项」行）。
          *
          *     只读现算不落任何状态：total / images / videos 数「登记在册且在盘」的素材
          *     （本次跑批会逐张处理的部分）；unimported 列出不会成为条目的文件与原因。
+         *     新建批次表单不吃这条——那时目录还没登记，它扫的是来源目录
+         *     （`GET /api/filesystem/source-scan`）。
          */
         get: operations["scan_preview_api_workdirs__wid__scan_preview_get"];
         put?: never;
@@ -3168,10 +3194,15 @@ export interface components {
         };
         /**
          * ScanPreviewView
-         * @description GET /api/workdirs/{wid}/scan-preview 的响应体：新建跑批的发车前摘要。
+         * @description 扫描预览响应体，两个入口共用同一形状。
          *
-         *     回答「这一跑会吃多少、收哪些、不收哪些、为什么」：total / images / videos 数的是
-         *     登记在册且在盘的素材（会被逐张打标的部分）；unimported 是不会成为条目的文件清单。
+         *     回答「会吃多少、收哪些、不收哪些、为什么」：
+         *
+         *     - `GET /api/filesystem/source-scan?path=`——新建批次表单的扫描钮，对着**还没登记的
+         *       素材来源目录**算：total 是会被导入的素材数，unimported 只有「扩展名不支持／超出
+         *       大小上限」两类（没有册，也就没有「未登记」）。
+         *     - `GET /api/workdirs/{wid}/scan-preview`——导入弹窗对着**已登记的工作目录**算：
+         *       total 数「登记在册且在盘」的素材，unimported 另含「未登记」那类。
          */
         ScanPreviewView: {
             /**
@@ -3181,7 +3212,7 @@ export interface components {
             images: number;
             /**
              * Total
-             * @description 将被打标的素材总数（登记在册且在盘）
+             * @description 会被处理（导入／打标）的素材总数
              */
             total: number;
             /**
@@ -4303,6 +4334,51 @@ export interface operations {
                     "application/json": components["schemas"]["Problem"];
                     "application/problem+json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scan_source_directory_api_filesystem_source_scan_get: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanPreviewView"];
+                };
+            };
+            /** @description 路径无效（相对路径或含空字符） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 目录不存在或不是目录 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

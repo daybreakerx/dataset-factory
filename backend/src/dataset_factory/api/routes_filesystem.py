@@ -1,4 +1,8 @@
-"""服务器目录浏览：仅列当前层的元信息，不提供任意文件内容读取。"""
+"""服务器目录浏览：仅列当前层的元信息，不提供任意文件内容读取。
+
+「素材来源目录」的导入预演（GET /source-scan）也挂在本面：那时候目录还没登记成
+工作目录、没有 wid 可查，能问的只有服务器上的这条路径。
+"""
 
 from __future__ import annotations
 
@@ -20,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .._fs import data_root, is_empty_dir
 from ..tasks import RETRY_AFTER_SECONDS, TaskCancelledError, TaskManager, TaskResult
 from ..workdir import WorkdirPathError, WorkdirRegistry
-from ..workdir.assets import media_kind
+from ..workdir.assets import media_kind, preview_source_import
 from ..workdir.locks import (
     maintenance_guard,
     registry_guard,
@@ -28,7 +32,7 @@ from ..workdir.locks import (
 )
 from ..workdir.relocation import relocate_workdir
 from .problems import problem, problem_response
-from .schemas import WorkdirRelocateAccepted
+from .schemas import ScanPreviewItem, ScanPreviewView, WorkdirRelocateAccepted
 
 
 class RenameDirectoryRequest(BaseModel):
@@ -367,3 +371,52 @@ def create_directory(body: CreateDirectoryRequest) -> DirectoryPath:
         raise WorkdirPathError("目标名称已存在，请换一个名称。") from exc
     except OSError as exc:
         raise WorkdirPathError("创建目录失败，请检查父目录与写入权限。") from exc
+
+
+@router.get(
+    "/source-scan",
+    response_model=ScanPreviewView,
+    responses={
+        400: {"description": "路径无效（相对路径或含空字符）"},
+        404: {"description": "目录不存在或不是目录"},
+    },
+)
+def scan_source_directory(path: str) -> ScanPreviewView | Response:
+    """按「素材来源目录」预演一次导入：会收多少张、哪些收不进来、为什么。
+
+    新建批次表单的扫描钮吃这条——点扫描时目录还没登记（没有 wid），扫描对象是
+    素材来源目录本身，与工作目录无关（2026-10-09 用户裁「扫描独立」）。只读现算、
+    不落任何状态。
+    """
+    if "\0" in path:
+        return problem_response(
+            400, "filesystem-path-invalid", "路径无效", "路径不能包含空字符。"
+        )
+    directory = Path(path).expanduser()
+    if not directory.is_absolute():
+        return problem_response(
+            400, "filesystem-path-invalid", "路径无效", "请输入服务器绝对路径。"
+        )
+    if not directory.is_dir():
+        return problem_response(
+            404,
+            "filesystem-directory-missing",
+            "目录不存在",
+            f"来源目录「{path}」不存在或不是目录——请检查后重试。",
+        )
+    accepted, rejected = preview_source_import(directory)
+    return ScanPreviewView(
+        total=len(accepted),
+        images=sum(1 for entry in accepted if media_kind(entry.name) == "image"),
+        videos=sum(1 for entry in accepted if media_kind(entry.name) == "video"),
+        unimported=[
+            ScanPreviewItem(
+                name=entry.name,
+                media=media_kind(entry.name),
+                reason=entry.reason,
+                size=entry.size,
+                limit=entry.limit,
+            )
+            for entry in rejected
+        ],
+    )

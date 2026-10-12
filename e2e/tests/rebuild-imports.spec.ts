@@ -7,6 +7,27 @@ import { isolatedBaseURL } from "./fixtures/isolated-servers";
 // 本文件打真后端，用自己那份服务与数据根：重建导入读的是自己数据根里的事件流。
 test.use({ baseURL: isolatedBaseURL("rebuild-imports.spec.ts") });
 
+/** 新建批次表单的两段流程（对齐批「表单头与素材来源」④⑤⑥）：扫描来源目录 → 导入／登记 →
+ *  头行「创建批次」；创建成功即回主页面，跑批由主页面的「开始打标」启动。 */
+async function createBatchThroughForm(
+  page: import("@playwright/test").Page,
+  source: string,
+  destination: string,
+  strategyName: string,
+): Promise<void> {
+  await page.getByRole("button", { name: "新建批次", exact: true }).click();
+  const form = page.getByRole("region", { name: "新建批次" });
+  await page.getByRole("textbox", { name: "来源目录", exact: true }).fill(source);
+  await page.getByRole("textbox", { name: "工作目录", exact: true }).fill(destination);
+  await page.getByRole("textbox", { name: "策略名", exact: true }).fill(strategyName);
+  await form.getByRole("button", { name: "扫描", exact: true }).click();
+  await expect(page.getByTestId("source-info")).toContainText("扫描到");
+  await form.getByRole("button", { name: "导入", exact: true }).click();
+  await expect(page.getByTestId("source-info")).toContainText("已导入");
+  await page.getByRole("button", { name: "创建批次", exact: true }).click();
+  await expect(form).toHaveCount(0);
+}
+
 test("首次复制导入的跳过项不再弹导入结果窗，来源与同名旧文件都不被覆盖", async ({ page, request }, testInfo) => {
   const source = testInfo.outputPath("source");
   const destination = testInfo.outputPath("workdir");
@@ -32,12 +53,12 @@ test("首次复制导入的跳过项不再弹导入结果窗，来源与同名�
   });
   await page.goto("/");
   await page.getByRole("button", { name: "打标", exact: true }).click();
-  await page.getByRole("button", { name: "新建跑批", exact: true }).click();
-  await page.getByRole("textbox", { name: "来源目录", exact: true }).fill(source);
-  await page.getByRole("textbox", { name: "工作目录", exact: true }).fill(destination);
-  await page.getByRole("textbox", { name: "策略名", exact: true }).fill("重复报告验证");
+  await createBatchThroughForm(page, source, destination, "重复报告验证");
+
+  // 表单不再代为发车（笔⑥：启动归主页面「开始打标」现役件）——此刻一份都没跑。
+  expect(starts).toHaveLength(0);
+  expect(page.getByRole("dialog", { name: "导入素材", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "开始打标", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "导入素材", exact: true })).toHaveCount(0);
   await expect(
     page.getByRole("region", { name: "本次运行" }).getByText("成功", { exact: true }),
   ).toBeVisible();
@@ -48,7 +69,7 @@ test("首次复制导入的跳过项不再弹导入结果窗，来源与同名�
   expect(errors).toEqual([]);
 });
 
-test("新建跑批在启动前列出来源中未复制的文件", async ({ page }, testInfo) => {
+test("新建批次在启动前列出来源中未复制的文件", async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   const source = testInfo.outputPath("source");
   const destination = testInfo.outputPath("workdir");
@@ -64,7 +85,7 @@ test("新建跑批在启动前列出来源中未复制的文件", async ({ page 
   });
   await page.goto("/");
   await page.getByRole("button", { name: "打标", exact: true }).click();
-  await page.getByRole("button", { name: "新建跑批", exact: true }).click();
+  await page.getByRole("button", { name: "新建批次", exact: true }).click();
   for (const [label, directory] of [["来源目录", source], ["工作目录", destination]] as const) {
     await page.getByRole("button", { name: `选择${label}`, exact: true }).click();
     const picker = page.getByRole("dialog", { name: "选择目录", exact: true });
@@ -88,19 +109,26 @@ test("新建跑批在启动前列出来源中未复制的文件", async ({ page 
     await expect(page.getByRole("textbox", { name: label, exact: true })).toHaveValue(directory);
   }
   await page.getByRole("textbox", { name: "策略名", exact: true }).fill("首次复制预检");
-  // L1：新建跑批改为画布内换块，顶栏运行控制同屏——把点击限定在表单区。
-  await page
-    .getByRole("region", { name: "新建跑批" })
-    .getByRole("button", { name: "开始打标", exact: true })
-    .click();
-  const confirmation = page.getByRole("dialog", { name: "开始打标前确认" });
-  await expect(confirmation).toContainText("design.psd");
+  // 扫描就地给摘要：来源里那个 .psd 当着用户的面列出来（笔④⑯——不再拐发车前确认弹窗）。
+  const form = page.getByRole("region", { name: "新建批次" });
+  await form.getByRole("button", { name: "扫描", exact: true }).click();
+  await expect(page.getByTestId("source-info")).toHaveText(
+    "扫描到 1 项：图片 1 · 视频 0；未导入 1 项（1 个扩展名不支持）",
+  );
   expect(starts).toHaveLength(0);
   expect(await readFile(path.join(source, "design.psd"), "utf8")).toBe("Unsupported source file");
-  await expect(readFile(path.join(destination, "design.psd"))).rejects.toThrow();
-  await expect(confirmation).toHaveCSS("opacity", "1");
   await page.screenshot({ path: testInfo.outputPath("new-batch-preflight.png"), fullPage: true, animations: "disabled" });
-  await confirmation.getByRole("button", { name: "仍要开始" }).click();
+
+  await form.getByRole("button", { name: "导入", exact: true }).click();
+  await expect(page.getByTestId("source-info")).toHaveText(
+    "已导入 1 项（图片 1 · 视频 0） · 拒收 1 项",
+  );
+  // 拒收的那份不会被复制进工作目录（与扫描摘要同一份事实）。
+  await expect(readFile(path.join(destination, "design.psd"))).rejects.toThrow();
+  await page.getByRole("button", { name: "创建批次", exact: true }).click();
+  await expect(form).toHaveCount(0);
+
+  await page.getByRole("button", { name: "开始打标", exact: true }).click();
   await expect(page.getByRole("region", { name: "已完成", exact: true }).getByText("sample.png", { exact: true })).toBeVisible();
   expect(starts).toHaveLength(1);
   expect(await readFile(path.join(destination, "sample.png"))).toEqual(image);

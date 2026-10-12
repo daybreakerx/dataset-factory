@@ -2,7 +2,6 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, api, type TaskView } from "../../../api";
-import type { components } from "../../../api-types.gen";
 import { TooltipProvider } from "../../../components/ui/tooltip";
 import { NewBatchForm } from "./NewBatchForm";
 
@@ -15,38 +14,73 @@ vi.mock("../../../api", async (original) => ({
     listSkills: vi.fn(),
     createWorkdir: vi.fn(),
     importMaterials: vi.fn(),
-    importPreview: vi.fn(),
     getTask: vi.fn(),
     createBatch: vi.fn(),
-    listItems: vi.fn(),
+    scanSource: vi.fn(),
     startRun: vi.fn(),
-    scanPreview: vi.fn(),
   },
 }));
 
-const completed: TaskView = {
+const SCAN = {
+  total: 3,
+  images: 2,
+  videos: 1,
+  unimported: [
+    { name: "a.psd", media: "file", reason: "扩展名不支持", size: 10, limit: null },
+    { name: "b.psd", media: "file", reason: "扩展名不支持", size: 10, limit: null },
+    { name: "big.mov", media: "video", reason: "超出大小上限", size: 10, limit: 5 },
+  ],
+};
+
+/** 导入长任务的完成态载荷（分档计数由后端算好，界面不抄扩展名对照表）。 */
+const IMPORT_DONE: TaskView = {
   id: "initial",
   status: "succeeded",
   progress: 1,
   error: null,
   result: {
     source: "/source",
-    imported: ["image.jpg"],
+    imported: ["cat.jpg", "dog.jpg", "clip.mp4"],
+    imported_images: 2,
+    imported_videos: 1,
     skipped_identical: [],
     skipped_conflict: [],
     skipped_duplicate: [],
-    rejected: [],
+    rejected: [{ name: "a.psd", reason: "扩展名不支持" }],
   },
 };
 
+function renderForm(props: { onCreated?: () => void } = {}): void {
+  render(
+    <TooltipProvider>
+      <NewBatchForm onBack={vi.fn()} onCreated={props.onCreated ?? vi.fn()} />
+    </TooltipProvider>,
+  );
+}
+
+/** 信息行是一句拆成多节点的话，整句断言取容器文本（RTL 的 getByText 只吃直接文本子节点）。 */
+function infoLine(): HTMLElement {
+  return screen.getByTestId("source-info");
+}
+
+async function fillDirectories(
+  user: ReturnType<typeof userEvent.setup>,
+): Promise<void> {
+  await user.type(screen.getByRole("textbox", { name: "来源目录" }), "/source");
+  await user.type(screen.getByRole("textbox", { name: "工作目录" }), "/work");
+  await user.type(screen.getByRole("textbox", { name: "策略名" }), "Test");
+}
+
+async function importAssets(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(screen.getByRole("button", { name: "扫描" }));
+  await waitFor(() => expect(api.scanSource).toHaveBeenCalled());
+  await user.click(screen.getByRole("button", { name: "导入" }));
+  await waitFor(() => expect(infoLine()).toHaveTextContent("已导入 3 项"));
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(api.scanPreview).mockResolvedValue({
-    total: 1,
-    images: 1,
-    videos: 0,
-    unimported: [],
-  });
+  vi.mocked(api.scanSource).mockResolvedValue(SCAN);
   vi.mocked(api.listStrategies).mockResolvedValue([]);
   vi.mocked(api.listSkills).mockResolvedValue([]);
   vi.mocked(api.listPrompts).mockResolvedValue([
@@ -65,18 +99,10 @@ beforeEach(() => {
   ]);
   vi.mocked(api.createWorkdir).mockResolvedValue({
     task_id: "initial",
-    workdir: {
-      id: "work",
-      title: "work",
-      path: "/work",
-      last_used_at: 0,
-    },
+    workdir: { id: "work", title: "work", path: "/work", last_used_at: 0 },
   });
   vi.mocked(api.importMaterials).mockResolvedValue({ task_id: "retry" });
-  vi.mocked(api.importPreview).mockResolvedValue({
-    files: [{ name: "extra.png", size: 2048 }],
-  });
-  vi.mocked(api.getTask).mockResolvedValue(completed);
+  vi.mocked(api.getTask).mockResolvedValue(IMPORT_DONE);
   vi.mocked(api.createBatch).mockResolvedValue({
     id: "s1",
     seq: 1,
@@ -86,292 +112,196 @@ beforeEach(() => {
     created_at: "",
     product_count: 0,
   });
-  vi.mocked(api.listItems).mockResolvedValue({ batch: 1, query: "", groups: {} });
-  vi.mocked(api.startRun).mockResolvedValue({ run_id: "run" });
 });
 
-async function fillForm() {
-  const user = userEvent.setup();
-  await user.type(screen.getByRole("textbox", { name: "来源目录" }), "/source");
-  await user.type(screen.getByRole("textbox", { name: "工作目录" }), "/work");
-  await user.type(screen.getByRole("textbox", { name: "策略名" }), "Test");
-  await waitFor(() =>
-    expect(screen.getByRole("button", { name: "开始打标" })).toBeEnabled(),
-  );
-  return user;
-}
+describe("新建批次·表单头与素材来源", () => {
+  it("扫描对象是来源目录，未导入原因就地内联计数（不再指向发车前确认）", async () => {
+    const user = userEvent.setup();
+    renderForm();
 
-describe("新建跑批恢复", () => {
-  it("首次导入的跳过项不再弹结果窗，改由发车前确认承载", async () => {
-    vi.mocked(api.getTask).mockResolvedValue({
-      ...completed,
-      result: {
-        ...(completed.result as Record<string, unknown>),
-        skipped_identical: ["same.jpg"],
-        skipped_conflict: [
-          {
-            name: "changed.jpg",
-            existing_size: 1,
-            incoming_size: 2,
-            existing_sha256: "a".repeat(64),
-            incoming_sha256: "b".repeat(64),
-          },
-        ],
-        skipped_duplicate: [{ name: "copy.jpg", duplicate_of: "image.jpg" }],
-      },
-    });
-    vi.mocked(api.listItems).mockResolvedValue({
-      batch: 1,
-      query: "",
-      groups: {
-        unimported: [
-          {
-            item: "changed",
-            name: "changed.jpg",
-            status: "unimported",
-            media: "image",
-            in_retry: false,
-            can_retry: false,
-            reason: "未登记",
-          },
-        ],
-      },
-    });
-    const onCreated = vi.fn();
-    render(
-      <TooltipProvider>
-        <NewBatchForm onBack={vi.fn()} onCreated={onCreated} />
-      </TooltipProvider>,
-    );
-    const user = await fillForm();
+    // 没填目录就没有扫描对象（笔④：扫描钮解禁＝来源目录非空）。
+    expect(screen.getByRole("button", { name: "扫描" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "扫描" }));
+    expect(api.scanSource).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "开始打标" }));
-
-    const confirmation = await screen.findByRole("dialog", { name: "开始打标前确认" });
-    expect(screen.queryByRole("dialog", { name: "导入素材" })).not.toBeInTheDocument();
-    expect(within(confirmation).getByText("changed.jpg")).toBeInTheDocument();
-    expect(api.importMaterials).not.toHaveBeenCalled();
-    expect(api.startRun).not.toHaveBeenCalled();
-    expect(onCreated).not.toHaveBeenCalled();
-  });
-
-  it("预检转去导入保留复制模式与来源，扫描后补导入完成即自动关窗", async () => {
-    vi.mocked(api.listItems).mockResolvedValueOnce({
-      batch: 1,
-      query: "",
-      groups: {
-        unimported: [
-          {
-            item: "extra",
-            name: "extra.png",
-            status: "unimported",
-            media: "image",
-            in_retry: false,
-            can_retry: false,
-            reason: "未登记",
-          },
-        ],
-      },
-    });
-    const onCreated = vi.fn();
-    render(<NewBatchForm onBack={vi.fn()} onCreated={onCreated} />);
-    const user = await fillForm();
-    await user.click(screen.getByRole("button", { name: "开始打标" }));
-    await user.click(await screen.findByRole("button", { name: "先去导入" }));
-    const dialog = within(await screen.findByRole("dialog", { name: "导入素材" }));
-    expect(dialog.getByRole("tab", { name: "复制导入" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(dialog.getByRole("textbox", { name: "来源" })).toHaveValue("/source");
-    vi.mocked(api.getTask).mockResolvedValue({ ...completed, id: "retry" });
-
-    await user.click(dialog.getByRole("button", { name: "扫描" }));
-    await dialog.findByText("extra.png");
-    await user.click(dialog.getByRole("button", { name: "导入" }));
+    await user.type(screen.getByRole("textbox", { name: "来源目录" }), "/source");
+    await user.click(screen.getByRole("button", { name: "扫描" }));
 
     await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: "导入素材" }),
-      ).not.toBeInTheDocument(),
+      expect(api.scanSource).toHaveBeenCalledExactlyOnceWith("/source"),
     );
-    expect(api.importPreview).toHaveBeenCalledExactlyOnceWith("work", "/source");
+    expect(infoLine()).toHaveTextContent(
+      "扫描到 3 项：图片 2 · 视频 1；未导入 3 项（2 个扩展名不支持 · 1 个超出大小上限）",
+    );
+  });
+
+  it("导入才登记与复制，完成行给分档与拒收缀；此前「创建批次」恒禁用", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await fillDirectories(user);
+    expect(screen.getByRole("button", { name: "创建批次" })).toBeDisabled();
+
+    await importAssets(user);
+
+    expect(api.createWorkdir).toHaveBeenCalledExactlyOnceWith({
+      path: "/work",
+      source: "/source",
+      title: "",
+    });
+    expect(api.importMaterials).not.toHaveBeenCalled();
+    expect(infoLine()).toHaveTextContent("已导入 3 项（图片 2 · 视频 1） · 拒收 1 项");
+    expect(within(infoLine()).getByText("· 拒收 1 项")).toHaveClass("text-bad-ink");
+    // 完成态冻结（笔⑩）：分段、两枚输入与选择钮一起锁。
+    expect(screen.getByRole("tab", { name: "复制导入" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "来源目录" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "选择来源目录" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "选择工作目录" })).toBeDisabled();
+    // 扫过一遍后钮位改口「重新扫描」，导入完成后两钮一起消失（格 4）。
+    expect(screen.queryByRole("button", { name: /扫描/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "导入" })).not.toBeInTheDocument();
+  });
+
+  it("头行「创建批次」只做创建，成功后回主页面、不再由表单发车", async () => {
+    const onCreated = vi.fn();
+    const user = userEvent.setup();
+    renderForm({ onCreated });
+    await fillDirectories(user);
+    await importAssets(user);
+
+    await user.click(screen.getByRole("button", { name: "创建批次" }));
+
+    await waitFor(() =>
+      expect(onCreated).toHaveBeenCalledExactlyOnceWith({
+        workdirId: "work",
+        batchId: "s1",
+      }),
+    );
+    expect(api.createBatch).toHaveBeenCalledExactlyOnceWith("work", {
+      type: "scratch",
+      name: "Test",
+      // 下拉的取值身份由 useBatchFormLists 给（本套件的两列表数据用名字当身份）。
+      endpoint_id: "model",
+      prompt_id: "caption",
+      skill_ids: [],
+    });
+    // 启动归主页面的「开始打标」（笔⑥：语义拆分，运行状态组现役件承载）。
+    expect(api.startRun).not.toHaveBeenCalled();
+    expect(api.createWorkdir).toHaveBeenCalledOnce();
+  });
+
+  it("创建失败落头行消息槽、用后端真话，钮恢复可重试", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.createBatch).mockRejectedValueOnce(
+      new ApiError("http", "工作目录正在维护", 409, null),
+    );
+    renderForm();
+    await fillDirectories(user);
+    await importAssets(user);
+    const create = screen.getByRole("button", { name: "创建批次" });
+    expect(create).toBeEnabled();
+
+    await user.click(create);
+
+    const slot = await screen.findByRole("alert");
+    expect(slot).toHaveTextContent("工作目录正在维护");
+    expect(create).toBeEnabled();
+    expect(screen.queryByText("正在创建批次")).not.toBeInTheDocument();
+  });
+
+  it("就地态：字段标题收成「目录」、警告句在场、登记走 source=null", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByRole("textbox", { name: "工作目录" }), "/live");
+
+    // 笔⑪：切到就地立刻在信息区给警告（无底琥珀字），必勾复选框整段撤。
+    await user.click(screen.getByRole("tab", { name: "就地采用" }));
+    expect(
+      await screen.findByText("直接使用素材目录作为工作目录，删除目录后素材会丢失"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("目录", { exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "来源目录" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "确认" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "扫描" }));
+    await waitFor(() =>
+      expect(api.scanSource).toHaveBeenCalledExactlyOnceWith("/live"),
+    );
+    expect(
+      within(infoLine()).queryByText(/删除目录后素材会丢失/),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "登记" }));
+
+    await waitFor(() =>
+      expect(api.createWorkdir).toHaveBeenCalledExactlyOnceWith({
+        path: "/live",
+        source: null,
+        title: "",
+      }),
+    );
+    expect(infoLine()).toHaveTextContent("已登记 3 项（图片 2 · 视频 1）");
+  });
+
+  it("扫描失败就地给红字且原地可重试（撤空 catch 的静默）", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.scanSource).mockRejectedValueOnce(
+      new ApiError(
+        "http",
+        "来源目录「/gone」不存在或不是目录——请检查后重试。",
+        404,
+        null,
+      ),
+    );
+    renderForm();
+    await user.type(screen.getByRole("textbox", { name: "来源目录" }), "/gone");
+
+    await user.click(screen.getByRole("button", { name: "扫描" }));
+
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent("不存在或不是目录——请检查后重试。");
+    expect(screen.getByRole("button", { name: "重新扫描" })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "重新扫描" }));
+
+    await waitFor(() => expect(infoLine()).toHaveTextContent("扫描到 3 项"));
+  });
+
+  it("在飞任务丢失后重按导入只补发导入、不重复登记工作目录", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.getTask).mockRejectedValueOnce(
+      new ApiError("http", "lost", 404, null),
+    );
+    vi.mocked(api.getTask).mockResolvedValue({ ...IMPORT_DONE, id: "retry" });
+    renderForm();
+    await fillDirectories(user);
+
+    await user.click(screen.getByRole("button", { name: "扫描" }));
+    await user.click(screen.getByRole("button", { name: "导入" }));
+    await screen.findByRole("alert");
+    expect(api.createBatch).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "导入" }));
+
+    await waitFor(() => expect(infoLine()).toHaveTextContent("已导入 3 项"));
+    expect(api.createWorkdir).toHaveBeenCalledOnce();
     expect(api.importMaterials).toHaveBeenCalledExactlyOnceWith("work", {
       source: "/source",
     });
-    expect(api.startRun).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "开始打标" }));
-    await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
-    expect(api.createWorkdir).toHaveBeenCalledOnce();
-    expect(api.createBatch).toHaveBeenCalledOnce();
-    expect(api.listItems).toHaveBeenCalledTimes(2);
+    expect(api.getTask).toHaveBeenLastCalledWith("retry");
   });
 
-  it("预检按文件名去重并在再次预检时排除已补登记的素材", async () => {
-    vi.mocked(api.getTask).mockResolvedValue({
-      ...completed,
-      result: {
-        source: "/source",
-        imported: [],
-        skipped_identical: [],
-        skipped_conflict: [],
-        skipped_duplicate: [],
-        rejected: [{ name: "large.mov", reason: "超出大小上限" }],
-      },
-    });
-    const row: components["schemas"]["ItemRowView"] = {
-      item: "large",
-      name: "large.mov",
-      status: "unimported",
-      media: "video",
-      in_retry: false,
-      can_retry: false,
-      reason: "超出大小上限",
-    };
-    vi.mocked(api.listItems).mockResolvedValueOnce({
-      batch: 1,
-      query: "",
-      groups: { unimported: [row] },
-    });
-    const onCreated = vi.fn();
-    render(<NewBatchForm onBack={vi.fn()} onCreated={onCreated} />);
-    const user = await fillForm();
+  it("改来源目录后旧扫描作废、就地警告回显", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await user.type(screen.getByRole("textbox", { name: "来源目录" }), "/source");
+    await user.click(screen.getByRole("button", { name: "扫描" }));
+    await waitFor(() => expect(infoLine()).toHaveTextContent("扫描到 3 项"));
 
-    await user.click(screen.getByRole("button", { name: "开始打标" }));
+    await user.click(screen.getByRole("tab", { name: "就地采用" }));
 
-    const dialog = within(await screen.findByRole("dialog"));
-    expect(dialog.getAllByText("large.mov")).toHaveLength(1);
-    expect(api.startRun).not.toHaveBeenCalled();
-    await user.click(dialog.getByRole("button", { name: "关闭" }));
-    vi.mocked(api.listItems).mockResolvedValue({
-      batch: 1,
-      query: "",
-      groups: { queued: [{ ...row, status: "queued", reason: null }] },
-    });
-    await user.click(screen.getByRole("button", { name: "开始打标" }));
-
-    await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
-    expect(api.startRun).toHaveBeenCalledExactlyOnceWith("work", "s1", "full");
-    expect(api.createWorkdir).toHaveBeenCalledOnce();
-    expect(api.createBatch).toHaveBeenCalledOnce();
-  });
-
-  it("来源中被拒绝的文件即使未复制到工作目录也在弹窗确认后才启动", async () => {
-    vi.mocked(api.getTask).mockResolvedValue({
-      ...completed,
-      result: {
-        source: "/source",
-        imported: ["image.jpg"],
-        skipped_identical: [],
-        skipped_conflict: [],
-        skipped_duplicate: [],
-        rejected: [
-          { name: "design.psd", reason: "扩展名不支持" },
-          { name: "large.mov", reason: "超出大小上限" },
-        ],
-      },
-    });
-    const onCreated = vi.fn();
-    render(<NewBatchForm onBack={vi.fn()} onCreated={onCreated} />);
-    const user = await fillForm();
-
-    await user.click(screen.getByRole("button", { name: "开始打标" }));
-
-    const dialog = await screen.findByRole("dialog", { name: "开始打标前确认" });
-    expect(dialog).toHaveTextContent("有 2 个素材未导入");
-    expect(dialog).toHaveTextContent("design.psd");
-    expect(dialog).toHaveTextContent("扩展名不支持");
-    expect(dialog).toHaveTextContent("large.mov");
-    expect(api.startRun).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole("button", { name: "仍要开始" }));
-
-    await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
-    expect(api.startRun).toHaveBeenCalledExactlyOnceWith("work", "s1", "full");
-    expect(api.createWorkdir).toHaveBeenCalledOnce();
-    expect(api.createBatch).toHaveBeenCalledOnce();
-  });
-
-  it.each(["failed", "cancelled", "lost"])(
-    "初始导入 %s 后重新导入，不重复登记或提前建批",
-    async (status) => {
-      if (status === "lost")
-        vi.mocked(api.getTask).mockRejectedValueOnce(
-          new ApiError("http", "lost", 404, null),
-        );
-      else
-        vi.mocked(api.getTask).mockResolvedValueOnce({
-          ...completed,
-          status: status === "failed" ? "failed" : "cancelled",
-          error: "导入中断",
-        });
-      vi.mocked(api.getTask).mockResolvedValue({ ...completed, id: "retry" });
-      const onCreated = vi.fn();
-      render(<NewBatchForm onBack={vi.fn()} onCreated={onCreated} />);
-      const user = await fillForm();
-
-      await user.click(screen.getByRole("button", { name: "开始打标" }));
-      await screen.findByRole("alert");
-      expect(api.createBatch).not.toHaveBeenCalled();
-      await user.click(screen.getByRole("button", { name: "开始打标" }));
-
-      await waitFor(() =>
-        expect(onCreated).toHaveBeenCalledWith({ workdirId: "work", batchId: "s1" }),
-      );
-      expect(api.createWorkdir).toHaveBeenCalledOnce();
-      expect(api.importMaterials).toHaveBeenCalledExactlyOnceWith("work", {
-        source: "/source",
-      });
-      expect(api.getTask).toHaveBeenNthCalledWith(2, "retry");
-      expect(api.createBatch).toHaveBeenCalledOnce();
-    },
-  );
-
-  it("临时查询失败继续查询原任务，不再发送导入", async () => {
-    vi.mocked(api.getTask).mockRejectedValueOnce(new Error("离线"));
-    const onCreated = vi.fn();
-    render(<NewBatchForm onBack={vi.fn()} onCreated={onCreated} />);
-    const user = await fillForm();
-
-    await user.click(screen.getByRole("button", { name: "开始打标" }));
-    await screen.findByText("离线");
-    await user.click(screen.getByRole("button", { name: "开始打标" }));
-
-    await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
-    expect(api.importMaterials).not.toHaveBeenCalled();
-    expect(api.getTask).toHaveBeenNthCalledWith(2, "initial");
-  });
-
-  it("发现未导入素材时保留建批结果，明确确认后才发车", async () => {
-    vi.mocked(api.listItems).mockResolvedValue({
-      batch: 1,
-      query: "",
-      groups: {
-        unimported: [
-          {
-            item: "extra",
-            name: "extra.jpg",
-            status: "unimported",
-            media: "image",
-            in_retry: false,
-            can_retry: false,
-            reason: "未登记",
-          },
-        ],
-      },
-    });
-    const onCreated = vi.fn();
-    render(<NewBatchForm onBack={vi.fn()} onCreated={onCreated} />);
-    const user = await fillForm();
-
-    await user.click(screen.getByRole("button", { name: "开始打标" }));
-    await screen.findByRole("button", { name: "仍要开始" });
-    expect(api.startRun).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "仍要开始" }));
-
-    await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
-    expect(api.createBatch).toHaveBeenCalledOnce();
-    expect(api.createWorkdir).toHaveBeenCalledOnce();
-    expect(api.startRun).toHaveBeenCalledExactlyOnceWith("work", "s1", "full");
+    // 换档＝换扫描对象，旧摘要不再作数，信息区退回该档的空信息（就地即那句警告）。
+    expect(infoLine()).toHaveTextContent("直接使用素材目录作为工作目录");
+    expect(screen.getByRole("button", { name: "扫描" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "登记" })).not.toBeInTheDocument();
   });
 });
