@@ -38,14 +38,15 @@ function renderRow(overrides: Partial<ItemRow>, assetUrl: string | null = null) 
 }
 
 describe("MaterialRow 缩略图（稿 §34 .row-thumb--media，2026-10-13 E1）", () => {
-  it("图片行给真缩略图：img 走 asset 端点、lazy＋异步解码、无 alt（名字在邻文本）", () => {
+  it("图片行给真缩略图：img 走 asset 端点、挂载即发（撤 lazy）＋异步解码、无 alt（名字在邻文本）", () => {
     renderRow({ media: "image" }, "/api/workdirs/w1/items/cat_001/asset");
 
     // alt="" 的 img 不进可及性树，按元素取（断言属性而非角色）
     const image = document.querySelector("img");
     expect(image).not.toBeNull();
     expect(image?.getAttribute("src")).toBe("/api/workdirs/w1/items/cat_001/asset");
-    expect(image?.getAttribute("loading")).toBe("lazy");
+    // 2026-10-13 与视频对位撤 lazy（请求序=DOM 序的确定性；L4 请求基线二相漂实锤）。
+    expect(image?.getAttribute("loading")).toBeNull();
     expect(image?.getAttribute("decoding")).toBe("async");
     expect(image?.getAttribute("alt")).toBe("");
   });
