@@ -86,12 +86,37 @@ def ensure_importable_source(workdir: Path, source: Path) -> None:
         )
     real_workdir = os.path.realpath(workdir)
     real_source = os.path.realpath(source)
-    if real_workdir == real_source or _is_nested(real_workdir, real_source):
+    if real_workdir == real_source:
         raise ImportSourceConflictError(
-            f"来源目录「{source}」与工作目录「{workdir}」相同或互为嵌套——"
-            "复制导入会造成自我覆盖。请选择工作目录之外的目录；"
-            "想直接使用目录内素材请用「就地采用」（不选来源目录）。",
+            "当前选择的目录即为工作目录，请选择就地导入。",
         )
+    if _is_nested(real_workdir, real_source):
+        raise ImportSourceConflictError(
+            f"来源目录「{source}」与工作目录「{workdir}」互为嵌套——"
+            "复制导入会造成自我覆盖。请选择两者之外的目录；"
+            "想直接使用目录内素材请用「就地导入」（不选来源目录）。",
+        )
+
+
+def preview_import_source(workdir: Path, source: Path) -> list[tuple[str, int]]:
+    """按来源扫一遍，只列「即将导入的文件」（名称，字节数）。
+
+    进不了清单的两类一律不列（2026-10-10 用户裁「显示框的语义就是即将导入的文件，
+    而不是所有文件」）：白名单外与超限的由 `_scan_assets` 挡下，同名已在册的复制进去
+    也只会是「跳过·内容相同」，都不是这次要导入的东西。
+    """
+    ensure_importable_source(workdir, source)
+    # 登记册的读法（含 rebuild 记录清空语义）只有一份，住在 assets；它又依赖本模块，
+    # 模块级 import 会成环，故用到时再取。
+    from .assets import registered_origins
+
+    candidates, _rejected = _scan_assets(source)
+    registered = set(registered_origins(WorkdirStore(workdir)))
+    return [
+        (candidate.name, candidate.size)
+        for candidate in candidates
+        if candidate.name not in registered
+    ]
 
 
 def _is_nested(a: str, b: str) -> bool:

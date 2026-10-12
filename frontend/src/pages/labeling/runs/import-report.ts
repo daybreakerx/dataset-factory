@@ -62,23 +62,3 @@ export function parseImportReport(value: unknown): ImportReport {
     }),
   };
 }
-
-/** 恢复任务按来源返回多个报告，合并展示并保留逐条失败原因。 */
-export function parseReimportReport(value: unknown): ImportReport {
-  const result = record(value);
-  const reports = entries(result.imports, parseImportReport);
-  return {
-    source: "",
-    imported: reports.flatMap((report) => report.imported),
-    skipped_identical: reports.flatMap((report) => report.skipped_identical),
-    skipped_conflict: reports.flatMap((report) => report.skipped_conflict),
-    skipped_duplicate: reports.flatMap((report) => report.skipped_duplicate),
-    rejected: [
-      ...reports.flatMap((report) => report.rejected),
-      ...entries(result.unavailable, (entry) => {
-        const row = record(entry);
-        return { name: text(row.name), reason: text(row.reason) };
-      }),
-    ],
-  };
-}

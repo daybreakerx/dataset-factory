@@ -101,7 +101,7 @@ export function CleanupRunDialog({
     setBusy(true);
     setCleanError("");
     try {
-      const result = await api.cleanupWorkdir(wid, "runs", [run]);
+      const result = await api.cleanupRuns(wid, [run]);
       if (!active.current) return;
       onCleaned();
       const left = result.recovery_path;

@@ -1,5 +1,6 @@
 import { ArrowLeftIcon, RefreshCwIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { api } from "../../../api";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
 import { FormError } from "../../../components/form-error";
 import { TrashIcon } from "../../../components/icons";
@@ -34,10 +35,40 @@ export function WorkdirSettings({
   const [deleting, setDeleting] = useState(false);
   const [cleanupOpen, setCleanupOpen] = useState(false);
   const [relocating, setRelocating] = useState(false);
+  // 清理在飞时关掉弹窗，任务句柄交到这里继续轮询——完成即刷新「清理」行（稿离场口径）。
+  const [backgroundCleanup, setBackgroundCleanup] = useState<string | null>(null);
+  const refresh = useRef(data.refresh);
+  refresh.current = data.refresh;
   // 迁移在飞由弹窗回报：路径行那条链接随它挂 .is-flight（稿格 11）。
   const [relocationRunning, setRelocationRunning] = useState(false);
   // 飞行态跨块共享：策略块的确认交互用它掐自身；头行两钮只随页面级首取禁用，不联动它。
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!backgroundCleanup) return;
+    const id = backgroundCleanup;
+    let current = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    async function poll() {
+      try {
+        const view = await api.getTask(id);
+        if (!current) return;
+        if (view.status === "running") {
+          timer = setTimeout(() => void poll(), 2000);
+          return;
+        }
+        setBackgroundCleanup(null);
+        refresh.current();
+      } catch {
+        if (current) timer = setTimeout(() => void poll(), 2000);
+      }
+    }
+    void poll();
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [backgroundCleanup]);
 
   return (
     <section
@@ -172,11 +203,13 @@ export function WorkdirSettings({
           wid={wid}
           onClose={() => setCleanupOpen(false)}
           onCleaned={data.refresh}
+          onBackground={setBackgroundCleanup}
         />
       )}
-      {importing && (
+      {importing && data.directory && (
         <ImportMaterialsDialog
           wid={wid}
+          workdirPath={data.directory.path}
           onClose={() => setImporting(false)}
           onImported={data.refresh}
         />

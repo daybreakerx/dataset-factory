@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import secrets
 import threading
+from dataclasses import asdict
 from pathlib import Path
 from typing import cast
 
@@ -41,6 +42,7 @@ from ..workdir import (
     ensure_importable_source,
     import_assets,
     mime_for_suffix,
+    preview_import_source,
     resolve_asset,
 )
 from ..workdir.assets import (
@@ -51,11 +53,11 @@ from ..workdir.assets import (
 )
 from ..workdir.cleanup import (
     CleanupResult,
-    OrphanProduct,
+    InvalidFile,
     RunCleanupEntry,
-    cleanup_products,
+    cleanup_invalid,
     cleanup_runs,
-    preview_cleanup,
+    preview_invalid,
     preview_run_cleanup,
     remove_unimported,
 )
@@ -66,6 +68,7 @@ from ..workdir.deletion import (
     preview_workdir_deletion,
 )
 from ..workdir.integrity import IntegrityItem, rebuild_import_records, scan_integrity
+from ..workdir.locks import RunLock, import_guard
 from ..workdir.reimport import reimport_missing
 from ..workdir.relocation import (
     abandon_copy,
@@ -103,10 +106,31 @@ router = APIRouter(prefix="/api/workdirs", tags=["工作目录"])
 
 
 class CleanupPreview(BaseModel):
-    """当前可清理的孤立产物及其实际体积。"""
+    """无效文件三类清单及其实际体积（稿「每标题一表」按这三组渲染）。"""
 
-    products: list[OrphanProduct]
+    products: list[InvalidFile]
+    unsupported: list[InvalidFile]
+    oversize: list[InvalidFile]
     total_bytes: int
+
+
+class CleanupAccepted(BaseModel):
+    """清理任务受理响应（清理改成带进度的长任务，稿条⑫）。"""
+
+    task_id: str = Field(description="清理任务句柄（GET /api/tasks/{id} 轮询）")
+
+
+class ImportPreviewFile(BaseModel):
+    """「即将导入的文件」里的一项。"""
+
+    name: str = Field(description="文件名（工作目录内的平铺名）")
+    size: int = Field(description="来源侧字节数")
+
+
+class ImportPreviewView(BaseModel):
+    """复制导入的扫描回包：只列会被导入的文件，不可导入的一律不进清单（稿格 5 裁）。"""
+
+    files: list[ImportPreviewFile]
 
 
 class CleanupRequest(BaseModel):
@@ -145,12 +169,45 @@ def delete_registered_workdir(wid: str, body: WorkdirDeleteRequest) -> DeletionR
 
 @router.post(
     "/{wid}/cleanup",
-    response_model=CleanupResult,
+    status_code=202,
+    response_model=CleanupAccepted,
     responses=problem_schema_responses((400, 404, 409)),
 )
-def clean_selected_products(wid: str, body: CleanupRequest) -> CleanupResult:
-    """确认后清理选中的孤立产物，删除失败时返回暂存位置。"""
-    return cleanup_products(workdir_root(wid), body.names)
+async def clean_invalid_files(
+    wid: str, body: CleanupRequest, request: Request
+) -> JSONResponse:
+    """受理无效文件清理：搬完一件报一格进度，界面轮询到终态即自动关窗（稿条⑫）。
+
+    占用与过期选择在受理层就挡下（409／400，界面当场红字），任务体里再持锁复核一遍——
+    分层口径同「要求目标为空」（弹窗拦在前、受理校验作双保险）。
+    """
+    root = workdir_root(wid)
+    store = WorkdirStore(root)
+    run = RunLock(store.dsf_path)
+    run.acquire({"operation": "cleanup"})
+    try:
+        with import_guard(store.dsf_path):
+            pass
+    finally:
+        run.release()
+    preview = preview_invalid(root)
+    if not body.names or not set(body.names).issubset(preview.names):
+        raise WorkdirPathError("文件列表已过期，请重新进入。")
+    manager = _manager(request)
+
+    def runner(task_id: str, _should_stop: threading.Event) -> TaskResult:
+        def report_progress(value: float) -> None:
+            manager.set_progress(task_id, value)
+
+        # 清理不可中断（稿口径：飞行期「取消」只失效），所以取消信号不参与任务体。
+        return asdict(cleanup_invalid(root, body.names, progress=report_progress))
+
+    task_id = manager.create(runner)
+    return JSONResponse(
+        status_code=202,
+        content=CleanupAccepted(task_id=task_id).model_dump(),
+        headers={"Retry-After": str(RETRY_AFTER_SECONDS)},
+    )
 
 
 @router.post(
@@ -189,10 +246,13 @@ def clean_selected_runs(wid: str, body: CleanupRequest) -> CleanupResult:
     responses=problem_schema_responses((400, 404)),
 )
 def get_cleanup_preview(wid: str) -> CleanupPreview:
-    """列出工作目录里已无素材配对的产物，不执行清理。"""
-    products = preview_cleanup(workdir_root(wid))
+    """列出无效文件三类（无配对产物／不支持／超限），不执行清理。"""
+    preview = preview_invalid(workdir_root(wid))
     return CleanupPreview(
-        products=products, total_bytes=sum(product.size for product in products)
+        products=preview.products,
+        unsupported=preview.unsupported,
+        oversize=preview.oversize,
+        total_bytes=preview.total_bytes,
     )
 
 
@@ -337,6 +397,22 @@ class IntegrityReport(BaseModel):
     checked_at: str
     imports_available: bool
     batches: list[BatchIntegrity]
+
+
+@router.get(
+    "/{wid}/import-preview",
+    response_model=ImportPreviewView,
+    responses={code: problem() for code in (400, 404, 422)},
+)
+def get_import_preview(wid: str, source: str) -> ImportPreviewView:
+    """导入素材弹窗「复制导入」的扫描：列出这次将导入哪些文件，不复制、不落状态。
+
+    来源不可用或与工作目录同源／嵌套时给后端真话（400／422），界面把那句原样显示。
+    """
+    files = preview_import_source(workdir_root(wid), Path(os.path.abspath(source)))
+    return ImportPreviewView(
+        files=[ImportPreviewFile(name=name, size=size) for name, size in files],
+    )
 
 
 @router.post(

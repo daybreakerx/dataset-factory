@@ -372,8 +372,16 @@ class WorkdirStore:
                 temporary.unlink()
         return directory
 
-    def quarantine_paths(self, paths: list[Path]) -> Path | None:
-        """暂存整份清理选择；移动失败时回滚，遇到占位则保留暂存副本。"""
+    def quarantine_paths(
+        self,
+        paths: list[Path],
+        *,
+        on_moved: Callable[[int, int], None] | None = None,
+    ) -> Path | None:
+        """暂存整份清理选择；移动失败时回滚，遇到占位则保留暂存副本。
+
+        `on_moved(已完成, 总数)` 每搬完一项回调一次，给清理任务报真实进度。
+        """
         if not paths:
             return None
         sources = list(dict.fromkeys(path.absolute() for path in paths))
@@ -394,6 +402,8 @@ class WorkdirStore:
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 source.rename(destination)
                 moved.append((source, destination))
+                if on_moved is not None:
+                    on_moved(len(moved), len(sources))
         except (OSError, WorkdirPathError) as exc:
             remaining: list[str] = []
             for source, destination in reversed(moved):

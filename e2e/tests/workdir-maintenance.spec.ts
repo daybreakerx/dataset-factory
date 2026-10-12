@@ -147,17 +147,22 @@ test("工作目录迁移经界面确认后保留素材与快照并更新登记",
   await expect(page.getByRole("region", { name: "基本信息" })).toContainText(target);
   await writeFile(path.join(target, "s1__lost.txt"), "orphan caption");
   await writeFile(path.join(target, "s1__other.txt"), "retained caption");
-  await page.getByRole("button", { name: "查看清单", exact: true }).click();
-  const cleanup = page.getByRole("dialog", { name: "清理无素材产物", exact: true });
-  await cleanup.getByRole("checkbox", { name: "s1__lost.txt", exact: true }).check();
-  await cleanup.getByRole("button", { name: "清理（1）", exact: true }).click();
+  await writeFile(path.join(target, "design.psd"), "unsupported source");
+  await page.getByRole("button", { name: "查看无效文件清单", exact: true }).click();
+  const cleanup = page.getByRole("dialog", { name: "清理无效文件", exact: true });
+  // 只读扫场（稿三改）：三类各一表、无勾选框，页脚「取消／全部清理」一步执行（九改撤二次确认）。
+  await expect(cleanup.getByText("无配对产物", { exact: true })).toBeVisible();
+  await expect(cleanup.getByText("不支持的文件", { exact: true })).toBeVisible();
+  expect(cleanup.getByRole("checkbox")).toHaveCount(0);
   expect(await readFile(path.join(target, "s1__lost.txt"), "utf8")).toBe("orphan caption");
-  await cleanup.getByRole("button", { name: "确认清理", exact: true }).click();
-  await expect(cleanup.getByRole("status")).toContainText("已移出 1 项");
+  await cleanup.getByRole("button", { name: "全部清理", exact: true }).click();
+  // 清理是带进度的长任务：进度到 100% 即自动关窗（十改），数量去向由宿主「清理」行承接。
+  await expect(cleanup).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "基本信息" })).toContainText("无效文件：0 个");
   await expect(stat(path.join(target, "s1__lost.txt"))).rejects.toThrow();
-  expect(await readFile(path.join(target, "s1__other.txt"), "utf8")).toBe("retained caption");
+  await expect(stat(path.join(target, "s1__other.txt"))).rejects.toThrow();
+  await expect(stat(path.join(target, "design.psd"))).rejects.toThrow();
   expect(await readFile(path.join(target, "sample.png"))).toEqual(bytes);
-  await cleanup.getByRole("button", { name: "关闭", exact: true }).first().click();
   const deletes: unknown[] = [];
   page.on("request", (req) => { if (req.method() === "DELETE" && req.url().endsWith(`/workdirs/${wid}`)) deletes.push(req.postDataJSON()); });
   await page.getByRole("button", { name: "删除工作目录", exact: true }).click();

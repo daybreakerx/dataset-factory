@@ -4,6 +4,7 @@ import hashlib
 import json
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -256,7 +257,11 @@ def test_http_relocation_retries_recorded_copy_after_restart(
 def test_cleanup_preview_lists_only_orphan_products(
     tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """预览只列无素材配对的工具产物，返回批次、文件名和真实字节数。"""
+    """预览按三类分组：无配对产物带批次号，不支持与超限各带原因；配对产物与素材不列入。
+
+    用户丢进来的 `notes.txt` 落在「不支持的文件」那一类——txt 不是素材格式，工具永远
+    不会用它（同类的还有 `design.psd`）；「未登记的白名单文件」才是可导入素材，不在清单里。
+    """
     workdir = tmp_path / "workdir"
     workdir.mkdir()
     WorkdirStore(workdir)
@@ -265,39 +270,75 @@ def test_cleanup_preview_lists_only_orphan_products(
     (workdir / "s1__paired.txt").write_text("paired", encoding="utf-8")
     (workdir / "s2__orphan.txt").write_bytes(b"orphan caption")
     (workdir / "notes.txt").write_bytes(b"keep")
+    (workdir / "design.psd").write_bytes(b"psd")
     client = TestClient(create_app(frontend_dir=tmp_path / "frontend"))
 
     response = client.get(f"/api/workdirs/{entry.id}/cleanup-preview")
 
     assert response.status_code == 200
     assert response.json() == {
-        "products": [{"batch": 2, "name": "s2__orphan.txt", "size": 14}],
-        "total_bytes": 14,
+        "products": [
+            {
+                "batch": 2,
+                "name": "s2__orphan.txt",
+                "reason": "无配对产物",
+                "size": 14,
+            }
+        ],
+        "unsupported": [
+            {
+                "batch": None,
+                "name": "design.psd",
+                "reason": "扩展名不支持",
+                "size": 3,
+            },
+            {"batch": None, "name": "notes.txt", "reason": "扩展名不支持", "size": 4},
+        ],
+        "oversize": [],
+        "total_bytes": 21,
     }
     assert (workdir / "s2__orphan.txt").read_bytes() == b"orphan caption"
+
+
+def _run_cleanup_task(
+    client: TestClient, wid: str, names: list[str]
+) -> tuple[int, Any]:
+    """清理已改成长任务：受理 → 轮询到终态，回（受理状态码, 任务体）。"""
+    accepted = client.post(f"/api/workdirs/{wid}/cleanup", json={"names": names})
+    if accepted.status_code != 202:
+        return accepted.status_code, accepted.json()
+    url = f"/api/tasks/{accepted.json()['task_id']}"
+    deadline = time.monotonic() + 10
+    task = client.get(url).json()
+    while task["status"] == "running" and time.monotonic() < deadline:
+        time.sleep(0.02)
+        task = client.get(url).json()
+    return accepted.status_code, task
 
 
 def test_cleanup_only_deletes_selected_orphans(
     tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """只清理选中的孤立产物，其他文件保留且不积累暂存副本。"""
+    """只清理选中的无效文件（两类一起清），其他文件保留且不积累暂存副本。"""
     workdir = tmp_path / "workdir"
     workdir.mkdir()
     WorkdirStore(workdir)
     entry = WorkdirRegistry.register(workdir)
     (workdir / "s1__first.txt").write_bytes(b"first")
     (workdir / "s2__second.txt").write_bytes(b"second")
-    client = TestClient(create_app(frontend_dir=tmp_path / "frontend"))
+    (workdir / "design.psd").write_bytes(b"psd")
+    with TestClient(create_app(frontend_dir=tmp_path / "frontend")) as client:
+        status, task = _run_cleanup_task(
+            client, entry.id, ["s1__first.txt", "design.psd"]
+        )
 
-    response = client.post(
-        f"/api/workdirs/{entry.id}/cleanup", json={"names": ["s1__first.txt"]}
-    )
-
-    assert response.status_code == 200
-    assert response.json()["count"] == 1
+    assert status == 202
+    assert task["status"] == "succeeded", task
+    assert task["result"]["count"] == 2
     assert not (workdir / "s1__first.txt").exists()
+    assert not (workdir / "design.psd").exists()
     assert (workdir / "s2__second.txt").read_bytes() == b"second"
-    assert response.json()["recovery_path"] is None
+    assert task["result"]["recovery_path"] is None
     assert not list((workdir / ".dsf/trash").iterdir())
 
 
@@ -489,19 +530,20 @@ def test_cleanup_delete_failure_returns_residual_location(
     store = WorkdirStore(tmp_path)
     entry = WorkdirRegistry.register(tmp_path)
     (tmp_path / "s1__a.txt").write_bytes(b"caption")
-    client = TestClient(create_app(frontend_dir=tmp_path / "frontend"))
 
     def fail_delete(path: Path) -> None:
         raise PermissionError("test delete failure")
 
-    with monkeypatch.context() as patch:
+    with (
+        TestClient(create_app(frontend_dir=tmp_path / "frontend")) as client,
+        monkeypatch.context() as patch,
+    ):
         patch.setattr("dataset_factory.workdir.store.shutil.rmtree", fail_delete)
-        result = client.post(
-            f"/api/workdirs/{entry.id}/cleanup", json={"names": ["s1__a.txt"]}
-        )
+        status, task = _run_cleanup_task(client, entry.id, ["s1__a.txt"])
 
-    assert result.status_code == 200
-    remaining = Path(result.json()["recovery_path"])
+    assert status == 202
+    assert task["status"] == "succeeded", task
+    remaining = Path(task["result"]["recovery_path"])
     assert remaining.is_relative_to(store.dsf_path)
     assert (remaining / "s1__a.txt").read_bytes() == b"caption"
 

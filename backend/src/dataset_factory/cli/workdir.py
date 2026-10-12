@@ -19,7 +19,7 @@ from ..workdir import (
     import_assets,
 )
 from ..workdir.cleanup import (
-    cleanup_products,
+    cleanup_invalid,
     cleanup_runs,
     preview_cleanup,
     preview_run_cleanup,
@@ -227,7 +227,7 @@ def clean_products(
         print_result([asdict(item) for item in preview_cleanup(root)])
         return
     confirm_action(f"清理所选 {len(names)} 份孤立产物？", yes)
-    print_result(asdict(cleanup_products(root, names)))
+    print_result(asdict(cleanup_invalid(root, names)))
 
 
 @app.command("cleanup-runs")

@@ -651,8 +651,8 @@ def test_progress_reports_monotonic_to_one(
 
 
 def test_source_same_as_workdir_rejected(workdir: Path, temp_data_root: Path) -> None:
-    """复制导入校验：来源 = 工作目录自身 → ImportSourceConflictError（422 档）。"""
-    with pytest.raises(ImportSourceConflictError, match="嵌套"):
+    """来源 = 工作目录自身 → 短句指路「就地导入」（与嵌套那条分档，2026-10-11 稿裁）。"""
+    with pytest.raises(ImportSourceConflictError, match="即为工作目录"):
         import_assets(workdir, workdir)
 
 
@@ -661,7 +661,7 @@ def test_source_inside_workdir_rejected(workdir: Path, temp_data_root: Path) -> 
     inner = workdir / "inbox"
     inner.mkdir()
 
-    with pytest.raises(ImportSourceConflictError, match="嵌套"):
+    with pytest.raises(ImportSourceConflictError, match="互为嵌套"):
         import_assets(workdir, inner)
 
 
@@ -669,7 +669,7 @@ def test_workdir_inside_source_rejected(
     workdir: Path, tmp_path: Path, temp_data_root: Path
 ) -> None:
     """工作目录在来源内部 → 拒绝（互为嵌套的另一方向）。"""
-    with pytest.raises(ImportSourceConflictError, match="嵌套"):
+    with pytest.raises(ImportSourceConflictError, match="互为嵌套"):
         import_assets(workdir, tmp_path)
 
 

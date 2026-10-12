@@ -7,7 +7,7 @@ import { isolatedBaseURL } from "./fixtures/isolated-servers";
 // 本文件打真后端，用自己那份服务与数据根：重建导入读的是自己数据根里的事件流。
 test.use({ baseURL: isolatedBaseURL("rebuild-imports.spec.ts") });
 
-test("首次复制导入展示三种跳过反馈并逐条重导后继续启动", async ({ page, request }, testInfo) => {
+test("首次复制导入的跳过项不再弹导入结果窗，来源与同名旧文件都不被覆盖", async ({ page, request }, testInfo) => {
   const source = testInfo.outputPath("source");
   const destination = testInfo.outputPath("workdir");
   await mkdir(source, { recursive: true });
@@ -37,22 +37,11 @@ test("首次复制导入展示三种跳过反馈并逐条重导后继续启动",
   await page.getByRole("textbox", { name: "工作目录", exact: true }).fill(destination);
   await page.getByRole("textbox", { name: "策略名", exact: true }).fill("重复报告验证");
   await page.getByRole("button", { name: "开始打标", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "导入素材", exact: true });
-  await expect(dialog).toContainText("导入完成 · 新增 0 项 · 同名同容跳过 1 项");
-  await expect(dialog).toContainText("1 个同名文件内容不同，已跳过、未覆盖");
-  await expect(dialog).toContainText("1 个异名文件内容相同，已跳过");
-  expect(starts).toHaveLength(0);
-  expect(await readFile(path.join(destination, "changed.png"))).toEqual(original);
-  await page.screenshot({ path: testInfo.outputPath("initial-import-feedback.png"), fullPage: true });
-  await dialog.getByRole("button", { name: "仍按新名导入", exact: true }).click();
-  await expect(dialog.getByRole("button", { name: "仍按新名导入", exact: true })).toHaveCount(0);
-  await expect(dialog).toContainText("导入完成 · 新增 1 项 · 同名同容跳过 1 项");
-  expect(await readFile(path.join(destination, "copy.png"))).toEqual(image);
-  await dialog.getByRole("button", { name: "关闭", exact: true }).first().click();
-  await page.getByRole("button", { name: "开始打标", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "导入素材", exact: true })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "本次运行" }).getByText("已完成", { exact: true })).toBeVisible();
   expect(starts).toHaveLength(1);
-  expect(await readFile(path.join(destination, "s1__copy.txt"), "utf8")).toBe("E2E 假模型的打标结果");
+  expect(await readFile(path.join(destination, "changed.png"))).toEqual(original);
+  expect(await readFile(path.join(destination, "s1__same.txt"), "utf8")).toBe("E2E 假模型的打标结果");
   expect(await readFile(path.join(source, "changed.png"))).toEqual(changed);
   expect(errors).toEqual([]);
 });

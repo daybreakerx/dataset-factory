@@ -7,7 +7,7 @@ import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
 import { exclusionLabel } from "../material-actions";
-import { type ImportReport, parseImportReport } from "../runs/import-report";
+import { parseImportReport } from "../runs/import-report";
 import { ImportMaterialsDialog } from "../workdir/ImportMaterialsDialog";
 import type { BatchSelection } from "./BatchSelector";
 import { BatchSourceFields } from "./batch-source-fields";
@@ -46,9 +46,6 @@ export function NewBatchForm({
   const [batch, setBatch] = useState<Batch | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
   const [importDone, setImportDone] = useState(false);
-  const [initialImportReport, setInitialImportReport] = useState<ImportReport | null>(
-    null,
-  );
   const rejectedImports = useRef<{ name: string; reason: string }[]>([]);
   const [unimported, setUnimported] = useState<
     { name: string; reason: string | null | undefined }[] | null
@@ -145,15 +142,6 @@ export function NewBatchForm({
             rejectedImports.current = report.rejected;
             setProgress(`导入完成 · 新增 ${report.imported.length} 项`);
             setImportDone(true);
-            const hasFeedback =
-              report.skipped_identical.length > 0 ||
-              report.skipped_conflict.length > 0 ||
-              report.skipped_duplicate.length > 0;
-            if (hasFeedback) {
-              setInitialImportReport(report);
-              setImportOpen(true);
-              return;
-            }
             break;
           }
           if (task.status !== "running") {
@@ -241,13 +229,10 @@ export function NewBatchForm({
       {workdir && importOpen && (
         <ImportMaterialsDialog
           wid={workdir.id}
+          workdirPath={workdir.path}
           initialMode={mode}
           initialSource={source.trim()}
-          initialReport={initialImportReport ?? undefined}
-          onClose={() => {
-            setImportOpen(false);
-            setInitialImportReport(null);
-          }}
+          onClose={() => setImportOpen(false)}
           onImported={() => {
             setUnimported(null);
           }}

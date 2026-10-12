@@ -16,7 +16,12 @@ vi.mock("../../../api", async (original) => ({
     updateBatch: vi.fn(),
     currentRun: vi.fn().mockResolvedValue({ status: "completed" }),
     relocationStatus: vi.fn().mockResolvedValue([]),
-    previewProductCleanup: vi.fn().mockResolvedValue({ products: [], total_bytes: 0 }),
+    previewProductCleanup: vi.fn().mockResolvedValue({
+      products: [],
+      unsupported: [],
+      oversize: [],
+      total_bytes: 0,
+    }),
   },
 }));
 
@@ -169,10 +174,7 @@ it("统计读取失败给固定因果句、不铺后端原句，也不展示零�
 
 it("清理摘要未回时值位缺席但入口可用，回包后补上读数", async () => {
   let resolveCleanup:
-    | ((value: {
-        products: { name: string; size: number; batch: number }[];
-        total_bytes: number;
-      }) => void)
+    | ((value: Awaited<ReturnType<typeof api.previewProductCleanup>>) => void)
     | undefined;
   vi.mocked(api.getWorkdir).mockResolvedValue({
     id: "w1",
@@ -189,18 +191,20 @@ it("清理摘要未回时值位缺席但入口可用，回包后补上读数", a
   render(<WorkdirSettings wid="w1" onBack={vi.fn()} onChanged={vi.fn()} />);
 
   const card = await screen.findByRole("region", { name: "基本信息" });
-  expect(within(card).getByRole("button", { name: "查看清单" })).toBeEnabled();
-  expect(card).not.toHaveTextContent("无素材产物：");
+  expect(within(card).getByRole("button", { name: "查看无效文件清单" })).toBeEnabled();
+  expect(card).not.toHaveTextContent("无效文件：");
 
   await act(async () => {
     resolveCleanup?.({
-      products: [{ name: "s1__a.txt", size: 1024, batch: 1 }],
+      products: [{ name: "s1__a.txt", size: 1024, batch: 1, reason: "无配对产物" }],
+      unsupported: [],
+      oversize: [],
       total_bytes: 1024,
     });
   });
 
   expect(screen.getByRole("region", { name: "基本信息" })).toHaveTextContent(
-    "无素材产物：1 个 txt（1 套策略，含 0 套已停用）· 1.0 KB",
+    "无效文件：1 个（无配对产物 1 ／ 不支持 0 ／ 超限 0；含 1 套策略、内 0 套已停用）· 1.0 KB",
   );
 });
 
@@ -277,11 +281,15 @@ it("清理摘要按策略去重统计并并进基本信息卡第四行", async (
   ]);
   vi.mocked(api.previewProductCleanup).mockResolvedValue({
     products: [
-      { name: "s1__first.txt", size: 1024, batch: 1 },
-      { name: "s1__second.txt", size: 1024, batch: 1 },
-      { name: "s2__third.txt", size: 1024, batch: 2 },
+      { name: "s1__first.txt", size: 1024, batch: 1, reason: "无配对产物" },
+      { name: "s1__second.txt", size: 1024, batch: 1, reason: "无配对产物" },
+      { name: "s2__third.txt", size: 1024, batch: 2, reason: "无配对产物" },
     ],
-    total_bytes: 3072,
+    unsupported: [
+      { name: "design.psd", size: 2048, batch: null, reason: "扩展名不支持" },
+    ],
+    oversize: [],
+    total_bytes: 5120,
   });
 
   render(<WorkdirSettings wid="w1" onBack={vi.fn()} onChanged={vi.fn()} />);
@@ -289,10 +297,10 @@ it("清理摘要按策略去重统计并并进基本信息卡第四行", async (
   const card = await screen.findByRole("region", { name: "基本信息" });
   // 值句里数字挂了 tabular-nums 子节点，按文本查询会被拆段——整卡 textContent 才是稳的判法。
   expect(card).toHaveTextContent(
-    "无素材产物：3 个 txt（2 套策略，含 1 套已停用）· 3.0 KB",
+    "无效文件：4 个（无配对产物 3 ／ 不支持 1 ／ 超限 0；含 2 套策略、内 1 套已停用）· 5.0 KB",
   );
   expect(card).toHaveTextContent("素材 4 · 产物 3 · 2.00 MB");
-  expect(screen.getByRole("button", { name: "查看清单" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "查看无效文件清单" })).toBeVisible();
   expect(screen.getByText("产物 2 / 4")).toBeVisible();
   // 「清理运行记录」独立入口已撤（ADR 2026-09-21/10-09 线）：出口改由出错那一行就地给。
   expect(screen.queryByText("清理运行记录")).not.toBeInTheDocument();

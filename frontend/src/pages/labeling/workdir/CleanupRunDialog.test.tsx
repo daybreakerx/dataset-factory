@@ -8,7 +8,7 @@ vi.mock("../../../api", async (original) => ({
   ...(await original<typeof import("../../../api")>()),
   api: {
     previewRunCleanup: vi.fn(),
-    cleanupWorkdir: vi.fn(),
+    cleanupRuns: vi.fn(),
   },
 }));
 
@@ -22,7 +22,7 @@ beforeEach(() => {
 it("解释确认窗给出这份记录的信息与后果，一步直发清理后自动关窗", async () => {
   const cleaned = vi.fn();
   const closed = vi.fn();
-  vi.mocked(api.cleanupWorkdir).mockResolvedValue({ count: 1, recovery_path: null });
+  vi.mocked(api.cleanupRuns).mockResolvedValue({ count: 1, recovery_path: null });
   const user = userEvent.setup();
   render(
     <CleanupRunDialog
@@ -43,7 +43,7 @@ it("解释确认窗给出这份记录的信息与后果，一步直发清理后�
 
   await user.click(dialog.getByRole("button", { name: "清理这份记录" }));
 
-  expect(api.cleanupWorkdir).toHaveBeenCalledExactlyOnceWith("w1", "runs", [
+  expect(api.cleanupRuns).toHaveBeenCalledExactlyOnceWith("w1", [
     "20261012-010000-a1b2c3",
   ]);
   expect(cleaned).toHaveBeenCalledOnce();
@@ -91,7 +91,7 @@ it("预览里已经没有这一份＝取数失败，句按稿定、出口是重�
 
 it("清理失败就地给红字且解释区保持在场，可再点同一出口重试", async () => {
   const closed = vi.fn();
-  vi.mocked(api.cleanupWorkdir)
+  vi.mocked(api.cleanupRuns)
     .mockRejectedValueOnce(new Error("运行记录已变化，请重新进入。"))
     .mockResolvedValueOnce({ count: 1, recovery_path: null });
   const user = userEvent.setup();
@@ -122,7 +122,7 @@ it("清理飞行期取消钮只失效不换装，Esc 照常退出不撤销清理
   vi.mocked(api.previewRunCleanup).mockResolvedValue([
     { name: "r1", size: 1024, modified_at: 1762000000 },
   ]);
-  vi.mocked(api.cleanupWorkdir).mockImplementation(() => new Promise(() => {}));
+  vi.mocked(api.cleanupRuns).mockImplementation(() => new Promise(() => {}));
   const user = userEvent.setup();
   render(<CleanupRunDialog wid="w1" run="r1" onClose={closed} onCleaned={cleaned} />);
 
@@ -142,7 +142,7 @@ it("清理飞行期取消钮只失效不换装，Esc 照常退出不撤销清理
 });
 
 it("记录已移出但暂存没清空＝残留尾态，路径留给用户手动处理", async () => {
-  vi.mocked(api.cleanupWorkdir).mockResolvedValue({
+  vi.mocked(api.cleanupRuns).mockResolvedValue({
     count: 1,
     recovery_path: "/w1/.dsf/trash/token123",
   });

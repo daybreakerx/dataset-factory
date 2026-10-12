@@ -183,7 +183,11 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
     await expect.poll(async () => (await (await request.get(batchesUrl)).json())[0].active).toBe(true);
     await settings.getByRole("button", { name: "返回主页面", exact: true }).click();
     await expect(retry.getByText("sample.png", { exact: true })).toHaveCount(0);
-    await expect(materials.getByRole("region", { name: "已完成", exact: true }).getByText("sample.png", { exact: true })).toBeVisible();
+    await expect(
+      materials
+        .getByRole("region", { name: "已完成", exact: true })
+        .getByText("sample.png", { exact: true }),
+    ).toBeVisible();
   } finally {
     await request.post("/fake-llm/__test__/gated-release");
   }

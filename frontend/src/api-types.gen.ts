@@ -1232,10 +1232,13 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Clean Selected Products
-         * @description 确认后清理选中的孤立产物，删除失败时返回暂存位置。
+         * Clean Invalid Files
+         * @description 受理无效文件清理：搬完一件报一格进度，界面轮询到终态即自动关窗（稿条⑫）。
+         *
+         *     占用与过期选择在受理层就挡下（409／400，界面当场红字），任务体里再持锁复核一遍——
+         *     分层口径同「要求目标为空」（弹窗拦在前、受理校验作双保险）。
          */
-        post: operations["clean_selected_products_api_workdirs__wid__cleanup_post"];
+        post: operations["clean_invalid_files_api_workdirs__wid__cleanup_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1251,7 +1254,7 @@ export interface paths {
         };
         /**
          * Get Cleanup Preview
-         * @description 列出工作目录里已无素材配对的产物，不执行清理。
+         * @description 列出无效文件三类（无配对产物／不支持／超限），不执行清理。
          */
         get: operations["get_cleanup_preview_api_workdirs__wid__cleanup_preview_get"];
         put?: never;
@@ -1374,6 +1377,28 @@ export interface paths {
          * @description 按当前批次返回实时计划，开关改变时重新计算输出名与兼容性提示。
          */
         get: operations["get_export_plan_api_workdirs__wid__export_plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/import-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Import Preview
+         * @description 导入素材弹窗「复制导入」的扫描：列出这次将导入哪些文件，不复制、不落状态。
+         *
+         *     来源不可用或与工作目录同源／嵌套时给后端真话（400／422），界面把那句原样显示。
+         */
+        get: operations["get_import_preview_api_workdirs__wid__import_preview_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1856,14 +1881,29 @@ export interface components {
             files: string[];
         };
         /**
+         * CleanupAccepted
+         * @description 清理任务受理响应（清理改成带进度的长任务，稿条⑫）。
+         */
+        CleanupAccepted: {
+            /**
+             * Task Id
+             * @description 清理任务句柄（GET /api/tasks/{id} 轮询）
+             */
+            task_id: string;
+        };
+        /**
          * CleanupPreview
-         * @description 当前可清理的孤立产物及其实际体积。
+         * @description 无效文件三类清单及其实际体积（稿「每标题一表」按这三组渲染）。
          */
         CleanupPreview: {
+            /** Oversize */
+            oversize: components["schemas"]["InvalidFile"][];
             /** Products */
-            products: components["schemas"]["OrphanProduct"][];
+            products: components["schemas"]["InvalidFile"][];
             /** Total Bytes */
             total_bytes: number;
+            /** Unsupported */
+            unsupported: components["schemas"]["InvalidFile"][];
         };
         /**
          * CleanupRequest
@@ -2427,6 +2467,30 @@ export interface components {
             sha256: string;
         };
         /**
+         * ImportPreviewFile
+         * @description 「即将导入的文件」里的一项。
+         */
+        ImportPreviewFile: {
+            /**
+             * Name
+             * @description 文件名（工作目录内的平铺名）
+             */
+            name: string;
+            /**
+             * Size
+             * @description 来源侧字节数
+             */
+            size: number;
+        };
+        /**
+         * ImportPreviewView
+         * @description 复制导入的扫描回包：只列会被导入的文件，不可导入的一律不进清单（稿格 5 裁）。
+         */
+        ImportPreviewView: {
+            /** Files */
+            files: components["schemas"]["ImportPreviewFile"][];
+        };
+        /**
          * ImportRecord
          * @description 一条导入记录（``.dsf/imports.jsonl`` 一行）——素材出身的载体。
          *
@@ -2489,6 +2553,23 @@ export interface components {
             checked_at: string;
             /** Imports Available */
             imports_available: boolean;
+        };
+        /**
+         * InvalidFile
+         * @description 无效文件清单里的一项——「无效」＝工具永远不会使用的文件。
+         *
+         *     三类各有各的行尾信息：无配对产物带策略号（`batch`），不支持与超限带原因
+         *     （`reason`，措辞与导入扫描同一套常量）；`batch` 对后两类恒为 None。
+         */
+        InvalidFile: {
+            /** Batch */
+            batch?: number | null;
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
+            /** Size */
+            size: number;
         };
         /**
          * ItemListView
@@ -2679,18 +2760,6 @@ export interface components {
             caption: string;
             /** Session Id */
             session_id: string;
-        };
-        /**
-         * OrphanProduct
-         * @description 一份没有素材配对的批次产物。
-         */
-        OrphanProduct: {
-            /** Batch */
-            batch: number;
-            /** Name */
-            name: string;
-            /** Size */
-            size: number;
         };
         /**
          * Problem
@@ -6812,7 +6881,7 @@ export interface operations {
             };
         };
     };
-    clean_selected_products_api_workdirs__wid__cleanup_post: {
+    clean_invalid_files_api_workdirs__wid__cleanup_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -6828,12 +6897,12 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            200: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CleanupResult"];
+                    "application/json": components["schemas"]["CleanupAccepted"];
                 };
             };
             /** @description Bad Request */
@@ -7516,6 +7585,60 @@ export interface operations {
             };
             /** @description 工作目录元数据或运行流水损坏 */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    get_import_preview_api_workdirs__wid__import_preview_get: {
+        parameters: {
+            query: {
+                source: string;
+            };
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportPreviewView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

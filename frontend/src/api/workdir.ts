@@ -33,6 +33,13 @@ export const workdirApi = {
       body,
     ),
 
+  /** 复制导入的扫描预览：这次会导入哪些文件（白名单外、超限、已在册的一律不列）。 */
+  importPreview: (wid: string, source: string) =>
+    request<components["schemas"]["ImportPreviewView"]>(
+      "GET",
+      `/api/workdirs/${encodeURIComponent(wid)}/import-preview?source=${encodeURIComponent(source)}`,
+    ),
+
   reimportMaterials: (wid: string, names: string[], forceNames?: string[]) =>
     request<components["schemas"]["ImportAccepted"]>(
       "POST",
@@ -136,10 +143,18 @@ export const workdirApi = {
       `/api/workdirs/${encodeURIComponent(wid)}/cleanup-runs-preview`,
     ),
 
-  cleanupWorkdir: (wid: string, kind: "products" | "runs", names: string[]) =>
+  cleanupRuns: (wid: string, names: string[]) =>
     request<components["schemas"]["CleanupResult"]>(
       "POST",
-      `/api/workdirs/${encodeURIComponent(wid)}/${kind === "runs" ? "cleanup-runs" : "cleanup"}`,
+      `/api/workdirs/${encodeURIComponent(wid)}/cleanup-runs`,
+      { names },
+    ),
+
+  // 无效文件清理改长任务（对齐批·清理清单条⑫）：界面轮询真实进度，完成即自动关窗。
+  startCleanupInvalid: (wid: string, names: string[]) =>
+    request<components["schemas"]["CleanupAccepted"]>(
+      "POST",
+      `/api/workdirs/${encodeURIComponent(wid)}/cleanup`,
       { names },
     ),
 };

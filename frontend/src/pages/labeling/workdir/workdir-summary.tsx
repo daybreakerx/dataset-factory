@@ -1,5 +1,5 @@
-import { CopyIcon, XIcon } from "lucide-react";
-import { useState } from "react";
+import { CheckIcon, CopyIcon, XIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { components } from "../../../api-types.gen";
 import { FormError } from "../../../components/form-error";
 import { HScroll } from "../../../components/hs-scroll";
@@ -44,13 +44,19 @@ export function WorkdirSummary({
 }) {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
+  const copyTimer = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(copyTimer.current), []);
 
   async function copyPath() {
+    window.clearTimeout(copyTimer.current);
     setCopyFailed(false);
     setCopied(false);
     try {
       await navigator.clipboard.writeText(directory.path);
       setCopied(true);
+      // 反馈＝钮本体换装对勾，1.5s 复位；期间再点＝重新计时（components/button.md 复制反馈条）。
+      copyTimer.current = window.setTimeout(() => setCopied(false), 1500);
     } catch {
       setCopyFailed(true);
     }
@@ -88,21 +94,25 @@ export function WorkdirSummary({
             </button>
           )}
         </HScroll>
-        <Button variant="ghost" size="sm" onClick={onBrowse}>
-          打开
-        </Button>
-        <Tip label={copyFailed ? "复制失败，请检查剪贴板权限" : "复制路径"}>
+        {/* 动作序＝复制 · 浏览目录 · 修改路径（稿格 7 裁）；复制钮置首，「已复制」不再占一行文字。 */}
+        <Tip
+          label={
+            copyFailed ? "复制失败，请检查剪贴板权限" : copied ? "已复制" : "复制路径"
+          }
+        >
           <Button
             variant="ghost"
             size="icon-sm"
             className={copyFailed ? "text-bad-ink" : undefined}
-            aria-label="复制路径"
+            aria-label={copied ? "已复制" : "复制路径"}
             onClick={() => void copyPath()}
           >
-            {copyFailed ? <XIcon /> : <CopyIcon />}
+            {copyFailed ? <XIcon /> : copied ? <CheckIcon /> : <CopyIcon />}
           </Button>
         </Tip>
-        {copied && <span role="status">已复制</span>}
+        <Button variant="ghost" size="sm" onClick={onBrowse}>
+          浏览目录
+        </Button>
         {relocations.length > 0 ? (
           // 未处理完不得再次迁移（前后端同锁）：置灰＋title 说原因（稿格 8 裁）。
           <Button variant="ghost" size="sm" disabled title="上次修改路径未处理完">
@@ -145,16 +155,26 @@ export function WorkdirSummary({
         <span className="min-w-0 flex-1 text-text-2">
           {cleanupSummary && (
             <>
-              无素材产物：
+              无效文件：
               <span className="tabular-nums">
-                {cleanupSummary.products.length} 个 txt（{cleanupBatches.size}{" "}
-                套策略，含 {hiddenCleanupBatches} 套已停用）·{" "}
+                {cleanupSummary.products.length +
+                  cleanupSummary.unsupported.length +
+                  cleanupSummary.oversize.length}{" "}
+                个（无配对产物 {cleanupSummary.products.length} ／ 不支持{" "}
+                {cleanupSummary.unsupported.length} ／ 超限{" "}
+                {cleanupSummary.oversize.length}；含 {cleanupBatches.size} 套策略、内{" "}
+                {hiddenCleanupBatches} 套已停用）·{" "}
                 {formatBytes(cleanupSummary.total_bytes, "KB", 1)}
               </span>
             </>
           )}
         </span>
-        <Button variant="ghost" size="sm" onClick={onViewCleanup}>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="查看无效文件清单"
+          onClick={onViewCleanup}
+        >
           查看清单
         </Button>
       </div>

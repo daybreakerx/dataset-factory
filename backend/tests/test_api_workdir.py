@@ -18,7 +18,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from dataset_factory.api import create_app
-from dataset_factory.workdir import WorkdirRegistry
+from dataset_factory.workdir import WorkdirRegistry, WorkdirStore
 
 _PNG_BYTES = b"\x89PNG-fake-image-bytes"
 _WAIT_TIMEOUT = 5.0
@@ -450,6 +450,51 @@ def test_import_endpoint_rejects_nested_source(
             assert response.json()["type"] == "import-source-conflict"
 
     asyncio.run(scenario())
+
+
+def test_import_preview_lists_this_run_files_only(
+    client: TestClient, tmp_path: Path
+) -> None:
+    """扫描预览只列「这次会导入的文件」：白名单外与已在册的不列，体积按字节回。"""
+    target = tmp_path / "photos"
+    target.mkdir()
+    entry = WorkdirRegistry.register(target, title="")
+    source = tmp_path / "more"
+    source.mkdir()
+    _write(source, "cat.jpg", _PNG_BYTES)
+    _write(source, "notes.txt", b"plain-text-not-an-asset")
+    _write(source, "dog.jpg", b"already-in-the-book")
+    WorkdirStore(target).append_import_record(
+        {
+            "imported_at": "2026-10-11T00:00:00+00:00",
+            "source": str(source),
+            "files": [{"name": "dog.jpg", "sha256": "0" * 64}],
+        }
+    )
+
+    response = client.get(
+        f"/api/workdirs/{entry.id}/import-preview", params={"source": str(source)}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"files": [{"name": "cat.jpg", "size": len(_PNG_BYTES)}]}
+
+
+def test_import_preview_reports_same_directory_conflict(
+    client: TestClient, tmp_path: Path
+) -> None:
+    """扫描预览的来源 = 工作目录自身 → 422 problem+json，文案是稿裁的短句。"""
+    target = tmp_path / "photos"
+    target.mkdir()
+    entry = WorkdirRegistry.register(target, title="")
+
+    response = client.get(
+        f"/api/workdirs/{entry.id}/import-preview", params={"source": str(target)}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["type"] == "import-source-conflict"
+    assert response.json()["detail"] == "当前选择的目录即为工作目录，请选择就地导入。"
 
 
 def test_import_endpoint_unknown_wid_returns_problem_json(

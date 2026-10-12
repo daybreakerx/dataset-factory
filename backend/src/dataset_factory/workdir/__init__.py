@@ -47,6 +47,7 @@ from .importer import (
     REASON_UNSUPPORTED_EXTENSION,
     ensure_importable_source,
     import_assets,
+    preview_import_source,
     size_limit,
 )
 from .locks import RunLock, StateLock, read_occupier
@@ -91,6 +92,7 @@ __all__ = [
     "is_product_name",
     "media_kind",
     "mime_for_suffix",
+    "preview_import_source",
     "product_filename",
     "product_has_content",
     "product_path",
