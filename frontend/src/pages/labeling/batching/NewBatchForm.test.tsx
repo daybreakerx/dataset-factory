@@ -191,7 +191,9 @@ describe("新建跑批恢复", () => {
     await user.click(dialog.getByRole("button", { name: "导入" }));
 
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "导入素材" })).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole("dialog", { name: "导入素材" }),
+      ).not.toBeInTheDocument(),
     );
     expect(api.importPreview).toHaveBeenCalledExactlyOnceWith("work", "/source");
     expect(api.importMaterials).toHaveBeenCalledExactlyOnceWith("work", {
