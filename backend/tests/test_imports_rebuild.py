@@ -227,7 +227,10 @@ def test_import_and_rebuild_share_cross_process_lock(tmp_path: Path) -> None:
         text=True,
     )
     try:
-        deadline = time.monotonic() + 30
+        # 90s＝给足持锁子进程的冷启动预算：全量门禁满负载（pytest 并行 worker＋verify 其它
+        # 步骤）下 Python 子进程启动偶超 30s（2026-10-13 全量门禁实锤一次失败即此）——
+        # 等的是外部进程启动时间、不被测语义，属纯粹的等待预算（不动断言）。
+        deadline = time.monotonic() + 90
         while not ready.exists() and time.monotonic() < deadline:
             assert process.poll() is None, "持锁子进程提前退出"
             time.sleep(0.01)
