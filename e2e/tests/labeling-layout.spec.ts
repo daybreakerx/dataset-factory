@@ -1,34 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { mockLongNameFixtures } from "./fixtures/labeling-stubs";
 
 test("打标页长名称下顶栏与条目列保持原型尺寸和对齐", async ({ page }, testInfo) => {
-  await page.route("**/api/workdirs", (route) => route.fulfill({ json: [{
-    id: "layout", title: "用于布局验证的长工作目录名称", path: "/layout", last_used_at: 0,
-  }] }));
-  await page.route("**/api/workdirs/layout/batches", (route) => route.fulfill({ json: [{
-    id: "s1", seq: 1, name: "用于布局验证的长策略名称", active: true,
-    created_at: "", description: "", product_count: 1,
-  }] }));
-  await page.route("**/api/workdirs/layout/batches/s1/items", (route) => route.fulfill({ json: {
-    batch: 1, query: "", groups: { done: [{ item: "sample", name: "sample.jpg",
-      status: "done", media: "image", can_retry: true, in_retry: false }] },
-  } }));
-  await page.route("**/runs/current", (route) => route.fulfill({ status: 200, json: null })); // L3：空闲 = 200 + null
-  await page.route("**/runs/latest", (route) => route.fulfill({ json: {
-    record: null, log_path: null, items_path: null,
-  } }));
-  await page.route("**/batches/s1/snapshot", (route) => route.fulfill({ json: {
-    built_at: "2026-09-18T00:00:00Z", changed: false,
-    endpoint: { name: "Example", model: "caption-model", api_format: "openai-chat",
-      base_url: "https://example.test/v1", request_params: {}, sha256: "endpoint" },
-    prompt: { name: "Detailed caption", body: "Describe the image.", sha256: "prompt" },
-    skills: [{ name: "caption-style", body: "Use plain language.", sha256: "skill" }],
-    recorded_sha256: "snapshot", sha256: "snapshot", tool_version: "0.1.0",
-  } }));
-  await page.route("**/export/plan?*", (route) => route.fulfill({ json: {
-    batch: 1, included: [{ item: "sample", name: "sample.jpg", asset_name: "001.jpg",
-      caption_name: "001.txt", asset_bytes: 68, caption_bytes: 17, integrity: "valid" }],
-    excluded: [], total_bytes: 85, sequential: true, non_ascii_names: false,
-  } }));
+  await mockLongNameFixtures(page);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -105,5 +79,100 @@ test("打标页长名称下顶栏与条目列保持原型尺寸和对齐", async
   await page.getByRole("button", { name: "收起列表" }).click();
   await expect(column).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath("labeling-mobile.png"), fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test("打标页顶栏窄屏三段：折行、反馈行图标档、极窄档收缩下限", async ({ page }) => {
+  await mockLongNameFixtures(page);
+  // 发车即失败：组内多出一行红字反馈行，把本组撑到触发件列渐缩该起作用的那一带。
+  // 桩文案取稿样图那句（12 字）——反馈行走 nowrap，长句会把本组撑出容器（溢出实测的
+  // 责任在文案长度不在布局，稿侧探针同样以样本文案定阈）。
+  await page.route("**/batches/s1/runs", (route) =>
+    route.fulfill({ status: 500, json: { detail: "运行失败，请查看运行日志。" } }),
+  );
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "打标", exact: true }).click();
+
+  const topbar = page.locator('section[aria-label="打标"]');
+  const leftCell = topbar.locator("> header > div").first();
+  const chain = page.getByRole("region", { name: "策略配置" });
+  const group = page.getByRole("region", { name: "运行控制" });
+  const containerWidth = () => topbar.evaluate((element) => element.clientWidth);
+  // 阈值量的是容器宽（顶栏挂 @container lbctx 的那层），不是视口宽——侧栏与内距都在外面扣掉，
+  // 而侧栏本身还会随视口折收（差值不是常数）。故按「读回的容器宽」迭代补差，收敛到目标宽。
+  let offset = 1440 - (await containerWidth());
+  const setContainerWidth = async (target: number): Promise<void> => {
+    for (let step = 0; step < 8; step += 1) {
+      await page.setViewportSize({ width: target + offset, height: 900 });
+      const actual = await containerWidth();
+      if (actual === target) return;
+      offset += target - actual;
+    }
+    await expect.poll(containerWidth).toBe(target);
+  };
+  const noOverflow = async (): Promise<void> => {
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error("缺少视口");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+      viewport.width,
+    );
+  };
+  await group.getByRole("button", { name: "开始打标" }).click();
+  const alert = group.getByRole("alert");
+  await expect(alert).toBeVisible();
+
+  // 段一·非折行（稿 874 自然点的右侧）：一行装下全部，触发件列锁 320。
+  await setContainerWidth(880);
+  expect((await leftCell.boundingBox())?.width).toBe(320);
+  const [wideChain, wideGroup] = [await chain.boundingBox(), await group.boundingBox()];
+  if (!wideChain || !wideGroup) throw new Error("缺少顶栏元素");
+  expect(Math.abs(wideChain.y + wideChain.height / 2 - (wideGroup.y + wideGroup.height / 2))).toBeLessThan(2);
+  await noOverflow();
+
+  // 段二·折行（<874）：右段 display:contents——本组钉第一行右缘，胶囊串掉第二行跨整行。
+  await setContainerWidth(860);
+  const [foldChain, foldGroup, foldLeft] = [
+    await chain.boundingBox(),
+    await group.boundingBox(),
+    await leftCell.boundingBox(),
+  ];
+  if (!foldChain || !foldGroup || !foldLeft) throw new Error("缺少顶栏元素");
+  expect(foldChain.y).toBeGreaterThan(foldGroup.y + foldGroup.height);
+  expect(foldChain.x).toBe(foldLeft.x);
+  expect(foldChain.x + foldChain.width).toBeGreaterThan(foldGroup.x);
+  expect(foldLeft.width).toBeGreaterThanOrEqual(240);
+  expect(foldLeft.width).toBeLessThanOrEqual(320);
+  const foldTopbar = await topbar.boundingBox();
+  if (!foldTopbar) throw new Error("缺少顶栏容器");
+  expect(foldGroup.x + foldGroup.width).toBeLessThanOrEqual(
+    foldTopbar.x + foldTopbar.width,
+  );
+  await noOverflow();
+
+  // 段三·反馈行图标档（<663）：文字隐、14px 图标显（全文进 aria-label）、组内间距收到 8。
+  await setContainerWidth(662);
+  await expect(chain.getByText("Example · caption-model")).toBeVisible();
+  await expect(alert.getByText("运行失败，请查看运行日志。")).toBeHidden();
+  await expect(
+    alert.getByRole("img", { name: "运行失败，请查看运行日志。" }),
+  ).toBeVisible();
+  await expect(group).toHaveCSS("gap", "8px");
+  await expect(group.getByRole("button", { name: "开始打标" })).toBeVisible();
+  await noOverflow();
+
+  // 段四·极窄档（<512，手机视口）：触发件列恒 240 不回涨、本组仍可完整容下。
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await containerWidth()).toBeLessThan(512);
+  expect((await leftCell.boundingBox())?.width).toBe(240);
+  const tinyGroup = await group.boundingBox();
+  const tinyTopbar = await topbar.boundingBox();
+  if (!tinyGroup || !tinyTopbar) throw new Error("缺少顶栏元素");
+  expect(tinyGroup.x + tinyGroup.width).toBeLessThanOrEqual(
+    tinyTopbar.x + tinyTopbar.width,
+  );
+  await noOverflow();
   expect(errors).toEqual([]);
 });

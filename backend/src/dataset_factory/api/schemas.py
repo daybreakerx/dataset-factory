@@ -156,6 +156,17 @@ class ServiceLogs(BaseModel):
     content: str = Field(description="日志尾部内容（最近若干行，换行拼接）")
 
 
+class ServiceBusy(BaseModel):
+    """GET /api/service/busy 的响应体：现在关服务会不会打断事情。
+
+    两路计数合起来才是「全部后台任务」这一口径：``runs`` 是各工作目录跑批活锁的持有者数
+    （跨进程可读，重启后仍算得准），``tasks`` 是本进程任务管理器里的在飞任务数。
+    """
+
+    runs: int = Field(description="正在跑的批次数（活锁占用者计数）")
+    tasks: int = Field(description="正在跑的后台任务数（导入／导出／清理等在飞任务）")
+
+
 class SessionSnapshotResponse(BaseModel):
     """GET /api/sessions/* 的响应体（恢复会话的完整快照）。"""
 
@@ -914,6 +925,18 @@ class RunAccepted(BaseModel):
     """跑批受理响应（202）：后台线程已受理，进度走 current / SSE。"""
 
     run_id: str = Field(description="运行 id（.dsf/runs/ 下的目录名）")
+
+
+class RunStopRequest(BaseModel):
+    """停止跑批的请求体：两档停法（2026-10-06 用户裁「立即中断／等条目完成」两档）。"""
+
+    mode: Literal["graceful", "immediate"] = Field(
+        default="graceful",
+        description=(
+            "graceful＝等当前条目打到安全点再停；immediate＝掐断在途生成"
+            "（当前条目不记账、不落半截产物，下次续跑重打这一条）"
+        ),
+    )
 
 
 class RunStatusView(BaseModel):

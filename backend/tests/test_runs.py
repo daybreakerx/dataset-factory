@@ -643,6 +643,41 @@ def test_stop_interrupts_between_items_and_keeps_finished_part(batch: Path) -> N
     assert run_json["status"] == "interrupted"
 
 
+def test_immediate_stop_cuts_inflight_stream_and_accounts_nothing(
+    batch: Path,
+) -> None:
+    """「立即中断」掐断在途流：半截正文不落盘、该条不写终态行、收尾转 interrupted。"""
+    stoppers: list[Callable[[], None]] = []
+
+    class _CuttingCompleter(ScriptedCompleter):
+        """第一段增量之后由测试置停止位：生成器交出控制权前，流还在途中。"""
+
+        def stream(self, messages: object) -> object:
+            self.calls += 1
+
+            def _deltas() -> object:
+                yield StreamDelta(kind="content", text="前半段")
+                for stop in stoppers:
+                    stop()
+                yield StreamDelta(kind="content", text="后半段")
+
+            return _deltas()
+
+    completer = _CuttingCompleter()
+    runner = _runner(batch, completer)
+    stoppers.append(lambda: runner.stop(immediate=True))
+
+    report = runner.run()
+
+    assert report.status == "interrupted"
+    assert report.counters["succeeded"] == 0
+    assert not (batch / "s1__cat_001.txt").exists()
+    assert not (batch / "s1__cat_002.txt").exists()
+    # 中断不写条目终态行：流水里既没有 succeeded 也没有 failed（记成失败会凭空多账）。
+    journal = report.run_dir / "items.jsonl"
+    assert not journal.exists() or journal.read_text(encoding="utf-8").strip() == ""
+
+
 def test_events_emitted_in_order_with_payloads(batch: Path) -> None:
     """事件序：run-started → (item started / delta / succeeded)×N → run-finished（A2 含增量帧）。"""
     received: list[RunEvent] = []

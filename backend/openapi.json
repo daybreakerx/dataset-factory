@@ -2529,6 +2529,23 @@
         "title": "RunStatusView",
         "type": "object"
       },
+      "RunStopRequest": {
+        "description": "停止跑批的请求体：两档停法（2026-10-06 用户裁「立即中断／等条目完成」两档）。",
+        "properties": {
+          "mode": {
+            "default": "graceful",
+            "description": "graceful＝等当前条目打到安全点再停；immediate＝掐断在途生成（当前条目不记账、不落半截产物，下次续跑重打这一条）",
+            "enum": [
+              "graceful",
+              "immediate"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "RunStopRequest",
+        "type": "object"
+      },
       "RunTextView": {
         "description": "指定运行的只读文件内容与绝对路径。",
         "properties": {
@@ -2627,6 +2644,27 @@
           "unimported"
         ],
         "title": "ScanPreviewView",
+        "type": "object"
+      },
+      "ServiceBusy": {
+        "description": "GET /api/service/busy 的响应体：现在关服务会不会打断事情。\n\n两路计数合起来才是「全部后台任务」这一口径：``runs`` 是各工作目录跑批活锁的持有者数\n（跨进程可读，重启后仍算得准），``tasks`` 是本进程任务管理器里的在飞任务数。",
+        "properties": {
+          "runs": {
+            "description": "正在跑的批次数（活锁占用者计数）",
+            "title": "Runs",
+            "type": "integer"
+          },
+          "tasks": {
+            "description": "正在跑的后台任务数（导入／导出／清理等在飞任务）",
+            "title": "Tasks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "runs",
+          "tasks"
+        ],
+        "title": "ServiceBusy",
         "type": "object"
       },
       "ServiceLogs": {
@@ -4721,6 +4759,28 @@
           }
         },
         "summary": "Service Status",
+        "tags": [
+          "服务运行"
+        ]
+      }
+    },
+    "/api/service/busy": {
+      "get": {
+        "description": "现在关服务会不会打断事情：跑批按各工作目录的活锁占用者数，任务按进程内管理器数。\n\n目录已消失／已迁移／正被维护的条目读不到占用者，一律不算进行中——这个端点只回答\n「有没有事情在跑」，不把读盘故障报成忙碌或把它算成进行中。",
+        "operationId": "service_busy_api_service_busy_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceBusy"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Service Busy",
         "tags": [
           "服务运行"
         ]
@@ -7521,7 +7581,7 @@
     },
     "/api/workdirs/{wid}/batches/{sN}/runs/stop": {
       "post": {
-        "description": "请求停止当前跑批（协作取消）：置位信号即返回，当前条目在安全点停下。",
+        "description": "请求停止当前跑批（协作取消）：`graceful` 等当前条目到安全点，`immediate` 掐断在途生成。",
         "operationId": "stop_run_api_workdirs__wid__batches__sN__runs_stop_post",
         "parameters": [
           {
@@ -7543,6 +7603,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RunStopRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Stop"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "Successful Response"

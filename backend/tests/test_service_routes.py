@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from dataset_factory.api import create_app
 from dataset_factory.api.routes_service import server_log_path
 from dataset_factory.cli.main import add_server_file_handler
+from dataset_factory.workdir.store import WorkdirRegistry
 
 
 class FakeServer:
@@ -139,6 +140,34 @@ def test_shutdown_without_server_is_409(temp_data_root: Path, tmp_path: Path) ->
 
     assert resp.status_code == 409
     assert "dsf serve" in resp.json()["detail"]
+
+
+def test_service_busy_reports_zero_when_nothing_runs(
+    temp_data_root: Path, tmp_path: Path
+) -> None:
+    """关机确认弹窗的读数端点：没登记目录、没在飞任务时两路计数都是 0。"""
+    client = TestClient(_app_with(tmp_path))
+
+    response = client.get("/api/service/busy")
+
+    assert response.status_code == 200
+    assert response.json() == {"runs": 0, "tasks": 0}
+
+
+def test_service_busy_ignores_unreadable_workdir_entries(
+    temp_data_root: Path, tmp_path: Path
+) -> None:
+    """在册却读不到的目录不算进行中：登记条目可能已被移走或删除，读数端点不因此报错。"""
+    gone = tmp_path / "already-gone"
+    gone.mkdir()
+    WorkdirRegistry.register(gone)
+    gone.rmdir()
+    client = TestClient(_app_with(tmp_path))
+
+    response = client.get("/api/service/busy")
+
+    assert response.status_code == 200
+    assert response.json()["runs"] == 0
 
 
 def test_add_server_file_handler_writes_logs(

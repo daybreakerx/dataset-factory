@@ -33,3 +33,11 @@ class MaterialReadError(LabelingError):
 
 class MaterialOversizeError(LabelingError):
     """素材超出大小上限（运行时读取前再验——素材导入后可能被绕过工具换成超大文件）。"""
+
+
+class MaterialStreamInterruptedError(LabelingError):
+    """在途流式打标被「立即中断」掐断（停止信号在增量间隙查到）。
+
+    与 :class:`LLMError` 的失败不同轴：这不是模型出错，是人不想要这一条了——半截内容
+    只活在内存里、既不落盘也不记账，调用方按「被打断」处置（下次续跑重打这一条）。
+    """

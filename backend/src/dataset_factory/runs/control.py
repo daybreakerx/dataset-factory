@@ -35,20 +35,35 @@ def current_run(workdir: Path, seq: int) -> dict[str, Any]:
         }
 
 
-def request_stop(workdir: Path, seq: int) -> str:
-    """请求当前运行在安全点停止；运行 ID 防止误停后续运行。"""
+def request_stop(workdir: Path, seq: int, *, immediate: bool = False) -> str:
+    """请求当前运行在安全点停止；运行 ID 防止误停后续运行。
+
+    ``immediate`` 只多写一个停法字段——置位与「等条目完成」走同一份停止文件，读到的
+    执行器在**每一段增量之间**也检查它，随即掐断在途生成（当前条目不记账、不落半截产物）。
+    """
     with maintenance_guard(workdir, timeout=10):
         progress = current_run(workdir, seq)
         if progress["status"] in TERMINAL_RUN_STATUSES:
             raise RunNotActiveError("该批次当前没有进行中的跑批。")
         run_id = str(progress["run_id"])
         atomic_write_text(
-            workdir / ".dsf" / "run-stop.json", json.dumps({"run_id": run_id})
+            workdir / ".dsf" / "run-stop.json",
+            json.dumps(
+                {"run_id": run_id, "mode": "immediate" if immediate else "graceful"}
+            ),
         )
         return run_id
 
 
 def stop_requested(workdir: Path, run_id: str) -> bool:
     """执行器只接受属于本次运行的停止请求。"""
+    return stop_mode(workdir, run_id) is not None
+
+
+def stop_mode(workdir: Path, run_id: str) -> str | None:
+    """本次停止请求的停法（``graceful``／``immediate``）；没有属于本运行的停止请求时 None。"""
     request = read_occupier(workdir / ".dsf" / "run-stop.json")
-    return request is not None and request.get("run_id") == run_id
+    if request is None or request.get("run_id") != run_id:
+        return None
+    mode = request.get("mode")
+    return mode if isinstance(mode, str) else "graceful"

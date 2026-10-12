@@ -355,7 +355,10 @@ export function LabelingPage({
     );
 
   return (
-    <section className="flex h-full min-h-0 flex-col" aria-label="打标">
+    <section
+      className="@container/lbctx flex h-full min-h-0 flex-col"
+      aria-label="打标"
+    >
       {newStrategyWid && (
         <NewStrategyDialog
           key={newStrategyWid}
@@ -405,8 +408,12 @@ export function LabelingPage({
           onSelect={(picked) => void repointPicked(picked)}
         />
       )}
-      <header className="flex shrink-0 flex-wrap items-center gap-3 px-4 pt-4 pb-3 lg:flex-nowrap lg:gap-4 lg:px-6">
-        <div className="flex w-full min-w-0 shrink-0 items-center gap-3 lg:w-(--w-col-left) lg:pr-3">
+      {/* 顶栏＝§22 .lb-topbar：两列网格（左列 --w-col-left 320、右列吃满），右段内「胶囊串内容给宽、
+          运行组 margin-left:auto 钉右缘」。窄屏走容器查询三段（挂载点＝本页根 @container/lbctx，
+          对齐批「顶栏窄屏」①②）：<874 折行（右段 display:contents，运行组占第一行右、胶囊串掉第二行
+          跨满）、触发件列渐缩 minmax(240,320)；<512 左列恒 240 不回涨。 */}
+      <header className="grid shrink-0 grid-cols-[var(--w-col-left)_minmax(0,1fr)] items-center gap-x-4 gap-y-3 px-4 pt-4 pb-3 @max-[874px]/lbctx:grid-cols-[minmax(240px,320px)_minmax(auto,1fr)] @max-[512px]/lbctx:grid-cols-[240px_minmax(0,1fr)] lg:px-6">
+        <div className="flex min-w-0 items-center gap-3 pr-3">
           <div className="min-w-0 flex-1">
             <BatchSelector
               workdirs={workdirs}
@@ -435,67 +442,71 @@ export function LabelingPage({
             </Button>
           </Tip>
         </div>
-        {selection && (
-          <BatchConfiguration
-            key={`config/${identity}`}
-            wid={selection.workdirId}
-            batch={selection.batchId}
-            compact
-          />
-        )}
-        {selection && (
-          <RunControl
-            key={`${selection.workdirId}/${selection.batchId}`}
-            wid={selection.workdirId}
-            batch={selection.batchId}
-            retryRequest={retryRequest}
-            runStatus={batchRunState}
-            onRunStatus={(status) => {
-              // "idle" = RunControl 探测到空闲（空闲哨兵）：不抹状态章，改触发
-              // latestRun 重读——抹空会把刚从磁盘读到的「已完成」等终态一并抹掉
-              //（挂载探测与 15 秒慢轮每次空闲都会报一次 idle，徽标最多活 15 秒）；
-              // 回读拿到的就是真实终态，要防的「卡 running」照样被复位，语义更准。
-              if (status === "idle") setRunStateRevision((value) => value + 1);
-              else setBatchRunState(status);
-              // 终态 = 跟随提示与「当前产出」都收场（运行结束后回到普通概览）。
-              if (status !== "running" && status !== "pending") {
-                setFollowPaused(false);
-                setLiveOutput(null);
-                // ⑬ 跑批终态＝完整性报告已过时（失败同样）：递一次全量同步号触发自动重扫。
-                // 「idle」是空闲哨兵、不算终态，不在此列（否则每次空闲都会重扫）。
-                if (status !== "idle") setExportRevision((value) => value + 1);
-              }
-            }}
-            onFinish={() => refreshItems(true)}
-            onCurrentItem={(item) => {
-              // ⑫ 跑批跟随＝从别处跳转，落原分组那行；读数还没到位时按「排队中」占位。
-              if (!followRun.current) return;
-              if (item === null) {
-                setSelectedItem(null);
-                return;
-              }
-              const row = items.get(item);
-              setSelectedItem(row ? selectionKey(row.status, row) : `queued:${item}`);
-            }}
-            onItemUpdate={(event) => {
-              refreshVersion.current += 1;
-              if (event.status === "started") {
-                setLiveOutput({ item: event.item, reasoning: "", content: "" });
-              }
-              setItems((previous) => withItemUpdate(previous, event));
-            }}
-            onItemDelta={(event) => {
-              setLiveOutput((current) =>
-                current === null || current.item !== event.item
-                  ? current
-                  : event.delta === "reasoning"
-                    ? { ...current, reasoning: current.reasoning + event.text }
-                    : { ...current, content: current.content + event.text },
-              );
-            }}
-            onItemsRefresh={() => void refreshItems()}
-          />
-        )}
+        {/* 右段＝§22 .lb-topbar-right：折行档（<874）转 display:contents，让胶囊串与运行组直接落进
+            顶栏网格——组钉第一行右缘、胶囊串掉第二行跨整行（让位秩序由两处子件自己声明）。 */}
+        <div className="flex min-w-0 items-center gap-3 @max-[874px]/lbctx:contents">
+          {selection && (
+            <BatchConfiguration
+              key={`config/${identity}`}
+              wid={selection.workdirId}
+              batch={selection.batchId}
+              compact
+            />
+          )}
+          {selection && (
+            <RunControl
+              key={`${selection.workdirId}/${selection.batchId}`}
+              wid={selection.workdirId}
+              batch={selection.batchId}
+              retryRequest={retryRequest}
+              runStatus={batchRunState}
+              onRunStatus={(status) => {
+                // "idle" = RunControl 探测到空闲（空闲哨兵）：不抹状态章，改触发
+                // latestRun 重读——抹空会把刚从磁盘读到的「已完成」等终态一并抹掉
+                //（挂载探测与 15 秒慢轮每次空闲都会报一次 idle，徽标最多活 15 秒）；
+                // 回读拿到的就是真实终态，要防的「卡 running」照样被复位，语义更准。
+                if (status === "idle") setRunStateRevision((value) => value + 1);
+                else setBatchRunState(status);
+                // 终态 = 跟随提示与「当前产出」都收场（运行结束后回到普通概览）。
+                if (status !== "running" && status !== "pending") {
+                  setFollowPaused(false);
+                  setLiveOutput(null);
+                  // ⑬ 跑批终态＝完整性报告已过时（失败同样）：递一次全量同步号触发自动重扫。
+                  // 「idle」是空闲哨兵、不算终态，不在此列（否则每次空闲都会重扫）。
+                  if (status !== "idle") setExportRevision((value) => value + 1);
+                }
+              }}
+              onFinish={() => refreshItems(true)}
+              onCurrentItem={(item) => {
+                // ⑫ 跑批跟随＝从别处跳转，落原分组那行；读数还没到位时按「排队中」占位。
+                if (!followRun.current) return;
+                if (item === null) {
+                  setSelectedItem(null);
+                  return;
+                }
+                const row = items.get(item);
+                setSelectedItem(row ? selectionKey(row.status, row) : `queued:${item}`);
+              }}
+              onItemUpdate={(event) => {
+                refreshVersion.current += 1;
+                if (event.status === "started") {
+                  setLiveOutput({ item: event.item, reasoning: "", content: "" });
+                }
+                setItems((previous) => withItemUpdate(previous, event));
+              }}
+              onItemDelta={(event) => {
+                setLiveOutput((current) =>
+                  current === null || current.item !== event.item
+                    ? current
+                    : event.delta === "reasoning"
+                      ? { ...current, reasoning: current.reasoning + event.text }
+                      : { ...current, content: current.content + event.text },
+                );
+              }}
+              onItemsRefresh={() => void refreshItems()}
+            />
+          )}
+        </div>
       </header>
       {error && !errorRun && (
         <FormError className="mx-6 mb-3 text-t-sm text-bad-ink">{error}</FormError>

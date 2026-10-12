@@ -81,13 +81,22 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
           ).entered,
       )
       .toBe(true);
+    // 停止两档（对齐批「停止两档」②③）：点停止先出确认弹窗，「确认」＝等条目打完（graceful、
+    // 现行为）、「立即中断」＝掐断在途流（immediate，真中断由后端用例覆盖）。
     const stopResponse = page.waitForResponse(
       (response) =>
         response.url().endsWith("/runs/stop") &&
         response.request().method() === "POST",
     );
     await page.getByTestId("run-stop").click();
-    expect((await stopResponse).ok()).toBeTruthy();
+    const stopDialog = page.getByRole("dialog", { name: "停止跑批？" });
+    await expect(stopDialog).toContainText("当前条目正在生成中，是否等待条目完成后中断？");
+    await stopDialog.getByRole("button", { name: "确认" }).click();
+    const stopped = await stopResponse;
+    expect(stopped.ok()).toBeTruthy();
+    expect(JSON.parse(stopped.request().postData() ?? "{}")).toEqual({
+      mode: "graceful",
+    });
     expect(
       (await request.post("/fake-llm/__test__/gated-release")).ok(),
     ).toBeTruthy();

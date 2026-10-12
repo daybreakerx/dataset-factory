@@ -1,11 +1,13 @@
 /**
  * 页头「关闭服务」按钮 + 确认弹窗（F6）。
  *
- * 确认后调停机接口：服务把手头请求做完再退出，会话数据已实时落盘。图标态用于页头
- * 与侧栏底部钮组（原「服务运行」子页的文字态随该子页 2026-10-05 改版撤除）。
- * dirty（设置页两面板有未保存修改，壳层上提的值）时弹窗正文句下加一行警告
- * 「有未保存的修改，关闭后将丢失。」——确认即关机不保存；非 dirty 不出该行、
- * 弹窗其余形态不变（关机确认弹窗 dirty 态「合并一窗」）。
+ * 确认后调停机接口：服务把手头请求做完再退出。图标态用于页头与侧栏底部钮组（原「服务运行」
+ * 子页的文字态随该子页 2026-10-05 改版撤除）。
+ *
+ * 正文只在「关了会丢东西」时出话（2026-10-06 用户两轮裁）：原先那句基句说「不会中断生成」，
+ * 而跑批线程随进程被杀、并不留中断终态——那句是假话，整句撤、不补替换句；取而代之是条件
+ * 警告行，两路各自成立：设置页有未保存修改（壳层上提的 dirty）／后端 `/api/service/busy`
+ * 报有在飞的跑批或任务。开窗时查一次即定，开窗期间新起的任务不再追。
  */
 import { PowerIcon } from "lucide-react";
 import type { ReactElement } from "react";
@@ -29,6 +31,18 @@ export function ShutdownButton({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasRunning, setHasRunning] = useState(false);
+
+  const openDialog = (): void => {
+    setOpen(true);
+    setError(null);
+    setHasRunning(false);
+    // 读数只为决定那一行警告要不要出：查不到就当没有（宁可少一句提醒，也不拿猜测拦人）。
+    void api.getServiceBusy().then(
+      (value) => setHasRunning(value.runs + value.tasks > 0),
+      () => undefined,
+    );
+  };
 
   const shutdown = async (): Promise<void> => {
     setBusy(true);
@@ -63,7 +77,7 @@ export function ShutdownButton({
                 : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             }
             aria-label="关闭服务"
-            onClick={() => setOpen(true)}
+            onClick={openDialog}
           >
             <PowerIcon className="size-(--icon-md)" />
           </Button>
@@ -79,8 +93,8 @@ export function ShutdownButton({
           }
         }}
         title="关闭服务？"
-        description="关闭前会等正在进行的请求跑完，不会中断生成；会话数据已实时保存、不受影响。"
         flight={busy}
+        footLine={dirty || hasRunning || error !== null}
         cancel={{ label: "取消", flight: false, onClick: () => setOpen(false) }}
         confirm={{
           label: "关闭服务",
@@ -90,9 +104,14 @@ export function ShutdownButton({
       >
         {dirty && (
           // 警告行（稿 base.css §13 .modal-warn 等价）：与 .modal-error 同构、warn 语义色；
-          // 说的对象是界面未保存编辑（正文句说的是会话数据，并读不冲突）。
+          // 说的对象是界面未保存编辑（与下一行的「未完成的任务」并读不冲突）。
           <span className="block text-t-sm text-warn-ink">
             有未保存的修改，关闭后将丢失。
+          </span>
+        )}
+        {hasRunning && (
+          <span className="block text-t-sm text-warn-ink">
+            当前有正在进行中的任务，关闭会丢失未完成的部分。
           </span>
         )}
         {error !== null && (

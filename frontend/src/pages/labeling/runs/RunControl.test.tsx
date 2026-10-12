@@ -465,4 +465,65 @@ describe("运行控制", () => {
     );
     expect(onRunStatus).toHaveBeenCalledWith("running");
   });
+
+  it("停止两档：确认按 graceful 受理并出组内反馈行，等条目窗口可重复唤起改选立即中断", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.currentRun)
+      .mockReset()
+      .mockResolvedValue({
+        run_id: "run",
+        status: "running",
+        batch: 1,
+        mode: "full",
+        counters: { planned: 10, attempted: 3, failed: 1 },
+        current_item: null,
+        error: null,
+      });
+    vi.mocked(api.stopRun).mockResolvedValue(undefined);
+    render(<RunControl wid="work" batch="s1" onFinish={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "停止" }));
+
+    expect(await screen.findByRole("dialog", { name: "停止跑批？" })).toHaveTextContent(
+      "当前条目正在生成中，是否等待条目完成后中断？",
+    );
+    await user.click(screen.getByRole("button", { name: "确认" }));
+    await waitFor(() =>
+      expect(api.stopRun).toHaveBeenCalledWith("work", "s1", "graceful"),
+    );
+
+    expect(
+      await screen.findByText("停止已受理，当前条目完成后停下"),
+    ).toBeInTheDocument();
+    // ③：等条目窗口里停止钮仍可点，再点重开弹窗可改选「立即中断」（反馈行随档撤下）。
+    await user.click(screen.getByRole("button", { name: "停止" }));
+    await user.click(await screen.findByRole("button", { name: "立即中断" }));
+    await waitFor(() =>
+      expect(api.stopRun).toHaveBeenCalledWith("work", "s1", "immediate"),
+    );
+    expect(
+      screen.queryByText("停止已受理，当前条目完成后停下"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("停止弹窗 Esc 关窗不发停止请求（不停止、照常跑）", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.currentRun).mockReset().mockResolvedValue({
+      run_id: "run",
+      status: "running",
+      batch: 1,
+      mode: "full",
+      counters: {},
+      current_item: null,
+      error: null,
+    });
+    vi.mocked(api.stopRun).mockResolvedValue(undefined);
+    render(<RunControl wid="work" batch="s1" onFinish={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "停止" }));
+    await screen.findByRole("dialog", { name: "停止跑批？" });
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(api.stopRun).not.toHaveBeenCalled();
+  });
 });

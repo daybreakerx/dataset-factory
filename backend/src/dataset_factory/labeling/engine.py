@@ -72,9 +72,16 @@ from .errors import (
     EmptyTurnError,
     MaterialOversizeError,
     MaterialReadError,
+    MaterialStreamInterruptedError,
     PromptNotSelectedError,
     SettingsFormatError,
 )
+
+
+def _no_interrupt() -> bool:
+    """默认的中断检查口：不接停止信号的调用方（对话线手动打标）永不中断。"""
+    return False
+
 
 # 会话设置在 settings 事件里的 JSON 键（该结构由本模块定义，sessions 不解析）。
 _KEY_PROMPT = "prompt"  # pragma: allowlist secret
@@ -660,6 +667,7 @@ class LabelingEngine:
         video_fps: int = 2,
         video_max_frames: int = 16,
         on_delta: Callable[[StreamDelta], None],
+        should_interrupt: Callable[[], bool] = _no_interrupt,
     ) -> MaterialLabelResult:
         """纯素材打标的**流式**变体：逐段产出思考 / 正文增量，终稿语义与 complete 同。
 
@@ -677,6 +685,8 @@ class LabelingEngine:
             video_fps: 视频抽帧 fps（素材是视频时生效）。
             video_max_frames: 视频抽帧帧数上限（素材是视频时生效）。
             on_delta: 每个思考 / 正文增量的实时回调（在模型流式线程上同步执行）。
+            should_interrupt: 「立即中断」检查口——每收到一段增量问一次；生成器随 break
+                关闭，在途 HTTP 流一并断开（token 止损在这一刻生效）。默认永不中断。
 
         Returns:
             MaterialLabelResult：caption 终稿 + 素材哈希（与非流式完全同形）。
@@ -700,6 +710,17 @@ class LabelingEngine:
         trimmer = _LeadingBlankTrimmer()
         try:
             for delta in self._completer.stream(messages):
+                if should_interrupt():
+                    # 掐断在途流：抛异常让上面的生成器退出，底层 HTTP 连接随之关闭；
+                    # 已转发的增量不回退，但半截正文不拼终稿、不落盘。
+                    logger.info(
+                        "纯素材流式打标被立即中断：已收 %.0fms（素材 %s）",
+                        ms_since(llm_start),
+                        material.name,
+                    )
+                    raise MaterialStreamInterruptedError(
+                        f"素材 {material.name} 的生成已被立即中断。"
+                    )
                 if delta.kind == "content":
                     # 前导空白在源头丢弃（A3）：跑批界面逐字区与产物都不吃空行。
                     text = trimmer.trim(delta.text)

@@ -1,11 +1,51 @@
+import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, corruptedRunOf, errorMessage } from "../../../api";
+import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
+import { cn } from "../../../lib/utils";
 import type { ItemDelta, ItemUpdate } from "./items-state";
 import { JournalCorruptedLine } from "./journal-corrupted-line";
 import { useRunWatch } from "./use-run-watch";
+
+/** 组内反馈行的让位与图标档（§22 `.lb-runhint`／`.lb-runerr`／`.lb-runwarn` 三条共用）：
+ *  正常区间全文在场、放不下才省略号；折行档（<874）解除 min-width 压到 auto；图标档
+ *  （<663）转 inline-flex——文字隐、14px 图标显、命中区外扩 5px（稿 `::before inset -5px`），
+ *  组内间距随之收到 --s-2（在组根声明）。 */
+const FEEDBACK_LINE =
+  "min-w-0 overflow-hidden text-ellipsis " +
+  "whitespace-nowrap text-t-sm @max-[874px]/lbctx:min-w-auto " +
+  "@max-[663px]/lbctx:relative @max-[663px]/lbctx:inline-flex " +
+  "@max-[663px]/lbctx:flex-none @max-[663px]/lbctx:items-center " +
+  "@max-[663px]/lbctx:before:absolute @max-[663px]/lbctx:before:-inset-[5px] " +
+  "@max-[663px]/lbctx:before:content-['']";
+
+/** 反馈行图标（仅图标档显形）：稿 `role="img"`＋`aria-label` 同文读屏，全文气泡走 `Tip`
+ *  （稿侧原生 `title`，实现侧按「运行状态组」稿对账条改齐 `Tip`）。 */
+function FeedbackIcon({ tone, text }: { tone: "info" | "alert"; text: string }) {
+  const Icon = tone === "info" ? InfoIcon : TriangleAlertIcon;
+  return (
+    <Tip label={text}>
+      <Icon
+        role="img"
+        aria-label={text}
+        className="hidden size-(--icon-sm) shrink-0 @max-[663px]/lbctx:inline-flex"
+      />
+    </Tip>
+  );
+}
+
+/** 进度读数（§22 `.lb-sbstat`）：极窄档（≤512）数字 ≥1000 走 X.Xk 缩写让位，
+ *  两式同场按容器宽互斥显隐（放不下仍由 4em floor ＋省略号兜住）。 */
+function kCount(value: number): string {
+  return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`;
+}
+
+function progressText(attempted: number, planned: number, failed: number): string {
+  return `${attempted} / ${planned} · 失败 ${failed}`;
+}
 
 /** 停止钮的方块（2026-10-06 用户裁「按稿改实现」）：稿 i-square＝rect 6,6→18,18（12×12@24
  *  栅格、圆角 2、空心描边）——lucide Square 是 18×18（占栅格 75%）、墨量差 1.5 倍，不照抄。
@@ -92,6 +132,10 @@ export function RunControl({
   onItemsRefresh,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  // 停两档（2026-10-06 用户裁 B）：点「停止」先弹窗问「等不等当前条目打完」，两档可改选——
+  // 选了等条目之后，窗口内「停止」钮照旧可点、再点重开本弹窗。
+  const [stopDialog, setStopDialog] = useState(false);
+  const [stopMode, setStopMode] = useState<"graceful" | "immediate" | null>(null);
   // 后端带出 run 才有就地出口：四处出错面同一把尺，不出现「同一句红字有的面能点、有的面不能点」。
   const [errorRun, setErrorRun] = useState<string | null>(null);
   const actionPending = useRef(false);
@@ -158,23 +202,28 @@ export function RunControl({
     void start("retry");
   }, [retryRequest, start]);
 
-  const stop = useCallback(async () => {
-    if (actionPending.current) return;
-    const generation = lifecycle.current;
-    actionPending.current = true;
-    setBusy(true);
-    try {
-      await api.stopRun(wid, batch);
-    } catch (reason) {
-      if (lifecycle.current === generation) {
-        setError(errorMessage(reason));
-        setErrorRun(corruptedRunOf(reason));
+  const stop = useCallback(
+    async (mode: "graceful" | "immediate") => {
+      if (actionPending.current) return;
+      const generation = lifecycle.current;
+      actionPending.current = true;
+      setBusy(true);
+      setStopDialog(false);
+      try {
+        await api.stopRun(wid, batch, mode);
+        if (lifecycle.current === generation) setStopMode(mode);
+      } catch (reason) {
+        if (lifecycle.current === generation) {
+          setError(errorMessage(reason));
+          setErrorRun(corruptedRunOf(reason));
+        }
+      } finally {
+        actionPending.current = false;
+        if (lifecycle.current === generation) setBusy(false);
       }
-    } finally {
-      actionPending.current = false;
-      if (lifecycle.current === generation) setBusy(false);
-    }
-  }, [batch, wid, lifecycle, setError]);
+    },
+    [batch, wid, lifecycle, setError],
+  );
 
   // 组显隐按「本批运行史」五态（对齐批「运行状态组对齐」③；活观测在场＝跑批中，
   // 观测空闲时按运行史分流：中断→继续、完成→整组不渲染、未跑/启动失败→开始打标）。
@@ -185,8 +234,15 @@ export function RunControl({
     return null;
   }
 
+  const attempted = status?.counters.attempted ?? 0;
+  const planned = status?.counters.planned ?? 0;
+  const failed = status?.counters.failed ?? 0;
+
   return (
-    <section className="flex items-center gap-3" aria-label="运行控制">
+    <section
+      className="ml-auto flex min-w-0 shrink-0 items-center gap-3 @max-[874px]/lbctx:col-start-2 @max-[874px]/lbctx:row-start-1 @max-[874px]/lbctx:ml-0 @max-[874px]/lbctx:max-w-full @max-[874px]/lbctx:min-w-auto @max-[874px]/lbctx:justify-self-end @max-[663px]/lbctx:gap-2 @max-[512px]/lbctx:min-w-0"
+      aria-label="运行控制"
+    >
       {errorRun ? (
         <JournalCorruptedLine
           wid={wid}
@@ -198,31 +254,63 @@ export function RunControl({
           }}
         />
       ) : (
-        error && <FormError className="text-t-sm text-bad-ink">{error}</FormError>
+        error && (
+          <FormError className={cn(FEEDBACK_LINE, "text-bad-ink")}>
+            <FeedbackIcon tone="alert" text={error} />
+            <span className="@max-[663px]/lbctx:hidden">{error}</span>
+          </FormError>
+        )
       )}
       {reconnecting && (
-        <span role="status" className="text-t-sm text-warn-ink">
-          正在重新连接
+        <span role="status" className={cn(FEEDBACK_LINE, "text-warn-ink")}>
+          <FeedbackIcon tone="alert" text="正在重新连接" />
+          <span className="@max-[663px]/lbctx:hidden">正在重新连接</span>
         </span>
       )}
       {status ? (
         <>
           <span className="sr-only">{current ? `正在处理：${current}` : "运行中"}</span>
+          {/* 组内反馈行（④，§22 .lb-runhint 中性档）：等条目那档还要占一个条目时长，得说明
+              「为什么还在跑」；立即中断是秒级瞬态、不补这一行（状态随即转「已中断」）。
+              行序照稿（样图 11）：反馈行→进度文本→动作钮。 */}
+          {stopMode === "graceful" && (
+            <span role="status" className={cn(FEEDBACK_LINE, "text-text-2")}>
+              <FeedbackIcon tone="info" text="停止已受理，当前条目完成后停下" />
+              <span className="@max-[663px]/lbctx:hidden">
+                停止已受理，当前条目完成后停下
+              </span>
+            </span>
+          )}
           {/* 进度环已撤（对齐批④）：「在跑」的进度只由选择器 chip 内的 14px 状态图标
-              表达，这里的文本是本组唯一的信息载体——字色取正文级 --text-2（⑤）。 */}
-          <span className="whitespace-nowrap text-t-sm tabular-nums text-text-2">
-            {`${status.counters.attempted ?? 0} / ${status.counters.planned ?? 0} · 失败 ${status.counters.failed ?? 0}`}
+              表达，这里的文本是本组唯一的信息载体——字色取正文级 --text-2（⑤）。
+              让位秩序（§22 .lb-sbstat）：本行先让、floor 4em、放不下走省略号兜底，
+              极窄档（≤512）数字 ≥1000 先改 X.Xk 缩写——两式同场按容器宽互斥显隐，
+              三个数都不到千位时缩写与原样同字，只留一份。 */}
+          <span className="min-w-[4em] overflow-hidden text-ellipsis whitespace-nowrap text-t-sm tabular-nums text-text-2">
+            {attempted >= 1000 || planned >= 1000 || failed >= 1000 ? (
+              <>
+                <span className="@max-[512px]/lbctx:hidden">
+                  {progressText(attempted, planned, failed)}
+                </span>
+                <span className="hidden @max-[512px]/lbctx:inline">
+                  {`${kCount(attempted)} / ${kCount(planned)} · 失败 ${kCount(failed)}`}
+                </span>
+              </>
+            ) : (
+              progressText(attempted, planned, failed)
+            )}
           </span>
-          {/* 飞行期只失效不换装（对齐批⑥瞬态例外）：aria-disabled＋掐点击，外观同形。 */}
+          {/* 飞行期只失效不换装（对齐批⑥瞬态例外）：aria-disabled＋掐点击，外观同形。
+              等条目窗口内本钮保持可点（③：可重复唤起弹窗改选「立即中断」）。 */}
           <Button
             variant="destructive-soft"
             size="sm"
             aria-disabled={busy || undefined}
-            className="aria-disabled:pointer-events-none"
+            className="flex-none aria-disabled:pointer-events-none"
             data-testid="run-stop"
             onClick={() => {
               if (busy) return;
-              void stop();
+              setStopDialog(true);
             }}
           >
             <StopSquareIcon />
@@ -236,7 +324,7 @@ export function RunControl({
           <Button
             size="sm"
             aria-disabled={busy || undefined}
-            className="aria-disabled:pointer-events-none"
+            className="flex-none aria-disabled:pointer-events-none"
             onClick={() => {
               if (busy) return;
               void start("full");
@@ -263,7 +351,7 @@ export function RunControl({
             <Button
               size="sm"
               aria-disabled={busy || reconnecting || !known || undefined}
-              className="aria-disabled:pointer-events-none"
+              className="flex-none aria-disabled:pointer-events-none"
               onClick={() => {
                 if (busy || reconnecting || !known) return;
                 void start("full");
@@ -273,6 +361,22 @@ export function RunControl({
             </Button>
           </Tip>
         </>
+      )}
+      {stopDialog && (
+        // 停止确认弹窗（稿「运行状态组」格 17）：两行动题、无取消项——Esc 与右上角 × 就是
+        // 「不停、照常跑」；「立即中断」取红字描边档居左、「确认」（等条目打完）在右位。
+        <DialogShell
+          open
+          onOpenChange={(value) => !value && setStopDialog(false)}
+          title="停止跑批？"
+          description="当前条目正在生成中，是否等待条目完成后中断？"
+          cancel={{
+            label: "立即中断",
+            variant: "danger-text",
+            onClick: () => void stop("immediate"),
+          }}
+          confirm={{ label: "确认", onClick: () => void stop("graceful") }}
+        />
       )}
     </section>
   );

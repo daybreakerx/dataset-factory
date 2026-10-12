@@ -199,6 +199,16 @@ class TaskManager:
             ms_since(record.accepted),
         )
 
+    def active_count(self) -> int:
+        """在飞任务数（status == running）：关机确认弹窗问「现在关会不会丢东西」时的读数。
+
+        只数本进程受理过的任务（管理器不落盘），与跑批的活锁读数是两个来源——两路合起来
+        才是「全部后台任务」这一口径。
+        """
+        return sum(
+            1 for record in self._tasks.values() if record.info.status == "running"
+        )
+
     def get(self, task_id: TaskId) -> TaskInfo:
         """查任务快照；不存在抛 TaskNotFoundError（404，消息只指动作）。"""
         record = self._tasks.get(task_id)

@@ -99,12 +99,16 @@ export function BatchConfiguration({
       </p>
     );
   if (compact)
+    // 链容器＝§22 .lb-reqchain：内容给宽（flex 0 1 auto，不吃满）、缩到 120 保底
+    // （「至少露一枚胶囊」＝任何组件不得缩到 0 的 enforce），再窄由 874 折行档接管——
+    // 折行后掉第二行跨整行。胶囊 flex-none 不换行，超宽即横向溢出、由自绘拇指条接管
+    // （对齐批「请求链胶囊对齐」①）。轨道间距 --s-3（hs 默认 --s-2）：globals 的
+    // .hs-scroll 是无层声明、压过层内工具类，覆盖须带 important（globals.css「无层声明」注）。
     return (
-      <section aria-label="策略配置" className="flex min-w-0 flex-1">
-        {/* 链容器＝hs 定式（对齐批「请求链胶囊对齐」①）：胶囊 flex-none 不换行，超宽即横向
-            溢出、由自绘拇指条接管（先例 ChatColumn 已选 Skill 条）——撤原 flex-wrap。轨道
-            间距 --s-3（hs 默认 --s-2）：globals 的 .hs-scroll 是无层声明、压过层内工具类，
-            覆盖须带 important（globals.css「无层声明」注）。 */}
+      <section
+        aria-label="策略配置"
+        className="flex min-w-[120px] @max-[874px]/lbctx:col-span-full @max-[874px]/lbctx:row-start-2"
+      >
         <HScroll className="flex-1" trackClassName="gap-3!">
           <EndpointChip endpoint={snapshot.endpoint} />
           {[

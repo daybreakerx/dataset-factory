@@ -315,6 +315,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/service/busy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Service Busy
+         * @description 现在关服务会不会打断事情：跑批按各工作目录的活锁占用者数，任务按进程内管理器数。
+         *
+         *     目录已消失／已迁移／正被维护的条目读不到占用者，一律不算进行中——这个端点只回答
+         *     「有没有事情在跑」，不把读盘故障报成忙碌或把它算成进行中。
+         */
+        get: operations["service_busy_api_service_busy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/service/logs": {
         parameters: {
             query?: never;
@@ -1130,7 +1153,7 @@ export interface paths {
         put?: never;
         /**
          * Stop Run
-         * @description 请求停止当前跑批（协作取消）：置位信号即返回，当前条目在安全点停下。
+         * @description 请求停止当前跑批（协作取消）：`graceful` 等当前条目到安全点，`immediate` 掐断在途生成。
          */
         post: operations["stop_run_api_workdirs__wid__batches__sN__runs_stop_post"];
         delete?: never;
@@ -3090,6 +3113,19 @@ export interface components {
             status: string;
         };
         /**
+         * RunStopRequest
+         * @description 停止跑批的请求体：两档停法（2026-10-06 用户裁「立即中断／等条目完成」两档）。
+         */
+        RunStopRequest: {
+            /**
+             * Mode
+             * @description graceful＝等当前条目打到安全点再停；immediate＝掐断在途生成（当前条目不记账、不落半截产物，下次续跑重打这一条）
+             * @default graceful
+             * @enum {string}
+             */
+            mode: "graceful" | "immediate";
+        };
+        /**
          * RunTextView
          * @description 指定运行的只读文件内容与绝对路径。
          */
@@ -3158,6 +3194,25 @@ export interface components {
              * @description 其中视频数
              */
             videos: number;
+        };
+        /**
+         * ServiceBusy
+         * @description GET /api/service/busy 的响应体：现在关服务会不会打断事情。
+         *
+         *     两路计数合起来才是「全部后台任务」这一口径：``runs`` 是各工作目录跑批活锁的持有者数
+         *     （跨进程可读，重启后仍算得准），``tasks`` 是本进程任务管理器里的在飞任务数。
+         */
+        ServiceBusy: {
+            /**
+             * Runs
+             * @description 正在跑的批次数（活锁占用者计数）
+             */
+            runs: number;
+            /**
+             * Tasks
+             * @description 正在跑的后台任务数（导入／导出／清理等在飞任务）
+             */
+            tasks: number;
         };
         /**
          * ServiceLogs
@@ -4647,6 +4702,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceStatus"];
+                };
+            };
+        };
+    };
+    service_busy_api_service_busy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceBusy"];
                 };
             };
         };
@@ -6681,7 +6756,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RunStopRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {

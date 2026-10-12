@@ -1,4 +1,4 @@
-"""服务运行端点：GET /api/service、GET /api/service/logs、POST /api/service/shutdown。
+"""服务运行端点：GET /api/service、GET /api/service/logs、GET /api/service/busy、POST /api/service/shutdown。
 
 F6 服务生命周期的数据面：状态与日志供设置页「服务运行」子页展示，shutdown 供页头
 「关闭服务」按钮调用。serve 把 uvicorn 实例与启动信息挂到 app.state（见 cli.main.serve）；
@@ -17,7 +17,11 @@ from typing import Protocol, cast
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 
 from .._fs import data_root
-from .schemas import ErrorDetail, ServiceLogs, ServiceStatus
+from ..tasks import TaskManager
+from ..workdir.errors import WorkdirPathError
+from ..workdir.locks import read_live_occupier
+from ..workdir.store import WorkdirRegistry
+from .schemas import ErrorDetail, ServiceBusy, ServiceLogs, ServiceStatus
 
 router = APIRouter(prefix="/api/service", tags=["服务运行"])
 
@@ -60,6 +64,27 @@ def service_logs(
     if not path.is_file():
         return ServiceLogs(path=str(path), exists=False, content="")
     return ServiceLogs(path=str(path), exists=True, content=_tail(path, lines))
+
+
+@router.get("/busy", response_model=ServiceBusy)
+def service_busy(request: Request) -> ServiceBusy:
+    """现在关服务会不会打断事情：跑批按各工作目录的活锁占用者数，任务按进程内管理器数。
+
+    目录已消失／已迁移／正被维护的条目读不到占用者，一律不算进行中——这个端点只回答
+    「有没有事情在跑」，不把读盘故障报成忙碌或把它算成进行中。
+    """
+    runs = 0
+    for entry in WorkdirRegistry.list_all():
+        dsf = Path(entry.path) / ".dsf"
+        try:
+            # 目录已消失时连维护锁都取不了（FileNotFoundError 是 OSError 的子类，一并吞）
+            owner = read_live_occupier(dsf) if dsf.is_dir() else None
+        except (OSError, ValueError, WorkdirPathError):
+            continue
+        if owner is not None and owner.get("batch"):
+            runs += 1
+    manager = cast(TaskManager, request.app.state.task_manager)
+    return ServiceBusy(runs=runs, tasks=manager.active_count())
 
 
 @router.post(

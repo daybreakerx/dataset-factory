@@ -56,10 +56,11 @@ export const runsApi = {
       `/api/workdirs/${encodeURIComponent(wid)}/batches/${encodeURIComponent(batch)}/runs/current`,
     ),
 
-  stopRun: (wid: string, batch: string) =>
+  /** 停两档（2026-10-06 用户裁）：graceful＝等当前条目打到安全点；immediate＝掐断在途生成。 */
+  stopRun: (wid: string, batch: string, mode: "graceful" | "immediate" = "graceful") =>
     request<void>(
       "POST",
       `/api/workdirs/${encodeURIComponent(wid)}/batches/${encodeURIComponent(batch)}/runs/stop`,
-      {},
+      { mode },
     ),
 };

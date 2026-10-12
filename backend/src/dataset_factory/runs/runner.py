@@ -38,6 +38,7 @@ from typing import Any, Literal, cast
 from .._clock import now_iso, now_log_stamp
 from .._fs import atomic_write_text
 from ..labeling import LabelingEngine, MaterialOversizeError, MaterialReadError
+from ..labeling.errors import MaterialStreamInterruptedError
 from ..llm import (
     SUPPORTED_API_FORMAT,
     Completer,
@@ -74,7 +75,7 @@ from ..workdir.errors import WorkdirMetadataCorruptedError
 from ..workdir.importer import hash_file
 from ..workdir.locks import RunLock
 from ..workdir.store import WorkdirStore
-from .control import stop_requested
+from .control import stop_mode
 from .errors import BatchInactiveError
 from .journal import (
     RunJournal,
@@ -315,6 +316,8 @@ class BatchRunner:
         self._video_max_frames = video_max_frames
         self._sleep = sleeper if sleeper is not None else time.sleep
         self._stop_event = threading.Event()
+        # 「立即中断」位：只在停止请求是 immediate 档时置起，流式循环逐块查它。
+        self._interrupt_event = threading.Event()
         self._owns_run_lock = False
         self._subscribers: list[Callable[[RunEvent], None]] = []
         self._subscriber_guard = threading.Lock()
@@ -344,19 +347,29 @@ class BatchRunner:
 
     # -- 停止与事件订阅（供入口层跨线程调用） --------------------------------
 
-    def stop(self) -> None:
-        """请求停止（协作取消）：当前条目在下一个安全点（条目边界 / 退避后）停下。"""
+    def stop(self, *, immediate: bool = False) -> None:
+        """请求停止：当前条目在下一个安全点（条目边界 / 退避后）停下。
+
+        ``immediate`` 额外置中断位——正在生成的那条在下一段增量处掐断在途流（生成真停、
+        token 止损），该条不记账、不落半截产物，下次续跑重打。
+        """
         self._stop_event.set()
+        if immediate:
+            self._interrupt_event.set()
 
     def _should_stop(self) -> bool:
         if self._stop_event.is_set():
             return True
-        if (
-            stop_requested(self._workdir, self._run_id)
-            or not get_batch(self._workdir, self._seq).active
-        ):
+        mode = stop_mode(self._workdir, self._run_id)
+        if mode is not None or not get_batch(self._workdir, self._seq).active:
+            if mode == "immediate":
+                self._interrupt_event.set()
             self._stop_event.set()
         return self._stop_event.is_set()
+
+    def _should_interrupt(self) -> bool:
+        """流式生成途中的检查口：只有「立即中断」档打断当前条（等条目完成那档不打断）。"""
+        return self._interrupt_event.is_set()
 
     def subscribe(self, callback: Callable[[RunEvent], None]) -> Callable[[], None]:
         """订阅业务事件（多播——多个 SSE 连接各订各的），返回退订函数。
@@ -719,6 +732,8 @@ class BatchRunner:
                         text=delta.text,
                     )
                 ),
+                # 「立即中断」的检查口：每收到一段增量问一次，置位即掐断在途流。
+                should_interrupt=self._should_interrupt,
             )
             if not result.caption.strip():
                 raise _BlankCaptionError()  # noqa: TRY301 —— 同上
@@ -731,6 +746,16 @@ class BatchRunner:
             )
         except (MaterialReadError, MaterialOversizeError) as exc:
             return _Failure("asset-unreadable", str(exc), elapsed_ms=_elapsed())
+        except MaterialStreamInterruptedError:
+            # 立即中断：这一条既不记成功也不记失败（只有完整产物算已有产物），停止位在此
+            # 置实——上层重试循环随即走「被打断」分支：不写终态行、收尾转 interrupted。
+            self._stop_event.set()
+            self._interrupt_event.set()
+            return _Failure(
+                "interrupted",
+                "生成已被立即中断；该条不落半截产物，下次续跑重打。",
+                elapsed_ms=_elapsed(),
+            )
         except ValueError as exc:
             # 快照提示词空白 / 素材扩展名白名单外——批次配置类，重试不会变好。
             return _Failure("config", str(exc), elapsed_ms=_elapsed())

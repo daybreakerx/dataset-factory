@@ -61,6 +61,7 @@ from .schemas import (
     RunAccepted,
     RunStartRequest,
     RunStatusView,
+    RunStopRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -283,19 +284,22 @@ def current_run(wid: str, sN: str, request: Request) -> RunStatusView | None:
         404: problem("该批次当前没有进行中的跑批（problem+json: run-not-active）"),
     },
 )
-def stop_run(wid: str, sN: str, request: Request) -> Response:
-    """请求停止当前跑批（协作取消）：置位信号即返回，当前条目在安全点停下。"""
+def stop_run(
+    wid: str, sN: str, request: Request, stop: RunStopRequest | None = None
+) -> Response:
+    """请求停止当前跑批（协作取消）：`graceful` 等当前条目到安全点，`immediate` 掐断在途生成。"""
     seq = parse_seq(sN)
     workdir = workdir_root(wid)
+    immediate = stop is not None and stop.mode == "immediate"
     try:
         runner = _active_runner(request, workdir, seq)
     except RunNotActiveError:
-        request_stop(workdir, seq)
+        request_stop(workdir, seq, immediate=immediate)
     else:
         if runner.snapshot()["status"] == "failed":
-            request_stop(workdir, seq)
+            request_stop(workdir, seq, immediate=immediate)
         else:
-            _require_active(runner).stop()
+            _require_active(runner).stop(immediate=immediate)
     return Response(status_code=204)
 
 
