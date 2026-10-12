@@ -700,6 +700,8 @@ export function SkillsPanel({
         <DirectoryPicker
           files
           suffixes={[".md", ".txt"]}
+          allowCreate
+          allowRename
           onClose={() => setPickingPath(false)}
           onSelect={(path) => {
             setPathValue(path);

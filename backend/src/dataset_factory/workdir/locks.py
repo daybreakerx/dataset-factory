@@ -65,16 +65,16 @@ __all__ = [
     "sweep_cleaned_maintenance_records",
 ]
 
-#: 开始一次维护类动作（搬迁 / 删除 / 导入 / 只读统计）时，等维护锁释放的窗口（秒）。
+#: 开始一次维护类动作（迁移 / 删除 / 导入 / 只读统计）时，等维护锁释放的窗口（秒）。
 #:
 #: 为什么要等：维护锁的持有者有两类、持有时长差三个数量级——跨文件短写入是毫秒级
-#: （``workdir_write`` 自己就用 10 秒去抢锁，说明它预期会被短暂占用），而搬迁 / 删除是
+#: （``workdir_write`` 自己就用 10 秒去抢锁，说明它预期会被短暂占用），而迁移 / 删除是
 #: 秒级以上。开始动作时若零容忍抢锁，一次碰巧并发的短写入就能让用户看到「工作目录正在
-#: 搬迁或删除」，而那一刻既没搬迁也没删除——2026-09-20 用 request id 对日志实锤：只读的
+#: 迁移或删除」，而那一刻既没迁移也没删除——2026-09-20 用 request id 对日志实锤：只读的
 #: ``GET .../stats`` 拿到 409（41ms），而同窗口的邻居请求全是 200。
 #:
 #: 窗口取 5 秒：足以吸收最慢的短写入（实测同进程内写类请求最长约 900ms），又能在真的
-#: 搬迁 / 删除时尽快给出那条本来就准确的提示。**默认值仍是 0**——:func:`maintenance_guard`
+#: 迁移 / 删除时尽快给出那条本来就准确的提示。**默认值仍是 0**——:func:`maintenance_guard`
 #: 的既有契约不变，只有「开始一次动作」的调用点显式传这个窗口。
 MAINTENANCE_WAIT_SECONDS = 5.0
 
@@ -82,9 +82,9 @@ logger = logging.getLogger(__name__)
 
 
 def require_workdir_writable(dsf_path: Path) -> None:
-    """拒绝继续写入已经搬迁的旧目录，标记内容不参与路径解析。"""
+    """拒绝继续写入已经迁移的旧目录，标记内容不参与路径解析。"""
     if os.path.lexists(dsf_path / "MIGRATED"):
-        raise WorkdirPathError("工作目录已搬迁，请刷新工作目录列表后重试。")
+        raise WorkdirPathError("工作目录已迁移，请刷新工作目录列表后重试。")
     record = maintenance_record(dsf_path.parent)
     if not record.exists():
         return
@@ -94,16 +94,16 @@ def require_workdir_writable(dsf_path: Path) -> None:
         try:
             raw: object = json.loads(record.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
-            raise WorkdirPathError("搬迁记录无法读取，请检查记录文件后重试。") from exc
+            raise WorkdirPathError("迁移记录无法读取，请检查记录文件后重试。") from exc
         if not isinstance(raw, dict):
-            raise WorkdirPathError("搬迁记录格式不正确，请检查记录文件后重试。")
+            raise WorkdirPathError("迁移记录格式不正确，请检查记录文件后重试。")
         payload = cast(dict[str, object], raw)
         if payload.get("operation") == "delete" and payload.get("status") != "cleaned":
             raise WorkdirPathError("工作目录正在删除或删除尚未完成，请重试删除。")
         if payload.get("status") == "aborted":
             return
         if payload.get("status") == "cleaned" and dsf_path.parent.is_dir():
-            # cleaned = 旧位置已完整移除（删除 / 搬迁的清理成功后才落此状态）——
+            # cleaned = 旧位置已完整移除（删除 / 迁移的清理成功后才落此状态）——
             # 路径下再出现的目录必然是重建的新目录，放行。不能用 (st_dev, st_ino)
             # 当目录身份来区分：删后重建会复用刚释放的 inode，新目录会被误判成
             # 旧目录而拒绝登记（CI ubuntu 上 3 跑 2 红的根因；本机 NTFS 的复用
@@ -122,7 +122,7 @@ def require_workdir_writable(dsf_path: Path) -> None:
                     payload["status"] = "aborted"
                     atomic_write_text(record, json.dumps(payload, ensure_ascii=False))
                     return
-        raise WorkdirPathError("工作目录已搬迁，请刷新工作目录列表后重试。")
+        raise WorkdirPathError("工作目录已迁移，请刷新工作目录列表后重试。")
 
 
 def maintenance_record(workdir: Path) -> Path:
@@ -139,7 +139,7 @@ def sweep_cleaned_maintenance_records() -> int:
     """清扫已完成（cleaned）的维护记录，返回清扫条数；应用启动时调用一次。
 
     为什么只清 cleaned：维护记录的全部消费方（``require_workdir_writable`` /
-    ``relocation_status`` / 搬迁 resume / 删除重试 / 删除预览）对 cleaned 的读法
+    ``relocation_status`` / 迁移 resume / 删除重试 / 删除预览）对 cleaned 的读法
     要么「cleaned → 放行」（与无记录等价）、要么「跳过」——删除不改变任何行为；
     而 prepared / copying / deleting 等中断态记录承载重试与防呆语义
     （``require_workdir_writable`` 靠它拒绝向中断现场写入），必须保留。
@@ -175,14 +175,14 @@ def sweep_cleaned_maintenance_records() -> int:
 
 @contextmanager
 def maintenance_guard(workdir: Path, *, timeout: float = 0) -> Generator[None]:
-    """串行化同一源目录的搬迁及旧位置清理，锁不随源目录删除。
+    """串行化同一源目录的迁移及旧位置清理，锁不随源目录删除。
 
-    抢不到 = 该目录正在被搬迁或删除，抛 ``WorkdirMaintenanceError`` 而不是
+    抢不到 = 该目录正在被迁移或删除，抛 ``WorkdirMaintenanceError`` 而不是
     ``RunOccupiedError``——两者都劝用户「等会儿再来」，但占用者不同，提示不能
     张冠李戴（详见该异常类的 docstring）。
 
     超时怎么给：默认 0 适合「已经在临界区里、确认自己仍持有」的嵌套调用；**开始一次
-    动作**（搬迁 / 删除 / 导入 / 只读统计）时应当传 :data:`MAINTENANCE_WAIT_SECONDS`，
+    动作**（迁移 / 删除 / 导入 / 只读统计）时应当传 :data:`MAINTENANCE_WAIT_SECONDS`，
     否则会与毫秒级的跨文件短写入撞出假占用（理由与实测见该常量）。
     """
     path = maintenance_record(workdir).with_suffix(".lock")
@@ -192,7 +192,7 @@ def maintenance_guard(workdir: Path, *, timeout: float = 0) -> Generator[None]:
         lock.acquire(timeout=timeout)
     except Timeout as exc:
         raise WorkdirMaintenanceError(
-            "工作目录正在搬迁或删除，请等待完成后重试。"
+            "工作目录正在迁移或删除，请等待完成后重试。"
         ) from exc
     try:
         yield
@@ -203,7 +203,7 @@ def maintenance_guard(workdir: Path, *, timeout: float = 0) -> Generator[None]:
 def workdir_write[**P, T](
     operation: Callable[P, T],
 ) -> Callable[P, T]:
-    """保护跨多个文件的短写入操作，搬迁必须等整个操作完成后才能复制。"""
+    """保护跨多个文件的短写入操作，迁移必须等整个操作完成后才能复制。"""
     signature = inspect.signature(operation)
     path_parameter = next(iter(signature.parameters))
 
@@ -219,7 +219,7 @@ def workdir_write[**P, T](
 
 @contextmanager
 def registry_guard(directory: Path) -> Generator[None]:
-    """保护全局注册表的读改写，锁放数据根而非将被搬迁的工作目录内。"""
+    """保护全局注册表的读改写，锁放数据根而非将被迁移的工作目录内。"""
     directory.mkdir(parents=True, exist_ok=True)
     lock = shared_file_lock(directory / "workdirs.lock")
     try:

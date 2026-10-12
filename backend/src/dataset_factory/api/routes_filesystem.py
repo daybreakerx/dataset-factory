@@ -17,9 +17,10 @@ from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from .._fs import data_root
+from .._fs import data_root, is_empty_dir
 from ..tasks import RETRY_AFTER_SECONDS, TaskCancelledError, TaskManager, TaskResult
 from ..workdir import WorkdirPathError, WorkdirRegistry
+from ..workdir.assets import media_kind
 from ..workdir.locks import (
     maintenance_guard,
     registry_guard,
@@ -125,6 +126,10 @@ class DirectoryEntry(BaseModel):
     name: str
     path: str
     kind: Literal["directory", "file"]
+    # 图标四态的判据（image／video／file）——扩展名集合只住 workdir.assets，界面不另抄一份。
+    media: Literal["image", "video", "file"]
+    # 目录才有「空不空」这件事：#20 的「要求目标为空」定制按它判，不让前端数子项。
+    is_empty: bool | None
     modified_at: str
     size: int | None
 
@@ -136,6 +141,9 @@ class DirectoryListing(BaseModel):
     system: str
     path: str
     parent: str | None
+    # 当前层条目受 show_files／show_hidden／suffixes 三重筛选，数不出「这个目录空不空」；
+    # 「要求目标为空」的调用点要的是真判空，由后端现算。
+    is_empty: bool
     entries: list[DirectoryEntry]
     unavailable_count: int
 
@@ -175,8 +183,10 @@ def list_directory(
         allowed = {suffix.casefold() for suffix in suffixes or []}
         entries: list[DirectoryEntry] = []
         unavailable = 0
+        children = 0
         with os.scandir(directory) as scanner:
             for entry in scanner:
+                children += 1
                 if not show_hidden and entry.name.startswith("."):
                     continue
                 try:
@@ -195,6 +205,10 @@ def list_directory(
                         name=entry.name,
                         path=str(directory / entry.name),
                         kind="directory" if is_directory else "file",
+                        media=media_kind(entry.name),
+                        is_empty=is_empty_dir(directory / entry.name)
+                        if is_directory
+                        else None,
                         modified_at=datetime.fromtimestamp(
                             metadata.st_mtime, UTC
                         ).isoformat(),
@@ -213,6 +227,7 @@ def list_directory(
             system=platform.system(),
             path=str(directory),
             parent=str(directory.parent) if directory.parent != directory else None,
+            is_empty=children == 0,
             entries=entries,
             unavailable_count=unavailable,
         )
@@ -255,7 +270,7 @@ def list_directory(
     },
 )
 async def rename_directory(body: RenameDirectoryRequest, request: Request) -> Response:
-    """受理目录改名，已登记工作目录通过搬迁流程保留身份和恢复记录。"""
+    """受理目录改名，已登记工作目录通过迁移流程保留身份和恢复记录。"""
     try:
         source, destination, wid = _rename_paths(body)
         metadata = source.stat()
@@ -301,9 +316,12 @@ def _rename_paths(body: RenameDirectoryRequest) -> tuple[Path, Path, str | None]
         raise WorkdirPathError("请输入有效的服务器绝对路径。")
     original = Path(body.path)
     if original.is_symlink() or original.is_junction():
-        raise WorkdirPathError("请选择实际目录，不能直接重命名链接。")
+        raise WorkdirPathError("请选择实际目录，不能直接重命名符号链接或目录联接。")
     source = original.resolve(strict=True)
-    if not source.is_dir() or source == source.parent:
+    # 改名受理＝目录或文件（2026-10-09 格 3 裁「文件重命名入列」）；根级与卷根仍拒。
+    if not source.is_dir() and not source.is_file():
+        raise WorkdirPathError("请选择要重命名的目录或文件。")
+    if source == source.parent:
         raise WorkdirPathError("请选择一个非根目录后重命名。")
     destination = source.with_name(name)
     if os.path.lexists(destination):

@@ -137,7 +137,7 @@ def test_cleanup_defaults_to_preview_and_only_deletes_selection(tmp_path: Path) 
 
 
 def test_rebuild_and_relocate_preserve_identity_and_materials(tmp_path: Path) -> None:
-    """重建记录后搬迁保持登记 ID 与素材字节，旧路径不再可用。"""
+    """重建记录后迁移保持登记 ID 与素材字节，旧路径不再可用。"""
     root = tmp_path / "work"
     root.mkdir()
     (root / "a.jpg").write_bytes(b"image")

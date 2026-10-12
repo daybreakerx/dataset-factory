@@ -36,7 +36,7 @@ class StateLockTimeoutError(WorkdirError):
 
 
 class WorkdirMaintenanceError(WorkdirError):
-    """该工作目录正在被维护（搬迁 / 删除整目录）——HTTP 409 problem+json（workdir-maintenance）。
+    """该工作目录正在被维护（迁移 / 删除整目录）——HTTP 409 problem+json（workdir-maintenance）。
 
     与 ``RunOccupiedError`` 分开：两者都是「现在别动、等会儿再来」，但占用者
     完全不同——一个是跑批在跑、一个是目录正在被搬走或删除。混成一个类型会让

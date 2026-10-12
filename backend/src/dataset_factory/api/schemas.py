@@ -480,7 +480,7 @@ class WorkdirInfo(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: str = Field(description="wid 短 ID（注册表主键，搬迁后不变）")
+    id: str = Field(description="wid 短 ID（注册表主键，迁移后不变）")
     path: str = Field(description="工作目录的规范绝对路径")
     title: str = Field(description="显示名（默认 = 目录名，可改、允许重名）")
     last_used_at: float = Field(description="最后使用时刻（Unix 秒，UTC）")
@@ -539,25 +539,29 @@ class ImportAccepted(BaseModel):
 
 
 class WorkdirRelocateRequest(BaseModel):
-    """搬迁工作目录到尚不存在的目标路径。"""
+    """迁移工作目录到一个空目录（尚不存在，或已存在但为空）。"""
 
     model_config = ConfigDict(extra="forbid")
 
-    path: str = Field(description="目标绝对路径（目标目录本身必须不存在）")
+    path: str = Field(description="目标绝对路径（必须为空目录或尚不存在）")
 
 
 class WorkdirRelocateAccepted(BaseModel):
-    """搬迁任务受理响应。"""
+    """迁移任务受理响应。"""
 
-    task_id: str = Field(description="搬迁任务句柄（GET /api/tasks/{id} 轮询）")
+    task_id: str = Field(description="迁移任务句柄（GET /api/tasks/{id} 轮询）")
 
 
 class WorkdirCleanupRetryRequest(BaseModel):
-    """重试清理搬迁后仍占用的旧目录。"""
+    """重试清理迁移后仍占用的旧目录。"""
 
     model_config = ConfigDict(extra="forbid")
 
-    old_path: str = Field(description="搬迁结果返回的旧目录绝对路径")
+    old_path: str = Field(description="迁移结果返回的旧目录绝对路径")
+    confirm_changed: bool = Field(
+        default=False,
+        description="旧目录在迁移后被改动过时，是否已由用户二次确认（格 16）",
+    )
 
 
 class WorkdirCleanupRetryResult(BaseModel):
@@ -568,12 +572,41 @@ class WorkdirCleanupRetryResult(BaseModel):
 
 
 class WorkdirRelocationStatus(BaseModel):
-    """搬迁中断后的持久状态。"""
+    """迁移中断后的持久状态。"""
 
-    old_path: str = Field(description="搬迁记录中的原目录绝对路径")
-    path: str = Field(description="搬迁记录中的目标目录绝对路径")
+    old_path: str = Field(description="迁移记录中的原目录绝对路径")
+    path: str = Field(description="迁移记录中的目标目录绝对路径")
     status: Literal["cleanup-pending", "copy-retained", "location-changed"] = Field(
         description="待清理旧位置 / 保留副本 / 注册表位置已变化"
+    )
+
+
+class WorkdirAbandonRequest(BaseModel):
+    """放弃这次迁移：②类删副本、③类退回原目录，都按记录证明的路径处置。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    path: str = Field(description="②类＝未切换的副本路径；③类＝要退回的原目录路径")
+
+
+class WorkdirAbandonResult(BaseModel):
+    """放弃迁移后的落点：界面按这句回读当前注册路径。"""
+
+    path: str = Field(description="处置后该工作目录的注册绝对路径")
+
+
+class WorkdirRelocationEvidence(BaseModel):
+    """处置未完结迁移前给界面的一句话：四个判据决定弹窗画哪一格。"""
+
+    old_present: bool = Field(description="旧目录仍在盘上")
+    old_changed: bool = Field(
+        description="旧目录内容与迁移记录不一致（新增／缺失／大小变了）"
+    )
+    old_replaced: bool = Field(
+        description="旧路径现在指的是另一个目录（同名重建过），与迁移记录不是同一份数据"
+    )
+    target_in_use: bool = Field(
+        description="新目录已投入使用（内容变动或已有运行记录），不可退回"
     )
 
 

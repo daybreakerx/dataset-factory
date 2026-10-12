@@ -73,7 +73,7 @@ def add_workdir(
 @app.command("show")
 @handle_domain_errors
 def show_workdir(path: Annotated[Path, typer.Argument(help="工作目录路径")]) -> None:
-    """显示目录登记、导入记录和搬迁待处理状态。"""
+    """显示目录登记、导入记录和迁移待处理状态。"""
     wid = registered_id(path)
     entry = WorkdirRegistry.get(wid)
     print_result(
@@ -145,8 +145,8 @@ def relocate(
     destination: Annotated[Path, typer.Argument(help="目标路径")],
     yes: Annotated[bool, typer.Option("--yes")] = False,
 ) -> None:
-    """复制并校验后搬迁，完整成功后清理旧位置。"""
-    confirm_action(f"将 {path} 搬迁到 {destination}，校验后删除旧位置，继续？", yes)
+    """复制并校验后迁移，完整成功后清理旧位置。"""
+    confirm_action(f"将 {path} 迁移到 {destination}，校验后删除旧位置，继续？", yes)
     with cancellation() as stop:
         result = relocate_workdir(
             registered_id(path),
@@ -164,7 +164,7 @@ def cleanup_old(
     old_path: Annotated[Path, typer.Argument(help="待清理旧位置")],
     yes: Annotated[bool, typer.Option("--yes")] = False,
 ) -> None:
-    """重试清理搬迁记录证明的旧位置。"""
+    """重试清理迁移记录证明的旧位置。"""
     confirm_action(f"重试清理旧位置 {old_path}？", yes)
     print_result(
         retry_relocation_cleanup(registered_id(path), old_path.expanduser().absolute())

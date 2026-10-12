@@ -81,7 +81,7 @@ def test_concurrent_registration_preserves_every_entry(
 def test_update_path_rejects_another_registered_directory(
     tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """搬迁更新不能让两个不同标识指向同一个已登记目录。"""
+    """迁移更新不能让两个不同标识指向同一个已登记目录。"""
     first = tmp_path / "first"
     second = tmp_path / "second"
     first.mkdir()
@@ -160,7 +160,7 @@ def test_remove_removes_and_unknown_remove_raises(
 def test_update_path_repoints_entry_keeps_wid(
     workdir: Path, tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """搬迁语义：原地更新 path，wid 不变（reference anchor 必须稳定）。"""
+    """迁移语义：原地更新 path，wid 不变（reference anchor 必须稳定）。"""
     entry = WorkdirRegistry.register(workdir, title="")
     moved = tmp_path / "moved"
     moved.mkdir()
@@ -175,10 +175,10 @@ def test_update_path_repoints_entry_keeps_wid(
 def test_update_path_rejects_missing_target(
     workdir: Path, temp_data_root: Path
 ) -> None:
-    """搬迁目标不存在 → WorkdirPathError（搬迁未完成的现场不动注册表）。"""
+    """迁移目标不存在 → WorkdirPathError（迁移未完成的现场不动注册表）。"""
     entry = WorkdirRegistry.register(workdir, title="")
 
-    with pytest.raises(WorkdirPathError, match="搬迁未完成"):
+    with pytest.raises(WorkdirPathError, match="迁移未完成"):
         WorkdirRegistry.update_path(entry.id, workdir / "nope")
 
 

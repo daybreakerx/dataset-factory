@@ -33,7 +33,9 @@ export function WorkdirSettings({
   const [snapshot, setSnapshot] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [cleanupOpen, setCleanupOpen] = useState(false);
-  const [relocating, setRelocating] = useState<string | null>(null);
+  const [relocating, setRelocating] = useState(false);
+  // 迁移在飞由弹窗回报：路径行那条链接随它挂 .is-flight（稿格 11）。
+  const [relocationRunning, setRelocationRunning] = useState(false);
   // 飞行态跨块共享：策略块的确认交互用它掐自身；头行两钮只随页面级首取禁用，不联动它。
   const [busy, setBusy] = useState(false);
 
@@ -94,9 +96,11 @@ export function WorkdirSettings({
             statsError={data.statsError}
             cleanupSummary={data.cleanupSummary}
             summaryError={data.summaryError}
+            relocations={data.relocations}
+            relocationRunning={relocationRunning}
             onBrowse={() => setBrowse(true)}
             onImport={() => setImporting(true)}
-            onRelocate={setRelocating}
+            onRelocate={() => setRelocating(true)}
             onViewCleanup={() => setCleanupOpen(true)}
           />
           <WorkdirBatches
@@ -145,13 +149,14 @@ export function WorkdirSettings({
           }}
         />
       )}
-      {relocating !== null && data.directory && (
+      {relocating && data.directory && (
         <RelocateWorkdirDialog
           wid={wid}
           source={data.directory.path}
-          initialTarget={relocating}
-          onClose={() => setRelocating(null)}
+          records={data.relocations}
+          onClose={() => setRelocating(false)}
           onChanged={data.refresh}
+          onRunningChange={setRelocationRunning}
         />
       )}
       {browse && data.directory && (

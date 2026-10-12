@@ -3,24 +3,25 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isolatedBaseURL } from "./fixtures/isolated-servers";
 
-// 本文件打真后端，用自己那份服务与数据根：搬迁/删除的维护锁也落在自己的数据根里，
+// 本文件打真后端，用自己那份服务与数据根：迁移/删除的维护锁也落在自己的数据根里，
 // 不会被别的文件的操作撞上。
 test.use({ baseURL: isolatedBaseURL("workdir-maintenance.spec.ts") });
 
-test("工作目录搬迁经界面确认后保留素材与快照并更新登记", async ({ page, request }, testInfo) => {
-  test.setTimeout(60_000);
+test("工作目录迁移经界面确认后保留素材与快照并更新登记", async ({ page, request }, testInfo) => {
+  test.setTimeout(120_000);
   const source = testInfo.outputPath("original");
-  const target = testInfo.outputPath("renamed-parent", "original");
+  // 新流程选的是目标目录本体（不再由前端「父目录＋原名」拼出来）。
+  const target = testInfo.outputPath("renamed-parent");
   await mkdir(source, { recursive: true });
   const bytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
   await writeFile(path.join(source, "sample.png"), bytes);
-  const create = await request.post("/api/workdirs", { data: { path: source, title: "搬迁验证" } });
+  const create = await request.post("/api/workdirs", { data: { path: source, title: "迁移验证" } });
   expect(create.status()).toBe(202);
   const accepted = await create.json();
   const wid = accepted.workdir.id;
   await expect.poll(async () => (await (await request.get(`/api/tasks/${accepted.task_id}`)).json()).status).toBe("succeeded");
   const prompts = await (await request.get("/api/prompts")).json();
-  const batch = await request.post(`/api/workdirs/${wid}/batches`, { data: { type: "scratch", name: "搬迁验证", endpoint_id: ((await (await request.get("/api/endpoints")).json()).find((e) => e.name === "default")?.id ?? "default"), prompt_id: prompts[0].id, skill_ids: [] } });
+  const batch = await request.post(`/api/workdirs/${wid}/batches`, { data: { type: "scratch", name: "迁移验证", endpoint_id: ((await (await request.get("/api/endpoints")).json()).find((e) => e.name === "default")?.id ?? "default"), prompt_id: prompts[0].id, skill_ids: [] } });
   expect(batch.ok()).toBeTruthy();
   const snapshot = await readFile(path.join(source, ".dsf", "strategies", "s1.json"));
   const moves: unknown[] = [];
@@ -30,21 +31,21 @@ test("工作目录搬迁经界面确认后保留素材与快照并更新登记",
   await page.goto("/");
   await page.getByRole("button", { name: "打标", exact: true }).click();
   await page.getByRole("button", { name: "选择工作目录与批次" }).click();
-  await page.getByRole("button", { name: "工作目录设置 搬迁验证", exact: true }).click();
+  await page.getByRole("button", { name: "工作目录设置 迁移验证", exact: true }).click();
   await expect(page.getByRole("region", { name: "工作目录设置", exact: true })).toBeVisible();
   // 「素材 N · 产物 M」这一段来自 stats 异步请求：弹窗一打开只有路径，CI 冷启动首访
   // 实测 5 秒默认预算内还没到（run 35433472710 报错正文：Locator 解析到了 section、
-  // 14 次重试都只读到「基本信息路径…」）。与同文件搬迁状态断言同口径放宽到 30 秒，断言内容一字未改。
+  // 14 次重试都只读到「基本信息路径…」）。与同文件迁移状态断言同口径放宽到 30 秒，断言内容一字未改。
   await expect(page.getByRole("region", { name: "基本信息" })).toContainText("素材 1 · 产物 0", {
     timeout: 30_000,
   });
   expect(await (await request.get(`/api/workdirs/${wid}/stats`)).json()).toEqual({ asset_count: 1, asset_bytes: bytes.length });
   await expect(page.getByText("产物 0 / 1", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "改名策略 搬迁验证", exact: true }).click();
+  await page.getByRole("button", { name: "改名策略 迁移验证", exact: true }).click();
   const rename = page.getByRole("textbox", { name: "策略名称 s1" });
-  await rename.fill("搬迁改名");
+  await rename.fill("迁移改名");
   await rename.press("Enter");
-  await expect(page.getByRole("button", { name: "改名策略 搬迁改名", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "改名策略 迁移改名", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "新增策略", exact: true }).click();
   const strategyDialog = page.getByRole("dialog", { name: "新增策略", exact: true });
   await strategyDialog.getByRole("textbox", { name: "策略名", exact: true }).fill("设置新增");
@@ -55,7 +56,7 @@ test("工作目录搬迁经界面确认后保留素材与快照并更新登记",
     expect(await (await request.get(`/api/workdirs/${wid}/batches/s2/runs/current`)).json()).toBeNull();
   await page.getByRole("button", { name: "返回主页面", exact: true }).click();
   await page.getByRole("button", { name: "选择工作目录与批次" }).click();
-  await page.getByRole("button", { name: "新增策略 搬迁验证", exact: true }).click();
+  await page.getByRole("button", { name: "新增策略 迁移验证", exact: true }).click();
   await expect(strategyDialog).toBeVisible();
   await strategyDialog.getByRole("textbox", { name: "策略名", exact: true }).fill("下拉新增");
   await expect(strategyDialog.getByRole("button", { name: "创建策略", exact: true })).toHaveCSS("color", "rgb(255, 255, 255)");
@@ -78,53 +79,61 @@ test("工作目录搬迁经界面确认后保留素材与快照并更新登记",
   await expect(strategyDialog).toHaveCount(0);
   await expect(page.getByRole("button", { name: "选择工作目录与批次" })).toContainText("下拉新增");
   const batchList = await (await request.get(`/api/workdirs/${wid}/batches`)).json();
-  expect(batchList.map((entry: { id: string; name: string }) => [entry.id, entry.name])).toEqual([["s1", "搬迁改名"], ["s2", "设置新增"], ["s3", "下拉新增"]]);
+  expect(batchList.map((entry: { id: string; name: string }) => [entry.id, entry.name])).toEqual([["s1", "迁移改名"], ["s2", "设置新增"], ["s3", "下拉新增"]]);
   expect((await request.get(`/api/workdirs/${wid}/batches/s3/runs/current`)).status()).toBe(200); // L3：空闲 = 200 + null
   expect(JSON.parse(await readFile(path.join(source, ".dsf", "strategies", "s3.json"), "utf8"))).toHaveProperty("prompt");
   await page.getByRole("button", { name: "选择工作目录与批次" }).click();
-  await page.getByRole("button", { name: "工作目录设置 搬迁验证", exact: true }).click();
+  await page.getByRole("button", { name: "工作目录设置 迁移验证", exact: true }).click();
   await expect(page.getByRole("button", { name: "修改路径", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "修改路径", exact: true }).click();
+  // 弹窗＝#20 目录选择弹窗直接承载（没有中间表单层）：标题行给迁移主体与琥珀句。
   const dialog = page.getByRole("dialog", { name: "修改路径", exact: true });
-  await dialog.getByRole("button", { name: "选择目标父目录" }).click();
-  const picker = page.getByRole("dialog", { name: "选择目录", exact: true });
-  await expect(picker.getByText(/当前后端：/)).toBeVisible();
-  await picker.getByRole("textbox", { name: "服务器路径" }).fill(testInfo.outputPath());
-  await picker.getByRole("button", { name: "跳转", exact: true }).click();
-  await expect(picker.getByRole("button", { name: "original", exact: true })).toBeVisible();
-  await picker.getByRole("button", { name: "新建目录", exact: true }).click();
-  await picker.getByRole("textbox", { name: "目录名称", exact: true }).fill("new-parent");
-  await picker.getByRole("button", { name: "创建", exact: true }).click();
-  await expect(picker.getByRole("textbox", { name: "服务器路径" })).toHaveValue(testInfo.outputPath("new-parent"));
-  expect((await stat(testInfo.outputPath("new-parent"))).isDirectory()).toBeTruthy();
-  await picker.getByRole("button", { name: "上一级" }).click();
-  await picker.getByRole("button", { name: "重命名 new-parent", exact: true }).click();
-  await picker.getByRole("textbox", { name: "重命名", exact: true }).fill("renamed-parent");
-  await picker.getByRole("button", { name: "保存", exact: true }).click();
-  await expect(picker.getByRole("textbox", { name: "服务器路径" })).toHaveValue(testInfo.outputPath("renamed-parent"));
-  await expect(stat(testInfo.outputPath("new-parent"))).rejects.toThrow();
-  await expect(picker).toHaveCSS("width", "620px");
+  await expect(dialog.getByText(`当前：${source}`, { exact: true })).toBeVisible();
+  await expect(dialog.getByText("迁移后原目录将删除。")).toBeVisible();
+  const primary = dialog.getByRole("button", { name: "迁移到此目录" });
+  // 「要求目标为空」＝组件能力参数：非空浏览位主钮不亮＋title 给原因（稿格 2）。
+  await expect(primary).toBeDisabled();
+  await expect(primary).toHaveAttribute(
+    "title",
+    "迁移目标目录必须为空——请选中一个空文件夹，或进入一个空文件夹。",
+  );
+  await expect(dialog).toHaveCSS("width", "620px");
   await page.screenshot({ path: testInfo.outputPath("directory-picker.png"), animations: "disabled" });
   await page.setViewportSize({ width: 390, height: 844 });
-  const pickerBounds = await picker.boundingBox();
+  const pickerBounds = await dialog.boundingBox();
   expect(pickerBounds!.x).toBeGreaterThanOrEqual(15);
   expect(pickerBounds!.x + pickerBounds!.width).toBeLessThanOrEqual(375);
   await page.screenshot({ path: testInfo.outputPath("directory-picker-mobile.png"), animations: "disabled" });
   await page.setViewportSize({ width: 1280, height: 720 });
-  await picker.getByRole("button", { name: "选择此目录" }).click();
-  await expect(picker).toHaveCount(0);
-  await expect(dialog.getByRole("textbox", { name: "目标目录" })).toHaveValue(target);
-  await dialog.getByRole("button", { name: "修改路径", exact: true }).click();
-  expect(moves).toEqual([]);
-  expect((await stat(source)).isDirectory()).toBeTruthy();
-  await dialog.getByRole("button", { name: "确认搬迁", exact: true }).click();
-  // 搬迁是「复制 + 逐文件回读校验」的后台任务，界面那条状态行要等它跑完才出现。
+  await dialog.getByRole("textbox", { name: "服务器路径" }).fill(testInfo.outputPath());
+  await dialog.getByRole("button", { name: "跳转", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "original", exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "新建目录", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "目录名称", exact: true }).fill("new-parent");
+  await dialog.getByRole("button", { name: "创建", exact: true }).click();
+  await expect(dialog.getByRole("textbox", { name: "服务器路径" })).toHaveValue(
+    testInfo.outputPath("new-parent"),
+  );
+  expect((await stat(testInfo.outputPath("new-parent"))).isDirectory()).toBeTruthy();
+  await dialog.getByRole("button", { name: "上一级" }).click();
+  // 单击＝选中，能力行的「重命名」钮随选中现；改名在原地输入框里提交（Enter）。
+  await dialog.getByRole("button", { name: "new-parent", exact: true }).click();
+  await dialog.getByRole("button", { name: "重命名", exact: true }).click();
+  const draft = dialog.getByRole("textbox", { name: "重命名 new-parent", exact: true });
+  await draft.fill("renamed-parent");
+  await draft.press("Enter");
+  await expect(dialog.getByRole("textbox", { name: "服务器路径" })).toHaveValue(target);
+  await expect(stat(testInfo.outputPath("new-parent"))).rejects.toThrow();
+  // 改名后已站在空目录里：以当前所在目录为目标，主钮亮。
+  await expect(primary).toBeEnabled();
+  await primary.click();
+  // 迁移是「复制 + 逐文件回读校验」的后台任务，界面那条状态行要等它跑完才出现。
   // 默认 5s 在整条门禁连跑（前面刚跑完 pytest / Vitest / 构建）时不够用，实测同一份代码
   // 单跑必过、跟在门禁后面偶发不出现（2026-09-19 三次 in-suite 失败均是等待预算不足，
-  // 报错都是 element(s) not found 而非搬迁失败）。放宽等待，断言内容与后面的磁盘核对一字未改。
-  // 2026-09-21 再放宽到 60s：in-suite 跑时搬迁任务与并行 worker 抢 CPU，「正在搬迁 · 0%」
-  // 卡 30s 的形态与 2026-09-19 相同（等待预算不足，非搬迁失败）。
-  await expect(dialog.getByRole("status")).toContainText("已搬迁到", {
+  // 报错都是 element(s) not found 而非迁移失败）。放宽等待，断言内容与后面的磁盘核对一字未改。
+  // 2026-09-21 再放宽到 60s：in-suite 跑时迁移任务与并行 worker 抢 CPU，「正在迁移 · 0%」
+  // 卡 30s 的形态与 2026-09-19 相同（等待预算不足，非迁移失败）。
+  await expect(dialog).toContainText("已迁移到", {
     timeout: 60_000,
   });
   expect(moves).toEqual([{ path: target }]);

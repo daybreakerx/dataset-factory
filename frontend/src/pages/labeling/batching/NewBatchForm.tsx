@@ -228,6 +228,8 @@ export function NewBatchForm({
       {directoryField && (
         <DirectoryPicker
           initialPath={directoryField === "source" ? source : path}
+          allowCreate
+          allowRename
           onClose={() => setDirectoryField(null)}
           onSelect={(value) => {
             if (directoryField === "source") setSource(value);

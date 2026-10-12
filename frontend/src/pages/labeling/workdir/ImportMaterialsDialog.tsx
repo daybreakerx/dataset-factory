@@ -238,6 +238,8 @@ export function ImportMaterialsDialog({
       {pickerOpen && (
         <DirectoryPicker
           initialPath={source}
+          allowCreate
+          allowRename
           onClose={() => setPickerOpen(false)}
           onSelect={(value) => {
             setSource(value);

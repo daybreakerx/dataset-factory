@@ -21,7 +21,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 from ..llm import (
     IMAGE_EXTENSIONS,
@@ -114,7 +114,10 @@ def mime_for_suffix(suffix: str) -> str:
     return _MIME_BY_SUFFIX.get(suffix.lower(), _FALLBACK_MIME)
 
 
-def media_kind(name: str) -> str:
+MediaKind = Literal["image", "video", "file"]
+
+
+def media_kind(name: str) -> MediaKind:
     """按扩展名归类媒体形态：``image`` / ``video`` / ``file``（界面选图标用）。"""
     suffix = Path(name).suffix.lower()
     if suffix in IMAGE_EXTENSIONS:

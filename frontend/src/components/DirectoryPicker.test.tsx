@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
-import { ApiError, api } from "../api";
+import { api } from "../api";
 import type { components } from "../api-types.gen";
 import { DirectoryPicker } from "./DirectoryPicker";
 
@@ -14,32 +14,37 @@ vi.mock("../api", async (original) => ({
     filesystemCapabilities: vi.fn(),
     openDirectory: vi.fn(),
     getTask: vi.fn(),
-    cancelTask: vi.fn(),
   },
 }));
 
+type Entry = components["schemas"]["DirectoryEntry"];
+
+const dirEntry: Entry = {
+  name: "package",
+  path: "/srv/package",
+  kind: "directory",
+  media: "file",
+  is_empty: false,
+  modified_at: "2026-09-17T00:00:00Z",
+  size: null,
+};
+const fileEntry: Entry = {
+  name: "SKILL.md",
+  path: "/srv/SKILL.md",
+  kind: "file",
+  media: "file",
+  is_empty: null,
+  modified_at: "2026-09-17T00:00:00Z",
+  size: 1024,
+};
 const listing: components["schemas"]["DirectoryListing"] = {
   hostname: "test-server",
   system: "Linux",
   path: "/srv",
   parent: "/",
+  is_empty: false,
   unavailable_count: 0,
-  entries: [
-    {
-      name: "package",
-      path: "/srv/package",
-      kind: "directory",
-      modified_at: "2026-09-17T00:00:00Z",
-      size: null,
-    },
-    {
-      name: "SKILL.md",
-      path: "/srv/SKILL.md",
-      kind: "file",
-      modified_at: "2026-09-17T00:00:00Z",
-      size: 1024,
-    },
-  ],
+  entries: [dirEntry, fileEntry],
 };
 
 beforeEach(() => {
@@ -66,21 +71,57 @@ it("只读浏览仅在后端自报支持时显示系统打开按钮", async () =
   expect(api.openDirectory).toHaveBeenCalledExactlyOnceWith("/srv");
 });
 
-it("重命名确认后才提交，查询失败重查原任务并采用新路径", async () => {
+it("单击行＝选中，双击目录才进入；主钮恒亮、目标随选中项换", async () => {
   const user = userEvent.setup();
   const selected = vi.fn();
-  vi.mocked(api.renameDirectory).mockResolvedValue({ task_id: "rename-task" });
-  vi.mocked(api.getTask).mockRejectedValueOnce(new Error("查询断线"));
-  render(<DirectoryPicker allowRename onClose={vi.fn()} onSelect={selected} />);
+  render(<DirectoryPicker initialPath="/srv" onClose={vi.fn()} onSelect={selected} />);
+  const row = await screen.findByRole("button", { name: "package" });
+  // 基础形态无禁用态（稿 #20 格 14 裁）：打开即站在一个目录里，目标＝当前所在目录。
+  expect(screen.getByRole("button", { name: "选择此目录" })).toBeEnabled();
 
-  await user.click(await screen.findByRole("button", { name: "重命名 package" }));
-  const name = screen.getByRole("textbox", { name: "重命名" });
-  await user.clear(name);
-  await user.type(name, "renamed");
-  expect(api.renameDirectory).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "保存" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("查询断线");
-  expect(screen.getByRole("button", { name: "选择此目录" })).toBeDisabled();
+  await user.click(row);
+
+  expect(row).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "选择此目录" })).toBeEnabled();
+  expect(api.listDirectory).toHaveBeenCalledTimes(1);
+  vi.mocked(api.listDirectory).mockResolvedValue({
+    ...listing,
+    path: "/srv/package",
+    parent: "/srv",
+    entries: [],
+  });
+
+  await user.dblClick(row);
+
+  await screen.findByText("没有匹配的项目");
+  expect(api.listDirectory).toHaveBeenLastCalledWith("/srv/package", false, false, []);
+  expect(selected).not.toHaveBeenCalled();
+
+  // 走进目录后没有选中行，目标＝当前所在目录——采用出口恒在。
+  await user.click(screen.getByRole("button", { name: "选择此目录" }));
+  expect(selected).toHaveBeenCalledExactlyOnceWith(
+    "/srv/package",
+    expect.objectContaining({ path: "/srv/package" }),
+  );
+});
+
+it("选中行才出「重命名」钮，慢击名字也进原地改名", async () => {
+  const user = userEvent.setup();
+  render(<DirectoryPicker allowRename onClose={vi.fn()} onSelect={vi.fn()} />);
+  await screen.findByRole("button", { name: "package" });
+  expect(screen.queryByRole("button", { name: /^重命名/ })).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "package" }));
+  await user.click(screen.getByRole("button", { name: "重命名" }));
+
+  expect(screen.getByRole("textbox", { name: "重命名 package" })).toHaveValue(
+    "package",
+  );
+});
+
+it("原地改名 Enter 即提交，成功后跳新位置重取", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.renameDirectory).mockResolvedValue({ task_id: "rename-task" });
   vi.mocked(api.getTask).mockResolvedValue({
     id: "rename-task",
     status: "succeeded",
@@ -88,106 +129,122 @@ it("重命名确认后才提交，查询失败重查原任务并采用新路径"
     error: null,
     result: { path: "/srv/renamed", cleanup_pending: false },
   });
+  render(<DirectoryPicker allowRename onClose={vi.fn()} onSelect={vi.fn()} />);
+  await user.click(await screen.findByRole("button", { name: "package" }));
+  await user.click(screen.getByRole("button", { name: "重命名" }));
+  const input = screen.getByRole("textbox", { name: "重命名 package" });
+  await user.clear(input);
+  await user.type(input, "renamed");
+  expect(api.renameDirectory).not.toHaveBeenCalled();
+
   vi.mocked(api.listDirectory).mockResolvedValue({
     ...listing,
     path: "/srv/renamed",
     parent: "/srv",
     entries: [],
   });
-  await user.click(screen.getByRole("button", { name: "重新查询" }));
+  await user.keyboard("{Enter}");
   await screen.findByText("没有匹配的项目");
-  await user.click(screen.getByRole("button", { name: "选择此目录" }));
 
   expect(api.renameDirectory).toHaveBeenCalledExactlyOnceWith(
     "/srv/package",
     "renamed",
   );
-  expect(api.getTask).toHaveBeenLastCalledWith("rename-task");
-  expect(selected).toHaveBeenCalledWith(
-    "/srv/renamed",
-    expect.objectContaining({ path: "/srv/renamed" }),
-  );
-});
-
-it("重命名提交失败保留输入并允许重试", async () => {
-  const user = userEvent.setup();
-  vi.mocked(api.renameDirectory).mockRejectedValue(new Error("目录占用"));
-  render(<DirectoryPicker allowRename onClose={vi.fn()} onSelect={vi.fn()} />);
-
-  await user.click(await screen.findByRole("button", { name: "重命名 package" }));
-  await user.type(screen.getByRole("textbox", { name: "重命名" }), "-new");
-  await user.click(screen.getByRole("button", { name: "保存" }));
-
-  expect(await screen.findByRole("alert")).toHaveTextContent("目录占用");
-  expect(screen.getByRole("textbox", { name: "重命名" })).toHaveValue("package-new");
-  expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
-});
-
-it("重命名任务丢失后刷新清单并释放关闭和选择", async () => {
-  const user = userEvent.setup();
-  vi.mocked(api.renameDirectory).mockResolvedValue({ task_id: "gone" });
-  vi.mocked(api.getTask).mockRejectedValue(
-    new ApiError("http", "任务不存在", 404, null),
-  );
-  render(<DirectoryPicker allowRename onClose={vi.fn()} onSelect={vi.fn()} />);
-
-  await user.click(await screen.findByRole("button", { name: "重命名 package" }));
-  await user.type(screen.getByRole("textbox", { name: "重命名" }), "-new");
-  await user.click(screen.getByRole("button", { name: "保存" }));
-
-  expect(await screen.findByRole("alert")).toHaveTextContent("任务已丢失");
+  expect(api.listDirectory).toHaveBeenLastCalledWith("/srv/renamed", false, false, []);
+  expect(
+    screen.queryByRole("textbox", { name: "重命名 package" }),
+  ).not.toBeInTheDocument();
+  // 改名后重取的清单里没有选中项：目标回落到当前所在目录（新位置），主钮照常亮。
   expect(screen.getByRole("button", { name: "选择此目录" })).toBeEnabled();
-  expect(screen.getByRole("button", { name: /^取消$/ })).toBeEnabled();
-  // 清单独于 alert 渲染（revision effect 异步补拉）——轮询等它落地，CI 慢 runner 上
-  // alert 一出现就断言会数到 1（实锤：CI 连续两轮单红此用例、本地多核稳定绿）。
-  await waitFor(() => expect(api.listDirectory).toHaveBeenCalledTimes(2));
 });
 
-it("取消重命名继续查询原任务直至终态，失败仍可重试取消", async () => {
+it("改名被后端拒绝＝退回旧名并把真话留在原地", async () => {
   const user = userEvent.setup();
-  const running = {
-    id: "rename",
-    status: "running" as const,
-    progress: 0,
-    error: null,
-    result: null,
-  };
-  vi.mocked(api.renameDirectory).mockResolvedValue({ task_id: "rename" });
-  vi.mocked(api.getTask).mockResolvedValue(running);
-  vi.mocked(api.cancelTask).mockRejectedValueOnce(new Error("取消请求断线"));
+  vi.mocked(api.renameDirectory).mockRejectedValue(new Error("目标名称已存在。"));
   render(<DirectoryPicker allowRename onClose={vi.fn()} onSelect={vi.fn()} />);
-  await user.click(await screen.findByRole("button", { name: "重命名 package" }));
-  await user.type(screen.getByRole("textbox", { name: "重命名" }), "-new");
-  await user.click(screen.getByRole("button", { name: "保存" }));
+  await user.click(await screen.findByRole("button", { name: "package" }));
+  await user.click(screen.getByRole("button", { name: "重命名" }));
+  const input = screen.getByRole("textbox", { name: "重命名 package" });
+  await user.clear(input);
+  await user.type(input, "renamed");
+  await user.keyboard("{Enter}");
 
-  await user.click(await screen.findByRole("button", { name: "取消重命名" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("取消请求断线");
-  expect(screen.getByRole("button", { name: "选择此目录" })).toBeDisabled();
-  vi.mocked(api.cancelTask).mockResolvedValue(running);
-  vi.mocked(api.getTask).mockResolvedValue({
-    ...running,
-    status: "cancelled",
-    error: "重命名已取消",
+  expect(await screen.findByRole("alert")).toHaveTextContent("目标名称已存在。");
+  expect(
+    screen.queryByRole("textbox", { name: "重命名 package" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "package" })).toBeInTheDocument();
+});
+
+it("文件行双击＝采用并关窗；只读浏览双击不越界", async () => {
+  const user = userEvent.setup();
+  const selected = vi.fn();
+  const close = vi.fn();
+  render(
+    <DirectoryPicker
+      initialPath="/srv"
+      files
+      suffixes={[".md"]}
+      onClose={close}
+      onSelect={selected}
+    />,
+  );
+  await user.dblClick(await screen.findByRole("button", { name: "SKILL.md" }));
+
+  expect(selected).toHaveBeenCalledExactlyOnceWith("/srv/SKILL.md", listing);
+  expect(close).not.toHaveBeenCalled();
+  expect(api.listDirectory).toHaveBeenLastCalledWith("/srv", true, false, [".md"]);
+
+  const browseClose = vi.fn();
+  const browseSelect = vi.fn();
+  vi.mocked(api.listDirectory).mockResolvedValue(listing);
+  render(
+    <DirectoryPicker
+      initialPath="/srv"
+      browseOnly
+      onClose={browseClose}
+      onSelect={browseSelect}
+    />,
+  );
+  await user.dblClick(await screen.findByRole("button", { name: "SKILL.md" }));
+
+  expect(browseSelect).not.toHaveBeenCalled();
+  expect(browseClose).not.toHaveBeenCalled();
+});
+
+it("新建表单单行式：创建经服务器确认后进入新目录，确认选择前不回填", async () => {
+  const user = userEvent.setup();
+  const selected = vi.fn();
+  vi.mocked(api.createDirectory).mockResolvedValue({ path: "/srv/new-parent" });
+  render(<DirectoryPicker allowCreate onClose={vi.fn()} onSelect={selected} />);
+  await screen.findByText("当前后端：test-server · Linux");
+
+  await user.click(await screen.findByRole("button", { name: "新建目录" }));
+  await user.type(screen.getByRole("textbox", { name: "目录名称" }), "new-parent");
+  expect(api.createDirectory).not.toHaveBeenCalled();
+  vi.mocked(api.listDirectory).mockResolvedValue({
+    ...listing,
+    path: "/srv/new-parent",
+    entries: [{ ...dirEntry, name: "inner", path: "/srv/new-parent/inner" }],
   });
-  await user.click(screen.getByRole("button", { name: "取消重命名" }));
+  await user.click(screen.getByRole("button", { name: "创建" }));
+  await screen.findByRole("button", { name: "inner" });
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("重命名已取消");
-  expect(screen.queryByRole("button", { name: "取消重命名" })).not.toBeInTheDocument();
-  expect(api.cancelTask).toHaveBeenCalledTimes(2);
-  expect(api.renameDirectory).toHaveBeenCalledTimes(1);
-  expect(screen.getByRole("button", { name: "保存" })).toBeEnabled();
+  expect(api.createDirectory).toHaveBeenCalledExactlyOnceWith("/srv", "new-parent");
+  expect(selected).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "inner" }));
+  await user.click(screen.getByRole("button", { name: "选择此目录" }));
+  expect(selected).toHaveBeenCalledWith(
+    "/srv/new-parent/inner",
+    expect.objectContaining({ path: "/srv/new-parent" }),
+  );
 });
 
 it("创建失败保留名称并释放重试按钮", async () => {
   const user = userEvent.setup();
   vi.mocked(api.createDirectory).mockRejectedValue(new Error("没有写入权限"));
   render(<DirectoryPicker allowCreate onClose={vi.fn()} onSelect={vi.fn()} />);
-  // 新建目录钮挂 Tip 且 boot 期先以禁用态挂载：清单落位解禁时 Tip 的禁用包裹层拆装、
-  // 按钮节点重挂——挂载期捕获的节点会失效，等解禁后现查现点。
-  await waitFor(() =>
-    expect(screen.getByRole("button", { name: "新建目录" })).toBeEnabled(),
-  );
-  await user.click(screen.getByRole("button", { name: "新建目录" }));
+  await user.click(await screen.findByRole("button", { name: "新建目录" }));
   await user.type(screen.getByRole("textbox", { name: "目录名称" }), "new-parent");
 
   await user.click(screen.getByRole("button", { name: "创建" }));
@@ -197,70 +254,18 @@ it("创建失败保留名称并释放重试按钮", async () => {
   expect(screen.getByRole("button", { name: "创建" })).toBeEnabled();
 });
 
-it("新建目录经服务器确认后进入新目录，确认选择前不回填", async () => {
-  const user = userEvent.setup();
-  const selected = vi.fn();
-  vi.mocked(api.createDirectory).mockResolvedValue({ path: "/srv/new-parent" });
-  render(<DirectoryPicker allowCreate onClose={vi.fn()} onSelect={selected} />);
-  await screen.findByText("当前后端：test-server · Linux");
-
-  await user.click(screen.getByRole("button", { name: "新建目录" }));
-  await user.type(screen.getByRole("textbox", { name: "目录名称" }), "new-parent");
-  expect(api.createDirectory).not.toHaveBeenCalled();
-  vi.mocked(api.listDirectory).mockResolvedValue({
-    ...listing,
-    path: "/srv/new-parent",
-    entries: [],
-  });
-  await user.click(screen.getByRole("button", { name: "创建" }));
-  await screen.findByText("没有匹配的项目");
-
-  expect(api.createDirectory).toHaveBeenCalledExactlyOnceWith("/srv", "new-parent");
-  expect(selected).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "选择此目录" }));
-  expect(selected).toHaveBeenCalledWith(
-    "/srv/new-parent",
-    expect.objectContaining({ path: "/srv/new-parent" }),
-  );
-});
-
-it("初始目录响应不覆盖用户已输入的跳转路径", async () => {
-  const user = userEvent.setup();
-  let finish: ((value: typeof listing) => void) | undefined;
-  vi.mocked(api.listDirectory).mockImplementationOnce(
-    () =>
-      new Promise((resolve) => {
-        finish = resolve;
-      }),
-  );
-  render(<DirectoryPicker onClose={vi.fn()} onSelect={vi.fn()} />);
-  const input = screen.getByRole("textbox", { name: "服务器路径" });
-
-  await user.type(input, "/target");
-  await act(async () => {
-    finish?.(listing);
-  });
-
-  expect(input).toHaveValue("/target");
-  expect(screen.getByText("当前后端：test-server · Linux")).toBeVisible();
-  vi.mocked(api.listDirectory).mockResolvedValue({ ...listing, path: "/target" });
-  await user.click(screen.getByRole("button", { name: "跳转" }));
-  expect(api.listDirectory).toHaveBeenLastCalledWith("/target", false, false, []);
-  expect(input).toHaveValue("/target");
-});
-
 it.each([
   {
     system: "Windows",
     path: "C:\\data\\images",
-    root: "C:\\",
+    root: "C:",
     parent: "C:\\data",
     label: "data",
   },
   {
     system: "Windows",
     path: "\\\\host\\share\\data\\images",
-    root: "\\\\host\\share\\",
+    root: "\\\\host\\share",
     parent: "\\\\host\\share\\data",
     label: "data",
   },
@@ -293,76 +298,71 @@ it.each([
   },
 );
 
-it("读取后端身份并按指定后缀选文件，确认前不回填", async () => {
-  const user = userEvent.setup();
-  const selected = vi.fn();
-  render(
-    <DirectoryPicker
-      initialPath="/srv"
-      files
-      suffixes={[".md", ".txt"]}
-      onClose={vi.fn()}
-      onSelect={selected}
-    />,
-  );
-  expect(await screen.findByText("当前后端：test-server · Linux")).toBeVisible();
-  expect(api.listDirectory).toHaveBeenCalledExactlyOnceWith("/srv", true, false, [
-    ".md",
-    ".txt",
-  ]);
-
-  await user.click(screen.getByRole("button", { name: "SKILL.md" }));
-
-  expect(selected).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "选择此文件" }));
-  expect(selected).toHaveBeenCalledExactlyOnceWith("/srv/SKILL.md", listing);
-});
-
-it("进入子目录后可选当前目录，返回父目录使用后端规范路径", async () => {
-  const user = userEvent.setup();
-  const selected = vi.fn();
-  render(<DirectoryPicker initialPath="/srv" onClose={vi.fn()} onSelect={selected} />);
-  await screen.findByRole("button", { name: "package" });
-  vi.mocked(api.listDirectory).mockResolvedValue({
-    ...listing,
-    path: "/srv/package",
-    parent: "/srv",
-    entries: [],
-  });
-
-  await user.click(screen.getByRole("button", { name: "package" }));
-
-  await screen.findByText("没有匹配的项目");
-  await user.click(screen.getByRole("button", { name: "选择此目录" }));
-  expect(selected).toHaveBeenCalledExactlyOnceWith(
-    "/srv/package",
-    expect.objectContaining({ path: "/srv/package" }),
-  );
-  await user.click(screen.getByRole("button", { name: "上一级" }));
-  expect(api.listDirectory).toHaveBeenLastCalledWith("/srv", false, false, []);
-});
-
-it("跳转失败撤下旧清单与选择，输入修正后可重试", async () => {
+it("取数失败时面包屑按目标路径在场，末段点击＝原地重读", async () => {
   const user = userEvent.setup();
   render(<DirectoryPicker initialPath="/srv" onClose={vi.fn()} onSelect={vi.fn()} />);
   await screen.findByRole("button", { name: "package" });
   vi.mocked(api.listDirectory).mockRejectedValueOnce(new Error("目录不存在"));
-  await user.clear(screen.getByRole("textbox", { name: "服务器路径" }));
-  await user.type(screen.getByRole("textbox", { name: "服务器路径" }), "/gone");
-
   await user.click(screen.getByRole("button", { name: "跳转" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("目录不存在");
-  expect(screen.queryByRole("button", { name: "package" })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "选择此目录" })).toBeDisabled();
-  await user.clear(screen.getByRole("textbox", { name: "服务器路径" }));
-  await user.type(screen.getByRole("textbox", { name: "服务器路径" }), "/srv");
-  await user.click(screen.getByRole("button", { name: "跳转" }));
+  const nav = within(screen.getByRole("navigation", { name: "目录路径" }));
+  // 面包屑不随取数失败清空（没有它就没有原点重试途径），末段就是重读出口。
+  expect(nav.getByRole("button", { name: "srv" })).toBeEnabled();
+  await user.click(nav.getByRole("button", { name: "srv" }));
+
+  expect(api.listDirectory).toHaveBeenLastCalledWith("/srv", false, false, []);
   await screen.findByRole("button", { name: "package" });
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
 
-it("筛选变化后丢弃迟到结果，只读形态无文件选择动作", async () => {
+it("空态按后缀场景化附注，不可读项计数加「另有」", async () => {
+  vi.mocked(api.listDirectory).mockResolvedValue({
+    ...listing,
+    entries: [],
+    unavailable_count: 2,
+  });
+  render(
+    <DirectoryPicker
+      files
+      suffixes={[".md", ".txt"]}
+      onClose={vi.fn()}
+      onSelect={vi.fn()}
+    />,
+  );
+
+  expect(
+    await screen.findByText("没有匹配的项目（仅显示 .md / .txt 文件）"),
+  ).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("另有 2 项无法读取");
+});
+
+it("初始目录响应不覆盖用户已输入的跳转路径", async () => {
+  const user = userEvent.setup();
+  let finish: ((value: typeof listing) => void) | undefined;
+  vi.mocked(api.listDirectory).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render(<DirectoryPicker onClose={vi.fn()} onSelect={vi.fn()} />);
+  const input = screen.getByRole("textbox", { name: "服务器路径" });
+
+  await user.type(input, "/target");
+  await act(async () => {
+    finish?.(listing);
+  });
+
+  expect(input).toHaveValue("/target");
+  expect(screen.getByText("当前后端：test-server · Linux")).toBeVisible();
+  vi.mocked(api.listDirectory).mockResolvedValue({ ...listing, path: "/target" });
+  await user.click(screen.getByRole("button", { name: "跳转" }));
+  expect(api.listDirectory).toHaveBeenLastCalledWith("/target", false, false, []);
+  expect(input).toHaveValue("/target");
+});
+
+it("筛选变化后丢弃迟到结果，只读形态无采用出口", async () => {
   const user = userEvent.setup();
   let resolveOld: ((value: typeof listing) => void) | undefined;
   vi.mocked(api.listDirectory).mockImplementationOnce(
@@ -389,9 +389,66 @@ it("筛选变化后丢弃迟到结果，只读形态无文件选择动作", asyn
 
   expect(api.listDirectory).toHaveBeenLastCalledWith("/srv", true, true, []);
   expect(screen.getByRole("textbox", { name: "服务器路径" })).toHaveValue("/srv");
-  expect(
-    screen.queryByRole("button", { name: /选择此|SKILL.md|package/ }),
-  ).not.toBeInTheDocument();
-  expect(screen.getByText("共 2 项 · 只读")).toBeVisible();
+  // 只读浏览解掉短路后行照样可选（改名／新建入口同铺），但窗里没有「采用」主钮、
+  // 页脚也不再有「· 只读」后缀。
+  expect(screen.queryByRole("button", { name: /选择此/ })).not.toBeInTheDocument();
+  // 页脚「关闭」排在角叉之前（DialogContent 先渲染 children／页脚，角叉随后）——两枚同名，按序取。
+  expect(screen.getAllByRole("button", { name: "关闭" })[0]).toBeEnabled();
+  expect(screen.getByText("共 2 项")).toBeVisible();
   expect(selected).not.toHaveBeenCalled();
+});
+
+it("基础形态打开即有目标（未选中＝当前所在目录），调用方可换主钮文案", async () => {
+  const user = userEvent.setup();
+  const selected = vi.fn();
+  render(
+    <DirectoryPicker
+      initialPath="/srv"
+      primaryLabel="迁移到此目录"
+      onClose={vi.fn()}
+      onSelect={selected}
+    />,
+  );
+  await screen.findByRole("button", { name: "package" });
+  const adopt = screen.getByRole("button", { name: "迁移到此目录" });
+  expect(adopt).toBeEnabled();
+
+  await user.click(adopt);
+
+  expect(selected).toHaveBeenCalledExactlyOnceWith("/srv", listing);
+});
+
+it("在飞只失效不换装：改名未落定前清单与能力行不响应", async () => {
+  const user = userEvent.setup();
+  let finishRename: ((value: { task_id: string }) => void) | undefined;
+  vi.mocked(api.renameDirectory).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finishRename = resolve;
+      }),
+  );
+  render(<DirectoryPicker allowRename onClose={vi.fn()} onSelect={vi.fn()} />);
+  await user.click(await screen.findByRole("button", { name: "package" }));
+  await user.click(screen.getByRole("button", { name: "重命名" }));
+  await user.clear(screen.getByRole("textbox", { name: "重命名 package" }));
+  await user.type(screen.getByRole("textbox", { name: "重命名 package" }), "renamed");
+  await user.keyboard("{Enter}");
+
+  await waitFor(() => expect(api.renameDirectory).toHaveBeenCalledOnce());
+  const up = screen.getByRole("button", { name: "上一级" });
+  expect(up).toHaveAttribute("aria-disabled", "true");
+  await user.click(up);
+  expect(api.listDirectory).toHaveBeenCalledTimes(1);
+
+  await act(async () => {
+    finishRename?.({ task_id: "rename-task" });
+  });
+  vi.mocked(api.getTask).mockResolvedValue({
+    id: "rename-task",
+    status: "succeeded",
+    progress: 1,
+    error: null,
+    result: { path: "/srv/renamed", cleanup_pending: false },
+  });
+  await waitFor(() => expect(api.getTask).toHaveBeenCalledWith("rename-task"));
 });

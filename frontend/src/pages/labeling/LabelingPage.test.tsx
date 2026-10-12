@@ -383,9 +383,12 @@ describe("打标页读取流程", () => {
       parent: "D:/",
       hostname: "",
       system: "windows",
+      is_empty: false,
       entries: [
         {
           kind: "file",
+          media: "image",
+          is_empty: null,
           name: "gone.jpg",
           path: "D:/newsource/gone.jpg",
           size: 12,

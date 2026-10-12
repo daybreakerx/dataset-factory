@@ -5,7 +5,7 @@ import type { components } from "../../../api-types.gen";
 export type Batch = components["schemas"]["BatchView"];
 export type Directory = components["schemas"]["WorkdirInfo"];
 
-/** WorkdirSettings 的查询域收拢：目录元数据与策略列表、运行状态轮询、清理摘要（无素材产物）、统计与搬迁记录；mutation 后经 refresh 统一失效重取。 */
+/** WorkdirSettings 的查询域收拢：目录元数据与策略列表、运行状态轮询、清理摘要（无素材产物）、统计与迁移记录；mutation 后经 refresh 统一失效重取。 */
 export function useWorkdirData(wid: string, onChanged: () => void) {
   const [directory, setDirectory] = useState<Directory | null>(null);
   const [batches, setBatches] = useState<Batch[]>([]);

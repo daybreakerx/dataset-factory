@@ -33,7 +33,7 @@ from dataset_factory.workdir.store import WorkdirRegistry, WorkdirStore
 def test_sweep_removes_only_cleaned_records(
     tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """真实搬迁留下的 cleaned 记录被清；中断态、损坏记录与 ``.lock`` 本体保留。"""
+    """真实迁移留下的 cleaned 记录被清；中断态、损坏记录与 ``.lock`` 本体保留。"""
     source = tmp_path / "source"
     source.mkdir()
     entry = WorkdirRegistry.register(source)

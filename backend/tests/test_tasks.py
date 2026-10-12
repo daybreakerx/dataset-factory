@@ -86,7 +86,7 @@ def test_failed_task_carries_operable_error_message() -> None:
 def test_failed_task_logs_operable_reason(caplog: pytest.LogCaptureFixture) -> None:
     """任务失败的原因同时进日志——只记状态的话，事后查不出「为什么失败」。
 
-    2026-09-20 实锤：搬迁任务 15ms 就 failed，日志里只有「状态 failed」，界面之外
+    2026-09-20 实锤：迁移任务 15ms 就 failed，日志里只有「状态 failed」，界面之外
     没有任何地方能看到原因（原因只在 API 响应体里）。
     """
 
@@ -94,7 +94,7 @@ def test_failed_task_logs_operable_reason(caplog: pytest.LogCaptureFixture) -> N
         manager = TaskManager()
 
         def body(task_id: str, should_stop: threading.Event) -> None:
-            raise ValueError("搬迁目标已存在，请选择尚不存在的目录。")
+            raise ValueError("迁移目标已存在，请选择尚不存在的目录。")
 
         with caplog.at_level(logging.WARNING, logger="dataset_factory.tasks"):
             task_id = manager.create(body)
@@ -106,7 +106,7 @@ def test_failed_task_logs_operable_reason(caplog: pytest.LogCaptureFixture) -> N
         ]
 
     messages = asyncio.run(scenario())
-    assert any("长任务失败" in m and "搬迁目标已存在" in m for m in messages)
+    assert any("长任务失败" in m and "迁移目标已存在" in m for m in messages)
 
 
 def test_cancel_signal_reaches_worker_and_yields_cancelled() -> None:

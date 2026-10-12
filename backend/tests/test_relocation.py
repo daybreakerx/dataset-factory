@@ -1,4 +1,4 @@
-"""搬迁复制：完整副本、内容校验、取消与失败时的数据保全。"""
+"""迁移复制：完整副本、内容校验、取消与失败时的数据保全。"""
 
 import json
 import threading
@@ -23,8 +23,11 @@ from dataset_factory.workdir.locks import (
     maintenance_record,
 )
 from dataset_factory.workdir.relocation import (
+    abandon_copy,
+    abandon_switchover,
     copy_verified,
     relocate_workdir,
+    relocation_evidence,
     relocation_status,
     retry_relocation_cleanup,
 )
@@ -137,16 +140,31 @@ def test_copy_verified_detects_changed_copy(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("target", ["source", "source/nested", "existing"])
 def test_copy_verified_rejects_conflicting_target(tmp_path: Path, target: str) -> None:
-    """同目录、嵌套目录和已有目标均在复制前拒绝。"""
+    """同目录、嵌套目录与「已存在且非空」的目标都在复制前拒绝（空目录放行见下一例）。"""
     source = tmp_path / "source"
     source.mkdir()
     (source / "a.jpg").write_bytes(b"image")
     (tmp_path / "existing").mkdir()
+    (tmp_path / "existing" / "occupied.txt").write_bytes(b"x")
 
     with pytest.raises(WorkdirPathError):
         copy_verified(source, tmp_path / target)
 
     assert (source / "a.jpg").read_bytes() == b"image"
+
+
+def test_copy_verified_allows_existing_empty_target(tmp_path: Path) -> None:
+    """目标已存在但为空＝放行（2026-10-10 裁：判空才是条件，不是「必须不存在」）。"""
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "a.jpg").write_bytes(b"image")
+    destination = tmp_path / "empty-target"
+    destination.mkdir()
+
+    summary = copy_verified(source, destination)
+
+    assert summary.file_count == 1
+    assert (destination / "a.jpg").read_bytes() == b"image"
 
 
 def test_copy_verified_detects_new_source_file(tmp_path: Path) -> None:
@@ -196,7 +214,7 @@ def test_copy_verified_scan_error_does_not_publish_partial_inventory(
 def test_relocate_updates_registry_and_cleans_old_location(
     tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """搬迁保留标识与业务内容，完整校验后自动清理旧目录。"""
+    """迁移保留标识与业务内容，完整校验后自动清理旧目录。"""
     source = tmp_path / "source"
     source.mkdir()
     store = WorkdirStore(source)
@@ -258,7 +276,7 @@ def test_cleaned_record_allows_recreated_path_with_recycled_inode(
 ) -> None:
     """cleaned 后同路径重建可登记：inode 复用使 (dev, ino) 相同也不能误判为旧目录。
 
-    回归锚（CI ubuntu 3 跑 2 红的根因）：搬迁清理会移除旧目录、释放其 inode，
+    回归锚（CI ubuntu 3 跑 2 红的根因）：迁移清理会移除旧目录、释放其 inode，
     紧随的重建在 Linux 文件系统上常复用该 inode——守卫若用 (st_dev, st_ino)
     当目录身份，重建的新目录会被误判成旧目录而拒绝登记。本用例把记录里的来源
     身份手工改写成重建目录的真实身份（即复用后的形态），钉死「cleaned 后一律
@@ -359,7 +377,7 @@ def test_crash_after_registry_switch_can_finish_old_location_cleanup(
 def test_retry_after_interrupted_registry_switch_reuses_verified_copy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """切换前中断后重试相同目标，重新核验完整副本后完成搬迁。"""
+    """切换前中断后重试相同目标，重新核验完整副本后完成迁移。"""
     source = tmp_path / "source"
     source.mkdir()
     (source / "a.jpg").write_bytes(b"image")
@@ -447,7 +465,7 @@ def test_relocate_cleanup_can_retry_without_deleting_recreated_directory(
 def test_relocation_cleanup_refuses_changed_old_location(
     tmp_path: Path, temp_data_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """旧位置文件被改写或新增时保留现场，不按原始搬迁记录直接删除。"""
+    """旧位置被改动过＝未确认时拒删，检测口先报「changed」，确认后才真删（旧口径的硬拒放宽）。"""
     source = tmp_path / "source"
     source.mkdir()
     (source / "a.jpg").write_bytes(b"image")
@@ -461,22 +479,24 @@ def test_relocation_cleanup_refuses_changed_old_location(
         patch.setattr("dataset_factory.workdir.relocation.shutil.rmtree", fail_delete)
         relocate_workdir(entry.id, destination)
     (source / "a.jpg").write_bytes(b"changed")
-    with pytest.raises(WorkdirPathError, match="已变更"):
-        retry_relocation_cleanup(entry.id, source)
-    (source / "a.jpg").write_bytes(b"image")
-    (source / "extra").mkdir()
-    with pytest.raises(WorkdirPathError, match="新增"):
+    assert relocation_evidence(entry.id, source) == {
+        "old_present": True,
+        "old_changed": True,
+        "old_replaced": False,
+        "target_in_use": False,
+    }
+    with pytest.raises(WorkdirPathError, match="请确认后重试"):
         retry_relocation_cleanup(entry.id, source)
 
-    assert source.is_dir()
-    assert (source / "a.jpg").read_bytes() == b"image"
-    assert (source / "extra").is_dir()
+    retry_relocation_cleanup(entry.id, source, confirm_changed=True)
+
+    assert not source.exists()
 
 
 def test_relocation_rejects_another_threads_active_run(
     tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """另一线程持有运行锁时搬迁被拒，注册表与原文件均不变化。"""
+    """另一线程持有运行锁时迁移被拒，注册表与原文件均不变化。"""
     source = tmp_path / "source"
     source.mkdir()
     store = WorkdirStore(source)
@@ -511,7 +531,7 @@ def test_relocation_rejects_another_threads_active_run(
 def test_state_writer_waiting_for_relocation_cannot_recreate_source(
     tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """搬迁中的并发状态写者等待后拒绝旧位置，不重建已删除的元数据目录。"""
+    """迁移中的并发状态写者等待后拒绝旧位置，不重建已删除的元数据目录。"""
     source = tmp_path / "source"
     source.mkdir()
     store = WorkdirStore(source)
@@ -543,3 +563,115 @@ def test_state_writer_waiting_for_relocation_cannot_recreate_source(
     assert isinstance(errors[0], WorkdirPathError)
     assert not source.exists()
     assert WorkdirStore(destination).read_state() == {"keep": 1}
+
+
+def _crash_after_registry_switch(
+    wid: str, destination: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """跑一次迁移，在注册表切换后立刻中断，留下「已切换未清旧」的③类现场。
+
+    补丁随上下文退出：处置动作自己也要改注册表，补丁留着会把它们一起炸掉。
+    """
+    update = WorkdirRegistry.update_path
+
+    def crash(_wid: str, new_path: Path) -> None:
+        update(_wid, new_path)
+        raise KeyboardInterrupt("interrupted after switch")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(WorkdirRegistry, "update_path", crash)
+        with pytest.raises(KeyboardInterrupt):
+            relocate_workdir(wid, destination)
+
+
+def test_abandon_copy_removes_the_unswitched_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """②类「放弃迁移」删掉没切换过去的副本，原目录与注册表一概不动。"""
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "a.jpg").write_bytes(b"image")
+    entry = WorkdirRegistry.register(source)
+    destination = tmp_path / "destination"
+
+    def interrupt(_wid: str, _new_path: Path) -> None:
+        raise KeyboardInterrupt("interrupted before switch")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(WorkdirRegistry, "update_path", interrupt)
+        with pytest.raises(KeyboardInterrupt):
+            relocate_workdir(entry.id, destination)
+    assert [item["status"] for item in relocation_status(entry.id)] == ["copy-retained"]
+
+    result = abandon_copy(entry.id, destination)
+
+    assert result["path"] == str(source)
+    assert not destination.exists()
+    assert (source / "a.jpg").read_bytes() == b"image"
+    assert Path(WorkdirRegistry.get(entry.id).path) == source
+    assert relocation_status(entry.id) == []
+    WorkdirStore(source)
+
+
+def test_abandon_switchover_returns_registry_to_the_old_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """③类「放弃迁移」退回原目录并删掉新目录，记录标 cleaned 后原位置重新可写。"""
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "a.jpg").write_bytes(b"image")
+    entry = WorkdirRegistry.register(source)
+    destination = tmp_path / "destination"
+    _crash_after_registry_switch(entry.id, destination, monkeypatch)
+    assert [item["status"] for item in relocation_status(entry.id)] == [
+        "cleanup-pending"
+    ]
+
+    result = abandon_switchover(entry.id, source)
+
+    assert result["path"] == str(source)
+    assert not destination.exists()
+    assert (source / "a.jpg").read_bytes() == b"image"
+    assert Path(WorkdirRegistry.get(entry.id).path) == source
+    assert relocation_status(entry.id) == []
+    WorkdirStore(source)
+
+
+def test_abandon_switchover_refuses_when_new_directory_is_in_use(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """新目录已开始运行时「放弃迁移」拒办——撤销会丢改动，只剩「删除旧目录」一条去向。"""
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "a.jpg").write_bytes(b"image")
+    entry = WorkdirRegistry.register(source)
+    destination = tmp_path / "destination"
+    _crash_after_registry_switch(entry.id, destination, monkeypatch)
+
+    (destination / "extra.jpg").write_bytes(b"work")
+
+    assert relocation_evidence(entry.id, source)["target_in_use"] is True
+    with pytest.raises(WorkdirPathError, match="已投入使用"):
+        abandon_switchover(entry.id, source)
+    assert destination.is_dir()
+    assert (destination / "extra.jpg").read_bytes() == b"work"
+
+
+def test_abandon_operations_reject_records_of_other_workdirs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """两个新操作都按记录证明归属，拿别人的旧路径来处置一律拒。"""
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "a.jpg").write_bytes(b"image")
+    entry = WorkdirRegistry.register(source)
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+    other = WorkdirRegistry.register(other_dir)
+    destination = tmp_path / "destination"
+    _crash_after_registry_switch(entry.id, destination, monkeypatch)
+
+    with pytest.raises(WorkdirPathError, match="迁移记录与当前目录不匹配"):
+        abandon_switchover(other.id, source)
+    with pytest.raises(WorkdirPathError, match="迁移记录与当前目录不匹配"):
+        relocation_evidence(other.id, source)

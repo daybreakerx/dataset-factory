@@ -20,6 +20,8 @@ export function WorkdirSummary({
   statsError,
   cleanupSummary,
   summaryError,
+  relocations,
+  relocationRunning,
   onBrowse,
   onImport,
   onRelocate,
@@ -31,9 +33,13 @@ export function WorkdirSummary({
   statsError: string;
   cleanupSummary: components["schemas"]["CleanupPreview"] | null;
   summaryError: string;
+  /** 未结清迁移记录（稿格 8：路径行是迁移状态的唯一载体）。 */
+  relocations: components["schemas"]["WorkdirRelocationStatus"][];
+  /** 迁移在飞＝链接只失效不换装（稿格 11，`.is-flight`）。 */
+  relocationRunning: boolean;
   onBrowse: () => void;
   onImport: () => void;
-  onRelocate: (path: string) => void;
+  onRelocate: () => void;
   onViewCleanup: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -66,6 +72,21 @@ export function WorkdirSummary({
         {/* 值单行横滚（格 7 裁「禁折行改单行横滚」）：超长走值内滚动，行不折、动作位不动。 */}
         <HScroll className="min-w-0 flex-1">
           <span className="whitespace-nowrap text-text-2">{directory.path}</span>
+          {/* 迁移状态唯一载体（稿格 8）：值右侧琥珀下划线链接，点击即处理；在飞只失效不换装（格 11）。 */}
+          {relocations.length > 0 && (
+            <button
+              type="button"
+              className={
+                relocationRunning
+                  ? "whitespace-nowrap text-t-sm text-warn-ink underline hover:text-text-1 aria-disabled:pointer-events-none"
+                  : "whitespace-nowrap text-t-sm text-warn-ink underline hover:text-text-1"
+              }
+              aria-disabled={relocationRunning || undefined}
+              onClick={onRelocate}
+            >
+              上次修改路径未完成
+            </button>
+          )}
         </HScroll>
         <Button variant="ghost" size="sm" onClick={onBrowse}>
           打开
@@ -82,11 +103,18 @@ export function WorkdirSummary({
           </Button>
         </Tip>
         {copied && <span role="status">已复制</span>}
-        <Tip label="选一个目标目录，整个工作目录会搬过去">
-          <Button variant="ghost" size="sm" onClick={() => onRelocate("")}>
+        {relocations.length > 0 ? (
+          // 未处理完不得再次迁移（前后端同锁）：置灰＋title 说原因（稿格 8 裁）。
+          <Button variant="ghost" size="sm" disabled title="上次修改路径未处理完">
             修改路径
           </Button>
-        </Tip>
+        ) : (
+          <Tip label="选一个目标目录，整个工作目录会搬过去">
+            <Button variant="ghost" size="sm" onClick={onRelocate}>
+              修改路径
+            </Button>
+          </Tip>
+        )}
       </div>
       <div className={rowClass}>
         <span className={labelClass}>统计</span>

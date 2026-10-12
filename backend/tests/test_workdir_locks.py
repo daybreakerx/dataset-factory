@@ -86,28 +86,28 @@ def _wait_for_marker(marker: Path, deadline_seconds: float = 45.0) -> None:
 
 
 def test_migrated_directory_rejects_existing_state_writer(workdir: Path) -> None:
-    """先前构造的存储对象也不能在搬迁标记出现后继续修改状态。"""
+    """先前构造的存储对象也不能在迁移标记出现后继续修改状态。"""
     store = WorkdirStore(workdir)
     store.mutate_state(lambda state: state.update({"keep": 1}))
     (store.dsf_path / "MIGRATED").write_text("moved", encoding="utf-8")
 
-    with pytest.raises(WorkdirPathError, match="搬迁"):
+    with pytest.raises(WorkdirPathError, match="迁移"):
         store.mutate_state(lambda state: state.update({"keep": 2}))
 
     assert store.read_state() == {"keep": 1}
 
 
 def test_migrated_directory_rejects_run_and_import(workdir: Path) -> None:
-    """搬迁标记存在时运行和导入均被拒绝，且抢到的锁正确释放。"""
+    """迁移标记存在时运行和导入均被拒绝，且抢到的锁正确释放。"""
     store = WorkdirStore(workdir)
     run = RunLock(store.dsf_path)
     marker = store.dsf_path / "MIGRATED"
     marker.write_text("moved", encoding="utf-8")
 
-    with pytest.raises(WorkdirPathError, match="搬迁"):
+    with pytest.raises(WorkdirPathError, match="迁移"):
         run.acquire({"batch": "s1"})
-    with pytest.raises(WorkdirPathError, match="搬迁"), import_guard(store.dsf_path):
-        pytest.fail("已搬迁目录不能进入导入临界区")
+    with pytest.raises(WorkdirPathError, match="迁移"), import_guard(store.dsf_path):
+        pytest.fail("已迁移目录不能进入导入临界区")
     marker.unlink()
     run.acquire({"batch": "s1"})
     run.release()
@@ -116,11 +116,11 @@ def test_migrated_directory_rejects_run_and_import(workdir: Path) -> None:
 
 
 def test_migrated_directory_rejects_new_store(workdir: Path) -> None:
-    """新的存储对象不能重新初始化已搬迁目录。"""
+    """新的存储对象不能重新初始化已迁移目录。"""
     store = WorkdirStore(workdir)
     (store.dsf_path / "MIGRATED").write_text("moved", encoding="utf-8")
 
-    with pytest.raises(WorkdirPathError, match="搬迁"):
+    with pytest.raises(WorkdirPathError, match="迁移"):
         WorkdirStore(workdir)
 
 
@@ -206,7 +206,7 @@ def test_run_lock_waits_for_short_maintenance_guard(workdir: Path) -> None:
 
 
 def test_maintenance_contention_reports_its_own_error(workdir: Path) -> None:
-    """维护锁被占时报「目录正在搬迁或删除」——不张冠李戴成「有跑批在跑」。
+    """维护锁被占时报「目录正在迁移或删除」——不张冠李戴成「有跑批在跑」。
 
     两者都劝用户等会儿再来，但占用者不同：报成 run-occupied，界面会提示
     「等它结束或停止后再试」，而用户根本没有在跑批、找不到那个入口。
@@ -241,15 +241,15 @@ def test_maintenance_contention_reports_its_own_error(workdir: Path) -> None:
     assert not contender.is_alive()
     assert not acquired.is_set()
     assert len(errors) == 1
-    assert "搬迁" in str(errors[0])
+    assert "迁移" in str(errors[0])
 
 
 def test_import_guard_waits_out_a_short_maintenance_hold(workdir: Path) -> None:
-    """导入 / 统计入口等短维护释放后再进，不零容忍地报「正在搬迁或删除」。
+    """导入 / 统计入口等短维护释放后再进，不零容忍地报「正在迁移或删除」。
 
     背景（2026-09-20 实锤）：只读的 ``GET .../stats`` 经 ``import_guard`` 用零超时抢
-    维护锁，与并发的毫秒级跨文件短写入相撞 → 409「工作目录正在搬迁或删除」，而那一刻
-    既没搬迁也没删除。跑批启停早有同款处理（见
+    维护锁，与并发的毫秒级跨文件短写入相撞 → 409「工作目录正在迁移或删除」，而那一刻
+    既没迁移也没删除。跑批启停早有同款处理（见
     ``test_run_control_waits_for_short_maintenance``），这里把同一口径钉在导入 / 统计入口。
     """
     dsf = WorkdirStore(workdir).dsf_path

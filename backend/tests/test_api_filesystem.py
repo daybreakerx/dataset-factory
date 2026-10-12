@@ -237,6 +237,58 @@ def test_rename_rejects_invalid_names(tmp_path: Path, name: str) -> None:
     assert source.is_dir()
 
 
+def test_rename_accepts_plain_file(tmp_path: Path) -> None:
+    """改名受理含文件（2026-10-09 格 3 裁「文件重命名入列」）：字节随名字走。"""
+    source = tmp_path / "note.md"
+    source.write_text("body", encoding="utf-8")
+
+    async def scenario() -> dict[str, object]:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=create_app(frontend_dir=tmp_path)),
+            base_url="http://testserver",
+        ) as http:
+            response = await http.post(
+                "/api/filesystem/rename",
+                json={"path": str(source), "new_name": "note-2.md"},
+            )
+            assert response.status_code == 202
+            task_id = response.json()["task_id"]
+            deadline = time.monotonic() + 10
+            task: dict[str, object] = {}
+            while time.monotonic() < deadline:
+                task = (await http.get(f"/api/tasks/{task_id}")).json()
+                if task["status"] != "running":
+                    break
+                await asyncio.sleep(0.01)
+            return task
+
+    task = asyncio.run(scenario())
+
+    assert task["status"] == "succeeded", task
+    result = task["result"]
+    assert isinstance(result, dict)
+    assert result["path"] == str(tmp_path / "note-2.md")
+    assert (tmp_path / "note-2.md").read_text(encoding="utf-8") == "body"
+    assert not source.exists()
+
+
+def test_rename_file_inside_registered_workdir_is_refused(tmp_path: Path) -> None:
+    """文件改名不绕过维护边界：登记工作目录之内的文件仍指回工作目录入口。"""
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    note = workdir / "caption.txt"
+    note.write_text("pair", encoding="utf-8")
+    WorkdirRegistry.register(workdir)
+    client = TestClient(create_app(frontend_dir=tmp_path))
+
+    response = client.post(
+        "/api/filesystem/rename", json={"path": str(note), "new_name": "caption-2.txt"}
+    )
+
+    assert response.status_code == 400
+    assert note.is_file()
+
+
 @pytest.mark.parametrize("inside", [False, True])
 def test_rename_rejects_workdir_ancestor_or_child(tmp_path: Path, inside: bool) -> None:
     """普通改名不能绕过工作目录登记与素材记录的维护边界。"""

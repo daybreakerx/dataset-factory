@@ -6,7 +6,7 @@
   最后使用时间），**是地址簿不是花名册**——存在性以磁盘为准，丢失自愈。
 - **幂等判定 = realpath 比较**：同一物理目录走不同路径串（符号链接 / 盘符大小写差异）
   注册为同一条，避免重复登记。
-- **wid 不随搬迁改变**（dsh 源码注释「path normalization rewrites paths, and a reference
+- **wid 不随迁移改变**（dsh 源码注释「path normalization rewrites paths, and a reference
   anchor must stay stable」）——注册表原地更新 path，wid 保持不变（RESEARCH-0006）。
 
 本模块是 ``.dsf/`` 的唯一写者门面——外部模块（runs / strategies / export）均经此写。
@@ -191,7 +191,7 @@ class WorkdirRegistry:
 
     @staticmethod
     def update_path(wid: str, new_path: Path) -> WorkdirEntry:
-        """搬迁后原地更新 path（wid 不变）。"""
+        """迁移后原地更新 path（wid 不变）。"""
         source = registered_path(wid)
         with (
             maintenance_guard(source),
@@ -208,7 +208,7 @@ class WorkdirRegistry:
         """调用方持有维护锁和注册表锁后执行路径切换。"""
         if not new_path.is_dir():
             raise WorkdirPathError(
-                f"新路径「{new_path}」不存在或不是目录——搬迁未完成。",
+                f"新路径「{new_path}」不存在或不是目录——迁移未完成。",
             )
         entries = _read_registry()
         if any(

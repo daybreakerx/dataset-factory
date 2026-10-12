@@ -174,7 +174,7 @@ export interface paths {
         put?: never;
         /**
          * Rename Directory
-         * @description 受理目录改名，已登记工作目录通过搬迁流程保留身份和恢复记录。
+         * @description 受理目录改名，已登记工作目录通过迁移流程保留身份和恢复记录。
          */
         post: operations["rename_directory_api_filesystem_rename_post"];
         delete?: never;
@@ -1511,9 +1511,49 @@ export interface paths {
         put?: never;
         /**
          * Start Relocation
-         * @description 受理工作目录搬迁；复制校验完成后再切换注册表并清理旧位置。
+         * @description 受理工作目录迁移；复制校验完成后再切换注册表并清理旧位置。
          */
         post: operations["start_relocation_api_workdirs__wid__relocate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/relocate/abandon-copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Abandon Copy Path
+         * @description ②类「放弃迁移」：删掉没切换过去的副本并结清记录，原目录与注册表不动。
+         */
+        post: operations["abandon_copy_path_api_workdirs__wid__relocate_abandon_copy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/relocate/abandon-switchover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Abandon Switchover Path
+         * @description ③类「放弃迁移」：注册表退回原目录、删掉新目录，记录标 cleaned。
+         */
+        post: operations["abandon_switchover_path_api_workdirs__wid__relocate_abandon_switchover_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1531,9 +1571,29 @@ export interface paths {
         put?: never;
         /**
          * Retry Relocation Cleanup Path
-         * @description 按搬迁记录重试清理旧目录；发现新增或改写内容时保留现场。
+         * @description 按迁移记录重试清理旧目录；发现新增或改写内容时保留现场。
          */
         post: operations["retry_relocation_cleanup_path_api_workdirs__wid__relocate_cleanup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/relocate/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Relocation Evidence
+         * @description 处置未完结迁移前取证：旧位置在不在、被改动过没有、新位置能不能退。
+         */
+        get: operations["get_relocation_evidence_api_workdirs__wid__relocate_evidence_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1864,11 +1924,18 @@ export interface components {
          * @description 当前目录的一项；文件只提供元信息。
          */
         DirectoryEntry: {
+            /** Is Empty */
+            is_empty: boolean | null;
             /**
              * Kind
              * @enum {string}
              */
             kind: "directory" | "file";
+            /**
+             * Media
+             * @enum {string}
+             */
+            media: "image" | "video" | "file";
             /** Modified At */
             modified_at: string;
             /** Name */
@@ -1887,6 +1954,8 @@ export interface components {
             entries: components["schemas"]["DirectoryEntry"][];
             /** Hostname */
             hostname: string;
+            /** Is Empty */
+            is_empty: boolean;
             /** Parent */
             parent: string | null;
             /** Path */
@@ -3485,13 +3554,41 @@ export interface components {
             type: string;
         };
         /**
+         * WorkdirAbandonRequest
+         * @description 放弃这次迁移：②类删副本、③类退回原目录，都按记录证明的路径处置。
+         */
+        WorkdirAbandonRequest: {
+            /**
+             * Path
+             * @description ②类＝未切换的副本路径；③类＝要退回的原目录路径
+             */
+            path: string;
+        };
+        /**
+         * WorkdirAbandonResult
+         * @description 放弃迁移后的落点：界面按这句回读当前注册路径。
+         */
+        WorkdirAbandonResult: {
+            /**
+             * Path
+             * @description 处置后该工作目录的注册绝对路径
+             */
+            path: string;
+        };
+        /**
          * WorkdirCleanupRetryRequest
-         * @description 重试清理搬迁后仍占用的旧目录。
+         * @description 重试清理迁移后仍占用的旧目录。
          */
         WorkdirCleanupRetryRequest: {
             /**
+             * Confirm Changed
+             * @description 旧目录在迁移后被改动过时，是否已由用户二次确认（格 16）
+             * @default false
+             */
+            confirm_changed: boolean;
+            /**
              * Old Path
-             * @description 搬迁结果返回的旧目录绝对路径
+             * @description 迁移结果返回的旧目录绝对路径
              */
             old_path: string;
         };
@@ -3585,7 +3682,7 @@ export interface components {
         WorkdirInfo: {
             /**
              * Id
-             * @description wid 短 ID（注册表主键，搬迁后不变）
+             * @description wid 短 ID（注册表主键，迁移后不变）
              */
             id: string;
             /**
@@ -3606,39 +3703,65 @@ export interface components {
         };
         /**
          * WorkdirRelocateAccepted
-         * @description 搬迁任务受理响应。
+         * @description 迁移任务受理响应。
          */
         WorkdirRelocateAccepted: {
             /**
              * Task Id
-             * @description 搬迁任务句柄（GET /api/tasks/{id} 轮询）
+             * @description 迁移任务句柄（GET /api/tasks/{id} 轮询）
              */
             task_id: string;
         };
         /**
          * WorkdirRelocateRequest
-         * @description 搬迁工作目录到尚不存在的目标路径。
+         * @description 迁移工作目录到一个空目录（尚不存在，或已存在但为空）。
          */
         WorkdirRelocateRequest: {
             /**
              * Path
-             * @description 目标绝对路径（目标目录本身必须不存在）
+             * @description 目标绝对路径（必须为空目录或尚不存在）
              */
             path: string;
         };
         /**
+         * WorkdirRelocationEvidence
+         * @description 处置未完结迁移前给界面的一句话：四个判据决定弹窗画哪一格。
+         */
+        WorkdirRelocationEvidence: {
+            /**
+             * Old Changed
+             * @description 旧目录内容与迁移记录不一致（新增／缺失／大小变了）
+             */
+            old_changed: boolean;
+            /**
+             * Old Present
+             * @description 旧目录仍在盘上
+             */
+            old_present: boolean;
+            /**
+             * Old Replaced
+             * @description 旧路径现在指的是另一个目录（同名重建过），与迁移记录不是同一份数据
+             */
+            old_replaced: boolean;
+            /**
+             * Target In Use
+             * @description 新目录已投入使用（内容变动或已有运行记录），不可退回
+             */
+            target_in_use: boolean;
+        };
+        /**
          * WorkdirRelocationStatus
-         * @description 搬迁中断后的持久状态。
+         * @description 迁移中断后的持久状态。
          */
         WorkdirRelocationStatus: {
             /**
              * Old Path
-             * @description 搬迁记录中的原目录绝对路径
+             * @description 迁移记录中的原目录绝对路径
              */
             old_path: string;
             /**
              * Path
-             * @description 搬迁记录中的目标目录绝对路径
+             * @description 迁移记录中的目标目录绝对路径
              */
             path: string;
             /**
@@ -7752,6 +7875,256 @@ export interface operations {
             };
         };
     };
+    abandon_copy_path_api_workdirs__wid__relocate_abandon_copy_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkdirAbandonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkdirAbandonResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /**
+                         * Detail
+                         * @description 中文可操作消息——下一步该做什么
+                         */
+                        detail: string;
+                        /**
+                         * Status
+                         * @description HTTP 状态码（与响应状态一致）
+                         */
+                        status: number;
+                        /**
+                         * Title
+                         * @description 人读的短语概括
+                         */
+                        title: string;
+                        /**
+                         * Type
+                         * @description 机器可读的错误类别 slug（如 task-not-found）
+                         */
+                        type: string;
+                    };
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /**
+                         * Detail
+                         * @description 中文可操作消息——下一步该做什么
+                         */
+                        detail: string;
+                        /**
+                         * Status
+                         * @description HTTP 状态码（与响应状态一致）
+                         */
+                        status: number;
+                        /**
+                         * Title
+                         * @description 人读的短语概括
+                         */
+                        title: string;
+                        /**
+                         * Type
+                         * @description 机器可读的错误类别 slug（如 task-not-found）
+                         */
+                        type: string;
+                    };
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /**
+                         * Detail
+                         * @description 中文可操作消息——下一步该做什么
+                         */
+                        detail: string;
+                        /**
+                         * Status
+                         * @description HTTP 状态码（与响应状态一致）
+                         */
+                        status: number;
+                        /**
+                         * Title
+                         * @description 人读的短语概括
+                         */
+                        title: string;
+                        /**
+                         * Type
+                         * @description 机器可读的错误类别 slug（如 task-not-found）
+                         */
+                        type: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    abandon_switchover_path_api_workdirs__wid__relocate_abandon_switchover_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkdirAbandonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkdirAbandonResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /**
+                         * Detail
+                         * @description 中文可操作消息——下一步该做什么
+                         */
+                        detail: string;
+                        /**
+                         * Status
+                         * @description HTTP 状态码（与响应状态一致）
+                         */
+                        status: number;
+                        /**
+                         * Title
+                         * @description 人读的短语概括
+                         */
+                        title: string;
+                        /**
+                         * Type
+                         * @description 机器可读的错误类别 slug（如 task-not-found）
+                         */
+                        type: string;
+                    };
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /**
+                         * Detail
+                         * @description 中文可操作消息——下一步该做什么
+                         */
+                        detail: string;
+                        /**
+                         * Status
+                         * @description HTTP 状态码（与响应状态一致）
+                         */
+                        status: number;
+                        /**
+                         * Title
+                         * @description 人读的短语概括
+                         */
+                        title: string;
+                        /**
+                         * Type
+                         * @description 机器可读的错误类别 slug（如 task-not-found）
+                         */
+                        type: string;
+                    };
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        /**
+                         * Detail
+                         * @description 中文可操作消息——下一步该做什么
+                         */
+                        detail: string;
+                        /**
+                         * Status
+                         * @description HTTP 状态码（与响应状态一致）
+                         */
+                        status: number;
+                        /**
+                         * Title
+                         * @description 人读的短语概括
+                         */
+                        title: string;
+                        /**
+                         * Type
+                         * @description 机器可读的错误类别 slug（如 task-not-found）
+                         */
+                        type: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     retry_relocation_cleanup_path_api_workdirs__wid__relocate_cleanup_post: {
         parameters: {
             query?: never;
@@ -7864,6 +8237,59 @@ export interface operations {
                          */
                         type: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_relocation_evidence_api_workdirs__wid__relocate_evidence_get: {
+        parameters: {
+            query: {
+                old_path: string;
+            };
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkdirRelocationEvidence"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
                 };
             };
             /** @description Validation Error */

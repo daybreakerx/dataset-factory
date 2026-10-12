@@ -230,7 +230,7 @@ _PROBLEM_RULES: tuple[_ProblemRule, ...] = (
     _ProblemRule(ExportError, 400, "export-invalid", "无法导出"),
     _ProblemRule(TaskNotFoundError, 404, "task-not-found", "任务不存在"),
     _ProblemRule(WorkdirNotFoundError, 404, "workdir-not-found", "工作目录不存在"),
-    # 占用者是「目录正在搬迁 / 删除」，不是「有跑批在跑」——提示不能张冠李戴，故两条分开。
+    # 占用者是「目录正在迁移 / 删除」，不是「有跑批在跑」——提示不能张冠李戴，故两条分开。
     _ProblemRule(
         WorkdirMaintenanceError, 409, "workdir-maintenance", "工作目录正在维护"
     ),

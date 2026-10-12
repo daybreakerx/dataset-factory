@@ -138,6 +138,13 @@ def hash_file(path: Path) -> str:
         return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
+def is_empty_dir(path: Path) -> bool:
+    """目录是否为空（含隐藏项）：取到首项即回，不为「空不空」数全量。"""
+    if not path.is_dir():
+        return False
+    return next(iter(path.iterdir()), None) is None
+
+
 def hash_stream(
     reader: IO[bytes],
     writer: IO[bytes] | None = None,
@@ -147,7 +154,7 @@ def hash_stream(
     """分块搬完一个流，返回 ``(这批字节的 SHA-256, 字节数)``；给了 ``writer`` 就顺手写出。
 
     为什么必须同一次读：记录与校验的锚点要指向**实际落盘 / 实际交付**的那批字节。先读一遍算
-    哈希、再读一遍写出去，两读之间文件被改过，锚点就撒谎（导入记录、搬迁副本校验、导出交付
+    哈希、再读一遍写出去，两读之间文件被改过，锚点就撒谎（导入记录、迁移副本校验、导出交付
     三处都靠这条）。
 
     Args:

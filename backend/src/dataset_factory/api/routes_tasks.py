@@ -1,6 +1,6 @@
 """tasks 横切端点：任务轮询与协作式取消（二期新增）。
 
-受理端点（202 + task_id + Retry-After）在各自业务路由里（导入 / 搬迁 / 打包），
+受理端点（202 + task_id + Retry-After）在各自业务路由里（导入 / 迁移 / 打包），
 本模块只承载两类任务的共用查询面：
 
 - ``GET /tasks/{task_id}``：轮询任务状态（status / progress / result / error）；

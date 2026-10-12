@@ -97,7 +97,7 @@ def test_http_remove_unimported_deletes_permanently_and_clears_the_group(
 
 
 def test_http_retry_completes_partial_copy_after_app_restart(tmp_path: Path) -> None:
-    """重启应用后经搬迁入口补全中断副本，校验全部字节后清理源目录。"""
+    """重启应用后经迁移入口补全中断副本，校验全部字节后清理源目录。"""
     source = tmp_path / "source"
     source.mkdir()
     store = WorkdirStore(source)
@@ -157,7 +157,7 @@ def test_http_retry_completes_partial_copy_after_app_restart(tmp_path: Path) -> 
 def test_relocation_task_moves_files_and_preserves_workdir_id(
     tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """HTTP 搬迁受理后经任务轮询完成，注册表标识不变且旧位置自动清理。"""
+    """HTTP 迁移受理后经任务轮询完成，注册表标识不变且旧位置自动清理。"""
     source = tmp_path / "source"
     source.mkdir()
     (source / "a.jpg").write_bytes(b"image")
@@ -189,7 +189,7 @@ def test_relocation_task_moves_files_and_preserves_workdir_id(
 def test_relocation_cleanup_rejects_unrecorded_directory(
     tmp_path: Path, temp_data_root: Path
 ) -> None:
-    """不能借旧位置清理接口删除未由搬迁记录证明的目录。"""
+    """不能借旧位置清理接口删除未由迁移记录证明的目录。"""
     source = tmp_path / "source"
     source.mkdir()
     entry = WorkdirRegistry.register(source)
@@ -210,7 +210,7 @@ def test_relocation_cleanup_rejects_unrecorded_directory(
 def test_http_relocation_retries_recorded_copy_after_restart(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """新应用能发现中断副本并重新搬迁，不将已记录目标误判为路径冲突。"""
+    """新应用能发现中断副本并重新迁移，不将已记录目标误判为路径冲突。"""
     source = tmp_path / "source"
     source.mkdir()
     (source / "a.jpg").write_bytes(b"image")

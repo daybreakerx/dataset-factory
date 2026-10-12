@@ -94,11 +94,33 @@ export const workdirApi = {
       `/api/workdirs/${encodeURIComponent(wid)}/relocate/status`,
     ),
 
-  retryRelocationCleanup: (wid: string, oldPath: string) =>
+  retryRelocationCleanup: (wid: string, oldPath: string, confirmChanged = false) =>
     request<components["schemas"]["WorkdirCleanupRetryResult"]>(
       "POST",
       `/api/workdirs/${encodeURIComponent(wid)}/relocate/cleanup`,
-      { old_path: oldPath },
+      { old_path: oldPath, confirm_changed: confirmChanged },
+    ),
+
+  // ③类处置前取证：旧位置在不在、被改动过没有、新位置能不能退（决定弹窗画哪一格）。
+  relocationEvidence: (wid: string, oldPath: string) =>
+    request<components["schemas"]["WorkdirRelocationEvidence"]>(
+      "GET",
+      `/api/workdirs/${encodeURIComponent(wid)}/relocate/evidence?old_path=${encodeURIComponent(oldPath)}`,
+    ),
+
+  // ②类「放弃迁移」＝删没切换过去的副本；③类＝退回原目录＋删新目录。两者都是不可恢复处置。
+  abandonCopy: (wid: string, path: string) =>
+    request<components["schemas"]["WorkdirAbandonResult"]>(
+      "POST",
+      `/api/workdirs/${encodeURIComponent(wid)}/relocate/abandon-copy`,
+      { path },
+    ),
+
+  abandonSwitchover: (wid: string, path: string) =>
+    request<components["schemas"]["WorkdirAbandonResult"]>(
+      "POST",
+      `/api/workdirs/${encodeURIComponent(wid)}/relocate/abandon-switchover`,
+      { path },
     ),
 
   deleteWorkdir: (wid: string, confirmedPath: string) =>

@@ -28,6 +28,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from .._clock import now_iso
+from .._fs import is_empty_dir
 from ..runs.journal import load_recent_success_hashes
 from ..strategies import get_batch, list_batches, parse_seq
 from ..tasks import RETRY_AFTER_SECONDS, TaskManager, TaskResult
@@ -67,7 +68,10 @@ from ..workdir.deletion import (
 from ..workdir.integrity import IntegrityItem, rebuild_import_records, scan_integrity
 from ..workdir.reimport import reimport_missing
 from ..workdir.relocation import (
+    abandon_copy,
+    abandon_switchover,
     relocate_workdir,
+    relocation_evidence,
     relocation_status,
     retry_relocation_cleanup,
 )
@@ -80,6 +84,8 @@ from .schemas import (
     Problem,
     ScanPreviewItem,
     ScanPreviewView,
+    WorkdirAbandonRequest,
+    WorkdirAbandonResult,
     WorkdirCleanupRetryRequest,
     WorkdirCleanupRetryResult,
     WorkdirCreateAccepted,
@@ -88,6 +94,7 @@ from .schemas import (
     WorkdirInfo,
     WorkdirRelocateAccepted,
     WorkdirRelocateRequest,
+    WorkdirRelocationEvidence,
     WorkdirRelocationStatus,
     WorkdirStatsView,
 )
@@ -202,23 +209,32 @@ def get_cleanup_preview(wid: str) -> CleanupPreview:
 async def start_relocation(
     wid: str, body: WorkdirRelocateRequest, request: Request
 ) -> JSONResponse:
-    """受理工作目录搬迁；复制校验完成后再切换注册表并清理旧位置。"""
+    """受理工作目录迁移；复制校验完成后再切换注册表并清理旧位置。"""
     entry = WorkdirRegistry.get(wid)
     source = Path(entry.path)
     destination = Path(os.path.abspath(body.path))
     if not source.is_dir():
         raise WorkdirPathError("工作目录不存在，请刷新工作目录列表后重试。")
-    if os.path.lexists(destination) and not any(
-        item["path"] == str(destination.resolve()) and item["status"] == "copy-retained"
-        for item in relocation_status(wid)
-    ):
-        raise WorkdirPathError("搬迁目标已存在，请选择尚不存在的目录。")
+    # gate（2026-10-10 ADR）：有未结清的迁移记录就不许另起一次——目标只有对上
+    # 那份记录里的副本（②类「继续迁移」）才放行，其余从机制封死孤儿记录。
+    open_records = relocation_status(wid)
+    resuming = [
+        item
+        for item in open_records
+        if item["status"] == "copy-retained" and item["path"] == str(destination)
+    ]
+    if open_records and not resuming:
+        raise WorkdirPathError(
+            "上次迁移还没处理完，请先在路径行处置（继续迁移或放弃迁移）。"
+        )
+    if os.path.lexists(destination) and not resuming and not is_empty_dir(destination):
+        raise WorkdirPathError("迁移目标已存在且不是空目录，请选择空目录。")
     if (
         destination.is_relative_to(source)
         or source.is_relative_to(destination)
         or destination == source
     ):
-        raise WorkdirPathError("搬迁目标与原目录不能相同或互相嵌套。")
+        raise WorkdirPathError("迁移目标与原目录不能相同或互相嵌套。")
     manager = cast(TaskManager, request.app.state.task_manager)
 
     def runner(task_id: str, should_stop: threading.Event) -> TaskResult:
@@ -248,9 +264,51 @@ async def start_relocation(
 def retry_relocation_cleanup_path(
     wid: str, body: WorkdirCleanupRetryRequest
 ) -> WorkdirCleanupRetryResult:
-    """按搬迁记录重试清理旧目录；发现新增或改写内容时保留现场。"""
-    result = retry_relocation_cleanup(wid, Path(os.path.abspath(body.old_path)))
+    """按迁移记录重试清理旧目录；发现新增或改写内容时保留现场。"""
+    result = retry_relocation_cleanup(
+        wid, Path(os.path.abspath(body.old_path)), confirm_changed=body.confirm_changed
+    )
     return WorkdirCleanupRetryResult.model_validate(result)
+
+
+@router.get(
+    "/{wid}/relocate/evidence",
+    response_model=WorkdirRelocationEvidence,
+    responses={code: problem() for code in (400, 404)},
+)
+def get_relocation_evidence(wid: str, old_path: str) -> WorkdirRelocationEvidence:
+    """处置未完结迁移前取证：旧位置在不在、被改动过没有、新位置能不能退。"""
+    state = relocation_evidence(wid, Path(os.path.abspath(old_path)))
+    return WorkdirRelocationEvidence(
+        old_present=bool(state["old_present"]),
+        old_changed=bool(state["old_changed"]),
+        old_replaced=bool(state["old_replaced"]),
+        target_in_use=bool(state["target_in_use"]),
+    )
+
+
+@router.post(
+    "/{wid}/relocate/abandon-copy",
+    response_model=WorkdirAbandonResult,
+    responses=problem_schema_responses((400, 404, 409)),
+)
+def abandon_copy_path(wid: str, body: WorkdirAbandonRequest) -> WorkdirAbandonResult:
+    """②类「放弃迁移」：删掉没切换过去的副本并结清记录，原目录与注册表不动。"""
+    result = abandon_copy(wid, Path(os.path.abspath(body.path)))
+    return WorkdirAbandonResult(path=str(result["path"]))
+
+
+@router.post(
+    "/{wid}/relocate/abandon-switchover",
+    response_model=WorkdirAbandonResult,
+    responses=problem_schema_responses((400, 404, 409)),
+)
+def abandon_switchover_path(
+    wid: str, body: WorkdirAbandonRequest
+) -> WorkdirAbandonResult:
+    """③类「放弃迁移」：注册表退回原目录、删掉新目录，记录标 cleaned。"""
+    result = abandon_switchover(wid, Path(os.path.abspath(body.path)))
+    return WorkdirAbandonResult(path=str(result["path"]))
 
 
 @router.get(

@@ -161,7 +161,7 @@ def test_hash_stream_moves_and_digests_every_byte(payload: bytes) -> None:
 def test_hash_stream_without_writer_only_reports_digest_and_size(
     tmp_path: Path,
 ) -> None:
-    """不给 writer 时只算摘要与字节数（搬迁校验走这条，不落第二份文件）。"""
+    """不给 writer 时只算摘要与字节数（迁移校验走这条，不落第二份文件）。"""
     payload = b"relocate" * 200_000
     source = tmp_path / "asset.bin"
     source.write_bytes(payload)
