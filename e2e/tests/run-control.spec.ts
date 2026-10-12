@@ -134,7 +134,8 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
     });
 
     await writeFile(path.join(destination, "s1__sample.txt"), "Old caption");
-    await page.getByRole("button", { name: "刷新条目", exact: true }).click();
+    // 顶栏「刷新条目」钮已撤（对齐批 2026-10-07 裁）：盘外改动靠重进页面刷新。
+    await page.reload();
     const materials = page.getByRole("complementary", { name: "素材条目" });
     await materials.getByRole("button", { name: "选择", exact: true }).click();
     // 全选钮＝三态换形的图标钮（aria 随态说「全选本组／清除本组选择」）；「清空选择」文字钮随多选条撤除，

@@ -16,7 +16,6 @@ import { RebuildImportsDialog } from "../workdir/RebuildImportsDialog";
 import { ExportPanel } from "./ExportPanel";
 import type { ItemMap } from "./items-state";
 import { JournalCorruptedLine } from "./journal-corrupted-line";
-import { LiveOutput } from "./live-output";
 import { RunOverview } from "./RunOverview";
 import { useIntegrityScan } from "./use-integrity-scan";
 
@@ -29,8 +28,6 @@ interface Props {
   exportRevision?: number;
   /** 跑批进行中：导出入口收起，避免导出半批产物。 */
   running?: boolean;
-  /** 跑批中的「当前产出」逐字流；null = 没有正在产出的条目。 */
-  liveOutput?: { item: string; reasoning: string; content: string } | null;
   onSelect: (row: components["schemas"]["ItemRowView"]) => void;
   onImported?: () => void;
   /** 打包被排除清单的「重新指定」：目录选择弹窗住在页面层。 */
@@ -56,7 +53,6 @@ export function BatchOverview({
   items,
   exportRevision = 0,
   running = false,
-  liveOutput = null,
   onSelect,
   onImported,
   onRepoint,
@@ -328,11 +324,6 @@ export function BatchOverview({
           failed: failed.length,
         }}
       />
-      {running && liveOutput !== null && (
-        // 2026-09-21 定案：跑批中的「当前产出」——逐字正文 + 思考折叠区。
-        // 思考只展示不落盘：这里的内容全部来自 SSE 内存态，关掉页面再打开就没有。
-        <LiveOutput wid={wid} liveOutput={liveOutput} />
-      )}
       <section className="mt-4 border-t border-border pt-4" aria-label="素材完整性">
         {/* 分区头（稿「素材完整性」⑭⑮⑯）：整行可点的折叠触发区——真 <button> 吃满动作钮以前的
             全部宽度，内含 13px chevron＋题字＋副行；悬停墨底挂**行容器**（本分区不吸顶，直接用

@@ -1,9 +1,4 @@
-import {
-  FileImageIcon,
-  PanelLeftOpenIcon,
-  PlusIcon,
-  RefreshCwIcon,
-} from "lucide-react";
+import { FileImageIcon, PanelLeftOpenIcon, PlusIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, corruptedRunOf, errorMessage } from "../../api";
 import { DirectoryPicker } from "../../components/DirectoryPicker";
@@ -165,6 +160,9 @@ export function LabelingPage({
     useBatchRunState(selection);
   /** ⑫ 选中位带触发源组：列表点行由面板传本组 id，从别处跳转（概览「查看」／跑批跟随）缺省落原分组。 */
   const choose = useCallback((row: ItemRow, group: string = row.status) => {
+    // 舞台缺席的两类（缺失／未导入）没有可预览的媒体——点行不出条目预览（稿④：甲·不加任何提示，
+    // 原因与处置都在行上，行外观不弱化）。
+    if (row.status === "missing" || row.status === "unimported") return;
     if (followRun.current) {
       // 从「跟随」切到「手动看」：跑批中这不是静默的——出可见提示（L2）。
       setFollowPaused(true);
@@ -498,15 +496,6 @@ export function LabelingPage({
             onItemsRefresh={() => void refreshItems()}
           />
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="刷新条目"
-          disabled={!selection || loading}
-          onClick={() => void refreshItems()}
-        >
-          <RefreshCwIcon />
-        </Button>
       </header>
       {error && !errorRun && (
         <FormError className="mx-6 mb-3 text-t-sm text-bad-ink">{error}</FormError>
@@ -591,7 +580,6 @@ export function LabelingPage({
                   items={items}
                   exportRevision={exportRevision}
                   running={batchRunState === "running" || batchRunState === "pending"}
-                  liveOutput={liveOutput}
                   journalRun={errorRun}
                   onSelect={choose}
                   onImported={() => void refreshItems()}
@@ -607,9 +595,9 @@ export function LabelingPage({
               )}
               {selected && (
                 <MaterialDetail
+                  key={`${identity}/${selectedKey ?? ""}`}
                   identity={identity}
                   listToggle={listToggle}
-                  selectedItem={selectedKey}
                   selected={selected}
                   asset={asset}
                   selection={selection}
@@ -618,11 +606,11 @@ export function LabelingPage({
                   }
                   foldedItem={foldedItem}
                   setFoldedItem={setFoldedItem}
+                  liveOutput={liveOutput}
                   onBack={() => {
                     followRun.current = false;
                     setSelectedItem(null);
                   }}
-                  onRetryChange={retryChanged}
                 />
               )}
             </>

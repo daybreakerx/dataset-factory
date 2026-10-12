@@ -249,7 +249,8 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   await rename(path.join(directory, "recover.png"), testInfo.outputPath("recover.backup"));
   await rename(path.join(directory, "lost.png"), testInfo.outputPath("lost.backup"));
   await rename(path.join(source, "lost.png"), testInfo.outputPath("lost-source.backup"));
-  await page.getByRole("button", { name: "刷新条目", exact: true }).click();
+  // 顶栏「刷新条目」钮 2026-10-07 用户裁撤（稿上无此件）——盘外改动靠重进页面刷新。
+  await page.reload();
   const missing = page.getByRole("region", { name: "缺失", exact: true });
   await expect(missing.getByText("recover.png", { exact: true })).toBeVisible();
   await expect(missing.getByText("来源已失效", { exact: true })).toBeVisible();
@@ -287,7 +288,7 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   await expect(missing.getByText("lost.png", { exact: true })).toBeVisible();
   await writeFile(path.join(directory, "sample.psd"), "Unsupported same-stem file");
   await writeFile(path.join(directory, "unregistered.png"), Buffer.concat([await readFile(assetPath), Buffer.from("unregistered")]));
-  await page.getByRole("button", { name: "刷新条目", exact: true }).click();
+  await page.reload();
   const unregistered = page.getByRole("region", { name: "未导入", exact: true });
   await expect(unregistered.getByText("sample.psd", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "已完成", exact: true }).getByText("sample.png", { exact: true })).toBeVisible();

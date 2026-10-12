@@ -81,10 +81,13 @@ test("打标页长名称下顶栏与条目列保持原型尺寸和对齐", async
   await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(1);
   await expect(page.getByText("A sample caption.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "折叠为小图" }).click();
-  expect((await image.locator("..").boundingBox())?.height).toBe(76);
+  // 折叠态＝§22 .stage-mini 40×40（稿「条目预览媒体舞台」格③；旧实现是 76px 通栏小图带）。
+  // 图片外面那层是开大图的按钮（⑦键盘可达），量几何要量舞台本身。
+  const stage = image.locator("..").locator("..");
+  expect((await stage.boundingBox())?.height).toBe(40);
   await page.screenshot({ path: testInfo.outputPath("labeling-preview-folded.png"), fullPage: true });
   await page.getByRole("button", { name: "展开素材" }).click();
-  expect((await image.locator("..").boundingBox())?.height).toBe(384);
+  expect((await stage.boundingBox())?.height).toBe(384);
   await page.getByRole("button", { name: "返回概览" }).click();
   await expect(image).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });

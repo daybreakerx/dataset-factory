@@ -2,6 +2,17 @@ import type { components } from "../../../api-types.gen";
 import { HScroll } from "../../../components/hs-scroll";
 import { Tip } from "../../../components/ui/tooltip";
 
+/**
+ * 对比名单的替换式上限（稿⑥）：当前策略恒打头、永不被踢，其余最多两套——
+ * 到顶不置灰，点新的那枚踢掉最早加入的那套。
+ */
+export function nextCompared(previous: readonly string[], id: string): string[] {
+  const next = previous.includes(id)
+    ? previous.filter((existing) => existing !== id)
+    : [...previous, id];
+  return next.slice(Math.max(0, next.length - 2));
+}
+
 interface Props {
   batch: string;
   batches: readonly components["schemas"]["BatchView"][];
@@ -12,7 +23,7 @@ interface Props {
   onToggle: (id: string) => void;
 }
 
-/** 产物预览的策略对比选择器：当前策略固定第一栏，其余激活批次最多再选两套。 */
+/** 策略对比胶囊条（稿 §23 .live-head 右端）：当前策略恒在最左、点它不动，其余加入即多栏对比，无上限置灰。 */
 export function ComparePicker({
   batch,
   batches,
@@ -21,9 +32,12 @@ export function ComparePicker({
   onToggle,
 }: Props) {
   return (
-    <section className="mb-2 ml-auto max-w-[304px]" aria-label="策略对比">
-      {/* 对比 chips 条（条目预览稿已产出区同款）：单行横滚走 hs 定式（DESIGN.md 3.3）——
-          原生条占位与 pb-2 随之撤；wrap 级 justify-end＝少时靠右、多时整条横滚。 */}
+    // 占满题字右侧剩余宽度（⑨）；窄视口（≤768）收到 304 保底、题字恒不让位。
+    <section
+      className="min-w-0 flex-1 max-md:grow-0 max-md:basis-[304px]"
+      aria-label="策略对比"
+    >
+      {/* 单行横滚走 hs 定式（DESIGN.md 3.3）：对齐声明挂在 wrap 上而非 .hs-scroll。 */}
       <HScroll className="justify-end">
         {[
           {
@@ -35,22 +49,17 @@ export function ComparePicker({
           const primary = entry.id === batch;
           const selected = primary || compared.includes(entry.id);
           return (
-            <Tip
-              key={entry.id}
-              label={
-                primary
-                  ? "当前策略固定为第一栏"
-                  : !selected && compared.length >= 2
-                    ? "同时最多对比三套策略"
-                    : entry.name
-              }
-            >
+            <Tip key={entry.id} label={primary ? "当前策略固定为第一栏" : entry.name}>
+              {/* §23 实例约束：两类选中同色、靠位置区分（当前那枚恒在最左），零图形、不换行。 */}
               <button
                 type="button"
                 aria-pressed={selected}
-                disabled={primary || (!selected && compared.length >= 2)}
-                onClick={() => onToggle(entry.id)}
-                className={`h-(--h-xs) min-w-[88px] shrink-0 rounded-full border px-4 text-t-sm ${primary ? "border-primary/45 bg-primary/10 font-medium text-primary dark:bg-primary/26" : selected ? "border-border bg-card text-foreground" : "border-border bg-secondary text-text-3"}`}
+                onClick={() => !primary && onToggle(entry.id)}
+                className={`h-(--h-xs) min-w-[88px] shrink-0 justify-center gap-1 rounded-full border px-3 text-t-sm whitespace-nowrap ${
+                  selected
+                    ? "border-primary bg-primary/10 font-medium text-primary dark:bg-primary/26"
+                    : "border-border bg-secondary text-text-3"
+                } ${primary ? "cursor-default" : "cursor-pointer"}`}
               >
                 {entry.name} · {entry.id}
               </button>

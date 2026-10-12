@@ -70,6 +70,16 @@ function retriedRowPair() {
   return { original, retry };
 }
 
+/** 「已完成」组里的一条素材，同时已排进重试名单（两组各占一行）。 */
+function retryView(): components["schemas"]["ItemListView"] {
+  const initial = view("first");
+  const row = initial.groups.done?.[0];
+  if (!row) throw new Error("缺少测试素材");
+  row.in_retry = true;
+  initial.groups.retry = [row];
+  return initial;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   // 切页记忆走 localStorage：清档防止用例间串状态。
@@ -328,8 +338,11 @@ describe("打标页读取流程", () => {
 
     await user.click(screen.getByRole("button", { name: /^first\.psd/ }));
 
-    expect(screen.getByRole("heading", { name: "first.psd" })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "产物预览" })).not.toBeInTheDocument();
+    // 舞台缺席的两类（缺失／未导入）点行不进条目预览（媒体舞台④·甲＝不加提示、行外观不弱化）。
+    expect(
+      screen.queryByRole("heading", { name: "first.psd" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "批次概览" })).toBeInTheDocument();
     // 组头「一键导入」两枚已撤（2026-10-10 用户裁）；行内「导入」点击直接补登记、不经弹窗。
     // 「导入」＝纯图标钮（条目行②），文件名进 aria-label、不合资格的仍不亮。
     const unimported = within(screen.getByRole("region", { name: "未导入" }));
@@ -480,16 +493,10 @@ describe("打标页读取流程", () => {
     ).toHaveLength(2);
   });
 
-  it("重试行逐条移出后原分组素材保留，整体清空同样以服务器结果更新", async () => {
+  it("重试行逐条移出后原分组素材保留，重试组随服务端回传消失", async () => {
     const user = userEvent.setup();
-    const initial = view("first");
-    const row = initial.groups.done?.[0];
-    if (!row) throw new Error("缺少测试素材");
-    row.in_retry = true;
-    initial.groups.retry = [row];
-    vi.mocked(api.listItems).mockResolvedValue(initial);
+    vi.mocked(api.listItems).mockResolvedValue(retryView());
     vi.mocked(api.removeRetryItem).mockResolvedValue({ id: "s1", seq: 1, items: [] });
-    vi.mocked(api.clearRetryItems).mockResolvedValue({ id: "s1", seq: 1, items: [] });
     render(<LabelingPage />);
 
     await user.click(await screen.findByRole("button", { name: "移出重试 first.jpg" }));
@@ -499,10 +506,31 @@ describe("打标页读取流程", () => {
     expect(
       screen.queryByRole("button", { name: "移出重试 first.jpg" }),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "刷新条目" }));
-    await user.click(await screen.findByRole("button", { name: "清空名单" }));
-    expect(api.clearRetryItems).toHaveBeenCalledWith("one", "s1");
+    // 顶栏「刷新条目」钮已撤（2026-10-07 用户裁）：名单变化只由服务端回传驱动，无手动重取入口。
     expect(screen.queryByRole("button", { name: "清空名单" })).not.toBeInTheDocument();
+  });
+
+  it("清空名单以服务端回传为准：没清掉就照实保留，清掉了组才消失", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.listItems).mockResolvedValue(retryView());
+    vi.mocked(api.clearRetryItems)
+      .mockResolvedValueOnce({ id: "s1", seq: 1, items: ["first"] })
+      .mockResolvedValue({ id: "s1", seq: 1, items: [] });
+    render(<LabelingPage />);
+
+    await user.click(await screen.findByRole("button", { name: "清空名单" }));
+
+    expect(api.clearRetryItems).toHaveBeenCalledWith("one", "s1");
+    // 服务端回传「名单里还有它」＝照实保留，不由前端猜成空名单。
+    expect(
+      screen.getByRole("button", { name: "移出重试 first.jpg" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "清空名单" }));
+    expect(api.clearRetryItems).toHaveBeenCalledTimes(2);
+    expect(
+      screen.queryByRole("button", { name: "移出重试 first.jpg" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "first.jpg" })).toBeInTheDocument();
   });
 

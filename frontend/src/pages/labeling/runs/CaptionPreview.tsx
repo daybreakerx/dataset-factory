@@ -2,16 +2,31 @@ import { useEffect, useRef, useState } from "react";
 import { ApiError, api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { FormError } from "../../../components/form-error";
-import { Button } from "../../../components/ui/button";
-import { Tip } from "../../../components/ui/tooltip";
+import { cn } from "../../../lib/utils";
 import { ComparePicker } from "./compare-picker";
 
 interface Props {
   wid: string;
   batch: string;
   row: components["schemas"]["ItemRowView"];
-  onRetryChange: (items: string[]) => void;
   batches?: readonly components["schemas"]["BatchView"][];
+  /** 当前批次之外、激活态、可参与对比的批次。 */
+  available: components["schemas"]["BatchView"][];
+  /** 已加入对比的批次 id（名单与替换式上限由父视图统一管）。 */
+  compared: string[];
+  onToggleCompared: (id: string) => void;
+  /** 媒体舞台折叠态：解除各栏正文 180px 上限（稿 §23 .capbox--unfolded）。 */
+  unfolded: boolean;
+}
+
+/** 对比栏正文：取数中「正在读取…」与无产物「暂无产出」分两句（⑤，DESIGN.md 4.2）。 */
+function bodyText(loading: boolean, text: string, empty: string): string {
+  return loading ? "正在读取…" : text.trim() || empty;
+}
+
+/** 对比栏正文的三档字色：取数中 --text-4／无产物 --text-3／有产物正文色。 */
+function bodyTone(loading: boolean, text: string): string {
+  return loading ? "text-text-4" : text.trim() ? "text-foreground" : "text-text-3";
 }
 
 function ComparisonCaption({
@@ -23,53 +38,68 @@ function ComparisonCaption({
   batch: string;
   item: string;
 }) {
-  const [text, setText] = useState("正在读取");
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   useEffect(() => {
     let current = true;
-    setText("正在读取");
+    setText("");
+    setLoading(true);
     setError("");
     void api
       .readCaption(wid, batch, item)
       .then((value) => {
-        if (current) setText(value || "暂无产物");
+        if (current) setText(value);
       })
       .catch((reason: unknown) => {
         if (!current) return;
-        setText("暂无产物");
         if (!(reason instanceof ApiError && reason.status === 404))
           setError(errorMessage(reason));
+      })
+      .finally(() => {
+        if (current) setLoading(false);
       });
     return () => {
       current = false;
     };
   }, [wid, batch, item]);
   return (
-    <div className="p-3 whitespace-pre-wrap break-words text-t-md leading-loose">
-      {error ? <FormError className="text-bad-ink">{error}</FormError> : text}
+    <div
+      className={cn(
+        "p-3 text-t-sm leading-(--lh-base) whitespace-pre-wrap break-words",
+        !error && bodyTone(loading, text),
+      )}
+      aria-busy={loading}
+    >
+      {error ? (
+        <FormError className="text-bad-ink">{error}</FormError>
+      ) : (
+        bodyText(loading, text, "暂无产出")
+      )}
     </div>
   );
 }
 
-/** 只读产物与名单编辑分离；重试成功后由父视图同步两处名单标记。 */
+/**
+ * 产出区·已完成态（稿「产出区」格 ⑥—⑪）：题字行（已产出＋对比 chips）＋产物框（单栏或多栏）。
+ *
+ * 只读产物，不提供名单编辑——「加入重试」整枚 2026-10-11 用户裁撤（⑪），
+ * 名单动作归左列条目行内那一枚（同一后端动作、不留第二个入口）。
+ */
 export function CaptionPreview({
   wid,
   batch,
   row,
-  onRetryChange,
   batches = [],
+  available,
+  compared,
+  onToggleCompared,
+  unfolded,
 }: Props) {
   const [caption, setCaption] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const generation = useRef(0);
-  const comparisonIdentity = useRef("");
-  const [comparison, setComparison] = useState<string[]>([]);
-  const available = batches.filter((entry) => entry.active && entry.id !== batch);
-  const compared = comparison.filter((id) =>
-    available.some((entry) => entry.id === id),
-  );
 
   useEffect(() => {
     generation.current += 1;
@@ -77,12 +107,6 @@ export function CaptionPreview({
     setCaption("");
     setError("");
     setLoading(true);
-    setSaving(false);
-    const identity = `${wid}/${batch}/${row.item}`;
-    if (comparisonIdentity.current !== identity) {
-      comparisonIdentity.current = identity;
-      setComparison([]);
-    }
     void api
       .readCaption(wid, batch, row.item)
       .then((text) => {
@@ -102,103 +126,71 @@ export function CaptionPreview({
     };
   }, [wid, batch, row]);
 
-  async function toggleRetry() {
-    if (saving) return;
-    const requestGeneration = generation.current;
-    setSaving(true);
-    setError("");
-    try {
-      const result = row.in_retry
-        ? await api.removeRetryItem(wid, batch, row.item)
-        : await api.addRetryItems(wid, batch, [row.item]);
-      if (generation.current === requestGeneration) onRetryChange(result.items);
-    } catch (reason) {
-      if (generation.current === requestGeneration) setError(errorMessage(reason));
-    } finally {
-      if (generation.current === requestGeneration) setSaving(false);
-    }
-  }
-
+  const columns = compared.length ? [batch, ...compared] : [batch];
   return (
     <section className="mt-4 min-w-0" aria-label="产物预览">
-      <div className="mb-3 flex items-center gap-3">
-        <h3 className="text-t-md font-medium">已产出 txt · {batch}</h3>
-        <Tip
-          label={
-            saving
-              ? "正在保存"
-              : !row.in_retry && !row.can_retry
-                ? "不可加入重试——排队中无需重试、缺失要先补回素材、格式类失败要先解决格式问题"
-                : ""
-          }
-        >
-          <Button
-            className="ml-auto"
-            variant={row.in_retry ? "outline" : "default"}
-            size="sm"
-            disabled={saving || (!row.in_retry && !row.can_retry)}
-            onClick={() => void toggleRetry()}
-          >
-            {saving ? "正在保存" : row.in_retry ? "移出重试" : "加入重试"}
-          </Button>
-        </Tip>
+      <div className="mb-2 flex min-w-0 items-baseline gap-3">
+        <h3 className="shrink-0 text-t-md font-medium">已产出</h3>
+        {!!available.length && (
+          <ComparePicker
+            batch={batch}
+            batches={batches}
+            available={available}
+            compared={compared}
+            onToggle={onToggleCompared}
+          />
+        )}
       </div>
-      {!!available.length && (
-        <ComparePicker
-          batch={batch}
-          batches={batches}
-          available={available}
-          compared={compared}
-          onToggle={(id) =>
-            setComparison((previous) =>
-              previous.includes(id)
-                ? previous.filter((existing) => existing !== id)
-                : [...previous, id],
-            )
-          }
-        />
-      )}
       {error && <FormError className="mb-3 text-t-sm text-bad-ink">{error}</FormError>}
-      <div
-        className="grid gap-3"
-        style={{
-          gridTemplateColumns: `repeat(${compared.length + 1}, minmax(0, 1fr))`,
-        }}
-      >
+      {!compared.length ? (
+        // 单栏＝.capbox（白卡＋r-lg＋180 内滚）
         <section
-          className={
-            compared.length
-              ? "min-w-0 overflow-hidden rounded-lg border border-primary/50"
-              : "min-w-0"
-          }
-          aria-label={`产物 ${batch}`}
-        >
-          {!!compared.length && (
-            <h4 className="border-b border-border px-3 py-2 text-t-sm text-text-3">
-              {batches.find((entry) => entry.id === batch)?.name ?? batch} · {batch}
-            </h4>
+          className={cn(
+            "rounded-xl border border-border bg-card p-4 text-t-md leading-(--lh-loose) whitespace-pre-wrap break-words",
+            bodyTone(loading, caption),
+            !unfolded && "max-h-[180px] overflow-y-auto",
           )}
-          <div
-            className="whitespace-pre-wrap break-words rounded-md bg-muted p-4 text-t-md leading-loose"
-            aria-busy={loading}
-          >
-            {/* A3 显示层兜底：老产物可能带前导空行，展示前去掉（产物文件本身不动）。 */}
-            {loading ? "正在读取" : caption.trim() || "暂无产物"}
-          </div>
+          aria-label={`产物 ${batch}`}
+          aria-busy={loading}
+        >
+          {/* A3 显示层兜底：老产物可能带前导空行，展示前去掉（产物文件本身不动）。 */}
+          {bodyText(loading, caption, "暂无产出")}
         </section>
-        {compared.map((id) => (
-          <section
-            key={id}
-            className="min-w-0 overflow-hidden rounded-lg border border-border"
-            aria-label={`产物 ${id}`}
-          >
-            <h4 className="border-b border-border px-3 py-2 text-t-sm text-text-3">
-              {batches.find((entry) => entry.id === id)?.name ?? id} · {id}
-            </h4>
-            <ComparisonCaption wid={wid} batch={id} item={row.item} />
-          </section>
-        ))}
-      </div>
+      ) : (
+        // 多栏＝.cmp-grid／.cmp-col（每栏各自锁 180 内滚；当前策略恒在第一栏）
+        <div
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
+          }}
+        >
+          {columns.map((id) => (
+            <section
+              key={id}
+              className="min-w-0 overflow-hidden rounded-lg border border-border bg-card"
+              aria-label={`产物 ${id}`}
+            >
+              <h4 className="flex items-center gap-2 border-b border-border px-3 py-2 text-t-sm text-text-3">
+                {batches.find((entry) => entry.id === id)?.name ?? id} · {id}
+              </h4>
+              {id === batch ? (
+                <div
+                  className={cn(
+                    "p-3 text-t-sm leading-(--lh-base) whitespace-pre-wrap break-words",
+                    bodyTone(loading, caption),
+                    !unfolded && "max-h-[180px] overflow-y-auto",
+                  )}
+                  aria-busy={loading}
+                >
+                  {bodyText(loading, caption, "暂无产出")}
+                </div>
+              ) : (
+                <ComparisonCaption wid={wid} batch={id} item={row.item} />
+              )}
+            </section>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
