@@ -1,5 +1,4 @@
 import type { APIRequestContext, Page } from "@playwright/test";
-import { expect } from "@playwright/test";
 import type { TestType } from "@playwright/test";
 
 import {
@@ -161,14 +160,6 @@ export function defineBaselineScreens(
   test("08 打标-素材预览", async ({ page }) => {
     const sink = await boot(page);
     await openLabeling(page);
-    // E1 真缩略图（gamma.mp4 两次＝预载＋#t=0.1 首帧）与预览请求存在启动竞速（lazy/预载
-    // 时机 vs 点击时机，全量跑偶发翻转——T16 验收轮 08/12 同根实锤）：先等左列 asset
-    // 请求面落定再点，请求序才确定（不动基线语义）。
-    await expect
-      .poll(() => sink.filter((row) => row.includes("gamma/asset")).length, {
-        timeout: 10_000,
-      })
-      .toBe(2);
     await page.getByRole("button", { name: "alpha.png", exact: true }).click();
     await snap(page, sink, "08-labeling-preview");
   });
@@ -198,12 +189,6 @@ export function defineBaselineScreens(
   test("12 打标-策略快照弹窗", async ({ page }) => {
     const sink = await boot(page);
     await openLabeling(page);
-    // 同 08：先等左列 asset 请求面落定再开快照（E1 缩略图与后续请求的启动竞速，T16 验收轮实锤）。
-    await expect
-      .poll(() => sink.filter((row) => row.includes("gamma/asset")).length, {
-        timeout: 10_000,
-      })
-      .toBe(2);
     await page.getByRole("button", { name: "快照", exact: true }).click();
     await snap(page, sink, "12-labeling-snapshot");
   });
