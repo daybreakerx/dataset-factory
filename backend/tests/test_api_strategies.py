@@ -359,6 +359,34 @@ def test_snapshot_of_legacy_skill_block_falls_back_to_single_file(
     )
 
 
+def test_snapshot_of_damaged_legacy_skill_block_returns_problem(
+    client: TestClient, assets: None, wid: str
+) -> None:
+    """旧 Skill 块连同正文与哈希一起缺＝损坏快照：仍走 404 可处理错误，不是 500。"""
+    client.post(
+        f"/api/workdirs/{wid}/batches",
+        json={
+            "type": "scratch",
+            "name": "测试",
+            "endpoint_id": "main",
+            "prompt_id": "详细描述",
+            "skill_ids": [_SKILL_NAME],
+        },
+    )
+    path = WorkdirStore(Path(WorkdirRegistry.get(wid).path)).strategies_dir / "s1.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for block in data["skills"]:
+        block.pop("files")
+        block.pop("body")
+        block.pop("sha256")
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    response = client.get(f"/api/workdirs/{wid}/batches/s1/snapshot")
+
+    assert response.status_code == 404
+    assert response.headers["content-type"] == "application/problem+json"
+
+
 def test_snapshot_warns_after_manual_change_without_rewriting(
     client: TestClient, assets: None, wid: str
 ) -> None:

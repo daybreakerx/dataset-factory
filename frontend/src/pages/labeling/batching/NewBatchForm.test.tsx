@@ -397,4 +397,47 @@ describe("新建批次·表单头与素材来源", () => {
       skill_ids: ["sk-1"],
     });
   });
+
+  it("库表拉不到时三行说「配置读取失败」，不把拉不到说成库里没有", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.listEndpoints).mockRejectedValue(
+      new ApiError("network", "连不上后端", null, null),
+    );
+    renderForm();
+
+    await user.click(screen.getByRole("button", { name: "端点配置" }));
+
+    expect(await screen.findByText("配置读取失败")).toBeInTheDocument();
+    expect(screen.queryByText("还没有可用的端点配置")).not.toBeInTheDocument();
+  });
+
+  it("不可用的库策略是坏行：名降色、那句真话在场、行不可点", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.listStrategies).mockResolvedValue([
+      {
+        id: "lib1",
+        name: "库策略",
+        description: "",
+        endpoint_id: "e-model-x1111",
+        prompt_id: "p-caption-01",
+        skill_ids: [],
+        endpoint_name: "model",
+        prompt_name: "caption",
+        body_chars: 12,
+        available: false,
+        missing_refs: ["提示词"],
+        damaged: false,
+        created_at: "",
+        updated_at: "",
+      },
+    ]);
+    renderForm();
+
+    await user.click(screen.getByRole("button", { name: "策略来源" }));
+
+    const row = await screen.findByRole("menuitem", { name: /库策略/ });
+    expect(row).toHaveAttribute("aria-disabled", "true");
+    expect(row).toHaveAttribute("data-row", "bad");
+    expect(row).toHaveTextContent("引用缺失，暂时不可用 · 点击处理");
+  });
 });

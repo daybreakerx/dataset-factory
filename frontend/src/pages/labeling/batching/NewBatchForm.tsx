@@ -47,6 +47,9 @@ export function NewBatchForm({
 }: Props) {
   const id = useId();
   const lists = useBatchFormLists();
+  // 四张库表的取数三态（设置页左列同款口径）：不给这一句，「拉不到」会被说成「库里没有」。
+  const listsStateText =
+    lists.error !== "" ? "配置读取失败" : lists.loaded ? "" : "正在读取…";
   const [mode, setMode] = useState<"copy" | "inplace">("copy");
   const [source, setSource] = useState("");
   const [path, setPath] = useState("");
@@ -330,6 +333,7 @@ export function NewBatchForm({
           prompts={lists.prompts}
           skills={lists.skills}
           busy={creating}
+          stateText={listsStateText}
           onLibraryChange={(value) => {
             setLibrary(value);
             setName(lists.strategies.find((entry) => entry.id === value)?.name ?? "");

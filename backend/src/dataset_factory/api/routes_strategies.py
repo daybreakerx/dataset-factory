@@ -387,15 +387,21 @@ def _snapshot_skill_files(block: dict[str, Any]) -> dict[str, Any]:
     """Skill 块的对外形状：按文件给出（文件级冻结，对齐批 #17 C 节⑰）。
 
     盘上的旧快照只有组装好的注入全文、没有 `files`——读取侧把它呈现成「一份 SKILL.md
-    全文」，不改写落盘文件、也不给界面留空块。
+    全文」，不改写落盘文件、也不给界面留空块。缺键一律用 `None` 交给视图校验去报
+    （路由把 ValidationError 翻成「快照内容损坏」的 404 problem+json），这里不裸取、
+    不吞损坏：手改坏了的快照仍走「可处理错误」，不是 500。
     """
     files = block.get("files")
     if isinstance(files, list) and files:
-        return {"name": block["name"], "files": files}
+        return {"name": block.get("name"), "files": files}
     return {
-        "name": block["name"],
+        "name": block.get("name"),
         "files": [
-            {"path": "SKILL.md", "body": block["body"], "sha256": block["sha256"]}
+            {
+                "path": "SKILL.md",
+                "body": block.get("body"),
+                "sha256": block.get("sha256"),
+            }
         ],
     }
 

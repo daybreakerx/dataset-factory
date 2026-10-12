@@ -28,6 +28,9 @@ export function BatchStrategyFields({
   prompts,
   skills,
   busy,
+  /** 四张库表「正在读取／读取失败」那一行的文案（父层给的同一句，空串＝已就绪）；
+   *  不给就是把「拉不到」说成「库里没有」——设置页左列同款口径（取数三态轮换）。 */
+  stateText = "",
   onLibraryChange,
   onNameChange,
   onEndpointChange,
@@ -48,6 +51,7 @@ export function BatchStrategyFields({
   prompts: PromptInfo[];
   skills: SkillInfo[];
   busy: boolean;
+  stateText?: string;
   onLibraryChange: (value: string) => void;
   onNameChange: (value: string) => void;
   onEndpointChange: (value: string) => void;
@@ -95,7 +99,7 @@ export function BatchStrategyFields({
             value: entry.id,
             name: entry.name,
             // 两行式第二行＝「端点 ｜ 提示词 ｜ Skill 数」摘要（笔③样图第三段写法）；
-            // 不可用项给一句真话、行不可点（处置出口＝策略页那条链，见挂起清单波 9 笔④）。
+            // 不可用项给一句真话、行不可点；名降色走族里 bad 档（笔④ `.pl-row.bad` 对等）。
             desc: entry.available
               ? [
                   entry.endpoint_name,
@@ -103,10 +107,11 @@ export function BatchStrategyFields({
                   `Skill ${entry.skill_ids.length}`,
                 ].join(" ｜ ")
               : "引用缺失，暂时不可用 · 点击处理",
+            bad: !entry.available,
             disabled: !entry.available,
           })),
         ]}
-        emptyText="还没有可用的策略"
+        emptyText={stateText || "还没有可用的策略"}
       />
       <label
         htmlFor={`${id}-name`}
@@ -152,7 +157,7 @@ export function BatchStrategyFields({
                     },
                   ]
             }
-            emptyText="还没有可用的端点配置"
+            emptyText={stateText || "还没有可用的端点配置"}
             onSelect={onEndpointChange}
           />
         </CfgPopFieldRow>
@@ -172,7 +177,7 @@ export function BatchStrategyFields({
                 ? prompts.map((entry) => ({ value: entry.id, name: entry.name }))
                 : [{ value: shownPrompt?.value ?? "", name: shownPrompt?.name ?? "" }]
             }
-            emptyText="还没有可用的基础提示词"
+            emptyText={stateText || "还没有可用的基础提示词"}
             onSelect={onPromptChange}
           />
         </CfgPopFieldRow>
@@ -194,7 +199,7 @@ export function BatchStrategyFields({
               }))}
             selected={shownSkillIds}
             text={shownSkillIds.map(skillName).join("、") || "未选"}
-            emptyText="还没有可用的 Skill"
+            emptyText={stateText || "还没有可用的 Skill"}
             disabled={readOnly}
             inert={busy}
             onToggle={(value) =>
