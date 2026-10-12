@@ -190,7 +190,7 @@ export function NewStrategyDialog({
         ariaLabel="策略来源"
         head={null}
         value={library}
-        disabled={busy}
+        inert={busy}
         onReopen={loadCatalog}
         onSelect={(value) => {
           setLibrary(value);
@@ -232,7 +232,10 @@ export function NewStrategyDialog({
         id={`${id}-name`}
         value={name}
         placeholder="例如：标签式短句"
-        disabled={busy}
+        // 飞行期只失效不换装（笔⑧）：不挂原生 disabled（那会进灰阶），改只读＋掐指针。
+        readOnly={busy}
+        aria-disabled={busy || undefined}
+        className={busy ? "pointer-events-none" : undefined}
         onChange={(event) => setName(event.currentTarget.value)}
       />
       <div className="mb-1 mt-4 text-t-md font-medium text-text-1">策略内容</div>
@@ -247,7 +250,8 @@ export function NewStrategyDialog({
               onManage: onNavigateToSettings,
             }}
             value={libraryValue}
-            disabled={busy || !scratch}
+            disabled={!scratch}
+            inert={busy}
             onReopen={loadCatalog}
             onSelect={setEndpoint}
             options={(catalog?.endpoints ?? []).map((entry) => ({
@@ -266,7 +270,8 @@ export function NewStrategyDialog({
               onManage: onOpenWorkbench,
             }}
             value={promptValue}
-            disabled={busy || !scratch}
+            disabled={!scratch}
+            inert={busy}
             onReopen={loadCatalog}
             onSelect={setPrompt}
             options={(catalog?.prompts ?? []).map((entry) => ({
@@ -292,7 +297,8 @@ export function NewStrategyDialog({
             selected={shownSkillIds}
             text={shownSkillIds.map(skillName).join("、") || "未选"}
             emptyText={stateText || "还没有可用的 Skill"}
-            disabled={busy || !scratch}
+            disabled={!scratch}
+            inert={busy}
             onReopen={loadCatalog}
             onToggle={(value) =>
               setSkills((previous) =>

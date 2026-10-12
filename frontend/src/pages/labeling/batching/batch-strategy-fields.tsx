@@ -83,7 +83,7 @@ export function BatchStrategyFields({
         ariaLabel="策略来源"
         head={null}
         value={library}
-        disabled={busy}
+        inert={busy}
         onSelect={onLibraryChange}
         options={[
           {
@@ -118,7 +118,10 @@ export function BatchStrategyFields({
       <Input
         id={`${id}-name`}
         value={name}
-        disabled={busy}
+        // 飞行期只失效不换装（与新增策略弹窗同规，2026-10-04 通则）：不挂原生 disabled。
+        readOnly={busy}
+        aria-disabled={busy || undefined}
+        className={busy ? "pointer-events-none" : undefined}
         onChange={(event) => onNameChange(event.currentTarget.value)}
       />
       <div className="mb-1 mt-4 text-t-md font-medium text-text-1">策略内容</div>
@@ -133,7 +136,8 @@ export function BatchStrategyFields({
               onManage: onNavigateToSettings,
             }}
             value={scratch ? endpoint : (shownEndpoint?.value ?? "")}
-            disabled={busy || readOnly}
+            disabled={readOnly}
+            inert={busy}
             options={
               scratch
                 ? endpoints.map((entry) => ({
@@ -161,7 +165,8 @@ export function BatchStrategyFields({
               onManage: onOpenWorkbench,
             }}
             value={scratch ? prompt : (shownPrompt?.value ?? "")}
-            disabled={busy || readOnly}
+            disabled={readOnly}
+            inert={busy}
             options={
               scratch
                 ? prompts.map((entry) => ({ value: entry.id, name: entry.name }))
@@ -190,7 +195,8 @@ export function BatchStrategyFields({
             selected={shownSkillIds}
             text={shownSkillIds.map(skillName).join("、") || "未选"}
             emptyText="还没有可用的 Skill"
-            disabled={busy || readOnly}
+            disabled={readOnly}
+            inert={busy}
             onToggle={(value) =>
               onSelectedSkillsChange((previous) =>
                 previous.includes(value)

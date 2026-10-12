@@ -326,4 +326,23 @@ describe("新增策略弹窗", () => {
     finish?.();
     await waitFor(() => expect(api.createBatch).toHaveBeenCalledTimes(1));
   });
+
+  it("飞行期字段与主钮只失效不换装：不进灰阶、不换字", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.createBatch).mockImplementation(() => new Promise(() => {}));
+    render(renderDialog({}));
+    await user.type(screen.getByRole("textbox", { name: "策略名" }), "新策略");
+
+    await user.click(screen.getByRole("button", { name: "创建策略" }));
+
+    const name = screen.getByRole("textbox", { name: "策略名" });
+    expect(name).not.toBeDisabled();
+    expect(name).toHaveAttribute("aria-disabled", "true");
+    const trigger = screen.getByRole("button", { name: "端点配置" });
+    expect(trigger).not.toBeDisabled();
+    expect(trigger).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "创建策略" })).toHaveTextContent(
+      "创建策略",
+    );
+  });
 });
