@@ -109,14 +109,22 @@ export function ConfigList({
               aria-current={active ? "true" : undefined}
               className={
                 "block w-full rounded-md border px-3 py-2 text-left transition-colors " +
-                // 描边环语言（2026-09-29 用户定稿）：静止无环 → 悬停 --border 更浅环
-                // → 选中 --input 环；无底、名不变色，行与行 4px 间隙独立成格。
-                (active ? "border-input" : "border-transparent hover:border-border")
+                // 选中态＝弹层当前行同款三件套（base.css §21 `.set-row.cur`；2026-10-08 用户裁
+                // 「②⑤ 并入 ③」，推翻 2026-09-29 那版「浅灰描边环·去蓝」）：底 primary/.08
+                // ＋描边 primary/.3＋行名转主色；悬停不换装＝选中行不再吃 hover 环。
+                (active
+                  ? "border-primary/30 bg-primary/8 text-primary dark:bg-primary/22"
+                  : "border-transparent hover:border-border")
               }
             >
               <span className="flex min-w-0 items-center gap-2">
                 <Tip label={item.name}>
-                  <span className="min-w-0 truncate text-t-lg font-medium text-text-1">
+                  <span
+                    className={
+                      "min-w-0 truncate text-t-lg font-medium " +
+                      (active ? "text-primary" : "text-text-1")
+                    }
+                  >
                     {item.name}
                   </span>
                 </Tip>

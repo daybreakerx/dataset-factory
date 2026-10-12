@@ -19,9 +19,7 @@ GET /api/workdirs/probe/export/plan
 GET /api/workdirs
 GET /api/workdirs/probe/batches
 GET /api/workdirs/probe/cleanup-preview
-GET /api/workdirs/probe/cleanup-runs-preview
 GET /api/workdirs/probe/stats
 GET /api/workdirs/probe/relocate/status
 GET /api/workdirs/probe
 GET /api/workdirs/probe/batches
-GET /api/workdirs/probe/batches/s1/runs/current

@@ -179,8 +179,11 @@ export function SkillList({
               key={skill.id}
               className={
                 "flex items-center gap-2 rounded-md border px-3 py-2 transition-colors " +
-                // 描边环语言（随端点行同款）：静止无环 → 悬停 --border 更浅环 → 选中 --input 环。
-                (active ? "border-input" : "border-transparent hover:border-border")
+                // 选中态同款三件套（§21 `.set-skrow.cur`，随端点行归一为弹层当前行同款）：
+                // 底 primary/.08＋描边 primary/.3＋悬停不换装；行名转主色见下面那个 span。
+                (active
+                  ? "border-primary/30 bg-primary/8 dark:bg-primary/22"
+                  : "border-transparent hover:border-border")
               }
             >
               {/* 切换飞行＝瞬态禁用：只失效不换装（对齐批「瞬态禁用不换装」）——
@@ -205,7 +208,12 @@ export function SkillList({
                     className={
                       "min-w-0 truncate text-t-lg font-medium " +
                       // 不可修复档行名跟图标同红（destructive）；可修复档与正常行同色（行名跟档，2026-10-01 裁）。
-                      (damaged && unfixable ? "text-destructive" : "text-text-1")
+                      // 选中态才转主色（§21 .set-skrow.cur .set-row-name）——坏行的红是信息色、不被选中色盖掉。
+                      (damaged && unfixable
+                        ? "text-destructive"
+                        : active
+                          ? "text-primary"
+                          : "text-text-1")
                     }
                   >
                     {skill.name}
