@@ -47,7 +47,7 @@ Skill 是遵循 agentskills.io 标准的自定义技能包（操作约定/流程
 
 ### 对等的 Web 与 CLI 双入口
 
-Web 界面提供完整的可视化工作流；命令行 `dsf` 覆盖同等能力，适合批量任务和外部 Agent 编排——Web 里能做的配置、打标、导出，CLI 都能做，输出适合管道处理。
+Web 界面提供完整的可视化工作流；命令行 `dsf` 覆盖同等能力，适合批量任务和外部 Agent 编排——Web 里能做的配置、打标、导出，CLI 都能做，输出适合管道处理。完整命令手册见 [docs/cli.md](docs/cli.md)。
 
 ### 其他
 
@@ -98,26 +98,6 @@ cd ../backend && uv run dsf serve
 2. 在打标页新建工作目录，指向你准备好的素材文件夹，导入为批次。
 3. 在顶栏选择提示词（策略）与端点，发起单条对话打标或整批无人值守打标；完成后用导出功能打包 ZIP。
 
-## CLI 用法
-
-所有命令都在 `backend/` 目录下以 `uv run dsf ...` 运行，或安装后直接使用 `dsf`。
-
-| 命令 | 用途 |
-| --- | --- |
-| `dsf serve` | 启动本地 Web 服务（HTTP API + 界面） |
-| `dsf label` / `dsf chat` | 单图打标 / 终端多轮对话打标（`--session` 续接即迭代改写） |
-| `dsf run` | 前台执行批次无人值守打标，Ctrl-C 安全收尾 |
-| `dsf workdir add/show/import/reimport/relocate/verify/cleanup/list/rm` | 工作目录的登记导入、缺失找回、迁移、校验与清理 |
-| `dsf batch items/status/stop/retry/exclude/hide/rm` | 批次条目状态、停止、重试、打包排除与删除 |
-| `dsf strategy add/list/show/use/edit/copy/rebind/rm` | 策略库（端点 + 提示词 + Skill 的组合）管理 |
-| `dsf prompt list/show/save/rename/rm` | 提示词库管理 |
-| `dsf skill import/list/enable/disable/read/rm` | Agent Skill 导入与启停 |
-| `dsf export plan/run` | 导出前预览（入包/排除清单）与打包 ZIP |
-| `dsf config add/list/set/test/params/remove` | 端点配置、连通性测试与高级请求参数 |
-| `dsf session list/show/remove` | 对话会话管理 |
-
-任意命令加 `--help` 查看参数；`dsf` 退出码在 `--help` 末尾有完整约定。
-
 ## 项目结构
 
 ```
@@ -129,18 +109,11 @@ cd ../backend && uv run dsf serve
 ├── frontend/                # React 19 + Vite + TypeScript + Tailwind + shadcn/ui
 ├── e2e/                     # Playwright 端到端测试（真实浏览器 + 真实后端 + 假模型端点）
 ├── scripts/                 # 验收与质量门禁脚本
+├── docs/                    # 用户文档（CLI 手册）与 README 展示截图
 ├── .github/workflows/       # CI（Windows + Linux 双矩阵）
 ├── start.bat / start.sh     # 一键启动
 └── stop.bat / stop.sh       # 一键停止
 ```
-
-## 工程特点
-
-- **分层架构带强制门禁**：核心业务库不依赖任何入口层（Web 与 CLI 都只是入口），Python 侧用 import-linter、前端用 dependency-cruiser 把依赖方向固化在 CI 里；另有 knip / depcheck 清理未使用依赖。
-- **OpenAPI 是前后端唯一契约**：前端 API 客户端从 OpenAPI 生成，oasdiff 在 CI 中拦截破坏性变更，杜绝「前后端字段对不上」。
-- **测试金字塔**：pytest 后端测试带覆盖率门禁，mutmut 变异测试持续度量测试有效性；Vitest 覆盖前端逻辑；Playwright 跑真实浏览器到真实后端的全链路（对打标模型用本地假端点，测试稳定不花 token）。
-- **类型与风格自动化**：后端 pyright strict 严格类型检查 + ruff 格式化与 lint，前端 Biome 统一风格，pre-commit 提交前自动执行；detect-secrets 防止密钥入库。
-- **纯文件存储**：没有数据库，所有状态为 JSONL 与文本文件，损坏时可手动检查、版本管理与备份都简单。
 
 ## 当前状态
 
