@@ -231,6 +231,11 @@ export function StrategyToolbar({
     const refs = refsRef.current;
     // 名称空不发请求（保存钮稿：前端校验拦中间态）；新建态无自动保存——显式走创建钮。
     if (sel === null || nm.trim() === "") return;
+    // 引用没灌全不发自动保存：进页时端点/提示词列表异步拉、references 有一瞬是空
+    //（策略真值还没灌进对话列选择器），此时发一次空引用 update 会撞后端 require_refs_exist
+    // 400「端点配置「」不存在；基础提示词「」不存在」——冷启即闪一条假红、下一次正确保存自愈。
+    // 库策略本就要求端点＋提示词都在，空引用永非合法保存态，跳过零副作用（与草稿弹窗 :392 同尺）。
+    if (!refs.endpoint_id || !refs.prompt_id) return;
     if (sameAsSelected(nm.trim(), ds, refs)) return;
     try {
       const entry = await api.updateStrategy(sel.id, {
