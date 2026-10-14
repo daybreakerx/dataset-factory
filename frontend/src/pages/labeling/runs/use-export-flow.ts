@@ -1,11 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  ApiError,
-  api,
-  corruptedRunOf,
-  errorMessage,
-  type TaskView,
-} from "../../../api";
+import { ApiError, api, corruptedRunOf, type TaskView } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { reportError } from "../../../lib/feedback";
 
@@ -125,7 +119,7 @@ export function useExportFlow(
             setError("导出任务已丢失，请重新查询导出计划后重试");
             return;
           }
-          setError(errorMessage(reason));
+          setError(reportError(reason) ?? "");
           setPollFailed(true);
         }
       }

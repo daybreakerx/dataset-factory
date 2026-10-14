@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, api, errorMessage } from "../../../api";
 import type { components } from "../../../api-types.gen";
+import { reportError } from "../../../lib/feedback";
 
 export type Batch = components["schemas"]["BatchView"];
 export type Directory = components["schemas"]["WorkdirInfo"];
@@ -79,7 +80,7 @@ export function useWorkdirData(wid: string, onChanged: () => void) {
         if (current) setCleanupSummary(value);
       },
       (reason: unknown) => {
-        if (current) setSummaryError(errorMessage(reason));
+        if (current) setSummaryError(reportError(reason) ?? "");
       },
     );
     return () => {
@@ -95,7 +96,7 @@ export function useWorkdirData(wid: string, onChanged: () => void) {
         if (current) setStats(value);
       },
       (reason: unknown) => {
-        if (current) setStatsError(errorMessage(reason));
+        if (current) setStatsError(reportError(reason) ?? "");
       },
     );
     return () => {
@@ -111,7 +112,7 @@ export function useWorkdirData(wid: string, onChanged: () => void) {
         if (current) setRelocations(value);
       },
       (reason: unknown) => {
-        if (current) setMaintenanceError(errorMessage(reason));
+        if (current) setMaintenanceError(reportError(reason) ?? "");
       },
     );
     return () => {
@@ -146,7 +147,7 @@ export function useWorkdirData(wid: string, onChanged: () => void) {
           }
         },
         (reason: unknown) => {
-          if (current) setError(errorMessage(reason));
+          if (current) setError(reportError(reason) ?? "");
         },
       )
       .finally(() => {

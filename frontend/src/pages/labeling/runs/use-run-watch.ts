@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, api, errorMessage } from "../../../api";
+import { ApiError, api } from "../../../api";
 import type { components } from "../../../api-types.gen";
+import { reportError } from "../../../lib/feedback";
 import {
   type ItemDelta,
   type ItemUpdate,
@@ -102,7 +103,7 @@ export function useRunWatch({
       if (observed) {
         observed = false;
         void Promise.resolve(finishRef.current()).catch((reason: unknown) => {
-          if (!disposed) setError(errorMessage(reason));
+          if (!disposed) setError(reportError(reason) ?? "");
         });
       }
       // L3（2026-09-21 审计定案）：空闲轮询从 5 秒自续降到 15 秒慢轮——它的存在
@@ -192,7 +193,7 @@ export function useRunWatch({
             }
           } catch (reason) {
             if (!isCurrent()) return;
-            setError(errorMessage(reason));
+            setError(reportError(reason) ?? "");
             retry();
           } finally {
             syncing = false;
@@ -222,7 +223,7 @@ export function useRunWatch({
             streamRestoreRef.current?.();
           } catch (reason) {
             if (!isCurrent()) return;
-            setError(errorMessage(reason));
+            setError(reportError(reason) ?? "");
             retry();
           }
         };
@@ -296,7 +297,7 @@ export function useRunWatch({
         if (reason instanceof ApiError && reason.status === 404) {
           finish();
         } else {
-          setError(errorMessage(reason));
+          setError(reportError(reason) ?? "");
           retry();
         }
       }

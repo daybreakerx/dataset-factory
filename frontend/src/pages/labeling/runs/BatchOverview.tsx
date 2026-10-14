@@ -1,7 +1,7 @@
 import { BookOpenIcon, ChevronDownIcon, ListChecksIcon, XIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, errorMessage } from "../../../api";
+import { api } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { FormError } from "../../../components/form-error";
 import {
@@ -11,6 +11,7 @@ import {
 } from "../../../components/icons";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
+import { reportError } from "../../../lib/feedback";
 import { SnapshotDialog } from "../batching/SnapshotDialog";
 import { RebuildImportsDialog } from "../workdir/RebuildImportsDialog";
 import { ExportPanel } from "./ExportPanel";
@@ -217,7 +218,7 @@ export function BatchOverview({
       setSelecting(false);
       setExclusionRevision((value) => value + 1);
     } catch (reason) {
-      if (version === generation.current) setExclusionError(errorMessage(reason));
+      if (version === generation.current) setExclusionError(reportError(reason) ?? "");
     } finally {
       if (version === generation.current) {
         mutationPending.current = false;
@@ -246,7 +247,7 @@ export function BatchOverview({
       setSelected(new Set());
       setSelecting(false);
     } catch (reason) {
-      if (version === generation.current) setExclusionError(errorMessage(reason));
+      if (version === generation.current) setExclusionError(reportError(reason) ?? "");
     } finally {
       if (version === generation.current) {
         mutationPending.current = false;
@@ -267,7 +268,7 @@ export function BatchOverview({
       if (version !== generation.current) return;
       onRetryChanged?.(result.items);
     } catch (reason) {
-      if (version === generation.current) setExclusionError(errorMessage(reason));
+      if (version === generation.current) setExclusionError(reportError(reason) ?? "");
     } finally {
       if (version === generation.current) {
         mutationPending.current = false;

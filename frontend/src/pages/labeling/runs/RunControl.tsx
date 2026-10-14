@@ -1,10 +1,11 @@
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, corruptedRunOf, errorMessage } from "../../../api";
+import { api, corruptedRunOf } from "../../../api";
 import { DialogShell } from "../../../components/dialog-shell";
 import { FormError } from "../../../components/form-error";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
+import { reportError } from "../../../lib/feedback";
 import { cn } from "../../../lib/utils";
 import type { ItemDelta, ItemUpdate } from "./items-state";
 import { JournalCorruptedLine } from "./journal-corrupted-line";
@@ -205,7 +206,7 @@ export function RunControl({
         runStartedRef.current?.(mode);
       } catch (reason) {
         if (lifecycle.current === generation) {
-          setError(errorMessage(reason));
+          setError(reportError(reason) ?? "");
           setErrorRun(corruptedRunOf(reason));
         }
       } finally {
@@ -235,7 +236,7 @@ export function RunControl({
         if (lifecycle.current === generation) setStopMode(mode);
       } catch (reason) {
         if (lifecycle.current === generation) {
-          setError(errorMessage(reason));
+          setError(reportError(reason) ?? "");
           setErrorRun(corruptedRunOf(reason));
         }
       } finally {

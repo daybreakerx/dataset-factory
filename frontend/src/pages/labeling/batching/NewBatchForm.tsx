@@ -1,9 +1,10 @@
 import { ArrowLeftIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { ApiError, api, errorMessage, type TaskView } from "../../../api";
+import { ApiError, api, type TaskView } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { DirectoryPicker } from "../../../components/DirectoryPicker";
 import { Button } from "../../../components/ui/button";
+import { reportError } from "../../../lib/feedback";
 import { cn } from "../../../lib/utils";
 import { parseImportReport } from "../runs/import-report";
 import type { BatchSelection } from "./BatchSelector";
@@ -115,8 +116,10 @@ export function NewBatchForm({
       setScan(await api.scanSource(scanTarget));
     } catch (reason) {
       setScan(null);
-      // 后端有真话用真话；一句都没有才落稿的示意句（笔⑫，撤原空 catch 静默）。
-      setScanError(errorMessage(reason) || "扫描失败，请重试");
+      // 连接类走浮层（reportError 返回 null → 就地不留红字）；业务类后端有真话用真话、
+      // 一句都没有才落稿的示意句（笔⑫，撤原空 catch 静默）。
+      const scanMsg = reportError(reason);
+      setScanError(scanMsg === null ? "" : scanMsg || "扫描失败，请重试");
     } finally {
       if (mounted.current) setScanning(false);
     }
@@ -187,7 +190,7 @@ export function NewBatchForm({
         });
       }
     } catch (reason) {
-      if (mounted.current) setActionError(errorMessage(reason));
+      if (mounted.current) setActionError(reportError(reason) ?? "");
     } finally {
       pending.current = false;
       if (mounted.current) {
@@ -218,7 +221,10 @@ export function NewBatchForm({
       onCreated({ workdirId: workdir.id, batchId: created.id });
     } catch (reason) {
       if (mounted.current) {
-        setCreateError(errorMessage(reason) || "创建批次失败，可重新执行");
+        const createMsg = reportError(reason);
+        setCreateError(
+          createMsg === null ? "" : createMsg || "创建批次失败，可重新执行",
+        );
       }
     } finally {
       if (mounted.current) setCreating(false);

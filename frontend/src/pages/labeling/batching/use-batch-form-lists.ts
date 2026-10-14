@@ -42,6 +42,9 @@ export function useBatchFormLists() {
         setLoaded(true);
       })
       .catch((reason: unknown) => {
+        // 四表拉取失败：这里存原文供各字段区分「拉取失败」与「库里为空」（CfgPopSelect
+        // 据此显「配置读取失败」而非「还没有可用的端点配置」）——故不走 reportError 的
+        // 连接类→toast 分流（那会把失败塌成空、误报成「库里没有」）。
         if (current) setError(errorMessage(reason));
       });
     return () => {

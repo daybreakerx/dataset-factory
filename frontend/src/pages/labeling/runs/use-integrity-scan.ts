@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { api, errorMessage } from "../../../api";
+import { api } from "../../../api";
 import type { components } from "../../../api-types.gen";
+import { reportError } from "../../../lib/feedback";
 
 type IntegrityReport = components["schemas"]["IntegrityReport"];
 
@@ -56,7 +57,7 @@ export function useIntegrityScan(
       if (active.current && version === requestId.current) setReport(result);
     } catch (reason) {
       if (active.current && version === requestId.current)
-        setError(errorMessage(reason));
+        setError(reportError(reason) ?? "");
     } finally {
       if (active.current && version === requestId.current) {
         busy.current = false;

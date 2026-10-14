@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiError, api, errorMessage } from "../../../api";
+import { ApiError, api } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { FormError } from "../../../components/form-error";
+import { reportError } from "../../../lib/feedback";
 import { cn } from "../../../lib/utils";
 import { ComparePicker } from "./compare-picker";
 
@@ -54,7 +55,7 @@ function ComparisonCaption({
       .catch((reason: unknown) => {
         if (!current) return;
         if (!(reason instanceof ApiError && reason.status === 404))
-          setError(errorMessage(reason));
+          setError(reportError(reason) ?? "");
       })
       .finally(() => {
         if (current) setLoading(false);
@@ -114,7 +115,7 @@ export function CaptionPreview({
       })
       .catch((reason: unknown) => {
         if (current && !(reason instanceof ApiError && reason.status === 404)) {
-          setError(errorMessage(reason));
+          setError(reportError(reason) ?? "");
         }
       })
       .finally(() => {

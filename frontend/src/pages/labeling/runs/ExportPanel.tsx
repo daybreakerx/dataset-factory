@@ -7,7 +7,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, errorMessage } from "../../../api";
+import { api } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { FormError } from "../../../components/form-error";
 import {
@@ -19,6 +19,7 @@ import {
 import { Button, buttonVariants } from "../../../components/ui/button";
 import { Switch } from "../../../components/ui/switch";
 import { Tip } from "../../../components/ui/tooltip";
+import { reportError } from "../../../lib/feedback";
 import { formatBytes } from "../../../lib/format";
 import { cn } from "../../../lib/utils";
 import { registerInPlace, reimportFromSource } from "../material-actions";
@@ -387,7 +388,7 @@ export function ExportPanel({
       setRevision((value) => value + 1);
       return true;
     } catch (reason) {
-      if (version === generation.current) setError(errorMessage(reason));
+      if (version === generation.current) setError(reportError(reason) ?? "");
       return false;
     } finally {
       if (version === generation.current) {
@@ -416,7 +417,7 @@ export function ExportPanel({
       }
       setRevision((value) => value + 1);
     } catch (reason) {
-      setError(errorMessage(reason));
+      setError(reportError(reason) ?? "");
     } finally {
       setBusyRow(null);
     }
@@ -444,7 +445,7 @@ export function ExportPanel({
           error: null,
         });
     } catch (reason) {
-      if (version === generation.current) setError(errorMessage(reason));
+      if (version === generation.current) setError(reportError(reason) ?? "");
     } finally {
       if (version === generation.current) {
         pending.current = false;
@@ -478,7 +479,7 @@ export function ExportPanel({
         currentTask.current?.id === id &&
         currentTask.current.status === "running"
       )
-        setCancelError(errorMessage(reason));
+        setCancelError(reportError(reason) ?? "");
     } finally {
       if (version === generation.current) {
         cancelPending.current = false;

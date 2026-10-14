@@ -1,6 +1,6 @@
 import { FileImageIcon, PanelLeftOpenIcon, PlusIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, corruptedRunOf, errorMessage } from "../../api";
+import { api, corruptedRunOf } from "../../api";
 import type { components } from "../../api-types.gen";
 import { DirectoryPicker } from "../../components/DirectoryPicker";
 import { FormError } from "../../components/form-error";
@@ -277,7 +277,7 @@ export function LabelingPage({
         }
         await refreshItems();
       } catch (reason) {
-        setError(errorMessage(reason));
+        setError(reportError(reason) ?? "");
       } finally {
         setSaving(false);
       }
@@ -299,7 +299,7 @@ export function LabelingPage({
         toast(`已重新指定「${name}」`);
         await refreshItems();
       } catch (reason) {
-        setError(errorMessage(reason));
+        setError(reportError(reason) ?? "");
       } finally {
         setSaving(false);
       }
@@ -319,7 +319,7 @@ export function LabelingPage({
         setError("");
       } catch (reason) {
         if (mounted.current && identityRef.current === identity)
-          setError(errorMessage(reason));
+          setError(reportError(reason) ?? "");
       } finally {
         if (mounted.current && identityRef.current === identity) setSaving(false);
       }
@@ -341,7 +341,7 @@ export function LabelingPage({
       setSelectionMode(false);
     } catch (reason) {
       if (mounted.current && identityRef.current === identity)
-        setError(errorMessage(reason));
+        setError(reportError(reason) ?? "");
     } finally {
       if (mounted.current && identityRef.current === identity) setSaving(false);
     }
@@ -478,7 +478,7 @@ export function LabelingPage({
                 if (mounted.current) setWorkdirs(loaded);
               })
               .catch((reason: unknown) => {
-                if (mounted.current) setError(errorMessage(reason));
+                if (mounted.current) setError(reportError(reason) ?? "");
               });
           }}
         />
