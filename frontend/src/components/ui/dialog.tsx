@@ -54,7 +54,10 @@ function DialogContent({
         className={cn(
           // 宽度＝有正文段弹窗的默认档 480（稿 base.css §13 .modal）；视口两侧留 24。
           // 逐窗登记档（560 导入档等）由实例 className 覆盖；弹窗族归一见 DESIGN.md 四。
-          "group/dialog fixed top-1/2 left-1/2 z-50 grid w-[min(var(--w-modal-480),calc(100vw-48px))] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border bg-card py-4 px-6 shadow-(--sh-3)",
+          // grid-cols-1＝把单列网格轨道的下限从 min-content 抬到 0（minmax(0,1fr)）：
+          // 否则轨被内容里最长的 nowrap 行（如快照页脚 64 位哈希）按 min-content 顶破、
+          // 内容溢出盒子右缘（盒子宽仍由上面的 w-[...] 定）。收缩交给子项自己的 min-w-0＋省略号。
+          "group/dialog fixed top-1/2 left-1/2 z-50 grid grid-cols-1 w-[min(var(--w-modal-480),calc(100vw-48px))] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border bg-card py-4 px-6 shadow-(--sh-3)",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}

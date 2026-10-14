@@ -191,6 +191,21 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   // 分段控件取代三分区堆叠（对齐批 #17 笔①②）：默认落配置段，读取正常时无 alert。
   await expect(snapshotDialog.getByRole("tablist", { name: "快照内容" })).toBeVisible();
   await expect(snapshotDialog.getByRole("alert")).toHaveCount(0);
+  // 弹窗壳几何锁（报障①，2026-10-14）：DialogContent 为单列网格，页脚那行「… 快照哈希 64位」
+  // 的 nowrap 长文本曾把 auto 轨道按 min-content 顶破、整块内容溢出盒子右缘（症状＝页脚钮跑出弹窗）。
+  // 壳基类改 grid-cols-1＝minmax(0,1fr) 给轨道下限 0 后：盒子不横向溢出、页脚钮落在盒内。jsdom 量不了
+  // 布局，锁在真浏览器。
+  const dialogOverflow = await snapshotDialog.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(dialogOverflow).toBeLessThanOrEqual(0);
+  const footerWithinBox = await snapshotDialog.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const btn = el.querySelector<HTMLElement>('[data-slot="dialog-footer"] button');
+    if (!btn) return { found: false, rightDelta: 0 };
+    const b = btn.getBoundingClientRect();
+    return { found: true, rightDelta: b.right - box.right };
+  });
+  expect(footerWithinBox.found).toBe(true);
+  expect(footerWithinBox.rightDelta).toBeLessThanOrEqual(0);
   await snapshotDialog.getByRole("button", { name: "关闭", exact: true }).first().click();
   const snapshotPath = path.join(directory, ".dsf", "strategies", "s1.json");
   const savedSnapshot = JSON.parse(await readFile(snapshotPath, "utf8"));
