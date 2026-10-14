@@ -151,6 +151,11 @@ describe("SettingsPage · 连接·端点配置", () => {
       "placeholder",
       "留空即沿用已配置密钥",
     );
+    // 密钥框阻浏览器免交互静默填充（回显＋假脏根因）——属性恒设，见端点详情表单稿。
+    expect(screen.getByLabelText("API 密钥")).toHaveAttribute(
+      "autocomplete",
+      "new-password",
+    );
   });
 
   it("同名配置按 ID 寻址：两套同显示名都能分别选中并保存到各自的 id", async () => {

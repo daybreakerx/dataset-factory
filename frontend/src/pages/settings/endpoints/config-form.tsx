@@ -249,6 +249,7 @@ export function ConfigForm({
           <Input
             id="endpoint-api-key"
             type={showKey ? "text" : "password"}
+            autoComplete="new-password"
             value={draftKey}
             placeholder={
               !creating && (current?.has_api_key ?? false)
@@ -261,8 +262,9 @@ export function ConfigForm({
           {draftKey !== "" && (
             // 内嵌尾随钮（components/form.md「输入框内嵌尾随钮」）：图标示「当前状态」
             //（隐藏态＝斜线眼睛、可见态＝正眼睛）；只切本次输入的明文，已存密钥永不回显；
-            // 空框不出钮（避免误读成「能查回已存密钥」）；不写 autocomplete（浏览器
-            // 记住并复用密钥是实益）。
+            // 空框不出钮（避免误读成「能查回已存密钥」）。密钥框恒设
+            // autoComplete="new-password"——阻 Chrome/Edge 对已存凭据的免交互静默填充
+            //（结构命中即填、照常派发 input 事件，会被当成本次输入 → 回显＋假脏；2026-10-14 用户裁）。
             <Tip label={showKey ? "隐藏密钥" : "显示密钥"}>
               <button
                 type="button"
