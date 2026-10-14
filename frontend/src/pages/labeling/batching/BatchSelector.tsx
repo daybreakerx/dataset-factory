@@ -263,6 +263,10 @@ export function BatchSelector({
           上限 480（components/overlay.md 族条；cfg-pop 同款先例）。 */}
       <DropdownMenuContent
         align="start"
+        // 选完一项关层时，Radix 默认把焦点交还触发件——那颗钮同时挂着 Tooltip，
+        // 一聚焦就弹「完整路径」气泡、并吃全局 :focus-visible 蓝环（用户报障：切完条目
+        // 触发件自动出蓝环＋tip）。拦掉这次自动回焦即两者皆消（鼠标选择无副作用）。
+        onCloseAutoFocus={(event) => event.preventDefault()}
         className="max-h-80 w-max min-w-(--radix-dropdown-menu-trigger-width) max-w-[min(480px,calc(100vw_-_32px))] overflow-y-auto"
       >
         {loading ? (
