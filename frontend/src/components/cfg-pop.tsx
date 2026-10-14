@@ -405,7 +405,10 @@ function PopHead({ head }: { head: CfgPopHeadSpec | null }): ReactElement | null
 
 /** `.select` 同构的触发件（§8：h-lg 34／内距 --s-3／t-md／值档 --text-2、箭头取说明档灰、
  *  值单行省略＋悬停全文）。`inert`＝飞行期「只失效不换装」（aria-disabled＋掐指针，外观不变）；
- *  与 `disabled`（原生灰档＝持续不可用）分两档，同一时刻至多一个成立。 */
+ *  与 `disabled`（原生灰档＝持续不可用）分两档，同一时刻至多一个成立。
+ *  宽度用 `w-full`＋默认 shrink（非 `flex-1`）：行内（CfgPopFieldRow）由 shrink 填满标签外剩余、
+ *  列内（策略来源这类裸挂在 flex-col 卡里）`w-full` 只吃交叉轴、高度恒由 `h-(--h-lg)` 定——
+ *  若用 `flex-1`，在列上下文它改的是主尺寸（flex-basis 0% 顶掉 h-lg），高会塌成内容高（22px 报障）。 */
 function PopTrigger({
   ariaLabel,
   text,
@@ -427,7 +430,7 @@ function PopTrigger({
           disabled={disabled}
           aria-disabled={inert || undefined}
           className={cn(
-            "h-(--h-lg) min-w-0 flex-1 justify-between px-3 font-normal text-t-md text-text-2",
+            "h-(--h-lg) w-full min-w-0 justify-between px-3 font-normal text-t-md text-text-2",
             inert && "aria-disabled:pointer-events-none",
           )}
         >

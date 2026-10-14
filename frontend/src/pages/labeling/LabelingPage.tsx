@@ -459,17 +459,37 @@ export function LabelingPage({
           }}
         />
       )}
-      {/* 顶栏＝§22 .lb-topbar：两列网格（左列 --w-col-left 320、右列吃满），右段内「胶囊串内容给宽、
+      {creating ? (
+        // 新建批次＝全宽表单卡替换两栏（稿 `新建批次.html`「主区＝全宽表单卡替换两栏」／
+        // behavior/pages.md L36；2026-10-14 用户令对稿，撤旧「画布内换块」的顶栏＋左列保留式）：
+        // creating 态下顶栏、其下页级错误行与左列条目整块让位，表单铺满主区、自带内距与滚动。
+        <NewBatchForm
+          onBack={() => setCreating(false)}
+          onNavigateToSettings={onNavigateToSettings}
+          onOpenWorkbench={onOpenWorkbench}
+          refreshKey={listsRevision}
+          onCreated={(value) => {
+            setCreating(false);
+            setSelection(value);
+            void loadWorkdirBatches()
+              .then((loaded) => {
+                if (mounted.current) setWorkdirs(loaded);
+              })
+              .catch((reason: unknown) => {
+                if (mounted.current) setError(errorMessage(reason));
+              });
+          }}
+        />
+      ) : (
+        <>
+          {/* 顶栏＝§22 .lb-topbar：两列网格（左列 --w-col-left 320、右列吃满），右段内「胶囊串内容给宽、
           运行组 margin-left:auto 钉右缘」。窄屏走容器查询三段（挂载点＝本页根 @container/lbctx，
           对齐批「顶栏窄屏」①②）：<874 折行（右段 display:contents，运行组占第一行右、胶囊串掉第二行
           跨满）、触发件列渐缩 minmax(240,320)；<512 左列恒 240 不回涨。 */}
-      <header className="grid shrink-0 grid-cols-[var(--w-col-left)_minmax(0,1fr)] items-center gap-x-4 gap-y-3 px-4 pt-4 pb-3 @max-[874px]/lbctx:grid-cols-[minmax(240px,320px)_minmax(auto,1fr)] @max-[512px]/lbctx:grid-cols-[240px_minmax(0,1fr)] lg:px-6">
-        {/* 顶栏左段在 creating 态整段让位（对齐批「表单头与素材来源」②）——新建批次自己的
-            头行（返回＋页题＋创建钮）住在画布里的表单上，两处不并排；空格子留着，
-            右段仍按同一列几何排（不因为左段空了就整段左移）。 */}
-        <div className="flex min-w-0 items-center gap-3 pr-3">
-          {!creating && (
-            <>
+          <header className="grid shrink-0 grid-cols-[var(--w-col-left)_minmax(0,1fr)] items-center gap-x-4 gap-y-3 px-4 pt-4 pb-3 @max-[874px]/lbctx:grid-cols-[minmax(240px,320px)_minmax(auto,1fr)] @max-[512px]/lbctx:grid-cols-[240px_minmax(0,1fr)] lg:px-6">
+            {/* 顶栏左段＝批次选择器＋新建批次入口。creating 态整块顶栏不渲染（新建批次＝全宽表单
+            替换两栏，见本页 creating 分支），故此处无条件渲染、不再留「左段让位」的空格子。 */}
+            <div className="flex min-w-0 items-center gap-3 pr-3">
               <div className="min-w-0 flex-1">
                 <BatchSelector
                   workdirs={workdirs}
@@ -484,9 +504,9 @@ export function LabelingPage({
                 />
               </div>
               {/* 圆角统一 --r-md（对齐批「悬停/按压归一 + 顶部件三笔」⑥：基类 rounded-md＝
-                  --r-sm 8px，与同排选择器 chip 的 --r-md 12px 不同档，DESIGN.md 3.4 同行共用
-                  一套圆角基准）；补 Tip（⑤，图标钮必配气泡）。边界名随 2026-10-11 用户裁
-                  「新建跑批 → 新建批次」改名收口（对齐批「表单头与素材来源」⑱）。 */}
+              --r-sm 8px，与同排选择器 chip 的 --r-md 12px 不同档，DESIGN.md 3.4 同行共用
+              一套圆角基准）；补 Tip（⑤，图标钮必配气泡）。边界名随 2026-10-11 用户裁
+              「新建跑批 → 新建批次」改名收口（对齐批「表单头与素材来源」⑱）。 */}
               <Tip label="新建批次">
                 <Button
                   variant="ghost"
@@ -498,179 +518,157 @@ export function LabelingPage({
                   <PlusIcon />
                 </Button>
               </Tip>
-            </>
-          )}
-        </div>
-        {/* 右段＝§22 .lb-topbar-right：折行档（<874）转 display:contents，让胶囊串与运行组直接落进
+            </div>
+            {/* 右段＝§22 .lb-topbar-right：折行档（<874）转 display:contents，让胶囊串与运行组直接落进
             顶栏网格——组钉第一行右缘、胶囊串掉第二行跨整行（让位秩序由两处子件自己声明）。 */}
-        <div className="flex min-w-0 items-center gap-3 @max-[874px]/lbctx:contents">
-          {selection && (
-            <BatchConfiguration
-              key={`config/${identity}`}
-              wid={selection.workdirId}
-              batch={selection.batchId}
-              compact
-            />
-          )}
-          {selection && (
-            <RunControl
-              key={`${selection.workdirId}/${selection.batchId}`}
-              wid={selection.workdirId}
-              batch={selection.batchId}
-              retryRequest={retryRequest}
-              runStatus={batchRunState}
-              onRunStarted={(mode) => {
-                // T14：冻结这一场的名单——retry＝重试清单在飞的那些行；full＝当前
-                // 排队中＋未完成（全量计划吃的正是这些；done 与缺失不占位）。
-                const frozen = new Set<string>();
-                for (const [key, row] of itemsRef.current) {
-                  if (row.status === "unimported") continue;
-                  if (
-                    mode === "retry"
-                      ? row.in_retry === true
-                      : row.status === "queued" || row.status === "failed"
-                  ) {
-                    frozen.add(key);
-                  }
-                }
-                setInflight(frozen);
-              }}
-              onRunStatus={(status) => {
-                // "idle" = RunControl 探测到空闲（空闲哨兵）：不抹状态章，改触发
-                // latestRun 重读——抹空会把刚从磁盘读到的「已完成」等终态一并抹掉
-                //（挂载探测与 15 秒慢轮每次空闲都会报一次 idle，徽标最多活 15 秒）；
-                // 回读拿到的就是真实终态，要防的「卡 running」照样被复位，语义更准。
-                if (status === "idle") setRunStateRevision((value) => value + 1);
-                else setBatchRunState(status);
-                // 终态 = 跟随提示与「当前产出」都收场（运行结束后回到普通概览）。
-                // 例外＝ interrupted（手动停止，稿矩阵⑨）：半截内容留在原地、题字右侧
-                // 挂「已中断」标签（琥珀），不随终态清空——清掉的只有正常跑完/失败。
-                if (status !== "running" && status !== "pending") {
-                  setFollowPaused(false);
-                  if (status === "interrupted") {
-                    applyLiveOutput(
-                      liveOutputRef.current === null
-                        ? null
-                        : { ...liveOutputRef.current, stopped: "user" },
+            <div className="flex min-w-0 items-center gap-3 @max-[874px]/lbctx:contents">
+              {selection && (
+                <BatchConfiguration
+                  key={`config/${identity}`}
+                  wid={selection.workdirId}
+                  batch={selection.batchId}
+                  compact
+                />
+              )}
+              {selection && (
+                <RunControl
+                  key={`${selection.workdirId}/${selection.batchId}`}
+                  wid={selection.workdirId}
+                  batch={selection.batchId}
+                  retryRequest={retryRequest}
+                  runStatus={batchRunState}
+                  onRunStarted={(mode) => {
+                    // T14：冻结这一场的名单——retry＝重试清单在飞的那些行；full＝当前
+                    // 排队中＋未完成（全量计划吃的正是这些；done 与缺失不占位）。
+                    const frozen = new Set<string>();
+                    for (const [key, row] of itemsRef.current) {
+                      if (row.status === "unimported") continue;
+                      if (
+                        mode === "retry"
+                          ? row.in_retry === true
+                          : row.status === "queued" || row.status === "failed"
+                      ) {
+                        frozen.add(key);
+                      }
+                    }
+                    setInflight(frozen);
+                  }}
+                  onRunStatus={(status) => {
+                    // "idle" = RunControl 探测到空闲（空闲哨兵）：不抹状态章，改触发
+                    // latestRun 重读——抹空会把刚从磁盘读到的「已完成」等终态一并抹掉
+                    //（挂载探测与 15 秒慢轮每次空闲都会报一次 idle，徽标最多活 15 秒）；
+                    // 回读拿到的就是真实终态，要防的「卡 running」照样被复位，语义更准。
+                    if (status === "idle") setRunStateRevision((value) => value + 1);
+                    else setBatchRunState(status);
+                    // 终态 = 跟随提示与「当前产出」都收场（运行结束后回到普通概览）。
+                    // 例外＝ interrupted（手动停止，稿矩阵⑨）：半截内容留在原地、题字右侧
+                    // 挂「已中断」标签（琥珀），不随终态清空——清掉的只有正常跑完/失败。
+                    if (status !== "running" && status !== "pending") {
+                      setFollowPaused(false);
+                      if (status === "interrupted") {
+                        applyLiveOutput(
+                          liveOutputRef.current === null
+                            ? null
+                            : { ...liveOutputRef.current, stopped: "user" },
+                        );
+                      } else {
+                        applyLiveOutput(null);
+                      }
+                      // T14：run 收场（含 idle 哨兵）＝视图层覆盖失效。
+                      setInflight(new Set());
+                      // ⑬ 跑批终态＝完整性报告已过时（失败同样）：递一次全量同步号触发自动重扫。
+                      // 「idle」是空闲哨兵、不算终态，不在此列（否则每次空闲都会重扫）。
+                      if (status !== "idle") setExportRevision((value) => value + 1);
+                    }
+                  }}
+                  onFinish={() => refreshItems(true)}
+                  onCurrentItem={(item) => {
+                    // ⑫ 跑批跟随＝从别处跳转，落原分组那行；读数还没到位时按「排队中」占位。
+                    if (!followRun.current) return;
+                    if (item === null) {
+                      // E5：中断后半截要留在原地（稿矩阵⑨）——终态的「收起跟随」让位，
+                      // 否则右画布回概览、半截连标签一起被卸载。
+                      if (liveOutputRef.current?.stopped) return;
+                      setSelectedItem(null);
+                      return;
+                    }
+                    const row = items.get(item);
+                    setSelectedItem(
+                      row ? selectionKey(row.status, row) : `queued:${item}`,
                     );
-                  } else {
-                    applyLiveOutput(null);
+                  }}
+                  onItemUpdate={(event) => {
+                    refreshVersion.current += 1;
+                    if (event.status === "started") {
+                      // 新一轮开打：中断标记随空上下文一起复位（续跑重打该条）。
+                      applyLiveOutput({ item: event.item, reasoning: "", content: "" });
+                    }
+                    setItems((previous) => withItemUpdate(previous, event));
+                  }}
+                  onItemDelta={(event) => {
+                    // 读 ref 追加（与 applyLiveOutput 同一轨道）：updater 形式不写 ref，
+                    // 后续中断标记会用旧 ref 把刚到的半截冲掉（E5 实锤）。
+                    const current = liveOutputRef.current;
+                    if (current === null || current.item !== event.item) return;
+                    applyLiveOutput(
+                      event.delta === "reasoning"
+                        ? { ...current, reasoning: current.reasoning + event.text }
+                        : { ...current, content: current.content + event.text },
+                    );
+                  }}
+                  onItemsRefresh={() => void refreshItems()}
+                  onStreamDrop={() =>
+                    // SSE 断流：半截内容停在原处、标网络异常（红）；重连恢复即清。
+                    applyLiveOutput(
+                      liveOutputRef.current === null || liveOutputRef.current.stopped
+                        ? liveOutputRef.current
+                        : { ...liveOutputRef.current, stopped: "network" as const },
+                    )
                   }
-                  // T14：run 收场（含 idle 哨兵）＝视图层覆盖失效。
-                  setInflight(new Set());
-                  // ⑬ 跑批终态＝完整性报告已过时（失败同样）：递一次全量同步号触发自动重扫。
-                  // 「idle」是空闲哨兵、不算终态，不在此列（否则每次空闲都会重扫）。
-                  if (status !== "idle") setExportRevision((value) => value + 1);
-                }
-              }}
-              onFinish={() => refreshItems(true)}
-              onCurrentItem={(item) => {
-                // ⑫ 跑批跟随＝从别处跳转，落原分组那行；读数还没到位时按「排队中」占位。
-                if (!followRun.current) return;
-                if (item === null) {
-                  // E5：中断后半截要留在原地（稿矩阵⑨）——终态的「收起跟随」让位，
-                  // 否则右画布回概览、半截连标签一起被卸载。
-                  if (liveOutputRef.current?.stopped) return;
-                  setSelectedItem(null);
-                  return;
-                }
-                const row = items.get(item);
-                setSelectedItem(row ? selectionKey(row.status, row) : `queued:${item}`);
-              }}
-              onItemUpdate={(event) => {
-                refreshVersion.current += 1;
-                if (event.status === "started") {
-                  // 新一轮开打：中断标记随空上下文一起复位（续跑重打该条）。
-                  applyLiveOutput({ item: event.item, reasoning: "", content: "" });
-                }
-                setItems((previous) => withItemUpdate(previous, event));
-              }}
-              onItemDelta={(event) => {
-                // 读 ref 追加（与 applyLiveOutput 同一轨道）：updater 形式不写 ref，
-                // 后续中断标记会用旧 ref 把刚到的半截冲掉（E5 实锤）。
-                const current = liveOutputRef.current;
-                if (current === null || current.item !== event.item) return;
-                applyLiveOutput(
-                  event.delta === "reasoning"
-                    ? { ...current, reasoning: current.reasoning + event.text }
-                    : { ...current, content: current.content + event.text },
-                );
-              }}
-              onItemsRefresh={() => void refreshItems()}
-              onStreamDrop={() =>
-                // SSE 断流：半截内容停在原处、标网络异常（红）；重连恢复即清。
-                applyLiveOutput(
-                  liveOutputRef.current === null || liveOutputRef.current.stopped
-                    ? liveOutputRef.current
-                    : { ...liveOutputRef.current, stopped: "network" as const },
-                )
-              }
-              onStreamRestore={() =>
-                applyLiveOutput(
-                  liveOutputRef.current === null ||
-                    liveOutputRef.current.stopped !== "network"
-                    ? liveOutputRef.current
-                    : { ...liveOutputRef.current, stopped: null },
-                )
-              }
-            />
+                  onStreamRestore={() =>
+                    applyLiveOutput(
+                      liveOutputRef.current === null ||
+                        liveOutputRef.current.stopped !== "network"
+                        ? liveOutputRef.current
+                        : { ...liveOutputRef.current, stopped: null },
+                    )
+                  }
+                />
+              )}
+            </div>
+          </header>
+          {error && !errorRun && (
+            <FormError className="mx-6 mb-3 text-t-sm text-bad-ink">{error}</FormError>
           )}
-        </div>
-      </header>
-      {error && !errorRun && (
-        <FormError className="mx-6 mb-3 text-t-sm text-bad-ink">{error}</FormError>
-      )}
-      {/* 主区＝§22 .lb-grid：宽屏两列（左列 320＋画布吃满剩余）；<768 收起＝左列隐、画布满宽，
+          {/* 主区＝§22 .lb-grid：宽屏两列（左列 320＋画布吃满剩余）；<768 收起＝左列隐、画布满宽，
           暂展＝左列作浮出层叠在画布上（画布不位移）——不再上下堆叠，滚动归画布自身。 */}
-      <div className="relative flex min-h-0 flex-1 gap-4 overflow-hidden px-4 pb-6 md:px-6">
-        <MaterialsPanel
-          items={displayItems}
-          selection={selection}
-          loading={loading}
-          loadError={itemsError}
-          narrow={narrow}
-          peek={peek}
-          backRef={backRef}
-          onPeekBack={() => closePeek(true)}
-          onPeekLeave={() => closePeek(false)}
-          saving={saving}
-          selectionMode={selectionMode}
-          setSelectionMode={setSelectionMode}
-          checked={checked}
-          setChecked={setChecked}
-          toggleCheck={toggleCheck}
-          addSelected={addSelected}
-          removeRetry={removeRetry}
-          setRetryRequest={setRetryRequest}
-          selectedItem={selectedItem}
-          choose={choose}
-          recover={recover}
-          repoint={(name) => setRepoint(name)}
-          requestRemoval={requestRemoval}
-        />
-        <div className="flex min-w-0 flex-1 flex-col overflow-auto">
-          {creating ? (
-            // L1（2026-09-21 审计）：新建批次改为画布内换块——顶栏与左列保留，
-            // 返回后选择、折叠与滚动位置都还在（不再整页卸载）。无选中批次时同样可用。
-            <NewBatchForm
-              onBack={() => setCreating(false)}
-              onNavigateToSettings={onNavigateToSettings}
-              onOpenWorkbench={onOpenWorkbench}
-              refreshKey={listsRevision}
-              onCreated={(value) => {
-                setCreating(false);
-                setSelection(value);
-                void loadWorkdirBatches()
-                  .then((loaded) => {
-                    if (mounted.current) setWorkdirs(loaded);
-                  })
-                  .catch((reason: unknown) => {
-                    if (mounted.current) setError(errorMessage(reason));
-                  });
-              }}
+          <div className="relative flex min-h-0 flex-1 gap-4 overflow-hidden px-4 pb-6 md:px-6">
+            <MaterialsPanel
+              items={displayItems}
+              selection={selection}
+              loading={loading}
+              loadError={itemsError}
+              narrow={narrow}
+              peek={peek}
+              backRef={backRef}
+              onPeekBack={() => closePeek(true)}
+              onPeekLeave={() => closePeek(false)}
+              saving={saving}
+              selectionMode={selectionMode}
+              setSelectionMode={setSelectionMode}
+              checked={checked}
+              setChecked={setChecked}
+              toggleCheck={toggleCheck}
+              addSelected={addSelected}
+              removeRetry={removeRetry}
+              setRetryRequest={setRetryRequest}
+              selectedItem={selectedItem}
+              choose={choose}
+              recover={recover}
+              repoint={(name) => setRepoint(name)}
+              requestRemoval={requestRemoval}
             />
-          ) : (
-            <>
+            <div className="flex min-w-0 flex-1 flex-col overflow-auto">
               {followPaused && batchRunState === "running" && (
                 // L2：停跟随从「静默停」改成「明说 + 一键恢复」。
                 <div className="mb-3 flex items-center gap-3 rounded-lg border border-border bg-muted/50 px-3 py-2 text-t-sm text-text-3">
@@ -734,10 +732,10 @@ export function LabelingPage({
                   }}
                 />
               )}
-            </>
-          )}
-        </div>
-      </div>
+            </div>
+          </div>
+        </>
+      )}
     </section>
   );
 }

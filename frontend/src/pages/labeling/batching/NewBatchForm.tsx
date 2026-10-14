@@ -254,7 +254,7 @@ export function NewBatchForm({
       : null;
 
   return (
-    <section aria-label="新建批次" className="h-full overflow-auto px-6 py-4">
+    <section aria-label="新建批次" className="h-full overflow-auto px-6 pt-4 pb-6">
       {directoryField && (
         <DirectoryPicker
           initialPath={directoryField === "source" ? source : path}
@@ -271,7 +271,7 @@ export function NewBatchForm({
       )}
       {/* 头行＝§22 .nb-topbar：返回钮＋页题＋消息槽（flex:1 吃满中段）＋行尾主钮。
           页题复用 §31 .wd-title（t-xl／medium），题不再在卡内。 */}
-      <header className="mb-2 flex items-center gap-3">
+      <header className="mb-4 flex items-center gap-3">
         <Button
           variant="ghost"
           size="lg"
@@ -282,7 +282,7 @@ export function NewBatchForm({
           <ArrowLeftIcon />
           返回主页面
         </Button>
-        <h1 className="shrink-0 text-t-xl font-medium leading-tight text-text-1">
+        <h1 className="shrink-0 text-t-xl font-medium leading-(--lh-tight) text-text-1">
           新建批次
         </h1>
         {message && (
@@ -306,7 +306,9 @@ export function NewBatchForm({
       </header>
       {/* 表单白卡＝§22 .nb-card：内距 --s-6、圆角 --r-lg、sh-1；卡内两区头各领一段。 */}
       <div className="flex min-w-0 flex-col rounded-xl border border-border bg-card p-6 shadow-(--sh-1)">
-        <h2 className="mb-4 text-t-xl font-medium leading-tight text-text-1">素材</h2>
+        <h2 className="mb-4 text-t-xl font-medium leading-(--lh-tight) text-text-1">
+          素材
+        </h2>
         <BatchSourceFields
           id={id}
           mode={mode}
@@ -332,7 +334,7 @@ export function NewBatchForm({
           onScan={() => void runScan()}
           onImport={() => void runImport()}
         />
-        <h2 className="mb-4 mt-8 text-t-xl font-medium leading-tight text-text-1">
+        <h2 className="mb-4 mt-8 text-t-xl font-medium leading-(--lh-tight) text-text-1">
           策略
         </h2>
         <BatchStrategyFields
@@ -363,7 +365,7 @@ export function NewBatchForm({
         {/* 试标动线（策略件笔⑩）：hint 一句＋accent 小钮，去向＝策略页对话区。
             原第二行「体积上限…」meter 撤——体积与扩展名范围已进扫描钮气泡（笔⑦）。 */}
         {onOpenWorkbench !== undefined && (
-          <div className="mt-4 flex items-center gap-3 text-t-sm text-text-3">
+          <div className="mt-6 flex items-center gap-3 text-t-sm text-text-3">
             <span>拿不准效果？先在对话中用单张试标，满意后再跑整批。</span>
             <Button variant="accent" size="xs" onClick={onOpenWorkbench}>
               前往策略页面调试
