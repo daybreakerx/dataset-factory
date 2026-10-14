@@ -137,7 +137,10 @@ export function Sidebar({
               <TooltipContent>{collapsed ? "展开侧栏" : "收起侧栏"}</TooltipContent>
             </Tooltip>
           ) : (
-            <span className="flex size-8 shrink-0 items-center justify-center">
+            // 抽屉态品牌＝静态版：只去交互（无 hover／折叠），保留与宽屏按钮同款的
+            // 黑底圆盒（稿 侧栏展收.html「借 .logo-btn 的盒 32/r-sm/黑底品牌色例外」）；
+            // logo 图本身方角，圆角来自这层黑盒，缺 rounded-md bg-black 就露成方块。
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-black">
               <img src={logo} alt="" className="size-[27px] object-contain" />
             </span>
           )}

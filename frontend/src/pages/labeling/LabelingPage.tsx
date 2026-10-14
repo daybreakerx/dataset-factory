@@ -176,7 +176,9 @@ export function LabelingPage({
         }
       })
       .catch((reason: unknown) => {
-        if (current) setError(errorMessage(reason));
+        // 后台加载失败分流：连接类走全局浮层（reportError 返回 null → 横幅不留红字），
+        // 业务类才就地显示——与 refreshItems（:254）同一把尺，避免断连时页面铺一排红字。
+        if (current) setError(reportError(reason) ?? "");
       })
       .finally(() => {
         if (current) setLoading(false);

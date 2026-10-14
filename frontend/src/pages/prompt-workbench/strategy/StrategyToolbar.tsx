@@ -542,7 +542,7 @@ export function StrategyToolbar({
                 queueAutoSave("edit");
               }
             }}
-            className="min-w-24 max-w-[420px] field-sizing-content rounded-md border border-transparent bg-transparent px-2 py-1 text-t-md text-text-3 hover:border-border hover:bg-card focus:border-input"
+            className="min-w-24 max-w-[420px] field-sizing-content rounded-md border border-transparent bg-transparent px-2 py-1 text-t-md text-text-3 hover:border-border hover:bg-card focus:border-input focus:outline-none"
           />
           {error !== "" && remove === null && repair === null && (
             // 行内失败槽（保存钮稿「失败提示行」；与切换／复制失败同槽共用）：

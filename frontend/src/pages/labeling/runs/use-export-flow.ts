@@ -7,6 +7,7 @@ import {
   type TaskView,
 } from "../../../api";
 import type { components } from "../../../api-types.gen";
+import { reportError } from "../../../lib/feedback";
 
 type Plan = components["schemas"]["ExportPlanView"];
 
@@ -66,7 +67,8 @@ export function useExportFlow(
         // 重取失败不撤旧读数（稿格 9／10／14「摘要显旧值、清单不撤」），坏记录走可点出口。
         const corruptRun = corruptedRunOf(reason);
         setPlanCorruptRun(corruptRun);
-        if (corruptRun === null) setPlanError(errorMessage(reason));
+        // 连接类走浮层（不留红字），业务类才就地（feedback.reportError）。
+        if (corruptRun === null) setPlanError(reportError(reason) ?? "");
       })
       .finally(() => {
         if (current) setLoading(false);

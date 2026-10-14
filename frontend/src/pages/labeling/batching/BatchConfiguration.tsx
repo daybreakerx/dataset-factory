@@ -1,13 +1,14 @@
 import { RefreshCwIcon } from "lucide-react";
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
-import { api, errorMessage } from "../../../api";
+import { api } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { FormError } from "../../../components/form-error";
 import { HScroll } from "../../../components/hs-scroll";
 import { Button } from "../../../components/ui/button";
 import { Tip } from "../../../components/ui/tooltip";
 import { HEALTH_DOT, reprobe, useEndpointHealth } from "../../../lib/endpoint-health";
+import { reportError } from "../../../lib/feedback";
 import { cn } from "../../../lib/utils";
 
 /** base_url → 可读服务商名（V9）：`api.siliconflow.cn` → SiliconFlow；推不出回退配置名。 */
@@ -66,7 +67,8 @@ export function BatchConfiguration({
         if (current) setSnapshot(value);
       },
       (reason: unknown) => {
-        if (current) setError(errorMessage(reason));
+        // 后台取快照失败分流：连接类走浮层（不留红字），业务类才就地（见 feedback.reportError）。
+        if (current) setError(reportError(reason) ?? "");
       },
     );
     return () => {

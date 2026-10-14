@@ -353,7 +353,10 @@ export function BatchSelector({
                           setOpen(false);
                         }}
                         className={cn(
-                          "ml-3 border-l-2 pl-4 text-t-md [&_svg]:size-(--icon-sm)",
+                          // 左 2px 界线要通高＝左两角直角（稿 base.css §17 .dd-leaf：border-radius
+                          // 0 var(--r-sm) var(--r-sm) 0）；通用 DropdownMenuItem 基类 rounded-sm 会把
+                          // 左上/左下削圆、线成两头圆的短桩，故显式左直角、右角取 --r-sm。
+                          "ml-3 rounded-l-none rounded-r-[var(--r-sm)] border-l-2 pl-4 text-t-md [&_svg]:size-(--icon-sm)",
                           // 当前行＝primary 浅底＋左线主色（树形行形态，与族 .pl-row.cur 的
                           // 差异只在左线）；不用勾做标记（tint＋左线＋aria-current 三重信号），
                           // 悬停保持 tint 不换底。

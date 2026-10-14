@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { ApiError, api, errorMessage } from "../../../api";
+import { ApiError, api } from "../../../api";
 import type { components } from "../../../api-types.gen";
+import { reportError } from "../../../lib/feedback";
 
 export type RunHistory = components["schemas"]["RunHistoryView"];
 
@@ -42,7 +43,8 @@ export function useLatestRun(
           timer = setTimeout(() => void load(), 2000);
       } catch (reason) {
         if (!current) return;
-        setError(errorMessage(reason));
+        // 后台轮询失败分流：连接类走浮层（不留红字），业务类才就地；退避重试用下面的原始 reason 判。
+        setError(reportError(reason) ?? "");
         if (
           reason instanceof ApiError &&
           (reason.status === 409 ||
