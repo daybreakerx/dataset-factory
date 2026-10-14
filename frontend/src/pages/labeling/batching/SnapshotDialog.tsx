@@ -212,7 +212,10 @@ export function SnapshotDialog({
           <div
             role="tablist"
             aria-label="快照内容"
-            className="mb-4 flex min-w-0 max-w-full items-center gap-0.5 rounded-md bg-muted p-0.5"
+            // w-fit＝分段控件贴内容宽（稿 base.css §12 .seg＝inline-flex、稿 .lb-snap-segrow .seg
+            // max-width:100%）：本件是 DialogContent（grid）直子，块级 flex 会被网格拉满整行（实测 632），
+            // w-fit 收回内容宽（~174）；max-w-full 兜段数多时到 100% 上限、段内各自省略。
+            className="mb-4 flex w-fit min-w-0 max-w-full items-center gap-0.5 rounded-md bg-muted p-0.5"
           >
             {segments.map((segment, position) => (
               // 分段的可访问名走 tablist/tab＋aria-selected——与稿侧 markup 同形，

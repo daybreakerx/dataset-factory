@@ -28,7 +28,10 @@ function TooltipContent({
         className={cn(
           // 影取浮层族档 --sh-3（与 cfg-pop／modal 同值，不用 Tailwind 默认 shadow-md）；
           // select-none＝气泡是纯展示层，文字不可选（overlay.md tip 段行为④）。
-          "z-50 w-fit max-w-[320px] rounded-md border bg-popover px-3 py-2 text-t-sm text-popover-foreground shadow-(--sh-3) select-none",
+          // wrap-anywhere（overflow-wrap:anywhere）＝稿「上限 320 超上限折行不截断」的落实：
+          // 64 位哈希这类不可断长串在 w-fit 盒里若不设断词，其 min-content 会撑破上限、文字溢出盒外；
+          // anywhere 让超长词在盒内折行、盒宽回到 ≤320（普通短文案无影响）。
+          "z-50 w-fit max-w-[320px] wrap-anywhere rounded-md border bg-popover px-3 py-2 text-t-sm text-popover-foreground shadow-(--sh-3) select-none",
           "data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0 data-[state=delayed-open]:zoom-in-95",
           className,
         )}
