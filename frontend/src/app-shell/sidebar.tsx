@@ -52,7 +52,7 @@ interface SidebarProps {
   collapsed: boolean;
   /** 窄桌面断点（768–1023）信号：桌面常驻实例据此把品牌钮转为「打开抽屉」。 */
   narrowDesktop?: boolean;
-  /** 品牌区是否可交互：抽屉实例传 false——品牌区降为静态图形、撤折叠职能（对齐批实例条）。 */
+  /** 品牌区是否可交互：抽屉实例传 false——品牌区降为静态图形、撤折叠职能。 */
   brandInteractive?: boolean;
   navigationOpen: boolean;
   settingsSection: SettingsSection;

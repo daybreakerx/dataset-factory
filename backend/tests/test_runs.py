@@ -250,7 +250,7 @@ def test_endpoint_key_echo_is_absent_from_run_files(
 def test_llm_failure_splits_short_row_and_detail_log(batch: Path) -> None:
     """LLM 失败两层落点：条目行（items.jsonl）吃短句，run.log 吃短句＋诊断全句。
 
-    2026-10-12 对齐批「LLM 错误文案改短句」条选项①：界面一行放不下长句，诊断细节
+    2026-10-12 裁：界面一行放不下长句，诊断细节
     （含端点响应体摘要）只进日志——2026-09-14 定夺在日志侧保留。
     """
     error = openai.BadRequestError.__new__(openai.BadRequestError)

@@ -49,7 +49,7 @@ export function EndpointConfigPanel({
   onRegisterActions?: (actions: PanelUnsavedActions | null) => void;
 }): ReactElement {
   // 选中句柄＝配置 id（兑现「显示名可重名」口径：显示名只用于渲染与文案，
-  // 增删改测一律按 id 寻址——对齐批「端点面板改按 ID 寻址」条）。
+  // 增删改测一律按 id 寻址）。
   const [selected, setSelected] = useState<string>("");
   const [creating, setCreating] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -100,7 +100,7 @@ export function EndpointConfigPanel({
   const [leaveAction, setLeaveAction] = useState<LeaveAction | null>(null);
 
   const { endpoints, loading, loadError, reload } = useEndpointConfigs();
-  // 窄屏列表展收（对齐批「窄屏列表展收 · 两态交互实现」）：<768 左列收起为默认，
+  // 窄屏列表展收：<768 左列收起为默认，
   // 详情头展开钮悬停／键盘进暂展浮出层；宽屏两列常驻、恒无此交互。
   const { narrow, peek, toggleRef, backRef, openPeek, closePeek } = usePeekList();
 
@@ -446,7 +446,7 @@ export function EndpointConfigPanel({
     try {
       await api.deleteEndpoint(selected);
       setDeleteDialogOpen(false);
-      // 删除成功改浮层（对齐批「删除成功反馈改浮层」——技能侧同裁，2026-10-04 用户裁）：
+      // 删除成功改浮层（删除成功反馈改浮层——技能侧同裁，2026-10-04 用户裁）：
       // 详情列随后回空态，面板反馈条已无承载位。
       toast(`已删除配置「${targetName}」`);
       setSelected("");

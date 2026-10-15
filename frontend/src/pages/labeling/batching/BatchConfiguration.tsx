@@ -104,7 +104,7 @@ export function BatchConfiguration({
     // 链容器＝§22 .lb-reqchain：内容给宽（flex 0 1 auto，不吃满）、缩到 120 保底
     // （「至少露一枚胶囊」＝任何组件不得缩到 0 的 enforce），再窄由 874 折行档接管——
     // 折行后掉第二行跨整行。胶囊 flex-none 不换行，超宽即横向溢出、由自绘拇指条接管
-    // （对齐批「请求链胶囊对齐」①）。轨道间距 --s-3（hs 默认 --s-2）：globals 的
+    // 。轨道间距 --s-3（hs 默认 --s-2）：globals 的
     // .hs-scroll 是无层声明、压过层内工具类，覆盖须带 important（globals.css「无层声明」注）。
     return (
       <section
@@ -140,7 +140,7 @@ export function BatchConfiguration({
         <div key={label} className="flex gap-3 py-1">
           {/* 键列随 §10 .kv .k 实体（84px／--text-4）——16d 稿明文「不写死数值、随实体」；
               76px 是 16z1 设置行族（.wd-slabel）的裁决，用户 2026-10-11 裁「其他几处不管、
-              症状不同构不推广」，.kv 实体未改档（对齐批批末挂起清单「键列 76px」条据此订正）。 */}
+              症状不同构不推广」，.kv 实体未改档。 */}
           <dt className="w-[84px] shrink-0 text-text-4">{label}</dt>
           <dd className="min-w-0 break-all text-text-2">{value}</dd>
         </div>
@@ -168,7 +168,7 @@ function EndpointChip({
         />
         <span className="truncate">{label}</span>
         {act && (
-          // 重探钮改既有档 icon-xs（对齐批④：22×22／图标 13）；补自己的 Tip（⑤）——
+          // 重探钮改既有档 icon-xs（22×22／图标 13）；补自己的 Tip（⑤）——
           // 原先裸 aria-label 时悬停弹的是外层端点胶囊的全量气泡。静止色 --text-3、
           // 悬停转 --text-1＝ghost 变体自带（⑥，先例 .pl-ic）。
           <Tip label="重新探测">

@@ -298,7 +298,7 @@ def apply_library_strategy(
     problems = missing_refs(library_entry)
     if problems:
         raise StrategyRefsError(
-            # 同上（对齐批「新增策略弹窗」⑰）：缺哪一项先说，「怎么处置」沉到句尾。
+            # 同上：缺哪一项先说，「怎么处置」沉到句尾。
             "；".join(problems) + "——该策略暂不可应用，可回到策略库「重新指定」后重试。"
         )
     now = now_iso()

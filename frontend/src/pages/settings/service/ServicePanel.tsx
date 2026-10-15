@@ -59,7 +59,7 @@ function formatDuration(startedAt: string, now: number): string {
   return `${Math.floor(totalMinutes / 60)} 小时 ${totalMinutes % 60} 分`;
 }
 
-/** 「信息／警告／报错」档筛空时的定制空态文案（对齐批「运行日志子页改版」条）。 */
+/** 「信息／警告／报错」档筛空时的定制空态文案。 */
 const FILTER_EMPTY: Record<Exclude<LogFilter, "all">, string> = {
   info: "没有信息日志",
   warn: "没有警告日志",

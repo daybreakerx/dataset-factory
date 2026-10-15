@@ -93,7 +93,7 @@ type SkillDetailProps = {
     nameBlocked?: boolean;
   } | null;
   onSave: () => void;
-  /** 详情头行最左槽：窄屏列表展收的展开钮（对齐批「窄屏列表展收」，面板按窄屏传入；宽屏不传）。 */
+  /** 详情头行最左槽：窄屏列表展收的展开钮（面板按窄屏传入；宽屏不传）。 */
   headLeading?: ReactElement;
 };
 
@@ -230,7 +230,7 @@ export function SkillDetail({
             id="skill-content"
             spellCheck={false}
             value={previewContent}
-            // 保存飞行／预览加载＝瞬态禁用：只失效不换装（对齐批「瞬态禁用不换装」）——
+            // 保存飞行／预览加载＝瞬态禁用：只失效不换装——
             // readonly 掐输入且无 UA 灰显，不走 disabled（半透明与灰字都是换装）。
             readOnly={saving || loadingPreview}
             aria-disabled={saving || loadingPreview || undefined}

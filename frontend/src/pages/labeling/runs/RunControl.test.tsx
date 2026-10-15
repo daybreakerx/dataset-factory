@@ -139,7 +139,7 @@ describe("运行控制", () => {
     });
 
     expect(await screen.findByText("4 / 10 · 失败 1")).toBeInTheDocument();
-    // 进度环已撤（对齐批④）：进度只由文本与选择器 chip 内的状态图标表达
+    // 进度环已撤：进度只由文本与选择器 chip 内的状态图标表达
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 

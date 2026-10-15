@@ -320,7 +320,7 @@ def _detail_handler(
         status_code: 该类异常对应的 HTTP 状态码。
         field: 字段级错误标记（None＝操作级错误，响应体 field 为 null；非 None＝
             detail 指向该字段，供前端把错误精确挂到对应输入框上——aria-invalid
-            程序化关联，对齐批批 18 裁）。
+            程序化关联）。
     """
 
     def handler(request: Request, exc: Exception) -> JSONResponse:

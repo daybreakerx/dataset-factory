@@ -770,7 +770,7 @@ class BatchRunner:
             return _Failure(
                 reason_code,
                 # 界面槽位（条目行原因行）吃短句；全句（含端点响应体摘要与建议）进 detail、
-                # 只落 run.log——2026-10-12 对齐批「LLM 错误文案改短句」条（选项①两层化；
+                # 只落 run.log——2026-10-12 裁（两层化；
                 # 2026-09-14「端点的一面之词交给用户自己判断」在日志侧保留、不撤）。
                 exc.short,
                 retryable=retryable,
@@ -848,8 +848,7 @@ class _Failure:
 
     Attributes:
         detail: 诊断细节（LLM 类的端点响应体摘要与可操作建议全句）——只进 run.log，
-            不进界面槽位与 items.jsonl（条目行原因行放不下；2026-10-12 对齐批
-            「LLM 错误文案改短句」条：界面吃 message 短句、日志吃短句＋detail）。
+            不进界面槽位与 items.jsonl（条目行原因行放不下；2026-10-12 裁：界面吃 message 短句、日志吃短句＋detail）。
     """
 
     reason_code: str

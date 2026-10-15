@@ -485,8 +485,7 @@ export function LabelingPage({
       ) : (
         <>
           {/* 顶栏＝§22 .lb-topbar：两列网格（左列 --w-col-left 320、右列吃满），右段内「胶囊串内容给宽、
-          运行组 margin-left:auto 钉右缘」。窄屏走容器查询三段（挂载点＝本页根 @container/lbctx，
-          对齐批「顶栏窄屏」①②）：<874 折行（右段 display:contents，运行组占第一行右、胶囊串掉第二行
+          运行组 margin-left:auto 钉右缘」。窄屏走容器查询三段（挂载点＝本页根 @container/lbctx）：<874 折行（右段 display:contents，运行组占第一行右、胶囊串掉第二行
           跨满）、触发件列渐缩 minmax(240,320)；<512 左列恒 240 不回涨。 */}
           <header className="grid shrink-0 grid-cols-[var(--w-col-left)_minmax(0,1fr)] items-center gap-x-4 gap-y-3 px-4 pt-4 pb-3 @max-[874px]/lbctx:grid-cols-[minmax(240px,320px)_minmax(auto,1fr)] @max-[512px]/lbctx:grid-cols-[240px_minmax(0,1fr)] lg:px-6">
             {/* 顶栏左段＝批次选择器＋新建批次入口。creating 态整块顶栏不渲染（新建批次＝全宽表单
@@ -505,10 +504,10 @@ export function LabelingPage({
                   onOpen={() => setDirectoriesRevision((revision) => revision + 1)}
                 />
               </div>
-              {/* 圆角统一 --r-md（对齐批「悬停/按压归一 + 顶部件三笔」⑥：基类 rounded-md＝
+              {/* 圆角统一 --r-md（基类 rounded-md＝
               --r-sm 8px，与同排选择器 chip 的 --r-md 12px 不同档，DESIGN.md 3.4 同行共用
               一套圆角基准）；补 Tip（⑤，图标钮必配气泡）。边界名随 2026-10-11 用户裁
-              「新建跑批 → 新建批次」改名收口（对齐批「表单头与素材来源」⑱）。 */}
+              「新建跑批 → 新建批次」改名收口。 */}
               <Tip label="新建批次">
                 <Button
                   variant="ghost"

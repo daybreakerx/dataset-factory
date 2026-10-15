@@ -10,7 +10,7 @@ vi.mock("../api", async (original) => ({
   api: { getServiceBusy: vi.fn(), shutdownService: vi.fn() },
 }));
 
-/** 关机确认弹窗的正文口径（对齐批「关机提醒」条）：基句整句撤除后，只在
+/** 关机确认弹窗的正文口径：基句整句撤除后，只在
  *  「关了会丢东西」时出话——设置页有未保存修改，或后端 `/api/service/busy` 报有在飞的跑批／任务。 */
 function renderButton(dirty = false): void {
   render(

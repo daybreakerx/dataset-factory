@@ -16,7 +16,7 @@ const buttonVariants = cva(
           "bg-primary text-primary-foreground border-input hover:bg-primary-hover active:bg-primary-press disabled:border",
         // 危险图标钮档（base.css §7「危险图标钮」＝.btn--ghost.btn--icon.danger 同款）：
         // 红是状态色、不常驻——静止中性 --text-3、悬停才显红（--bad-ink 字＋--bad-ink/.12 墨底）。
-        // 2026-10-12 对齐批批末按 §7 注（原「随对齐批改」）归一：原「红字常驻＋--bad-bg 实浅底」两点差异消除；
+        // 2026-10-12 按 §7 注归一：原「红字常驻＋--bad-bg 实浅底」两点差异消除；
         // 现役调用点均已走 .danger 类挂法（material-row／workdir-batches／config-form／skill-detail／WorkdirSettings），
         // 本变体只剩 story 演示，归一后演示形态与规范档一致。
         destructive:
@@ -48,7 +48,7 @@ const buttonVariants = cva(
         "icon-lg": "btn-icon size-(--h-lg) gap-0 p-0 [&_svg]:size-(--icon-lg)",
         // icon-xs（22px 盒）低于触控目标 24×24（DESIGN.md 七·7）：透明伪元素把命中区
         // 外扩 1px（base.css §7 .btn--icon.btn--xs::before 同款）——纯热区、视觉零变，
-        // 全档使用点一起受益（对齐批「请求链胶囊对齐」⑦）。热区挂 ::after，
+        // 全档使用点一起受益。热区挂 ::after，
         // ::before 让给图标钮的基线零宽空格（见 globals.css 的 .btn-icon）。
         "icon-xs":
           "btn-icon relative size-(--h-xs) gap-0 rounded-md p-0 after:absolute after:-inset-px after:content-[''] [&_svg]:size-(--icon-xs)",

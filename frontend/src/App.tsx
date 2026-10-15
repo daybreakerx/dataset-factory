@@ -55,7 +55,7 @@ export function App(): ReactElement {
   );
   const [workPage, setWorkPage] = useState<PageKey>("prompts");
   // 窄桌面（768–1023）断点形态：侧栏自动收起为图标条（两栏保持）——响应式顺序
-  // 「缩窄先收侧栏、再变上下布局」（对齐批「响应式断点顺序对齐」条，稿侧 §21 同口径）。
+  // 「缩窄先收侧栏、再变上下布局」（稿侧 §21 同口径）。
   // 合成值不落盘：进入区间即收起，离开后恢复用户自己的折叠偏好。
   const narrowDesktop = useMediaQuery("(min-width: 768px) and (max-width: 1023.98px)");
 

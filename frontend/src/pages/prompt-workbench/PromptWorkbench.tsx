@@ -56,7 +56,7 @@ export function PromptWorkbench({
   const [promptMenuOpen, setPromptMenuOpen] = useState(false);
   const [promptBusy, setPromptBusy] = useState(false);
   const [strategyBusy, setStrategyBusy] = useState(false);
-  // 未保存确认弹窗（提示词切换／策略切换的 dirty 拦截形态，对齐批两件）：target 记
+  // 未保存确认弹窗（提示词切换／策略切换的 dirty 拦截形态）：target 记
   // 放行后要继续的动作；error 只收业务错误（环境类走浮层、弹窗保持打开）。
   const [unsavedOpen, setUnsavedOpen] = useState(false);
   const [unsavedTarget, setUnsavedTarget] = useState<
@@ -544,7 +544,7 @@ export function PromptWorkbench({
     draftDescription !== savedPrompt.description ||
     draftBody !== savedPrompt.body;
 
-  // Ctrl+S 绑提示词行保存（对齐批「Ctrl+S 绑提示词行保存」）：策略页页面级 keydown，
+  // Ctrl+S 绑提示词行保存：策略页页面级 keydown，
   // Ctrl/Cmd+S 一律拦浏览器「保存网页」默认行为；脏态执行 saveDraft()（与点保存钮完全
   // 同路——空名拦截、savingPromptRef 防重入、失败走编辑器反馈槽），不脏时静默无动作。
   // 监听只挂一次，草稿与脏标志走渲染期刷新的 ref 桥（面板 actionsRef 同式）。
@@ -655,8 +655,7 @@ export function PromptWorkbench({
             onSelectPrompt={(pid) => {
               setPromptMenuOpen(false);
               // 选中寻址一律传 ID（显示名可重名，两个坏提示词同名即撞）。脏态点非当前
-              // 行：关弹层、起未保存确认弹窗（保存／放弃后继续切换）——对齐批「提示词
-              // 切换未保存拦截」条；当前行与非脏态保持直通。
+              // 行：关弹层、起未保存确认弹窗（保存／放弃后继续切换）；当前行与非脏态保持直通。
               if (promptDirty && pid !== selectedId) {
                 setUnsavedTarget({ kind: "prompt", id: pid });
                 setUnsavedError("");

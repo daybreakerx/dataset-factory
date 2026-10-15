@@ -267,7 +267,7 @@ export function ChatSessionProvider({
       /**
        * 断流 / 报错 / 主动停止：已收到的半截也留痕（B5 + N1 同源①），不整段丢弃。
        *
-       * 中断原因与 meta 数据随消息带出（对齐批：手动停止＝「已停止」、异常透传原因；
+       * 中断原因与 meta 数据随消息带出（手动停止＝「已停止」、异常透传原因；
        * 时钟与耗时同终稿口径在停止时刻定格），中断标签据此分两档、meta 行不再缺时钟耗时。
        */
       const keepPartial = (reason: string): void => {

@@ -85,7 +85,7 @@ type ConfigFormProps = {
   advState: AdvJsonState;
   thinking: ThinkingMode;
   onThinkingChange: (mode: ThinkingMode) => void;
-  /** 详情头行最左槽：窄屏列表展收的展开钮（对齐批「窄屏列表展收」，面板按窄屏传入；宽屏不传）。 */
+  /** 详情头行最左槽：窄屏列表展收的展开钮（面板按窄屏传入；宽屏不传）。 */
   headLeading?: ReactElement;
 };
 

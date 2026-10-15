@@ -66,7 +66,7 @@ export function SkillsPanel({
   >(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   // 详情头行消息槽（一槽一消息、互斥替换）：保存被拦（bad）／保存成功（ok）优先，
-  // 其余回落损坏档常态（warn／bad）——对齐批「技能侧反馈归一」（批 14）。
+  // 其余回落损坏档常态（warn／bad）。
   // nameBlocked＝消息来自空名拦截，供名字框挂 aria-invalid（字段级错误程序化关联）。
   const [headMsg, setHeadMsg] = useState<{
     kind: "ok" | "warn" | "bad";
@@ -87,21 +87,21 @@ export function SkillsPanel({
   const [pickingPath, setPickingPath] = useState(false);
 
   /** 导入路径的失败分流：连接类失败改弹浮层（不占界面位置），后端返回的业务错误进
-   *  弹窗标题行消息槽（对齐批 45①「反馈分域：已导入→弹窗内」）。弹窗外的面板操作
+   *  弹窗标题行消息槽。弹窗外的面板操作
    *  失败：启停走 toast（failAside）、预览／文件清单落详情头行槽（failHead）。 */
   const fail = useCallback((err: unknown): void => {
     const text = reportError(err);
     if (text !== null) setFeedback({ kind: "error", text });
   }, []);
 
-  /** 启停开关的失败反馈（对齐批「技能面板弹窗外失败分流」：启停是列表行上的轻操作，
-   *  业务与环境类失败都走 toast，维持批 14 现状）。 */
+  /** 启停开关的失败反馈（启停是列表行上的轻操作，
+   *  业务与环境类失败都走 toast，维持现状）。 */
   const failAside = useCallback((err: unknown): void => {
     const text = reportError(err);
     if (text !== null) toast(text);
   }, []);
 
-  /** 详情区操作的失败分流（对齐批「技能面板弹窗外失败分流」，恢复「业务就地、环境浮层」
+  /** 详情区操作的失败分流（恢复「业务就地、环境浮层」
    *  旧判据）：包文件清单与预览都是详情区自己的操作，业务错误落详情头行消息槽（bad 色、
    *  删除钮右侧既有槽）；连接类失败由 reportError 内部转浮层。失败信息走 headMsg 现有
    *  生命周期（切选技能即清），瞬态盖过「包损坏」常驻提示属就地语义、不另设优先级。 */
@@ -111,7 +111,7 @@ export function SkillsPanel({
   }, []);
 
   const { skills, loading, loadError, reload: fetchSkills } = useSkills();
-  // 窄屏列表展收（对齐批「窄屏列表展收 · 两态交互实现」，与端点面板同构共用 hook）：
+  // 窄屏列表展收（与端点面板同构共用 hook）：
   // <768 左列收起为自动默认（旧「上下堆叠」随稿撤——base.css §21 <768 块左列隐藏），
   // 详情头展开钮悬停／键盘进暂展浮出层；≥768 两列常驻、恒无此交互。
   const { narrow, peek, toggleRef, backRef, openPeek, closePeek } = usePeekList();
@@ -257,7 +257,7 @@ export function SkillsPanel({
   };
 
   /** 导入反馈：损坏行入库（frontmatter 坏不再拒）→ 警告条按来源名指认；正常 → 成功条
-   *  （「assets / scripts 不参与注入」说明注入范围，对齐批「导入侧的反馈与失败文案」；
+   *  （「assets / scripts 不参与注入」说明注入范围；
    *  转码注明「N 个文件已从 〈编码〉 转为 UTF-8」接在成功条后，随「导入时归一化」条）。 */
   const applyImportResult = (result: SkillImportResponse, sourceName: string): void => {
     setSelected(result.id);
@@ -361,7 +361,7 @@ export function SkillsPanel({
     try {
       await api.deleteSkill(selected);
       setDeleteDialogOpen(false);
-      // 删除成功改浮层提示（对齐批 45③；面板提示条已撤，selected 清空后也不再有槽可落）。
+      // 删除成功改浮层提示（面板提示条已撤，selected 清空后也不再有槽可落）。
       toast(`已删除「${current?.name ?? selected}」`);
       setSelected("");
       await reload();
@@ -524,7 +524,7 @@ export function SkillsPanel({
       setDescriptionDraft(null);
       setNameDraft(null);
       if (previewPath === "SKILL.md") setSkillMdOriginal(finalContent);
-      // 成功句挂详情头行消息槽（--ok；一槽一消息、互斥替换——对齐批「技能侧反馈归一」，
+      // 成功句挂详情头行消息槽（--ok；一槽一消息、互斥替换，
       // E 位对位表「已保存→详情头槽」）。
       setHeadMsg({
         kind: "ok",

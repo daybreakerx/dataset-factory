@@ -384,7 +384,7 @@ def get_batch_detail(wid: str, sN: str) -> BatchView:
 
 
 def _snapshot_skill_files(block: dict[str, Any]) -> dict[str, Any]:
-    """Skill 块的对外形状：按文件给出（文件级冻结，对齐批 #17 C 节⑰）。
+    """Skill 块的对外形状：按文件给出（文件级冻结）。
 
     盘上的旧快照只有组装好的注入全文、没有 `files`——读取侧把它呈现成「一份 SKILL.md
     全文」，不改写落盘文件、也不给界面留空块。缺键一律用 `None` 交给视图校验去报

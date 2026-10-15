@@ -67,7 +67,7 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
     await page.getByRole("button", { name: "选择工作目录与批次" }).click();
     await page.getByRole("menuitem", { name: /停止验证/ }).click();
     await page.getByRole("button", { name: "开始打标", exact: true }).click();
-    // 进度环已撤（对齐批「运行状态组对齐」④）：「在跑」的进度由文本与 chip 内状态图标表达，
+    // 进度环已撤：「在跑」的进度由文本与 chip 内状态图标表达，
     // 这里的硬断言改挂进度文本（attempted / planned 起步 0 / 1）。
     const progressText = page.getByText(/^0 \/ 1 · 失败 0$/);
     await expect(progressText).toBeVisible();
@@ -81,7 +81,7 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
           ).entered,
       )
       .toBe(true);
-    // 停止两档（对齐批「停止两档」②③）：点停止先出确认弹窗，「确认」＝等条目打完（graceful、
+    // 停止两档：点停止先出确认弹窗，「确认」＝等条目打完（graceful、
     // 现行为）、「立即中断」＝掐断在途流（immediate，真中断由后端用例覆盖）。
     const stopResponse = page.waitForResponse(
       (response) =>
@@ -135,7 +135,7 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
     expect(
       await readFile(path.join(destination, "s1__sample.txt"), "utf8"),
     ).toContain("E2E 假模型的打标结果");
-    // 中断后回「已中断」态：只出「继续」（对齐批「运行状态组对齐」③五态显隐）。
+    // 中断后回「已中断」态：只出「继续」。
     // 时延窗按设计给足：快路＝SSE run-finished 即报；兜底＝空闲哨兵 15 秒慢轮＋回读
     // （use-run-watch L3 定案的时延），全量连跑高负载下快路也可能超出默认 5 秒期待窗。
     await expect(page.getByRole("button", { name: "继续" })).toBeVisible({
@@ -143,12 +143,12 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
     });
 
     await writeFile(path.join(destination, "s1__sample.txt"), "Old caption");
-    // 顶栏「刷新条目」钮已撤（对齐批 2026-10-07 裁）：盘外改动靠重进页面刷新。
+    // 顶栏「刷新条目」钮已撤：盘外改动靠重进页面刷新。
     await page.reload();
     const materials = page.getByRole("complementary", { name: "素材条目" });
     await materials.getByRole("button", { name: "选择", exact: true }).click();
     // 全选钮＝三态换形的图标钮（aria 随态说「全选本组／清除本组选择」）；「清空选择」文字钮随多选条撤除，
-    // 清除动作由已全选态再点一次承担（对齐批「多选选择条」③）。
+    // 清除动作由已全选态再点一次承担。
     const done = materials.getByRole("region", { name: "已完成", exact: true });
     await done.getByRole("button", { name: "全选本组" }).click();
     await expect(materials.getByRole("checkbox", { name: "选择 sample.png" })).toBeChecked();
@@ -163,7 +163,7 @@ test("停止保留产物，选择重试可覆盖旧产物，运行中隐藏需�
     await expect(retry.getByText("sample.png", { exact: true })).toBeVisible();
 
     await request.post("/fake-llm/__test__/gated-reset");
-    // 从「重试列表」组头发车（顶栏的「开始重试」已撤，对齐批条 3 ①；组头是唯一入口），
+    // 从「重试列表」组头发车（顶栏的「开始重试」已撤；组头是唯一入口），
     // 名单已在界面上，本步顺带验证组头入口真的通。组头钮按 §六 动态计数写作
     // 「开始重试（N）」，故不锁 exact 全名。
     await retry.getByRole("button", { name: /开始重试/ }).click();

@@ -179,7 +179,7 @@ export function ChatColumn({
       />
 
       {chatError !== "" && (
-        // 对话列反馈（对齐批 17·alert 退役 B 位）：消息流与输入区之间一行字，
+        // 对话列反馈：消息流与输入区之间一行字，
         // 单行省略＋截断悬停全文；role="alert" 语义保住（NoteInline 默认 status）。
         <NoteInline kind="bad" role="alert" text={chatError} className="mt-3" />
       )}

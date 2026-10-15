@@ -150,7 +150,7 @@ export const workdirApi = {
       { names },
     ),
 
-  // 无效文件清理改长任务（对齐批·清理清单条⑫）：界面轮询真实进度，完成即自动关窗。
+  // 无效文件清理改长任务：界面轮询真实进度，完成即自动关窗。
   startCleanupInvalid: (wid: string, names: string[]) =>
     request<components["schemas"]["CleanupAccepted"]>(
       "POST",

@@ -7,7 +7,7 @@ import { isolatedBaseURL } from "./fixtures/isolated-servers";
 // 本文件打真后端，用自己那份服务与数据根：重建导入读的是自己数据根里的事件流。
 test.use({ baseURL: isolatedBaseURL("rebuild-imports.spec.ts") });
 
-/** 新建批次表单的两段流程（对齐批「表单头与素材来源」④⑤⑥）：扫描来源目录 → 导入／登记 →
+/** 新建批次表单的两段流程：扫描来源目录 → 导入／登记 →
  *  头行「创建批次」；创建成功即回主页面，跑批由主页面的「开始打标」启动。 */
 async function createBatchThroughForm(
   page: import("@playwright/test").Page,
@@ -165,7 +165,7 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   await missingLedger.click();
   const dialog = page.getByRole("dialog", { name: "重建导入记录" });
   await dialog.getByRole("button", { name: "重建导入记录", exact: true }).click();
-  // 成功＝自动关窗＋浮层汇报（对齐批「重建导入记录弹窗」⑥）；句随重扫自消。
+  // 成功＝自动关窗＋浮层汇报；句随重扫自消。
   await expect(page.getByText("重建完成 · 登记素材 1 条")).toBeVisible();
   await expect(dialog).toHaveCount(0);
   await expect(missingLedger).toHaveCount(0);
@@ -188,7 +188,7 @@ test("重建导入记录经真实任务恢复登记并自动刷新概览", async
   expect(diskRun.counters.failed).toBe(0);
   await page.getByRole("button", { name: "快照", exact: true }).click();
   const snapshotDialog = page.getByRole("dialog", { name: "策略快照", exact: true });
-  // 分段控件取代三分区堆叠（对齐批 #17 笔①②）：默认落配置段，读取正常时无 alert。
+  // 分段控件取代三分区堆叠：默认落配置段，读取正常时无 alert。
   await expect(snapshotDialog.getByRole("tablist", { name: "快照内容" })).toBeVisible();
   await expect(snapshotDialog.getByRole("alert")).toHaveCount(0);
   // 弹窗壳几何锁（报障①，2026-10-14）：DialogContent 为单列网格，页脚那行「… 快照哈希 64位」

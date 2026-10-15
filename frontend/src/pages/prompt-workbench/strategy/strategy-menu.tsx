@@ -1,8 +1,7 @@
 /** 策略库下拉弹层（区块组件）：切换触发件＋策略列表＋新建／复制／删除入口。
- *  族内实例——弹层壳／头行／行／三态行住 components/cfg-pop.tsx（对齐批「下拉弹层族
- *  实现侧组件归一」）；实例只带文案与数据差异（族规则 components/overlay.md）。
+ *  族内实例——弹层壳／头行／行／三态行住 components/cfg-pop.tsx；实例只带文案与数据差异（族规则 components/overlay.md）。
  *  切换锁定（提示词 dirty / 瞬态忙）的拦截在上层 choose 里裁决：dirty 走未保存确认
- *  弹窗（对齐批「提示词切换未保存拦截」条）、忙类静默——层内不再就地提示。 */
+ *  弹窗、忙类静默——层内不再就地提示。 */
 import { CopyIcon, PlusIcon } from "lucide-react";
 import { type ReactElement, type RefObject, useRef } from "react";
 import type { EndpointConfigSummary, PromptInfo, SkillInfo } from "../../../api";
@@ -107,7 +106,7 @@ export function StrategyMenu({
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         {/* 2026-09-21 定形：列表照常打开、拦截在选中非当前项时由上层裁决；
-            2026-10-05 随族触发件不再随未保存禁用，dirty 拦截改确认保存弹窗（见对齐批）。 */}
+            2026-10-05 随族触发件不再随未保存禁用，dirty 拦截改确认保存弹窗。 */}
         <CfgNameChevron ref={triggerRef} label="切换策略" />
       </DropdownMenuTrigger>
       <CfgPopContent
@@ -147,7 +146,7 @@ export function StrategyMenu({
                 }}
               >
                 {entry.damaged ? (
-                  // 损坏行（对齐批「策略库损坏降级」）：名字位 = 文件名去 .json ＋
+                  // 损坏行：名字位 = 文件名去 .json ＋
                   // 红字「文件损坏」缀（.pl-bad 档）、描述位固定文案、无字数、无出处卡；
                   // 点行走 onRemove（损坏条目唯一处置 = 删除，确认弹窗由上层给）。
                   <CfgPopRowMain

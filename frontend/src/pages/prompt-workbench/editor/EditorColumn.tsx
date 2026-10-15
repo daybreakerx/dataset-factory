@@ -31,7 +31,7 @@ const PROMPT_CHAR_BUDGET = 32_000;
 
 /** 提示词库下拉弹层（本列私有件）：切换触发件＋库列表＋新建入口。族内实例（cfg-pop）——
  *  弹层壳／头行／行／三态行随 components/cfg-pop.tsx；触发件随族不再随未保存禁用
- *  （2026-10-05 随组件归一；点非当前行的拦截形态改确认保存弹窗，见对齐批）。 */
+ *  （2026-10-05 随组件归一；点非当前行的拦截形态改确认保存弹窗）。 */
 function PromptMenu({
   open,
   onOpenChange,
@@ -212,7 +212,7 @@ export function EditorColumn({
               onDelete={onDeletePromptRequest}
             />
           </div>
-          {/* 两行制折行（对齐批「行折行两行制」，稿侧 .wt-tail 的等价 Tailwind 结构）：
+          {/* 两行制折行（稿侧 .wt-tail 的等价 Tailwind 结构）：
               反馈槽＋右侧钮包进不可折行分组一体同行（内部永不折行、保存钮恒在行尾），
               窄到放不下才整体落到第二行；最左的标签与名字框独行。 */}
           <div className="flex min-w-[144px] flex-1 items-center gap-2">

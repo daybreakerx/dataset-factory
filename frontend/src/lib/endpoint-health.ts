@@ -1,5 +1,5 @@
 /** 端点连通性探测（打标页与策略页共用）：会话级缓存＋TTL＋重探广播。
- *  提取自 BatchConfiguration（对齐批「端点状态点接真实健康探测」工作项；2026-09-25 用户裁
+ *  提取自 BatchConfiguration（2026-09-25 用户裁
  *  「需要补全实现」＋「和打标页保持一致」——两页同语义同探测，不另设计）。 */
 import { useEffect, useReducer } from "react";
 import { api, errorMessage } from "../api";

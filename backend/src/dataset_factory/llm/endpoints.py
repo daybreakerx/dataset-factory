@@ -94,7 +94,7 @@ class ConfigNameError(ConfigError):
     """显示名不合法（空、超长）——操作级错误之外的「字段级」错误。
 
     HTTP 入口层据此给 400 响应体带 ``field: "name"`` 标记，前端才能把错误精确挂到
-    名字框上（aria-invalid），而不是混在操作级错误里无从判别归属（对齐批批 18 裁）。
+    名字框上（aria-invalid），而不是混在操作级错误里无从判别归属。
     """
 
 

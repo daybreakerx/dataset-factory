@@ -254,7 +254,7 @@ def test_translate_without_body_keeps_clean_message() -> None:
 def test_translate_splits_short_and_full_messages() -> None:
     """两层消息：short 短句进界面窄槽（条目行原因行），全句（含端点摘要）进 detail。
 
-    2026-10-12 对齐批「LLM 错误文案改短句」条选项①：界面吃短句、run.log 吃短句＋
+    2026-10-12 裁：界面吃短句、run.log 吃短句＋
     detail；2026-09-14「端点的一面之词交给用户自己判断」在日志侧保留（不撤）。
     """
     exc = _bare_sdk_error(openai.BadRequestError)

@@ -1497,7 +1497,7 @@ test("measure sidebar-foot computed styles", async ({ page }) => {
     backgroundColor: getComputedStyle(el).backgroundColor, color: getComputedStyle(el).color,
   })), null, 2));
 
-  // 关机钮 Tip（对齐批「ShutdownButton 侧栏模式补 Tooltip」条）：独立上下文采集。
+  // 关机钮 Tip：独立上下文采集。
   await page.reload();
   await page.getByRole("button", { name: "策略", exact: true }).click();
   await page.getByRole("textbox").first().waitFor({ state: "visible", timeout: 10_000 });

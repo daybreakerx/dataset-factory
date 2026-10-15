@@ -115,7 +115,7 @@ function SelectContent({
           }
         }}
         className={cn(
-          // 族配套（对齐批「表单 Select」残条）：浮层影随族 --sh-3（原 shadow-md）、
+          // 族配套：浮层影随族 --sh-3（原 shadow-md）、
           // 宽度上限取族三段式的上限档（原有「下限＝触发件宽、可撑开」保持不动）。
           "relative z-50 max-h-(--radix-select-content-available-height) min-w-32 max-w-[min(480px,calc(100vw_-_32px))] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-(--sh-3)",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
@@ -153,7 +153,7 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        // 行随族（对齐批「表单 Select 选中行与行取值归族」）：单行、行名 13px/500 text-2、
+        // 行随族：单行、行名 13px/500 text-2、
         // 四边内距 8、圆角 8；选中行 = tint/8 ＋主色描边槽 ＋名字主色（勾已裁撤）；
         // 当前行悬停不换底（stacked 变体压过 focus:bg-accent）。
         "relative flex w-full cursor-default items-center gap-2 rounded-md border border-transparent p-2 text-t-md font-medium text-text-2 outline-none select-none",

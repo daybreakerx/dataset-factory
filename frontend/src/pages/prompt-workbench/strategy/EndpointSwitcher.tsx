@@ -47,7 +47,7 @@ export function EndpointSwitcher({
   onManage: () => void;
 }): ReactElement {
   const selected = endpoints.find((item) => item.id === selectedId);
-  // chip 状态点接真实健康探测（对齐批「端点状态点接真实健康探测」，稿 端点切换弹层
+  // chip 状态点接真实健康探测（稿 端点切换弹层
   // 「触发件 · 点色四态」）：语义与打标页同套（共用 hook），探测中走呼吸蓝——本页无
   // 跑批呼吸点同屏竞争；未配置端点 = 静态灰（灰点说真话、无从探起）。
   const health = useEndpointHealth(selected?.name ?? "", selected);

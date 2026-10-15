@@ -48,7 +48,7 @@ export function StrategyToolbar({
   endpoints: EndpointConfigSummary[];
   /** 瞬态忙类锁（发送／保存飞行／切策略飞行）：点策略行静默拦——口径不变。 */
   locked: boolean;
-  /** 提示词侧有未保存改动：点非当前策略行不再就地拦截，改上抛由上层弹「未保存确认弹窗」兜底（对齐批「提示词切换未保存拦截」条）。 */
+  /** 提示词侧有未保存改动：点非当前策略行不再就地拦截，改上抛由上层弹「未保存确认弹窗」兜底。 */
   promptDirty: boolean;
   onSelect: (strategy: Strategy) => Promise<void>;
   /** 点「新建策略」时回调：换桶语义，工作域据此进 __new__ 桶（会话归属 v3）。 */
@@ -62,7 +62,7 @@ export function StrategyToolbar({
   /** 弹窗放行（保存或放弃完成）后的继续切换请求；执行完回调清空。 */
   pendingSwitch: Strategy | null;
   onPendingSwitchHandled: () => void;
-  /** 选端点触发的自动保存失败落点（对齐批「端点切换弹层 · chip 触发的保存失败行」）：
+  /** 选端点触发的自动保存失败落点：
    *  文字落右栏对话头行 chip 右侧槽；空串＝清（下一次保存成功即清）。 */
   onEndpointSaveError: (text: string) => void;
 }): ReactElement {
@@ -304,14 +304,14 @@ export function StrategyToolbar({
   const performSwitch = async (entry: Strategy): Promise<void> => {
     if (pending.current || loading) return;
     if (entry.damaged) {
-      // 损坏条目（对齐批「策略库损坏降级」）：没有可切换的组合，点行 = 走删除
+      // 损坏条目：没有可切换的组合，点行 = 走删除
       // 确认弹窗（损坏条目版）——不立「重新指定·文件损坏态」（没东西可重指）。
       setRemove(entry);
       setOpen(false);
       return;
     }
     if (!entry.available) {
-      // 缺失引用位的选择器初始为空（对齐批「重新指定弹窗缺失选择器初始为空」）：
+      // 缺失引用位的选择器初始为空：
       // 不预选悬空值，确认钮在两选择器都选到现存资产前禁用；Skill 勾选沿用现值。
       setBindings({
         endpoint_id: "",
@@ -526,7 +526,7 @@ export function StrategyToolbar({
             }}
           />
         </div>
-        {/* 两行制折行（对齐批「行折行两行制」，稿侧 .wt-tail 的等价 Tailwind 结构）：
+        {/* 两行制折行（稿侧 .wt-tail 的等价 Tailwind 结构）：
             描述框＋失败槽＋右侧钮包进不可折行分组一体同行（内部永不折行、保存钮恒在
             行尾），窄到放不下才整体落到第二行；最左的名字框独行。min-w-144 = desc
             min 96＋gap 8＋保存钮实宽 40 的折行底线。 */}
@@ -703,7 +703,7 @@ export function StrategyToolbar({
             </SelectTrigger>
             <SelectContent>
               {/* 缺失信息由弹窗描述位 missing_refs 清单承载；选择器只列现存资产
-                  （对齐批「重新指定弹窗缺失选择器初始为空」——撤悬空 ID 的禁用灰项）。 */}
+                  （撤悬空 ID 的禁用灰项）。 */}
               {endpoints.map((entry) => (
                 <SelectItem key={entry.id} value={entry.id}>
                   {entry.name}

@@ -964,7 +964,7 @@ describe("SettingsPage · 窄屏列表展收（两态交互）", () => {
   it("端点子页键盘路径：展开钮进暂展、焦点入层首件＝返回钮；Esc 收起、焦点回展开钮", async () => {
     mockNarrow(true);
     render(<SettingsPage />);
-    // 先等自动选中落位：空详情态也挂展开钮（对齐批「窄屏空详情态展开钮补位」），
+    // 先等自动选中落位：空详情态也挂展开钮，
     // 不等会抓到选中落位后被卸载的空态钮节点、点击落空。
     await screen.findByLabelText("配置名称");
     const toggle = await screen.findByLabelText("展开列表");
@@ -1025,8 +1025,7 @@ describe("SettingsPage · 窄屏列表展收（两态交互）", () => {
     apiMock.listEndpoints.mockResolvedValue([]);
     mockNarrow(true);
     render(<SettingsPage />);
-    // 空库无自动选中：展开钮是隐藏左列（列表＋添加配置）的唯一入口——对齐批
-    // 「窄屏空详情态展开钮补位」。
+    // 空库无自动选中：展开钮是隐藏左列（列表＋添加配置）的唯一入口。
     fireEvent.click(await screen.findByLabelText("展开列表"));
     await screen.findByLabelText("收起列表");
     fireEvent.click(screen.getByRole("button", { name: "添加配置" }));

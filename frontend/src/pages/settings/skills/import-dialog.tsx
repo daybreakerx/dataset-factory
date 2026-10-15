@@ -52,7 +52,7 @@ export function ImportDialog({
 }: ImportDialogProps): ReactElement {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mdInputRef = useRef<HTMLInputElement>(null);
-  // 飞行期（导入中／读包中）＝瞬态禁用：只失效不换装（对齐批「瞬态禁用不换装」）。
+  // 飞行期（导入中／读包中）＝瞬态禁用：只失效不换装。
   // fieldset 层掐指针事件、语义交给 aria-disabled；键盘路径由各控件 onClick 拦截与
   // readOnly 兜底。「导入」钮路径为空是持续禁用，照旧走 disabled 灰阶。
   const flight = importing || readingDrop;

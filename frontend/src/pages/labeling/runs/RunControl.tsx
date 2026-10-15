@@ -120,7 +120,7 @@ interface Props {
   onItemsRefresh?: () => void;
   /**
    * 本批的运行史状态（`StrategyView.run_status`：null＝从未跑过，及 failed／running／
-   * interrupted／completed）——组显隐按它五态走（对齐批「运行状态组对齐」③；规格权威
+   * interrupted／completed）——组显隐按它五态走（规格权威
    * ＝零件稿 运行状态组.html）：从未跑过／启动失败 → 只出「开始打标」；跑批中 → 进度
    * 文本＋「停止」；已中断 → 只出「继续」；已完成 → 整组不渲染。跑批中视图由活观测
    * `status` 带计数，此 prop 只在观测空闲时判「上一场跑完是什么」。
@@ -247,7 +247,7 @@ export function RunControl({
     [batch, wid, lifecycle, setError],
   );
 
-  // 组显隐按「本批运行史」五态（对齐批「运行状态组对齐」③；活观测在场＝跑批中，
+  // 组显隐按「本批运行史」五态（活观测在场＝跑批中，
   // 观测空闲时按运行史分流：中断→继续、完成→整组不渲染、未跑/启动失败→开始打标）。
   const historyState = runStatus ?? null;
 
@@ -322,7 +322,7 @@ export function RunControl({
               </span>
             </span>
           )}
-          {/* 进度环已撤（对齐批④）：「在跑」的进度只由选择器 chip 内的 14px 状态图标
+          {/* 进度环已撤：「在跑」的进度只由选择器 chip 内的 14px 状态图标
               表达，这里的文本是本组唯一的信息载体——字色取正文级 --text-2（⑤）。
               让位秩序（§22 .lb-sbstat）：本行先让、floor 4em、放不下走省略号兜底，
               极窄档（≤512）数字 ≥1000 先改 X.Xk 缩写——两式同场按容器宽互斥显隐，
@@ -341,7 +341,7 @@ export function RunControl({
               progressText(attempted, planned, failed)
             )}
           </span>
-          {/* 飞行期只失效不换装（对齐批⑥瞬态例外）：aria-disabled＋掐点击，外观同形。
+          {/* 飞行期只失效不换装：aria-disabled＋掐点击，外观同形。
               等条目窗口内本钮保持可点（③：可重复唤起弹窗改选「立即中断」）。 */}
           <Button
             variant="destructive-soft"
@@ -377,7 +377,7 @@ export function RunControl({
         </>
       ) : (
         <>
-          {/* 禁用必须说明原因（按钮规范）；飞行期只失效不换装（对齐批⑥瞬态例外）。 */}
+          {/* 禁用必须说明原因（按钮规范）；飞行期只失效不换装。 */}
           <Tip
             label={
               busy

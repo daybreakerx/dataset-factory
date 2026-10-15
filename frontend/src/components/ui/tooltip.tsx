@@ -44,7 +44,7 @@ function TooltipContent({
 }
 
 /** 禁用控件收不到指针事件（项目的禁用态 CSS 带 pointer-events: none），气泡直接挂在
- * 它身上永远不弹——触发器必须包在外层中性 span 上（对齐批「禁用控件上的 tip」条）。
+ * 它身上永远不弹——触发器必须包在外层中性 span 上。
  * 原生元素与本项目 Button 的 disabled 都写在 props 上，按 props 正判即可覆盖全部现役禁用场景。 */
 function isDisabledChild(child: ReactElement): boolean {
   return (child.props as { disabled?: boolean }).disabled === true;

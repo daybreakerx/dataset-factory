@@ -56,7 +56,7 @@ export function useWorkdirBatches({
   loadError: string | null;
 } {
   const [workdirs, setWorkdirs] = useState<WorkdirBatches[]>([]);
-  // 弹层自己的飞行 / 失败标志（对齐批「批次下拉列表对齐」⑧，族三态行口径：打开重拉期间
+  // 弹层自己的飞行 / 失败标志（族三态行口径：打开重拉期间
   // 整层换「正在读取…」、失败换「工作目录读取失败」且只接非连接类——连接类由 reportError
   // 转浮层提示、不占层内）。失败不馈页面横幅（ADR「workdir 取数失败不进页面横幅」，挂账
   // 第 1 条 2026-10-06 裁 B：弹层行／Toast 已是贴身的单一通路，横幅再收一份＝重复呈现，

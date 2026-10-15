@@ -373,7 +373,7 @@ def require_refs_exist(endpoint_id: str, prompt_id: str, skill_ids: list[str]) -
     problems = missing_refs(entry)
     if problems:
         raise StrategyRefsError(
-            # 清单在前、套话在后（对齐批「新增策略弹窗」⑰）：界面一行放得下的只有句首，
+            # 清单在前、套话在后：界面一行放得下的只有句首，
             # 「哪一项没了」必须出现在截断之前——信息一条不砍，只换语序。
             "；".join(problems) + "——请先在对应库中创建或改选其他资产。"
         )
