@@ -539,7 +539,7 @@ def _translate_sdk_error(exc: openai.APIError, secret: str | None = None) -> LLM
         else ""
     )
     suffix = f"（端点返回：{secret_summary}）" if secret_summary else ""
-    # 短句层（2026-10-12 对齐批「LLM 错误文案改短句」条）：条目行原因行一行放不下几个字，
+    # 短句层（2026-10-12 裁）：条目行原因行一行放不下几个字，
     # 界面吃 short、run.log 吃全句（含端点响应体摘要与可操作建议——2026-09-14 用户定夺
     # 「端点的一面之词交给用户自己判断」在日志侧保留）。两条都由本函数一处产出。
     if isinstance(exc, openai.APITimeoutError):
