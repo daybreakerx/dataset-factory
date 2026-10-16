@@ -1,14 +1,10 @@
-# Dependabot —— 自动盯着依赖，有安全漏洞或新版本就开 PR 帮你升级（公开仓免费）。
-# 签入默认分支 main 的 .github/dependabot.yml 后生效；directory 相对仓库根。
+# Dependabot —— 自动盯着依赖。
+# 现行策略：按需升级、控制变更频率——
+#   - 漏洞安全：由仓库设置的「Dependabot 告警 + 安全更新」承担，出漏洞提修复 PR；
+#   - GitHub Actions：保留每周检查——只动 CI 文件、零产品风险，能自动跟上「运行时弃用」类到期；
+#   - Python 依赖：不自动提版本 PR；升级由人择期整批做（升完跑全量门禁）。
 version: 2
 updates:
-  # Python 依赖：uv 生态会同时更新 backend/pyproject.toml 与 uv.lock，
-  # 保证 CI 的 `uv sync --frozen` 不会因为只改了 pyproject 没重锁而失败。
-  - package-ecosystem: "uv"
-    directory: "/backend"
-    schedule:
-      interval: "weekly"
-
   # CI 用的 GitHub Actions 版本（actions/checkout、astral-sh/setup-uv 等）。
   - package-ecosystem: "github-actions"
     directory: "/"
