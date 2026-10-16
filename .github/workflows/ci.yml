@@ -156,7 +156,7 @@ jobs:
       # （加上 webServer 内的第三遍，一次 CI 构建三次）。
       - name: Upload dist (for e2e)
         if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: frontend/dist
@@ -221,7 +221,7 @@ jobs:
             e2e/package-lock.json
 
       - name: Download dist artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: frontend-dist
           path: frontend/dist                     # 被测服务托管的就是构建产物，来自 frontend job
@@ -231,7 +231,7 @@ jobs:
         working-directory: e2e
 
       - name: Cache Playwright browser
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
