@@ -100,28 +100,53 @@ test("打标页顶栏窄屏三段：折行、反馈行图标档、极窄档收�
   const leftCell = topbar.locator("> header > div").first();
   const chain = page.getByRole("region", { name: "策略配置" });
   const group = page.getByRole("region", { name: "运行控制" });
-  const containerWidth = () => topbar.evaluate((element) => element.clientWidth);
-  // 容器查询量的是**内容盒**宽（clientWidth 含内距），档位判断要用这一把尺。
-  const contentWidth = () =>
-    topbar.evaluate((element) => {
-      const style = getComputedStyle(element);
-      return (
-        element.clientWidth -
-        parseFloat(style.paddingLeft) -
-        parseFloat(style.paddingRight)
-      );
+  // 容器查询量的是**内容盒**宽（clientWidth 含内距），档位判断要用这一把尺；
+  // 读数（容器宽/内容盒宽/页面 scrollWidth）都要等「连续多帧不变」才取值——视口切换
+  // 会连带 React 异步提交与 CSS 宽度过渡（如 768–1024 档侧栏自动收起 150ms），
+  // resize 后立即读会拿到提交前的旧值或过渡中间值（假收敛的根源）。
+  const readSettled = async (): Promise<{
+    container: number;
+    content: number;
+    scrollWidth: number;
+  }> =>
+    topbar.evaluate(async (element) => {
+      const measure = () => {
+        const style = getComputedStyle(element);
+        return {
+          container: element.clientWidth,
+          content:
+            element.clientWidth -
+            parseFloat(style.paddingLeft) -
+            parseFloat(style.paddingRight),
+          scrollWidth: document.documentElement.scrollWidth,
+        };
+      };
+      let last = measure();
+      let stableFrames = 0;
+      for (let frame = 0; frame < 240 && stableFrames < 8; frame += 1) {
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+        const now = measure();
+        stableFrames =
+          now.container === last.container &&
+          now.content === last.content &&
+          now.scrollWidth === last.scrollWidth
+            ? stableFrames + 1
+            : 0;
+        last = now;
+      }
+      return last;
     });
   // 阈值量的是容器宽（顶栏挂 @container lbctx 的那层），不是视口宽——侧栏与内距都在外面扣掉，
-  // 而侧栏本身还会随视口折收（差值不是常数）。故按「读回的容器宽」迭代补差，收敛到目标宽。
-  let offset = 1440 - (await containerWidth());
+  // 容器宽随视口变（桌面视口扣侧栏、窄屏视口恒等视口）。按「稳定后的容器宽」迭代补差。
+  let offset = 1440 - (await readSettled()).container;
   const setContainerWidth = async (target: number): Promise<void> => {
     for (let step = 0; step < 8; step += 1) {
       await page.setViewportSize({ width: target + offset, height: 900 });
-      const actual = await containerWidth();
+      const actual = (await readSettled()).container;
       if (actual === target) return;
       offset += target - actual;
     }
-    await expect.poll(containerWidth).toBe(target);
+    throw new Error(`容器宽未收敛到 ${target}（最后读到 ${(await readSettled()).container}）`);
   };
   const noOverflow = async (): Promise<void> => {
     const viewport = page.viewportSize();
@@ -162,11 +187,14 @@ test("打标页顶栏窄屏三段：折行、反馈行图标档、极窄档收�
   );
   await noOverflow();
 
-  // 段三·反馈行图标档（<663）：文字隐、14px 图标显（全文进 aria-label）、组内间距收到 8。
-  await setContainerWidth(662);
-  // 先把「确实进了图标档」当断言前提钉住：CI 侧再红时能当场指认是没进到那一档、还是档位行为不对
-  //（本地单跑与全量都绿，CI run 38231115948 红在这一行的 toBeHidden）。
-  expect(await contentWidth()).toBeLessThan(663);
+  // 段三·反馈行图标档（512–663）：文字隐、14px 图标显（全文进 aria-label）、组内间距收到 8。
+  // 桌面视口到不了这一档：侧栏两态把 ≥768 视口的容器宽最低顶在 704（768 收起态），跨不进 663；
+  // 改用窄屏视口 600——<768 视口侧栏不占位、容器宽＝视口，图标档可稳定到达。
+  await page.setViewportSize({ width: 600, height: 900 });
+  // 先把「确实进了图标档」当断言前提钉住：红了能当场指认是没进到那一档、还是档位行为不对。
+  const tierWidth = (await readSettled()).content;
+  expect(tierWidth).toBeGreaterThan(512);
+  expect(tierWidth).toBeLessThan(663);
   await expect(chain.getByText("Example · caption-model")).toBeVisible();
   await expect(alert.getByText("运行失败，请查看运行日志。")).toBeHidden();
   await expect(
@@ -178,7 +206,7 @@ test("打标页顶栏窄屏三段：折行、反馈行图标档、极窄档收�
 
   // 段四·极窄档（<512，手机视口）：触发件列恒 240 不回涨、本组仍可完整容下。
   await page.setViewportSize({ width: 390, height: 844 });
-  expect(await containerWidth()).toBeLessThan(512);
+  expect((await readSettled()).container).toBeLessThan(512);
   expect((await leftCell.boundingBox())?.width).toBe(240);
   const tinyGroup = await group.boundingBox();
   const tinyTopbar = await topbar.boundingBox();
