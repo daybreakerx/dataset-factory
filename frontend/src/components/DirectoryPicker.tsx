@@ -311,7 +311,7 @@ export function DirectoryPicker({
           上一级
         </Button>
         <nav aria-label="目录路径" className="min-w-0">
-          {/* 路径面包屑条＝单行横滚区，走 hs 定式（DESIGN.md 3.3）；段间 `›` 属排版、不进可访问名。 */}
+          {/* 路径面包屑条＝单行横滚区，走 hs 定式（design.md 3.3）；段间 `›` 属排版、不进可访问名。 */}
           <HScroll className="text-t-sm text-text-3" trackClassName="gap-0">
             {crumbs.map((crumb, index) => (
               <span key={crumb.path} className="flex shrink-0 items-center">

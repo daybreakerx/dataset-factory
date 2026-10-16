@@ -55,7 +55,7 @@ describe("字节显示格式化", () => {
   });
 });
 describe("注入字数格式化", () => {
-  it("统一 k（千字）一档：一位小数、整数省小数（DESIGN.md 六口径）", () => {
+  it("统一 k（千字）一档：一位小数、整数省小数（design.md 六口径）", () => {
     expect([
       formatChars(0),
       formatChars(820),

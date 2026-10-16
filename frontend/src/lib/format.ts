@@ -29,7 +29,7 @@ export function formatBytesAuto(bytes: number): string {
  * 注入正文字符数 → 字数文案（技能列表、策略库下拉、提示词库下拉共用一份口径）。
  *
  * 统一折算成 **k（千字）一档**：一位小数、整数省去小数（如 16k 字、3k 字、0.9k 字）；
- * 一律不加「约」——字数本身是精确算出来的。口径只有一份（DESIGN.md 六），
+ * 一律不加「约」——字数本身是精确算出来的。口径只有一份（design.md 六），
  * 原型与实现两边都不另写一套。
  */
 export function formatChars(count: number): string {

@@ -238,7 +238,7 @@ export function ChatColumn({
         }
         selectedSkills={
           // 已选 Skill 胶囊条（对话态稿 composer 区同款）：单行横滚走 hs 定式
-          // （DESIGN.md 3.3，HScroll——自绘拇指贴底重叠、hover 显、渐隐位置感知）。
+          // （design.md 3.3，HScroll——自绘拇指贴底重叠、hover 显、渐隐位置感知）。
           <HScroll className="flex-1">
             {skillIds.map((sid) => {
               const label = skills.find((entry) => entry.id === sid)?.name ?? sid;

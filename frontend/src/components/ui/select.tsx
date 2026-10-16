@@ -47,7 +47,7 @@ function SelectTrigger({
   ...props
 }: ComponentProps<typeof SelectPrimitive.Trigger>): ReactElement {
   const triggerRef = useRef<HTMLButtonElement>(null);
-  // 触发件当前值被截断时悬停给全文（DESIGN.md 六「被截断的固定文字悬停给全文」；
+  // 触发件当前值被截断时悬停给全文（design.md 六「被截断的固定文字悬停给全文」；
   // 按溢出启停——值看得全就不出气泡）。文案在指针进入时现读，组件层一处、全部用例受益。
   const [tipText, setTipText] = useState("");
   return (

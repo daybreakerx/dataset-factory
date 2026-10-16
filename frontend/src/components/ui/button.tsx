@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  // 微交互（DESIGN.md 2.6）：按压 translateY(1px)——位移方向恒定恒向下（原 scale(.98)
+  // 微交互（design.md 2.6）：按压 translateY(1px)——位移方向恒定恒向下（原 scale(.98)
   // 在 30px 小钮上低于感知阈、已实测否决）；transform 并入过渡（原 transition-colors 不含）。
   "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-t-md font-medium transition-[color,background-color,border-color,text-decoration-color,fill,stroke,transform,box-shadow] duration-(--dur-1) active:translate-y-px disabled:pointer-events-none disabled:bg-muted disabled:text-n-400 [&_svg]:pointer-events-none [&_svg]:size-(--icon-md) [&_svg]:shrink-0",
   {
@@ -46,7 +46,7 @@ const buttonVariants = cva(
         icon: "btn-icon size-(--h-md) gap-0 p-0",
         "icon-sm": "btn-icon size-(--h-sm) gap-0 p-0 [&_svg]:size-(--icon-md)",
         "icon-lg": "btn-icon size-(--h-lg) gap-0 p-0 [&_svg]:size-(--icon-lg)",
-        // icon-xs（22px 盒）低于触控目标 24×24（DESIGN.md 七·7）：透明伪元素把命中区
+        // icon-xs（22px 盒）低于触控目标 24×24（design.md 七·7）：透明伪元素把命中区
         // 外扩 1px（base.css §7 .btn--icon.btn--xs::before 同款）——纯热区、视觉零变，
         // 全档使用点一起受益。热区挂 ::after，
         // ::before 让给图标钮的基线零宽空格（见 globals.css 的 .btn-icon）。

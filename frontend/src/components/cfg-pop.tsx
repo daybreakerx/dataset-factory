@@ -193,7 +193,7 @@ function CfgPopRow({
 }
 
 /** 行主体（`.pl-main`）：名字（13px/500）＋字数（11px）＋坏行标记（11px 红）同一行、描述（11px）第二行。
- *  名字与描述单行省略（.pl-name／.pl-desc）；被截断的固定文字悬停给全文（DESIGN.md 六）——
+ *  名字与描述单行省略（.pl-name／.pl-desc）；被截断的固定文字悬停给全文（design.md 六）——
  *  收拢在组件一处、全部用例（策略／提示词／端点／Skill 行）受益。调用方传 tip（策略行
  *  出处卡这类键值卡）时不再叠名字／描述气泡（嵌套双气泡），全文职责随卡内容走。 */
 function CfgPopRowMain({

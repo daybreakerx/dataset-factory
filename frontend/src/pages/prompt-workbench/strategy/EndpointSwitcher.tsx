@@ -51,7 +51,7 @@ export function EndpointSwitcher({
   // 「触发件 · 点色四态」）：语义与打标页同套（共用 hook），探测中走呼吸蓝——本页无
   // 跑批呼吸点同屏竞争；未配置端点 = 静态灰（灰点说真话、无从探起）。
   const health = useEndpointHealth(selected?.name ?? "", selected);
-  // chip 显示「名称 · 模型」、被触发件宽度截断时悬停给全文（DESIGN.md 六）——
+  // chip 显示「名称 · 模型」、被触发件宽度截断时悬停给全文（design.md 六）——
   // 按溢出启停（select 触发器同口径）：值看得全就不出全文气泡、保留切换功能提示。
   const chipText = selected ? `${selected.name} · ${selected.model}` : "未配置端点";
   const [chipTip, setChipTip] = useState("切换端点配置");

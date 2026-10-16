@@ -188,7 +188,7 @@ export function App(): ReactElement {
           >
             <PanelLeftOpenIcon className="size-(--icon-md)" />
           </button>
-          {/* 窄屏顶条页签名：顶条窄、签名长时被截断——悬停给全文（DESIGN.md 六）。 */}
+          {/* 窄屏顶条页签名：顶条窄、签名长时被截断——悬停给全文（design.md 六）。 */}
           <Tip label={pageLabel}>
             <span className="truncate font-medium">{pageLabel}</span>
           </Tip>

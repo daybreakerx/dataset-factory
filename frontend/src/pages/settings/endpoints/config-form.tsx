@@ -142,7 +142,7 @@ export function ConfigForm({
       ? ""
       : "请填写名称、Base URL 和模型名称";
   // 名称字段级失败（后端 field=name 指认）：名字框挂 aria-invalid 并程序化关联到
-  // 本行消息槽（DESIGN.md 七 9；操作级错误不得预设 aria-invalid——ARIA21）。
+  // 本行消息槽（design.md 七 9；操作级错误不得预设 aria-invalid——ARIA21）。
   const nameInvalid = feedback?.field === "name";
   const headMsgId = "endpoint-head-msg";
   return (

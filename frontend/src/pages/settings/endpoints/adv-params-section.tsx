@@ -67,7 +67,7 @@ export function AdvParamsSection({
   thinking,
   onThinkingChange,
 }: AdvParamsSectionProps): ReactElement {
-  // 状态行 id 供 JSON 框的 aria-describedby 程序化关联（DESIGN.md 七 9）。
+  // 状态行 id 供 JSON 框的 aria-describedby 程序化关联（design.md 七 9）。
   const jsonStatusId = useId();
   // 无效档（JSON 语法坏或保存被拦）才给 JSON 框挂 aria-invalid——ok/ignored 档
   // 校验未出错、不得预设 true（W3C ARIA21）。

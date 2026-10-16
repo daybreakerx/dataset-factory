@@ -20,7 +20,7 @@ interface Props {
   unfolded: boolean;
 }
 
-/** 对比栏正文：取数中「正在读取…」与无产物「暂无产出」分两句（⑤，DESIGN.md 4.2）。 */
+/** 对比栏正文：取数中「正在读取…」与无产物「暂无产出」分两句（⑤，design.md 4.2）。 */
 function bodyText(loading: boolean, text: string, empty: string): string {
   return loading ? "正在读取…" : text.trim() || empty;
 }

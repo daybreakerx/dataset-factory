@@ -37,7 +37,7 @@ export function ComparePicker({
       className="min-w-0 flex-1 max-md:grow-0 max-md:basis-[304px]"
       aria-label="策略对比"
     >
-      {/* 单行横滚走 hs 定式（DESIGN.md 3.3）：对齐声明挂在 wrap 上而非 .hs-scroll。 */}
+      {/* 单行横滚走 hs 定式（design.md 3.3）：对齐声明挂在 wrap 上而非 .hs-scroll。 */}
       <HScroll className="justify-end">
         {[
           {

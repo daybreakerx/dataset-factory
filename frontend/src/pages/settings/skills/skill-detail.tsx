@@ -86,7 +86,7 @@ type SkillDetailProps = {
   onDescriptionChange: (value: string) => void;
   /** 头行消息槽（删除钮右侧、保存钮前；一槽一消息、互斥替换——稿 技能详情头）。
    *  nameBlocked＝消息来自空名拦截：名字框挂 aria-invalid＋aria-describedby 指向槽
-   *  （字段级错误程序化关联，DESIGN.md 七 9；ok／warn 档不得预设 aria-invalid——ARIA21）。 */
+   *  （字段级错误程序化关联，design.md 七 9；ok／warn 档不得预设 aria-invalid——ARIA21）。 */
   headNote: {
     kind: "ok" | "warn" | "bad";
     text: string;
@@ -154,7 +154,7 @@ export function SkillDetail({
           </Button>
         </Tip>
         {headNote !== null && (
-          // 消息槽：12px、单行省略兜底窄窗、被截断时悬停给全文（DESIGN.md 六）；
+          // 消息槽：12px、单行省略兜底窄窗、被截断时悬停给全文（design.md 六）；
           // 文字用 <span>（带 UA 外边距的标签会把头行撑高）。不带图标（稿 2026-10-01 裁）。
           <span
             id={noteId}

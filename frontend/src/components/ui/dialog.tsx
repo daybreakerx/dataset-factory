@@ -53,7 +53,7 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           // 宽度＝有正文段弹窗的默认档 480（稿 base.css §13 .modal）；视口两侧留 24。
-          // 逐窗登记档（560 导入档等）由实例 className 覆盖；弹窗族归一见 DESIGN.md 四。
+          // 逐窗登记档（560 导入档等）由实例 className 覆盖；弹窗族归一见 design.md 四。
           // grid-cols-1＝把单列网格轨道的下限从 min-content 抬到 0（minmax(0,1fr)）：
           // 否则轨被内容里最长的 nowrap 行（如快照页脚 64 位哈希）按 min-content 顶破、
           // 内容溢出盒子右缘（盒子宽仍由上面的 w-[...] 定）。收缩交给子项自己的 min-w-0＋省略号。

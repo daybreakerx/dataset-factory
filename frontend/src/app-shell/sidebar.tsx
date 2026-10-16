@@ -106,7 +106,7 @@ export function Sidebar({
                       return;
                     }
                     // 窄桌面（768–1023）侧栏被断点强制收起，手动展开改走抽屉
-                    //（与 <768 顶条「打开导航」钮同路）——DESIGN.md 3.5：JS 交互态归实现侧。
+                    //（与 <768 顶条「打开导航」钮同路）——design.md 3.5：JS 交互态归实现侧。
                     if (narrowDesktop) {
                       setNavigationOpen(true);
                       return;
@@ -146,7 +146,7 @@ export function Sidebar({
           )}
           {!collapsed && (
             <span className="min-w-0">
-              {/* 品牌标名／副题被侧栏宽度截断时悬停给全文（DESIGN.md 六）。 */}
+              {/* 品牌标名／副题被侧栏宽度截断时悬停给全文（design.md 六）。 */}
               <Tip label="Dataset Factory">
                 <span className="block truncate font-medium">Dataset Factory</span>
               </Tip>

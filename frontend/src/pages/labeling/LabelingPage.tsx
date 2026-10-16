@@ -505,7 +505,7 @@ export function LabelingPage({
                 />
               </div>
               {/* 圆角统一 --r-md（基类 rounded-md＝
-              --r-sm 8px，与同排选择器 chip 的 --r-md 12px 不同档，DESIGN.md 3.4 同行共用
+              --r-sm 8px，与同排选择器 chip 的 --r-md 12px 不同档，design.md 3.4 同行共用
               一套圆角基准）；补 Tip（⑤，图标钮必配气泡）。边界名随 2026-10-11 用户裁
               「新建跑批 → 新建批次」改名收口。 */}
               <Tip label="新建批次">

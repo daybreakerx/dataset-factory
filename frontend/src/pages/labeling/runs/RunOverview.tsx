@@ -271,7 +271,7 @@ function RunLogDialog({
                         {formatElapsed(row.elapsed_ms)}
                       </td>
                       <td className="h-8 border-b border-border px-3 text-text-2 tabular-nums">
-                        {/* ⑩ 截断的哈希悬停给全文（DESIGN.md 六）。 */}
+                        {/* ⑩ 截断的哈希悬停给全文（design.md 六）。 */}
                         {row.asset_hash ? (
                           <Tip label={row.asset_hash}>
                             <span className="block truncate">
