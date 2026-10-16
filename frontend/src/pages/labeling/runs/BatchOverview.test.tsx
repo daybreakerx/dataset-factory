@@ -394,4 +394,75 @@ describe("批次概览", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/校验通过/)).not.toBeInTheDocument();
   });
+
+  it("跑批进入终态自动重扫既有完整性报告，持续终态不重复扫", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <BatchOverview
+        wid="work"
+        workdirPath="/srv/work"
+        batch="s1"
+        items={items}
+        onSelect={vi.fn()}
+        running
+      />,
+    );
+    // 准备：跑批中先有一份既有报告（手动校验得来）。
+    await user.click(screen.getByRole("button", { name: "校验素材完整性" }));
+    expect(api.scanIntegrity).toHaveBeenCalledTimes(1);
+
+    // 执行：跑批进入终态（running 回落）。
+    rerender(
+      <BatchOverview
+        wid="work"
+        workdirPath="/srv/work"
+        batch="s1"
+        items={items}
+        onSelect={vi.fn()}
+        running={false}
+      />,
+    );
+    await act(async () => {});
+
+    // 断言：终态一刻自动重扫一次；继续留在终态不重复扫。
+    expect(api.scanIntegrity).toHaveBeenCalledTimes(2);
+    rerender(
+      <BatchOverview
+        wid="work"
+        workdirPath="/srv/work"
+        batch="s1"
+        items={items}
+        onSelect={vi.fn()}
+        running={false}
+      />,
+    );
+    await act(async () => {});
+    expect(api.scanIntegrity).toHaveBeenCalledTimes(2);
+  });
+
+  it("无既有报告时跑批结束不凭空起扫", async () => {
+    const { rerender } = render(
+      <BatchOverview
+        wid="work"
+        workdirPath="/srv/work"
+        batch="s1"
+        items={items}
+        onSelect={vi.fn()}
+        running
+      />,
+    );
+    rerender(
+      <BatchOverview
+        wid="work"
+        workdirPath="/srv/work"
+        batch="s1"
+        items={items}
+        onSelect={vi.fn()}
+        running={false}
+      />,
+    );
+    await act(async () => {});
+
+    expect(api.scanIntegrity).not.toHaveBeenCalled();
+  });
 });

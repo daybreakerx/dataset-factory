@@ -6,7 +6,7 @@ import {
   XIcon,
 } from "lucide-react";
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   SquareCheckIcon,
   SquareFrameIcon,
@@ -113,6 +113,21 @@ export function MaterialsPanel({
   // L11：搜索计数要能看出「一共多少条」——无过滤分组是总数基准。
   const unfiltered = useMemo(() => groupedItems(items, ""), [items]);
   const searching = query.trim() !== "";
+  // 已裁定（task.md 视觉遗留）：retry_list 新增时自动展开「重试列表」组——
+  // 加入重试后用户不必手动点开；只认「变多」，手动折叠的组不会被强行顶开。
+  const retryCount = (unfiltered.retry ?? []).length;
+  const lastRetryCount = useRef(retryCount);
+  useEffect(() => {
+    if (retryCount > lastRetryCount.current) {
+      setCollapsed((previous) => {
+        if (!previous.has("retry")) return previous;
+        const next = new Set(previous);
+        next.delete("retry");
+        return next;
+      });
+    }
+    lastRetryCount.current = retryCount;
+  }, [retryCount, setCollapsed]);
   // 全局全选判定基数＝当前可见的可加入行（与组级同口径，稿「搜索中的全选范围」）。
   const visibleEligible = useMemo(
     () =>

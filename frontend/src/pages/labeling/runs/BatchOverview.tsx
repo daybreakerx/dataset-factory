@@ -91,6 +91,7 @@ export function BatchOverview({
     batch,
     exportRevision,
     onIdentityReset,
+    running,
   );
   // 卸载时使在途命令的代次护栏失效（身份变更路径的失效在 onIdentityReset 内）。
   useEffect(

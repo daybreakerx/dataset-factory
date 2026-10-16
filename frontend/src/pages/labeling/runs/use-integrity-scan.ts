@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../api";
 import type { components } from "../../../api-types.gen";
 import { reportError } from "../../../lib/feedback";
@@ -10,13 +10,15 @@ type IntegrityReport = components["schemas"]["IntegrityReport"];
  * identity/active/requestId 与扫描互斥 busy）与报告状态；完成后全量同步
  * （exportRevision）触发对既有报告的重扫。换批次时查询域在此复位，并经
  * onIdentityReset 联动组件侧命令域的随行复位（先于任何取数，次序同拆分前）；
- * 排除打包与重打是命令类，留组件。
+ * 排除打包与重打是命令类，留组件。跑批进入终态（running 回落）同样触发
+ * 对既有报告的重扫——跑批中的素材变更与新产物只在该刻定型。
  */
 export function useIntegrityScan(
   wid: string,
   batch: string,
   exportRevision: number,
   onIdentityReset: () => void,
+  running?: boolean,
 ) {
   const [report, setReport] = useState<IntegrityReport | null>(null);
   const [checking, setChecking] = useState(false);
@@ -41,7 +43,7 @@ export function useIntegrityScan(
     };
   }, [wid, batch, onIdentityReset]);
 
-  async function scan() {
+  const scan = useCallback(async () => {
     if (
       busy.current ||
       identity.current.wid !== wid ||
@@ -64,12 +66,20 @@ export function useIntegrityScan(
         setChecking(false);
       }
     }
-  }
+  }, [wid, batch]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: full synchronization refreshes an existing integrity report, never per-item SSE events.
   useEffect(() => {
     if (report) void scan();
   }, [exportRevision]);
+
+  // 已裁定（task.md 视觉遗留）：批次进入终态（跑批→结束）时自动重扫既有报告——
+  // 只认 running 由 true 回落这一下，挂载即终态不扫；无报告时不凭空起扫。
+  const wasRunning = useRef(running);
+  useEffect(() => {
+    if (wasRunning.current && !running && report) void scan();
+    wasRunning.current = running;
+  }, [running, report, scan]);
 
   return { report, checking, error, scan };
 }

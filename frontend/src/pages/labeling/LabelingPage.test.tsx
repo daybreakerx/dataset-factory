@@ -642,6 +642,46 @@ describe("打标页读取流程", () => {
     ).toHaveLength(2);
   });
 
+  it("retry_list 新增时自动展开折叠的「重试列表」组", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("dsf-labeling-collapsed", JSON.stringify(["retry"]));
+    vi.mocked(api.addRetryItems).mockResolvedValue({
+      id: "s1",
+      seq: 1,
+      items: ["first"],
+    });
+    render(<LabelingPage />);
+    await screen.findByRole("button", { name: "first.jpg" });
+
+    // 准备：预置折叠态——「重试列表」组头收起、组体不渲染。
+    const retryGroup = () => screen.getByRole("region", { name: "重试列表" });
+    expect(
+      within(retryGroup()).getByRole("button", { name: /重试列表/ }),
+    ).toHaveAttribute("aria-expanded", "false");
+
+    // 执行：把「已完成」组唯一一条加入重试名单。
+    await user.click(
+      within(screen.getByRole("complementary", { name: "素材条目" })).getByRole(
+        "button",
+        { name: "选择" },
+      ),
+    );
+    await user.click(
+      within(screen.getByRole("region", { name: "已完成" })).getByRole("button", {
+        name: "全选本组",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "加入重试(1)" }));
+
+    // 断言：名单一新增组即自动展开，用户不必手动点开。
+    expect(
+      await within(retryGroup()).findByRole("button", { name: "first.jpg" }),
+    ).toBeInTheDocument();
+    expect(
+      within(retryGroup()).getByRole("button", { name: /重试列表/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("重试行逐条移出后原分组素材保留，重试组随服务端回传消失", async () => {
     const user = userEvent.setup();
     vi.mocked(api.listItems).mockResolvedValue(retryView());
