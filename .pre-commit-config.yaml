@@ -10,6 +10,7 @@ repos:
         args: [--fix=lf]
         exclude: \.bat$  # 批处理必须保持 CRLF（见 .gitattributes），LF 会让 cmd 解析多行括号块挂掉
       - id: end-of-file-fixer
+        exclude: \.canvas$  # Obsidian 打开即重排 .canvas 且保存不带尾换行，钩子会与编辑器永久对打；JSON 不需要尾换行，排除
       - id: trailing-whitespace
 
   # ruff：lint + 格式化（rev 与 backend 的 uv ruff 0.16.6 对齐、避免漂移；规则见 backend/pyproject.toml）
