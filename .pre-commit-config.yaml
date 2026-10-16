@@ -21,8 +21,11 @@ repos:
       - id: ruff-format
 
   # detect-secrets：扫描新增密钥（baseline = .secrets.baseline，其 filters 已排除 uv.lock；测试假密钥格式不匹配未被判定）
+  # .canvas 排除说明：JSON Canvas 规范的节点 / 边 ID 是 16 位随机 hex，每张图都会稳定误触 HexHighEntropyString
+  # （换 ID、加 baseline 都不可持续——下张新图又是新随机 ID）；图纸是 Obsidian 手写内容、无密钥面，故按文件类型排除
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
       - id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
+        exclude: \.canvas$
