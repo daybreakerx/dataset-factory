@@ -245,7 +245,7 @@ def test_library_delete_damaged_file_by_name_succeeds(
 def test_library_delete_conflict_mentions_generating_reply(
     client: TestClient, assets: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """删除 409 的文案点真实场景：调试对话正在生成回复（strategy-session-busy）。"""
+    """删除 409 按契约出 problem+json：调试对话正在生成回复（strategy-session-busy）。"""
     entry = client.post("/api/strategies", json=_strategy_payload()).json()
 
     def fake_bucket(_strategy_id: str) -> list[str]:
@@ -266,7 +266,11 @@ def test_library_delete_conflict_mentions_generating_reply(
     response = client.delete(f"/api/strategies/{entry['id']}")
 
     assert response.status_code == 409
-    assert "调试对话正在生成回复" in response.json()["detail"]
+    assert response.headers["content-type"].startswith("application/problem+json")
+    body = response.json()
+    assert body["type"] == "strategy-session-busy"
+    assert body["status"] == 409
+    assert "调试对话正在生成回复" in body["detail"]
 
 
 # --------------------------------------------------------------------------

@@ -19,7 +19,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, cast
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Request, Response
 from pydantic import ValidationError
 
 from ..labeling import active_session_ids
@@ -60,7 +60,7 @@ from ..strategies.batches import read_snapshot_with_hash
 from ..strategies.errors import StrategyNotFoundError
 from ..workdir import WorkdirStore
 from .deps import workdir_root
-from .problems import problem
+from .problems import problem, problem_response
 from .schemas import (
     BatchCreateRequest,
     BatchSnapshotView,
@@ -265,9 +265,11 @@ def delete_library_entry(strategy_id: str) -> Response:
     bucket = sessions_for_strategy(strategy_id)
     running = sorted(set(bucket) & active_session_ids())
     if running:
-        raise HTTPException(
-            status_code=409,
-            detail="该策略的调试对话正在生成回复，请等本轮结束后再删除策略。",
+        return problem_response(
+            409,
+            "strategy-session-busy",
+            "策略的调试对话正在生成回复",
+            "该策略的调试对话正在生成回复，请等本轮结束后再删除策略。",
         )
     for session_id in bucket:
         try:
