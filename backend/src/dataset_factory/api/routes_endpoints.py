@@ -28,6 +28,7 @@ from ..llm import (
     rename_config,
     update_config,
 )
+from .problems import problem
 from .schemas import (
     EndpointConfigSummary,
     EndpointCreateRequest,
@@ -35,7 +36,6 @@ from .schemas import (
     EndpointTestRequest,
     EndpointTestResult,
     EndpointUpdateRequest,
-    ErrorDetail,
 )
 
 router = APIRouter(prefix="/api/endpoints", tags=["端点配置"])
@@ -52,10 +52,7 @@ def list_all() -> list[EndpointConfigSummary]:
     status_code=status.HTTP_201_CREATED,
     response_model=EndpointConfigSummary,
     responses={
-        400: {
-            "model": ErrorDetail,
-            "description": "显示名不合法 / 字段为空 / API 格式暂未支持",
-        },
+        400: problem("显示名不合法 / 字段为空 / API 格式暂未支持"),
     },
 )
 def create(request: EndpointCreateRequest) -> EndpointConfigSummary:
@@ -76,11 +73,8 @@ def create(request: EndpointCreateRequest) -> EndpointConfigSummary:
     "/{cid}",
     response_model=EndpointConfigSummary,
     responses={
-        400: {
-            "model": ErrorDetail,
-            "description": "字段为空 / API 格式暂未支持 / 显示名不合法",
-        },
-        404: {"model": ErrorDetail, "description": "配置不存在"},
+        400: problem("字段为空 / API 格式暂未支持 / 显示名不合法"),
+        404: problem("配置不存在"),
     },
 )
 def update(cid: str, request: EndpointUpdateRequest) -> EndpointConfigSummary:
@@ -107,7 +101,7 @@ def update(cid: str, request: EndpointUpdateRequest) -> EndpointConfigSummary:
     "/{cid}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        404: {"model": ErrorDetail, "description": "配置不存在"},
+        404: problem("配置不存在"),
     },
 )
 def remove(cid: str) -> Response:

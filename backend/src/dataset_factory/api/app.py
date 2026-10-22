@@ -13,7 +13,7 @@ import threading
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -103,7 +103,7 @@ from . import (
     routes_workdir,
 )
 from .middleware import RequestLogMiddleware
-from .problems import problem_response
+from .problems import ProblemError, problem_response
 
 logger = logging.getLogger(__name__)
 
@@ -168,64 +168,20 @@ def _default_frontend_dir() -> Path:
     return Path(__file__).resolve().parents[3].parent / "frontend" / "dist"
 
 
-# 域异常 → HTTP 状态码：Starlette 按异常类的 MRO 就近匹配（子类优先于基类），注册顺序无关。
-_ERROR_MAP: list[tuple[int, tuple[type[Exception], ...]]] = [
-    (
-        400,
-        (
-            UnsupportedImageError,
-            ImageTooLargeError,
-            PromptNameError,
-            SkillNameError,
-            SkillFormatError,
-            SkillSourceError,
-            PromptParseError,
-            EmptyTurnError,
-            PromptNotSelectedError,
-            ConfigError,
-            SessionIdError,
-            SkillFilePathError,
-            SkillFileNotPreviewableError,
-        ),
-    ),
-    (
-        404,
-        (
-            PromptNotFoundError,
-            SkillNotFoundError,
-            SessionNotFoundError,
-            ConfigNotFoundError,
-        ),
-    ),
-    (409, (SkillExistsError, PromptExistsError)),
-    (413, (PromptTooLargeError,)),
-    (502, (LLMError,)),
-    (
-        500,
-        (
-            SettingsFormatError,
-            SessionEventError,
-            LabelingError,
-            PromptError,
-            SkillError,
-            SessionError,
-        ),
-    ),
-]
-
-
 class _ProblemRule(NamedTuple):
-    """一条 problem+json 规则：异常类 → 状态码 + type slug + title（可附扩展字段名）。"""
+    """一条 problem+json 规则：异常类 → 状态码 + type slug + title（可附扩展字段）。"""
 
     exc: type[Exception]
     status: int
     slug: str
     title: str
     extras_from: str | None = None
+    static_extras: dict[str, Any] | None = None
 
 
-#: 二期端点的异常 → problem+json 规则表：一条一行 (异常类, 状态码, type slug, title, 扩展字段名)。
-#: 原先这 23 条各写一个闭包（168 行），彼此差别只有四个字段——摊成表才看得出全貌、也才改得动。
+#: 域异常 → problem+json 规则表：一条一行 (异常类, 状态码, type slug, title, 扩展字段)。
+#: 错误形状全库唯一（RFC 9457），不再按域分简形/标准形两套。
+#: 原先每条各写一个闭包（168 行），彼此差别只有四个字段——摊成表才看得出全貌、也才改得动。
 _PROBLEM_RULES: tuple[_ProblemRule, ...] = (
     _ProblemRule(ExportError, 400, "export-invalid", "无法导出"),
     _ProblemRule(TaskNotFoundError, 404, "task-not-found", "任务不存在"),
@@ -285,6 +241,54 @@ _PROBLEM_RULES: tuple[_ProblemRule, ...] = (
         "有不可加入重试列表的条目",
         extras_from="rejections",
     ),
+    # —— 打标 / 会话域 ——
+    _ProblemRule(UnsupportedImageError, 400, "image-unsupported", "图片格式不支持"),
+    _ProblemRule(ImageTooLargeError, 400, "image-too-large", "图片超出大小上限"),
+    _ProblemRule(EmptyTurnError, 400, "empty-turn", "空轮次"),
+    _ProblemRule(PromptNotSelectedError, 400, "prompt-not-selected", "未选择提示词"),
+    _ProblemRule(LabelingError, 500, "labeling-error", "打标失败"),
+    _ProblemRule(SettingsFormatError, 500, "settings-format-error", "设置文件损坏"),
+    _ProblemRule(LLMError, 502, "llm-error", "模型端点调用失败"),
+    _ProblemRule(SessionIdError, 400, "session-id-invalid", "会话 ID 不合法"),
+    _ProblemRule(SessionNotFoundError, 404, "session-not-found", "会话不存在"),
+    _ProblemRule(SessionEventError, 500, "session-event-error", "会话事件写入失败"),
+    # 会话域基类兜底（数据损坏等）：500 档；路由内另有状态码不同的就地翻译（见各路由），
+    # Starlette 按 MRO 就近匹配，子类命中自身规则、基类兜底到这里。
+    _ProblemRule(SessionError, 500, "session-error", "会话数据异常"),
+    # —— 提示词库域 ——
+    _ProblemRule(PromptNameError, 400, "prompt-name-invalid", "提示词名不合法"),
+    _ProblemRule(PromptParseError, 400, "prompt-parse-error", "提示词文件损坏"),
+    _ProblemRule(PromptNotFoundError, 404, "prompt-not-found", "提示词不存在"),
+    _ProblemRule(PromptExistsError, 409, "prompt-exists", "提示词已存在"),
+    _ProblemRule(PromptTooLargeError, 413, "prompt-too-large", "提示词超出大小上限"),
+    _ProblemRule(PromptError, 500, "prompt-error", "提示词数据异常"),
+    # —— 技能包域 ——
+    _ProblemRule(SkillNameError, 400, "skill-name-invalid", "技能名不合法"),
+    _ProblemRule(SkillFormatError, 400, "skill-format-invalid", "技能包格式不合法"),
+    _ProblemRule(SkillSourceError, 400, "skill-source-invalid", "技能来源不合法"),
+    _ProblemRule(
+        SkillFilePathError, 400, "skill-file-path-invalid", "技能包内路径不合法"
+    ),
+    _ProblemRule(
+        SkillFileNotPreviewableError,
+        400,
+        "skill-file-not-previewable",
+        "文件不参与预览",
+    ),
+    _ProblemRule(SkillNotFoundError, 404, "skill-not-found", "技能不存在"),
+    _ProblemRule(SkillExistsError, 409, "skill-exists", "技能已存在"),
+    _ProblemRule(SkillError, 500, "skill-error", "技能数据异常"),
+    # —— 端点配置域 ——
+    _ProblemRule(ConfigError, 400, "endpoint-config-invalid", "端点配置不合法"),
+    # name 进扩展字段：前端把错误精确挂到「名称」输入框（aria-invalid 程序化关联）。
+    _ProblemRule(
+        ConfigNameError,
+        400,
+        "config-name-invalid",
+        "配置名不合法",
+        static_extras={"field": "name"},
+    ),
+    _ProblemRule(ConfigNotFoundError, 404, "config-not-found", "端点配置不存在"),
 )
 
 
@@ -294,7 +298,7 @@ def _problem_handler(
     """按规则表造一个 problem+json 处理器（响应体与逐条闭包写法逐字段一致）。
 
     Args:
-        rule: 表里的一条规则（状态码 / type slug / title / 可选的扩展字段名）。
+        rule: 表里的一条规则（状态码 / type slug / title / 可选的扩展字段）。
 
     Returns:
         可直接交给 ``add_exception_handler`` 的处理器。
@@ -306,37 +310,27 @@ def _problem_handler(
             value = getattr(exc, rule.extras_from, None)
             if value:
                 extras = {rule.extras_from: value}
+        if rule.static_extras is not None:
+            extras = {**(extras or {}), **rule.static_extras}
         return problem_response(rule.status, rule.slug, rule.title, str(exc), extras)
 
     return handler
 
 
-def _detail_handler(
-    status_code: int, field: str | None = None
-) -> Callable[[Request, Exception], JSONResponse]:
-    """一期端点的简形处理器：域异常消息进 detail、状态码按 ``_ERROR_MAP`` 分类。
-
-    Args:
-        status_code: 该类异常对应的 HTTP 状态码。
-        field: 字段级错误标记（None＝操作级错误，响应体 field 为 null；非 None＝
-            detail 指向该字段，供前端把错误精确挂到对应输入框上——aria-invalid
-            程序化关联）。
-    """
-
-    def handler(request: Request, exc: Exception) -> JSONResponse:
-        # field 恒带（操作级为 null）：响应体形状与 ErrorDetail 契约逐字段一致。
-        body: dict[str, str | None] = {"detail": str(exc), "field": field}
-        return JSONResponse(status_code=status_code, content=body)
-
-    return handler
+def _problem_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """把入口层就地抛出的 :class:`ProblemError` 翻成 problem+json 响应。"""
+    problem_exc = cast(ProblemError, exc)  # 注册键即 ProblemError，Starlette 只会喂它
+    return problem_response(
+        problem_exc.status_code,
+        problem_exc.type_slug,
+        problem_exc.title,
+        str(problem_exc),
+        problem_exc.extras,
+    )
 
 
 def _register_error_handlers(app: FastAPI) -> None:
-    """按两张表注册异常处理器：一期 ``{"detail"}`` 简形、二期 problem+json。"""
-    for status_code, exc_types in _ERROR_MAP:
-        for exc_type in exc_types:
-            app.add_exception_handler(exc_type, _detail_handler(status_code))
-    # 字段级错误（MRO 就近匹配、子类优先于基类，见 _ERROR_MAP 头注）：带 field 标记。
-    app.add_exception_handler(ConfigNameError, _detail_handler(400, field="name"))
+    """注册 problem+json 异常处理器（规则表全量）＋入口层就地错误 ProblemError。"""
     for rule in _PROBLEM_RULES:
         app.add_exception_handler(rule.exc, _problem_handler(rule))
+    app.add_exception_handler(ProblemError, _problem_error_handler)

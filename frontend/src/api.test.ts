@@ -118,13 +118,21 @@ describe("request 错误分类", () => {
   });
 
   it("后端报错 → http 错误，透传 detail 并附上请求 id", async () => {
-    const response = new Response(JSON.stringify({ detail: "模型调用失败" }), {
-      status: 502,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Request-ID": "request-test-id",
+    const response = new Response(
+      JSON.stringify({
+        type: "llm-error",
+        title: "模型端点调用失败",
+        status: 502,
+        detail: "模型调用失败",
+      }),
+      {
+        status: 502,
+        headers: {
+          "Content-Type": "application/problem+json",
+          "X-Request-ID": "request-test-id",
+        },
       },
-    });
+    );
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
 
     const error = await api.listPrompts().then(
@@ -138,6 +146,7 @@ describe("request 错误分类", () => {
     expect(apiError.kind).toBe("http");
     expect(apiError.status).toBe(502);
     expect(apiError.requestId).toBe("request-test-id");
+    expect(apiError.problemType).toBe("llm-error");
     expect(apiError.message).toContain("模型调用失败");
     expect(apiError.message).toContain("request-test-id");
   });
@@ -200,10 +209,18 @@ describe("labelStream SSE 解析", () => {
   });
 
   it("HTTP 层错误（预备段 4xx）→ 抛 ApiError，不走事件回调", async () => {
-    const response = new Response(JSON.stringify({ detail: "提示词不存在" }), {
-      status: 404,
-      headers: { "Content-Type": "application/json" },
-    });
+    const response = new Response(
+      JSON.stringify({
+        type: "prompt-not-found",
+        title: "提示词不存在",
+        status: 404,
+        detail: "提示词不存在",
+      }),
+      {
+        status: 404,
+        headers: { "Content-Type": "application/problem+json" },
+      },
+    );
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
     const onError = vi.fn();
 

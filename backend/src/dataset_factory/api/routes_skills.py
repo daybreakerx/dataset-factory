@@ -12,9 +12,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Response, UploadFile, status
 
 from ..skills import (
+    SkillSourceError,
     delete_skill,
     get_skill,
     import_skill,
@@ -27,8 +28,8 @@ from ..skills import (
 )
 from ..skills.model import SkillImport
 from ..skills.store import save_skill_file
+from .problems import ProblemError, problem
 from .schemas import (
-    ErrorDetail,
     SkillFileContent,
     SkillFileInfo,
     SkillFileSaveRequest,
@@ -108,7 +109,7 @@ def list_all() -> list[SkillInfo]:
     "/import",
     response_model=SkillImportResponse,
     responses={
-        400: {"model": ErrorDetail, "description": "路径不存在 / 格式不合法"},
+        400: problem("路径不存在 / 格式不合法"),
     },
 )
 def import_one(request: SkillImportRequest) -> SkillImportResponse:
@@ -120,18 +121,12 @@ def import_one(request: SkillImportRequest) -> SkillImportResponse:
     """
     source = Path(request.path)
     if not source.exists():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"路径不存在：{source}。",
-        )
+        raise SkillSourceError(f"路径不存在：{source}。")
     if source.is_file():
         try:
             content = source.read_bytes()
         except OSError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"无法读取文件：{exc.strerror or exc}。",
-            ) from exc
+            raise SkillSourceError(f"无法读取文件：{exc.strerror or exc}。") from exc
         result = import_skill_files({_SKILL_MD: content})
     else:
         result = import_skill(source)
@@ -142,10 +137,7 @@ def import_one(request: SkillImportRequest) -> SkillImportResponse:
     "/import-upload",
     response_model=SkillImportResponse,
     responses={
-        400: {
-            "model": ErrorDetail,
-            "description": "上传内容不合法（缺 SKILL.md / 文件名穿越 / 格式非法）",
-        },
+        400: problem("上传内容不合法（缺 SKILL.md / 文件名穿越 / 格式非法）"),
     },
 )
 async def import_upload(files: list[UploadFile]) -> SkillImportResponse:
@@ -155,15 +147,19 @@ async def import_upload(files: list[UploadFile]) -> SkillImportResponse:
         raw = (upload.filename or "").replace("\\", "/")
         parts = [part for part in raw.split("/") if part != ""]
         if not parts or any(part in (".", "..") for part in parts):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"上传文件名不合法：{raw!r}。",
+            raise ProblemError(
+                400,
+                "skill-upload-filename-invalid",
+                "上传文件名不合法",
+                f"上传文件名不合法：{raw!r}。",
             )
         rel = "/".join(parts)
         if rel in payload:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"上传内容存在重复路径：{rel}。",
+            raise ProblemError(
+                400,
+                "skill-upload-duplicate-path",
+                "上传路径重复",
+                f"上传内容存在重复路径：{rel}。",
             )
         payload[rel] = await upload.read()
     result = import_skill_files(_strip_picker_root(payload))
@@ -173,7 +169,7 @@ async def import_upload(files: list[UploadFile]) -> SkillImportResponse:
 @router.get(
     "/{sid}/files",
     response_model=SkillFilesResponse,
-    responses={404: {"model": ErrorDetail, "description": "skill 不存在"}},
+    responses={404: problem("skill 不存在")},
 )
 def list_package_files(sid: str) -> SkillFilesResponse:
     """列出技能包内文件（角色标注：SKILL.md 与 references/ 可预览，assets / scripts 灰显占位）。"""
@@ -194,11 +190,8 @@ def list_package_files(sid: str) -> SkillFilesResponse:
     "/{sid}/files/{path:path}",
     response_model=SkillFileContent,
     responses={
-        400: {
-            "model": ErrorDetail,
-            "description": "路径不合法 / 文件不参与预览 / 内容不是 UTF-8 文本",
-        },
-        404: {"model": ErrorDetail, "description": "skill 或包内文件不存在"},
+        400: problem("路径不合法 / 文件不参与预览 / 内容不是 UTF-8 文本"),
+        404: problem("skill 或包内文件不存在"),
     },
 )
 def read_package_file(sid: str, path: str) -> SkillFileContent:
@@ -210,9 +203,9 @@ def read_package_file(sid: str, path: str) -> SkillFileContent:
     "/{sid}/files/{path:path}",
     response_model=SkillFileContent,
     responses={
-        400: {"model": ErrorDetail, "description": "文件或内容不合法"},
-        404: {"model": ErrorDetail, "description": "文件不存在"},
-        409: {"model": ErrorDetail, "description": "文件已被其他写者修改"},
+        400: problem("文件或内容不合法"),
+        404: problem("文件不存在"),
+        409: problem("文件已被其他写者修改"),
     },
 )
 def save_package_file(
@@ -234,7 +227,7 @@ def save_package_file(
 @router.post(
     "/{sid}/enable",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={404: {"model": ErrorDetail, "description": "skill 不存在"}},
+    responses={404: problem("skill 不存在")},
 )
 def enable(sid: str) -> Response:
     """启用 skill。"""
@@ -245,7 +238,7 @@ def enable(sid: str) -> Response:
 @router.post(
     "/{sid}/disable",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={404: {"model": ErrorDetail, "description": "skill 不存在"}},
+    responses={404: problem("skill 不存在")},
 )
 def disable(sid: str) -> Response:
     """停用 skill（保留在库中，打标不注入）。"""
@@ -257,7 +250,7 @@ def disable(sid: str) -> Response:
     "/{sid}/rename",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        404: {"model": ErrorDetail, "description": "skill 不存在"},
+        404: problem("skill 不存在"),
     },
 )
 def rename(sid: str, request: SkillRenameRequest) -> Response:
@@ -269,7 +262,7 @@ def rename(sid: str, request: SkillRenameRequest) -> Response:
 @router.delete(
     "/{sid}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={404: {"model": ErrorDetail, "description": "skill 不存在"}},
+    responses={404: problem("skill 不存在")},
 )
 def remove(sid: str) -> Response:
     """删除 skill（整目录移除）。"""

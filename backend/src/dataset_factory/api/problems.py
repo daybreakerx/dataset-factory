@@ -1,9 +1,10 @@
-"""RFC 9457 problem+json 错误响应助手（二期新端点统一错误形）。
+"""RFC 9457 problem+json 错误响应助手（全库统一错误形）。
 
-分工（design 横切约定）：一期端点保持 ``{"detail"}`` 简形不返工（前端读 detail
-字段兼容两者）；二期新端点一律 problem+json——``type`` 放机器可读的 slug、
-``title`` 短语、``status`` 状态码、``detail`` 中文可操作消息，后续扩展字段
-（occupier / 冲突清单等）按需附加。
+分工（design 横切约定）：所有错误响应一律 problem+json——``type`` 放机器可读的
+slug、``title`` 短语、``status`` 状态码、``detail`` 中文可操作消息，扩展字段
+（occupier / field / 冲突清单等）按需附加。域异常由 ``app.py`` 的规则表统一映射；
+没有对应域异常的入口层就地翻译点（请求形状校验、装配状态检查等）抛
+:class:`ProblemError`，由同一个处理器翻成同形响应。
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from .schemas import Problem
 
 __all__ = [
     "PROBLEM_MEDIA_TYPE",
+    "ProblemError",
     "problem",
     "problem_response",
     "problem_schema_responses",
@@ -24,6 +26,33 @@ __all__ = [
 
 #: RFC 9457 规定的 problem+json 媒体类型。
 PROBLEM_MEDIA_TYPE = "application/problem+json"
+
+
+class ProblemError(Exception):
+    """入口层就地抛出的 problem+json 错误（无对应域异常的翻译点用）。
+
+    Args:
+        status_code: HTTP 状态码。
+        type_slug: 机器可读的错误类别短标识（如 ``media-exclusive``）。
+        title: 人读的短语概括。
+        detail: 中文可操作消息。
+        extras: 扩展字段（RFC 9457 允许 extension members）；None = 不附加。
+    """
+
+    def __init__(
+        self,
+        status_code: int,
+        type_slug: str,
+        title: str,
+        detail: str,
+        extras: dict[str, Any] | None = None,
+    ) -> None:
+        """字段语义见类 docstring；detail 同时作为异常消息（str(exc) 取它）。"""
+        super().__init__(detail)
+        self.status_code = status_code
+        self.type_slug = type_slug
+        self.title = title
+        self.extras = extras
 
 
 def problem_response(

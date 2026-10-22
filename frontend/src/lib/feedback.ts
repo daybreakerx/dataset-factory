@@ -41,7 +41,7 @@ export function reportError(err: unknown): string | null {
 }
 
 /**
- * 从捕获到的异常里取字段级标记（后端 ErrorDetail.field）。
+ * 从捕获到的异常里取字段级标记（后端 problem+json 的 field 扩展字段）。
  *
  * 与 {@link reportError} 配套使用：reportError 给「就地文案」，本函数给「这句文案
  * 属于哪个字段」。后端未指认字段（操作级错误）或非 HTTP 异常时返回 null。

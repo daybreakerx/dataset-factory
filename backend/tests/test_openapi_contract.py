@@ -41,15 +41,22 @@ def test_openapi_snapshot_matches_code(app: FastAPI) -> None:
 
 
 def test_contract_declares_error_responses(app: FastAPI) -> None:
-    """契约必须覆盖错误路径：每个非 2xx 声明都用统一的 ErrorDetail 形状。
+    """契约必须覆盖错误路径：每个非 2xx 声明都用统一的 problem+json 形状。
 
     为什么值得单独立一条：OpenAPI 默认只渲染成功响应，错误体不声明的话，
     前端生成类型时看不到它们——这正是调研时点名的典型盲区。
+    同时守住「单一错误形」：一期简形 ErrorDetail 退役后不得在契约里回潮。
     """
     spec = app.openapi()
     label_responses = spec["paths"]["/api/label"]["post"]["responses"]
     for code in ("400", "404", "502"):
         assert code in label_responses, f"POST /api/label 缺少 {code} 错误声明"
-        ref = label_responses[code]["content"]["application/json"]["schema"]["$ref"]
-        assert ref == "#/components/schemas/ErrorDetail"
-    assert "ErrorDetail" in spec["components"]["schemas"]
+        # 契约形状与二期端点同款：$ref Problem 渲染在 application/json 条目里，
+        # application/problem+json 媒体键随行（problem() 助手的既有渲染惯例）。
+        content = label_responses[code]["content"]
+        assert content["application/json"]["schema"]["$ref"] == (
+            "#/components/schemas/Problem"
+        )
+        assert "application/problem+json" in content
+    assert "Problem" in spec["components"]["schemas"]
+    assert "ErrorDetail" not in spec["components"]["schemas"]

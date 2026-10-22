@@ -14,24 +14,6 @@ from ..llm import SUPPORTED_API_FORMAT
 from ..runs import RunMode
 
 
-class ErrorDetail(BaseModel):
-    """错误响应的统一形状——所有域错误都长这样（`{"detail": "一句话"}`）。
-
-    各端点在 `responses=` 里引用它，把错误路径写进 OpenAPI 契约：
-    前端生成类型时才能覆盖错误体，而不是只看到成功路径。
-    """
-
-    detail: str
-    field: str | None = Field(
-        default=None,
-        description=(
-            "字段级错误标记：detail 指向某个具体输入字段时给该字段名（如 name），"
-            "供前端把错误精确挂到对应输入框（aria-invalid 程序化关联）；"
-            "操作级错误为 null"
-        ),
-    )
-
-
 class LabelRequest(BaseModel):
     """POST /api/label 的请求体。"""
 
@@ -449,10 +431,9 @@ class EndpointUpdateRequest(BaseModel):
 
 
 class Problem(BaseModel):
-    """RFC 9457 problem+json 错误体——二期新端点的统一错误形状。
+    """RFC 9457 problem+json 错误体——全库统一的错误形状。
 
-    与一期 `ErrorDetail`（`{"detail"}`）并存：一期端点不返工，前端读 detail 兼容两者。
-    扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。
+    扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。
     """
 
     type: str = Field(description="机器可读的错误类别 slug（如 task-not-found）")

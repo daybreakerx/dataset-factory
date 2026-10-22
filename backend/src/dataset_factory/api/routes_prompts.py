@@ -16,8 +16,8 @@ from ..prompts import (
     rename_prompt,
     save_prompt,
 )
+from .problems import problem
 from .schemas import (
-    ErrorDetail,
     PromptCreated,
     PromptFull,
     PromptInfo,
@@ -61,8 +61,8 @@ def create(request: PromptSaveRequest) -> PromptCreated:
     "/{pid}",
     response_model=PromptFull,
     responses={
-        400: {"model": ErrorDetail, "description": "提示词文件损坏（格式非法）"},
-        404: {"model": ErrorDetail, "description": "提示词不存在"},
+        400: problem("提示词文件损坏（格式非法）"),
+        404: problem("提示词不存在"),
     },
 )
 def get_one(pid: str) -> PromptFull:
@@ -81,9 +81,9 @@ def get_one(pid: str) -> PromptFull:
     "/{pid}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        400: {"model": ErrorDetail, "description": "显示名不合法"},
-        404: {"model": ErrorDetail, "description": "提示词不存在"},
-        413: {"model": ErrorDetail, "description": "提示词超出 32k 字符护栏"},
+        400: problem("显示名不合法"),
+        404: problem("提示词不存在"),
+        413: problem("提示词超出 32k 字符护栏"),
     },
 )
 def save(pid: str, request: PromptSaveRequest) -> Response:
@@ -104,8 +104,8 @@ def save(pid: str, request: PromptSaveRequest) -> Response:
     "/{pid}/rename",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        400: {"model": ErrorDetail, "description": "新名称不合法"},
-        404: {"model": ErrorDetail, "description": "要改名的提示词不存在"},
+        400: problem("新名称不合法"),
+        404: problem("要改名的提示词不存在"),
     },
 )
 def rename(pid: str, request: PromptRenameRequest) -> Response:
@@ -117,7 +117,7 @@ def rename(pid: str, request: PromptRenameRequest) -> Response:
 @router.delete(
     "/{pid}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={404: {"model": ErrorDetail, "description": "提示词不存在"}},
+    responses={404: problem("提示词不存在")},
 )
 def remove(pid: str) -> Response:
     """删除提示词。"""

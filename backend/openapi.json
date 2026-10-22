@@ -996,32 +996,6 @@
         "title": "EndpointUpdateRequest",
         "type": "object"
       },
-      "ErrorDetail": {
-        "description": "错误响应的统一形状——所有域错误都长这样（`{\"detail\": \"一句话\"}`）。\n\n各端点在 `responses=` 里引用它，把错误路径写进 OpenAPI 契约：\n前端生成类型时才能覆盖错误体，而不是只看到成功路径。",
-        "properties": {
-          "detail": {
-            "title": "Detail",
-            "type": "string"
-          },
-          "field": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "字段级错误标记：detail 指向某个具体输入字段时给该字段名（如 name），供前端把错误精确挂到对应输入框（aria-invalid 程序化关联）；操作级错误为 null",
-            "title": "Field"
-          }
-        },
-        "required": [
-          "detail"
-        ],
-        "title": "ErrorDetail",
-        "type": "object"
-      },
       "ExclusionsRequest": {
         "description": "排除名单增删的请求体：条目数组（素材主干）。",
         "properties": {
@@ -1965,7 +1939,7 @@
         "type": "object"
       },
       "Problem": {
-        "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+        "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
         "properties": {
           "detail": {
             "description": "中文可操作消息——下一步该做什么",
@@ -3882,9 +3856,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "显示名不合法 / 字段为空 / API 格式暂未支持"
           },
@@ -3970,9 +3945,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "配置不存在"
           },
@@ -4031,9 +4007,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "字段为空 / API 格式暂未支持 / 显示名不合法"
           },
@@ -4041,9 +4018,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "配置不存在"
           },
@@ -4417,9 +4395,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "输入不合法（图片 / 视频不合法或互斥、提示词未选、空轮、端点配置缺失）"
           },
@@ -4427,9 +4406,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "会话 / 提示词 / 端点配置不存在"
           },
@@ -4447,9 +4427,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "会话落盘等内部错误"
           },
@@ -4457,9 +4438,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "模型端点调用失败"
           }
@@ -4497,9 +4479,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "输入不合法（同 /api/label；预备段失败走正常状态码，流中失败发 error 事件）"
           },
@@ -4507,9 +4490,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "会话 / 提示词 / 端点配置不存在"
           },
@@ -4619,9 +4603,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "提示词不存在"
           },
@@ -4670,9 +4655,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "提示词文件损坏（格式非法）"
           },
@@ -4680,9 +4666,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "提示词不存在"
           },
@@ -4734,9 +4721,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "显示名不合法"
           },
@@ -4744,9 +4732,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "提示词不存在"
           },
@@ -4754,9 +4743,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "提示词超出 32k 字符护栏"
           },
@@ -4810,9 +4800,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "新名称不合法"
           },
@@ -4820,9 +4811,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "要改名的提示词不存在"
           },
@@ -4950,9 +4942,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "服务不是由 dsf serve 拉起"
           },
@@ -4960,9 +4953,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "Content-Type 不是 application/json"
           }
@@ -5010,9 +5004,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "还没有任何会话"
           },
@@ -5056,9 +5051,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "会话不存在"
           },
@@ -5066,9 +5062,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "会话有进行中的打标轮次"
           },
@@ -5117,9 +5114,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "会话不存在"
           },
@@ -5172,9 +5170,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "附件名非法"
           },
@@ -5182,9 +5181,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "会话或附件不存在"
           },
@@ -5245,9 +5245,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "strategy_id 非法"
           },
@@ -5255,9 +5256,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "会话不存在"
           },
@@ -5333,9 +5335,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "路径不存在 / 格式不合法"
           },
@@ -5385,9 +5388,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "上传内容不合法（缺 SKILL.md / 文件名穿越 / 格式非法）"
           },
@@ -5431,9 +5435,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "skill 不存在"
           },
@@ -5477,9 +5482,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "skill 不存在"
           },
@@ -5523,9 +5529,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "skill 不存在"
           },
@@ -5576,9 +5583,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "skill 不存在"
           },
@@ -5638,9 +5646,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "路径不合法 / 文件不参与预览 / 内容不是 UTF-8 文本"
           },
@@ -5648,9 +5657,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "skill 或包内文件不存在"
           },
@@ -5718,9 +5728,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "文件或内容不合法"
           },
@@ -5728,9 +5739,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "文件不存在"
           },
@@ -5738,9 +5750,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "文件已被其他写者修改"
           },
@@ -5794,9 +5807,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorDetail"
+                  "$ref": "#/components/schemas/Problem"
                 }
-              }
+              },
+              "application/problem+json": {}
             },
             "description": "skill 不存在"
           },
@@ -8065,7 +8079,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -8105,7 +8119,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -8145,7 +8159,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -8228,7 +8242,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -8268,7 +8282,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -8361,7 +8375,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -8401,7 +8415,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -8441,7 +8455,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -8528,7 +8542,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -8568,7 +8582,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -9599,7 +9613,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -9639,7 +9653,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -9679,7 +9693,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -9772,7 +9786,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -9812,7 +9826,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -9852,7 +9866,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -9945,7 +9959,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -9985,7 +9999,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",
@@ -10025,7 +10039,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "description": "RFC 9457 problem+json 错误体——二期新端点的统一错误形状。\n\n与一期 `ErrorDetail`（`{\"detail\"}`）并存：一期端点不返工，前端读 detail 兼容两者。\n扩展字段（occupier / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
+                  "description": "RFC 9457 problem+json 错误体——全库统一的错误形状。\n\n扩展字段（occupier / field / 冲突清单等）由各错误在响应里按需附加，不进本模型。",
                   "properties": {
                     "detail": {
                       "description": "中文可操作消息——下一步该做什么",

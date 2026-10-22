@@ -3,7 +3,7 @@
  * 各域文件只从这里引请求与错误件，不直接摸 fetch。
  */
 
-/** 错误体的契约形状（{"detail": string}）——错误路径也在契约里，不再有盲区。 */
+/** 错误体的契约形状是 problem+json（type/title/status/detail，RFC 9457）——错误路径也在契约里，不再有盲区。 */
 
 /** 把任意抛出的东西变成可展示的一句话（界面上不该出现 "[object Object]"）。 */
 export function errorMessage(error: unknown): string {
@@ -112,7 +112,7 @@ export function extractDetail(data: unknown, status: number): string {
 }
 
 /**
- * 从后端错误响应里取出字段级标记（ErrorDetail.field）。
+ * 从后端错误响应里取出字段级标记（problem+json 的 field 扩展字段）。
  *
  * 后端指认「这句错误属于哪个输入字段」（如 name）时返回该字段名；操作级错误、
  * 无该键或类型不对都返回 null——调用方据它决定要不要把错误精确挂到输入框上。

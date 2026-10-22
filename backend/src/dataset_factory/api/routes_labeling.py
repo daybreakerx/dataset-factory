@@ -8,7 +8,7 @@ import json
 from collections.abc import Generator
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Response
 from fastapi.responses import FileResponse, StreamingResponse
 
 from ..labeling import (
@@ -36,9 +36,9 @@ from ..sessions import (
     write_strategy_id,
 )
 from ..workdir.assets import mime_for_suffix
+from .problems import ProblemError, problem
 from .schemas import (
     AssignStrategyRequest,
-    ErrorDetail,
     HistoryMessageView,
     LabelRequest,
     LabelResponse,
@@ -68,9 +68,11 @@ def _decode_media(payload: str, kind: str) -> bytes:
     try:
         return base64.b64decode(raw, validate=True)
     except (binascii.Error, ValueError) as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=f"{kind} base64 内容不合法；请确认上传的是有效文件。",
+        raise ProblemError(
+            400,
+            "media-base64-invalid",
+            "媒体内容不合法",
+            f"{kind} base64 内容不合法；请确认上传的是有效文件。",
         ) from exc
 
 
@@ -78,20 +80,22 @@ def _decode_media(payload: str, kind: str) -> bytes:
     "/label",
     response_model=LabelResponse,
     responses={
-        400: {
-            "model": ErrorDetail,
-            "description": "输入不合法（图片 / 视频不合法或互斥、提示词未选、空轮、端点配置缺失）",
-        },
-        404: {"model": ErrorDetail, "description": "会话 / 提示词 / 端点配置不存在"},
-        502: {"model": ErrorDetail, "description": "模型端点调用失败"},
-        500: {"model": ErrorDetail, "description": "会话落盘等内部错误"},
+        400: problem(
+            "输入不合法（图片 / 视频不合法或互斥、提示词未选、空轮、端点配置缺失）"
+        ),
+        404: problem("会话 / 提示词 / 端点配置不存在"),
+        502: problem("模型端点调用失败"),
+        500: problem("会话落盘等内部错误"),
     },
 )
 def label(request: LabelRequest) -> LabelResponse:
     """跑一轮打标（带 session_id 即续接迭代改写；端点由请求显式携带）。"""
     if request.image_base64 and request.video_base64:
-        raise HTTPException(
-            status_code=400, detail="图片与视频只能带一个（一期单素材/次）。"
+        raise ProblemError(
+            400,
+            "media-exclusive",
+            "图片与视频互斥",
+            "图片与视频只能带一个（一期单素材/次）。",
         )
     image_bytes = (
         _decode_media(request.image_base64, "图片") if request.image_base64 else None
@@ -125,18 +129,20 @@ def label(request: LabelRequest) -> LabelResponse:
 @router.post(
     "/label/stream",
     responses={
-        400: {
-            "model": ErrorDetail,
-            "description": "输入不合法（同 /api/label；预备段失败走正常状态码，流中失败发 error 事件）",
-        },
-        404: {"model": ErrorDetail, "description": "会话 / 提示词 / 端点配置不存在"},
+        400: problem(
+            "输入不合法（同 /api/label；预备段失败走正常状态码，流中失败发 error 事件）"
+        ),
+        404: problem("会话 / 提示词 / 端点配置不存在"),
     },
 )
 def label_stream(request: LabelRequest) -> StreamingResponse:
     """流式打标（SSE）：事件 = start → delta(kind=reasoning|content)… → done；失败发 error。"""
     if request.image_base64 and request.video_base64:
-        raise HTTPException(
-            status_code=400, detail="图片与视频只能带一个（一期单素材/次）。"
+        raise ProblemError(
+            400,
+            "media-exclusive",
+            "图片与视频互斥",
+            "图片与视频只能带一个（一期单素材/次）。",
         )
     image_bytes = (
         _decode_media(request.image_base64, "图片") if request.image_base64 else None
@@ -207,7 +213,7 @@ def _sse(event: str, data: dict[str, str]) -> str:
 @router.get(
     "/sessions/latest",
     response_model=SessionSnapshotResponse,
-    responses={404: {"model": ErrorDetail, "description": "还没有任何会话"}},
+    responses={404: problem("还没有任何会话")},
 )
 def latest_session(strategy_id: str | None = None) -> SessionSnapshotResponse:
     """最新会话快照（重启恢复入口）；一个会话都没有时 404。
@@ -222,8 +228,11 @@ def latest_session(strategy_id: str | None = None) -> SessionSnapshotResponse:
         else latest_session_id(source="web")
     )
     if session_id is None:
-        raise HTTPException(
-            status_code=404, detail="还没有任何会话；发第一轮打标即自动创建。"
+        raise ProblemError(
+            404,
+            "no-sessions",
+            "还没有任何会话",
+            "还没有任何会话；发第一轮打标即自动创建。",
         )
     return _snapshot_response(LabelingEngine.restore(session_id))
 
@@ -231,7 +240,7 @@ def latest_session(strategy_id: str | None = None) -> SessionSnapshotResponse:
 @router.get(
     "/sessions/{session_id}",
     response_model=SessionSnapshotResponse,
-    responses={404: {"model": ErrorDetail, "description": "会话不存在"}},
+    responses={404: problem("会话不存在")},
 )
 def get_session(session_id: str) -> SessionSnapshotResponse:
     """某会话快照（设置 + 对话历史 + 归属）。"""
@@ -253,8 +262,8 @@ def _retain_bucket(strategy_id: str | None, *, keep: str) -> None:
     "/sessions/{session_id}/strategy",
     response_model=SessionSnapshotResponse,
     responses={
-        404: {"model": ErrorDetail, "description": "会话不存在"},
-        400: {"model": ErrorDetail, "description": "strategy_id 非法"},
+        404: problem("会话不存在"),
+        400: problem("strategy_id 非法"),
     },
 )
 def assign_session_strategy(
@@ -264,9 +273,13 @@ def assign_session_strategy(
     try:
         write_strategy_id(session_id, body.strategy_id)
     except SessionNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise ProblemError(404, "session-not-found", "会话不存在", str(exc)) from exc
     except SessionError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        # 写入失败（含 id 非法）按 400 报——与改挂前的状态码档位一致；子类
+        # SessionNotFoundError 须先于基类分支捕获（MRO：本地 except 按书写顺序匹配）。
+        raise ProblemError(
+            400, "session-strategy-write-failed", "会话归属改写失败", str(exc)
+        ) from exc
     return _snapshot_response(LabelingEngine.restore(session_id))
 
 
@@ -274,22 +287,29 @@ def assign_session_strategy(
     "/sessions/{session_id}",
     status_code=204,
     responses={
-        404: {"model": ErrorDetail, "description": "会话不存在"},
-        409: {"model": ErrorDetail, "description": "会话有进行中的打标轮次"},
+        404: problem("会话不存在"),
+        409: problem("会话有进行中的打标轮次"),
     },
 )
 def delete_session_endpoint(session_id: str) -> Response:
     """删除一个会话（事件流 + 附件 + 归属；有轮次在写时拒绝）。"""
     if session_id in active_session_ids():
-        raise HTTPException(
-            status_code=409, detail="该会话正在打标，请等本轮结束或停止后再删除。"
+        raise ProblemError(
+            409,
+            "session-busy",
+            "会话正在打标",
+            "该会话正在打标，请等本轮结束或停止后再删除。",
         )
     try:
         delete_session(session_id)
     except SessionNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise ProblemError(404, "session-not-found", "会话不存在", str(exc)) from exc
     except SessionError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        # 目录删除失败（含 id 非法）按 409 报——删除路的既有档位；子类
+        # SessionNotFoundError 须先于基类分支捕获（MRO：本地 except 按书写顺序匹配）。
+        raise ProblemError(
+            409, "session-delete-failed", "会话删除失败", str(exc)
+        ) from exc
     return Response(status_code=204)
 
 
@@ -323,8 +343,8 @@ def _snapshot_response(snapshot: SessionSnapshot) -> SessionSnapshotResponse:
     "/sessions/{session_id}/attachments/{name}",
     response_class=FileResponse,
     responses={
-        404: {"model": ErrorDetail, "description": "会话或附件不存在"},
-        400: {"model": ErrorDetail, "description": "附件名非法"},
+        404: problem("会话或附件不存在"),
+        400: problem("附件名非法"),
     },
 )
 def session_attachment(session_id: str, name: str) -> FileResponse:

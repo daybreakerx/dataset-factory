@@ -557,7 +557,7 @@ def test_endpoints_create_unsupported_format_400(client: TestClient) -> None:
 
     assert response.status_code == 400
     assert "暂未支持" in response.json()["detail"]
-    assert response.json()["field"] is None
+    assert "field" not in response.json()
 
 
 def test_endpoints_create_without_key(client: TestClient) -> None:

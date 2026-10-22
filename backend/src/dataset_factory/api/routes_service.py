@@ -14,14 +14,15 @@ import os
 from pathlib import Path
 from typing import Protocol, cast
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Query, Request, Response, status
 
 from .._fs import data_root
 from ..tasks import TaskManager
 from ..workdir.errors import WorkdirPathError
 from ..workdir.locks import read_live_occupier
 from ..workdir.store import WorkdirRegistry
-from .schemas import ErrorDetail, ServiceBusy, ServiceLogs, ServiceStatus
+from .problems import ProblemError, problem
+from .schemas import ServiceBusy, ServiceLogs, ServiceStatus
 
 router = APIRouter(prefix="/api/service", tags=["服务运行"])
 
@@ -42,9 +43,11 @@ def service_status(request: Request) -> ServiceStatus:
     """报告服务运行状态（serve 启动时注入；信息缺位视为非 serve 场景，409）。"""
     info = getattr(request.app.state, "service_info", None)
     if info is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="服务不是由 dsf serve 拉起，运行状态不可用。",
+        raise ProblemError(
+            409,
+            "service-not-served",
+            "服务非 dsf serve 拉起",
+            "服务不是由 dsf serve 拉起，运行状态不可用。",
         )
     return ServiceStatus(
         version=str(info["version"]),
@@ -91,26 +94,27 @@ def service_busy(request: Request) -> ServiceBusy:
     "/shutdown",
     status_code=status.HTTP_202_ACCEPTED,
     responses={
-        409: {"model": ErrorDetail, "description": "服务不是由 dsf serve 拉起"},
-        415: {
-            "model": ErrorDetail,
-            "description": "Content-Type 不是 application/json",
-        },
+        409: problem("服务不是由 dsf serve 拉起"),
+        415: problem("Content-Type 不是 application/json"),
     },
 )
 def shutdown(request: Request) -> Response:
     """请求停止服务：置位退出开关，进行中的请求处理完后服务自行退出。"""
     content_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
     if content_type != "application/json":
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="关闭服务请求必须使用 application/json。",
+        raise ProblemError(
+            415,
+            "unsupported-content-type",
+            "Content-Type 不支持",
+            "关闭服务请求必须使用 application/json。",
         )
     server = getattr(request.app.state, "uvicorn_server", None)
     if server is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="服务不是由 dsf serve 拉起，无法由此关闭。",
+        raise ProblemError(
+            409,
+            "service-not-served",
+            "服务非 dsf serve 拉起",
+            "服务不是由 dsf serve 拉起，无法由此关闭。",
         )
     cast(_ServerHandle, server).should_exit = True
     return Response(status_code=status.HTTP_202_ACCEPTED)
