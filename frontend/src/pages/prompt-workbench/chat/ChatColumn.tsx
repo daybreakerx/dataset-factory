@@ -254,7 +254,7 @@ export function ChatColumn({
                     className="text-text-4"
                     onClick={() => onToggleSkill(sid)}
                   >
-                    <XIcon className="size-(--icon-sm)" />
+                    <XIcon className="size-(--icon-md)" />
                   </button>
                 </span>
               );

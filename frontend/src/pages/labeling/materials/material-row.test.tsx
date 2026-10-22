@@ -82,6 +82,6 @@ describe("MaterialRow 缩略图（稿 §34 .row-thumb--media，2026-10-13 E1）"
     fireEvent.error(document.querySelector("img") as HTMLImageElement);
     expect(document.querySelector("img")).toBeNull();
     // 回退＝图片类型图标（lucide svg，类名带 size 档）
-    expect(document.querySelector("svg.size-\\(--icon-sm\\)")).not.toBeNull();
+    expect(document.querySelector("svg.size-\\(--icon-md\\)")).not.toBeNull();
   });
 });

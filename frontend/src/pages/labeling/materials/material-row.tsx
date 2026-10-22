@@ -88,24 +88,24 @@ export const MaterialRow = memo(function MaterialRow({
               kind={row.media === "video" ? "video" : "image"}
               fallback={
                 row.media === "video" ? (
-                  <FilmIcon className="size-(--icon-sm)" />
+                  <FilmIcon className="size-(--icon-md)" />
                 ) : (
-                  <FileImageIcon className="size-(--icon-sm)" />
+                  <FileImageIcon className="size-(--icon-md)" />
                 )
               }
             />
           ) : row.media === "video" ? (
-            <FilmIcon className="size-(--icon-sm)" />
+            <FilmIcon className="size-(--icon-md)" />
           ) : row.media === "image" ? (
-            <FileImageIcon className="size-(--icon-sm)" />
+            <FileImageIcon className="size-(--icon-md)" />
           ) : (
-            <FileIcon className="size-(--icon-sm)" />
+            <FileIcon className="size-(--icon-md)" />
           )}
           {/* 视频播放角标（§34 .lb-itplay）：14×14 黑底白三角、行内小图标档（9px）。 */}
           {row.media === "video" && (
             <span
               aria-hidden
-              className="absolute left-1/2 top-1/2 flex size-(--icon-sm) -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm bg-black/58 text-white"
+              className="absolute left-1/2 top-1/2 flex size-(--icon-md) -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm bg-black/58 text-white"
             >
               <PlayIcon className="size-[9px]" />
             </span>

@@ -137,7 +137,7 @@ function CfgPopHead({
               "enabled:hover:bg-accent enabled:hover:text-text-1",
               "disabled:cursor-not-allowed disabled:text-n-400 disabled:bg-transparent",
               "aria-disabled:pointer-events-none",
-              "[&_svg]:size-(--icon-sm)",
+              "[&_svg]:size-(--icon-md)",
             )}
           >
             {action.icon}
@@ -323,7 +323,7 @@ function CfgPopRowIconButton({
             : "enabled:hover:bg-accent enabled:hover:text-text-1",
           "disabled:cursor-not-allowed disabled:text-n-400 disabled:bg-transparent",
           "aria-disabled:pointer-events-none",
-          "[&_svg]:size-(--icon-sm)",
+          "[&_svg]:size-(--icon-md)",
         )}
       >
         {icon}

@@ -49,7 +49,7 @@ export function JournalCorruptedLine({
             <TriangleAlertIcon
               role="img"
               aria-label="运行记录文件损坏"
-              className="hidden size-(--icon-sm) shrink-0 @max-[663px]/lbctx:inline-flex @max-[663px]/lbctx:border-b @max-[663px]/lbctx:pb-0.5"
+              className="hidden size-(--icon-md) shrink-0 @max-[663px]/lbctx:inline-flex @max-[663px]/lbctx:border-b @max-[663px]/lbctx:pb-0.5"
             />
           </Tip>
         )}

@@ -106,7 +106,7 @@ function RunStateIcon({
         // 进度环：r=6、dasharray 2πr=37.7、整环 rotate(-90°) 起画；fill 随「已尝试/计划」走
         <svg
           viewBox="0 0 16 16"
-          className="size-(--icon-sm) -rotate-90"
+          className="size-(--icon-md) -rotate-90"
           aria-hidden="true"
         >
           <circle
@@ -140,7 +140,7 @@ function RunStateIcon({
           stroke="currentColor"
           strokeWidth={2}
           strokeLinecap="round"
-          className="size-(--icon-sm)"
+          className="size-(--icon-md)"
           aria-hidden="true"
         >
           <circle cx="12" cy="12" r="10" />
@@ -148,11 +148,11 @@ function RunStateIcon({
           <line x1="15" y1="8" x2="15" y2="16" />
         </svg>
       ) : status === "completed" ? (
-        <CheckIcon className="size-(--icon-sm)" aria-hidden="true" />
+        <CheckIcon className="size-(--icon-md)" aria-hidden="true" />
       ) : status === "failed" ? (
-        <TriangleAlertIcon className="size-(--icon-sm)" aria-hidden="true" />
+        <TriangleAlertIcon className="size-(--icon-md)" aria-hidden="true" />
       ) : (
-        <CirclePlayIcon className="size-(--icon-sm)" aria-hidden="true" />
+        <CirclePlayIcon className="size-(--icon-md)" aria-hidden="true" />
       )}
     </span>
   );
@@ -293,9 +293,9 @@ export function BatchSelector({
                     onClick={() => toggleDir(entry.id)}
                   >
                     {closed ? (
-                      <FolderIcon className="size-(--icon-sm) shrink-0 text-muted-foreground" />
+                      <FolderIcon className="size-(--icon-md) shrink-0 text-muted-foreground" />
                     ) : (
-                      <FolderOpenIcon className="size-(--icon-sm) shrink-0 text-muted-foreground" />
+                      <FolderOpenIcon className="size-(--icon-md) shrink-0 text-muted-foreground" />
                     )}
                     <Tip label={entry.title}>
                       <span className="min-w-0 flex-1 truncate">{entry.title}</span>
@@ -313,7 +313,7 @@ export function BatchSelector({
                           onNewStrategy(entry.id);
                         }}
                       >
-                        <PlusIcon className="size-(--icon-sm)" />
+                        <PlusIcon className="size-(--icon-md)" />
                       </button>
                     </Tip>
                   )}
@@ -328,7 +328,7 @@ export function BatchSelector({
                           onSettings(entry.id);
                         }}
                       >
-                        <SettingsIcon className="size-(--icon-sm)" />
+                        <SettingsIcon className="size-(--icon-md)" />
                       </button>
                     </Tip>
                   )}
@@ -360,7 +360,7 @@ export function BatchSelector({
                           // 左 2px 界线要通高＝左两角直角（稿 base.css §17 .dd-leaf：border-radius
                           // 0 var(--r-sm) var(--r-sm) 0）；通用 DropdownMenuItem 基类 rounded-sm 会把
                           // 左上/左下削圆、线成两头圆的短桩，故显式左直角、右角取 --r-sm。
-                          "ml-3 rounded-l-none rounded-r-[var(--r-sm)] border-l-2 pl-4 text-t-md [&_svg]:size-(--icon-sm)",
+                          "ml-3 rounded-l-none rounded-r-[var(--r-sm)] border-l-2 pl-4 text-t-md [&_svg]:size-(--icon-md)",
                           // 当前行＝primary 浅底＋左线主色（树形行形态，与族 .pl-row.cur 的
                           // 差异只在左线）；不用勾做标记（tint＋左线＋aria-current 三重信号），
                           // 悬停保持 tint 不换底。

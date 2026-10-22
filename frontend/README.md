@@ -116,7 +116,7 @@ src/
 | `--t-xs` … `--t-2xl` | `text-t-xs` … `text-t-2xl` | 行高已按规范绑进工具类（tight / base）；**不要再写 `text-[13px]` 类任意值** |
 | 字体族 `--font-sans` / `--font-mono` | `font-sans` / `font-mono`（body 默认 font-sans） | HarmonyOS Sans / 等宽（等宽已撤出界面，仅为兼容保留） |
 | 圆角 r-xs / r-sm / r-md / r-lg / r-full | `rounded-sm` / `rounded-md` / `rounded-lg` / `rounded-xl` / `rounded-full` | 阶梯已重定义，shadcn 组件随类取值 |
-| 间距 space/4…space/64 + 共享档 14px | Tailwind 默认间距（`p-1`↔4px、`p-3`↔12px、`p-3.5`↔14px、`p-5`↔20px、`p-6`↔24px、`p-10`↔40px、`p-12`↔48px、`p-16`↔64px…） | 刻度天然同构；半档仅 `p-3.5`（= 14px，已登记共享档）可用，其余私造值禁用 |
+| 间距 space/4…space/64 | Tailwind 默认间距（`p-1`↔4px、`p-3`↔12px、`p-5`↔20px、`p-6`↔24px、`p-10`↔40px、`p-12`↔48px、`p-16`↔64px…） | 刻度天然同构；私造值禁用 |
 
 ## 静默失效与假红（实现侧）
 

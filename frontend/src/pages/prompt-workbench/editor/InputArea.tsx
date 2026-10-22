@@ -259,7 +259,7 @@ export function InputArea({
                 onClick={sending ? onStop : onSend}
               >
                 {sending ? (
-                  <SquareIcon className="size-(--icon-sm)" />
+                  <SquareIcon className="size-(--icon-md)" />
                 ) : (
                   <ArrowUpIcon />
                 )}

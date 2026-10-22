@@ -32,7 +32,7 @@ function FeedbackIcon({ tone, text }: { tone: "info" | "alert"; text: string }) 
       <Icon
         role="img"
         aria-label={text}
-        className="hidden size-(--icon-sm) shrink-0 @max-[663px]/lbctx:inline-flex"
+        className="hidden size-(--icon-md) shrink-0 @max-[663px]/lbctx:inline-flex"
       />
     </Tip>
   );

@@ -57,7 +57,7 @@ function Thinking({
     <details className="group" {...(streaming ? { open: true } : {})}>
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-t-sm text-text-3 hover:text-foreground [&::-webkit-details-marker]:hidden">
         <ChevronDownIcon
-          className="size-(--icon-sm) shrink-0 transition-transform duration-150 group-open:rotate-180"
+          className="size-(--icon-md) shrink-0 transition-transform duration-150 group-open:rotate-180"
           aria-hidden
         />
         <span className="font-medium">思考过程</span>

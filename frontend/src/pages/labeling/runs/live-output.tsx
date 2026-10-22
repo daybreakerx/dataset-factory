@@ -71,9 +71,9 @@ export function LiveOutput({
       {liveOutput.reasoning !== "" && (
         // .think：自带 --muted/40 底＋r-lg＋无分隔线（思考区与正文不同框）
         <details className="mb-3 rounded-xl border border-border bg-muted/40">
-          {/* .think-head：t-sm／--text-3／图标 --icon-sm；label medium。机制说明句已撤（②）。 */}
+          {/* .think-head：t-sm／--text-3／图标 --icon-md；label medium。机制说明句已撤（②）。 */}
           <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-t-sm text-text-3 hover:text-text-1">
-            <ChevronDownIcon className="size-(--icon-sm) shrink-0" />
+            <ChevronDownIcon className="size-(--icon-md) shrink-0" />
             <span className="font-medium">思考过程</span>
           </summary>
           <p className="px-3 pb-3 text-t-md leading-(--lh-loose) text-text-3 whitespace-pre-wrap">

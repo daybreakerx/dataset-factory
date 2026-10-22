@@ -46,8 +46,8 @@ function DamageAlert({ skill }: { skill: SkillInfo }): ReactElement {
     <TriangleAlertIcon
       className={
         unfixable
-          ? "size-(--icon-sm) shrink-0 text-bad-ink"
-          : "size-(--icon-sm) shrink-0 text-warn-ink"
+          ? "size-(--icon-md) shrink-0 text-bad-ink"
+          : "size-(--icon-md) shrink-0 text-warn-ink"
       }
       aria-hidden
     />

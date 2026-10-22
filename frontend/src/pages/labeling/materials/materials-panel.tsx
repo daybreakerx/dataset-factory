@@ -355,7 +355,7 @@ export function MaterialsPanel({
                     }
                   >
                     <ChevronDownIcon
-                      className={`size-(--icon-sm) shrink-0 text-text-3 ${!searching && collapsed.has(key) ? "-rotate-90" : ""}`}
+                      className={`size-(--icon-md) shrink-0 text-text-3 ${!searching && collapsed.has(key) ? "-rotate-90" : ""}`}
                     />
                     {label}
                     {/* 计数＝纯数字读数（N/M 双值承担「命中／共」，防「剩 3 条」被读成「一共 3 条」）。 */}
