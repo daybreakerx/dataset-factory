@@ -164,7 +164,7 @@ function variableName(item) {
   if (item.token.$type === 'color') return `color/${v}`;
   if (v === 'radius') return 'radius/default';
   if (v.startsWith('r-')) return `radius/${v.slice(2)}`;
-  if (v.startsWith('s-')) return `space/${v.slice(2)}`;
+  if (v.startsWith('space-')) return `space/${v.slice(6)}`;
   if (v.startsWith('h-')) return `height/${v.slice(2)}`;
   if (v.startsWith('icon-')) return `icon/${v.slice(5)}`;
   if (v.startsWith('w-col-')) return `width/col-${v.slice(6)}`;

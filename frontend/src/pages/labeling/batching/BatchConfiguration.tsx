@@ -38,7 +38,7 @@ function shortModelName(model: string): string {
 
 /** 只读标签（规范实体＝base.css §9 .ro-chip）：--h-sm／--r-md／--muted 底／无描边／
  *  --t-sm 字色 --text-2；flex-none ＋ nowrap＝超宽时该滚的是外层链（hs 定式）、不把标签压瘪。
- *  端点枚带尾随重探钮时再叠 pr-1（§9 .ro-chip--act：右内距收到 --s-1，钮盒不顶圆角）。 */
+ *  端点枚带尾随重探钮时再叠 pr-1（§9 .ro-chip--act：右内距收到 --space-4，钮盒不顶圆角）。 */
 const RO_CHIP =
   "inline-flex h-(--h-sm) max-w-full flex-none items-center gap-2 whitespace-nowrap rounded-lg bg-muted px-3 text-t-sm text-text-2";
 
@@ -104,7 +104,7 @@ export function BatchConfiguration({
     // 链容器＝§22 .lb-reqchain：内容给宽（flex 0 1 auto，不吃满）、缩到 120 保底
     // （「至少露一枚胶囊」＝任何组件不得缩到 0 的 enforce），再窄由 874 折行档接管——
     // 折行后掉第二行跨整行。胶囊 flex-none 不换行，超宽即横向溢出、由自绘拇指条接管
-    // 。轨道间距 --s-3（hs 默认 --s-2）：globals 的
+    // 。轨道间距 --space-12（hs 默认 --space-8）：globals 的
     // .hs-scroll 是无层声明、压过层内工具类，覆盖须带 important（globals.css「无层声明」注）。
     return (
       <section

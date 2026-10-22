@@ -135,7 +135,7 @@ export function SkillDetail({
           readOnly={saving || loadingPreview || undefined}
           aria-disabled={saving || loadingPreview || undefined}
           onChange={(event) => onNameChange(event.currentTarget.value)}
-          className="min-w-24 max-w-[380px] w-fit shrink-[1] basis-auto field-sizing-content -ml-[calc(var(--s-1)+1px)] rounded-md border border-transparent bg-transparent p-1 text-t-xl font-semibold text-foreground hover:border-input focus:border-n-400 focus:outline-none"
+          className="min-w-24 max-w-[380px] w-fit shrink-[1] basis-auto field-sizing-content -ml-[calc(var(--space-4)+1px)] rounded-md border border-transparent bg-transparent p-1 text-t-xl font-semibold text-foreground hover:border-input focus:border-n-400 focus:outline-none"
         />
         <Tip label="删除技能">
           <Button

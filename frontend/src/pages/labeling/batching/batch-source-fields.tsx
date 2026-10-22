@@ -183,7 +183,7 @@ export function BatchSourceFields({
               aria-selected={mode === value}
               disabled={frozen}
               className={cn(
-                // §12 .seg-item：项高 --h-sm、圆角 --r-sm、内距 --s-3；选中白底浮起 sh-1；
+                // §12 .seg-item：项高 --h-sm、圆角 --r-sm、内距 --space-12；选中白底浮起 sh-1；
                 // 禁用档字色压 n-400＋not-allowed（选中项的白底保留）。
                 "h-(--h-sm) rounded-md px-3 text-t-sm disabled:cursor-not-allowed disabled:text-n-400",
                 mode === value

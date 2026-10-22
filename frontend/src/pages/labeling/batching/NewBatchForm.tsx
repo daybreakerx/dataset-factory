@@ -310,7 +310,7 @@ export function NewBatchForm({
           创建批次
         </Button>
       </header>
-      {/* 表单白卡＝§22 .nb-card：内距 --s-6、圆角 --r-lg、sh-1；卡内两区头各领一段。 */}
+      {/* 表单白卡＝§22 .nb-card：内距 --space-24、圆角 --r-lg、sh-1；卡内两区头各领一段。 */}
       <div className="flex min-w-0 flex-col rounded-xl border border-border bg-card p-6 shadow-(--sh-1)">
         <h2 className="mb-4 text-t-xl font-medium leading-(--lh-tight) text-text-1">
           素材

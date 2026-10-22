@@ -116,11 +116,11 @@ src/
 | `--t-xs` … `--t-2xl` | `text-t-xs` … `text-t-2xl` | 行高已按规范绑进工具类（tight / base）；**不要再写 `text-[13px]` 类任意值** |
 | 字体族 `--font-sans` / `--font-mono` | `font-sans` / `font-mono`（body 默认 font-sans） | HarmonyOS Sans / 等宽（等宽已撤出界面，仅为兼容保留） |
 | 圆角 r-xs / r-sm / r-md / r-lg / r-full | `rounded-sm` / `rounded-md` / `rounded-lg` / `rounded-xl` / `rounded-full` | 阶梯已重定义，shadcn 组件随类取值 |
-| 间距 s-1…s-8 + 共享档 14px | Tailwind 默认间距（`p-1`↔4px、`p-3`↔12px、`p-3.5`↔14px、`p-6`↔24px…） | 刻度天然同构；半档仅 `p-3.5`（= 14px，已登记共享档）可用，其余私造值禁用 |
+| 间距 space/4…space/64 + 共享档 14px | Tailwind 默认间距（`p-1`↔4px、`p-3`↔12px、`p-3.5`↔14px、`p-5`↔20px、`p-6`↔24px、`p-10`↔40px、`p-12`↔48px、`p-16`↔64px…） | 刻度天然同构；半档仅 `p-3.5`（= 14px，已登记共享档）可用，其余私造值禁用 |
 
 ## 静默失效与假红（实现侧）
 
-- **Tailwind 静默失效**：不存在的工具类不报错、静默不生成（`overflow-wrap:anywhere` 在 v4 叫 `wrap-anywhere`，`break-anywhere` 不存在＝假通过）——改完断词／布局类必须 grep dist CSS 确认规则真生成（选择器是转义形态）；`var(--s-N)` 写了刻度里没有的档，会让整条声明作废而不只是那一个值回落。
+- **Tailwind 静默失效**：不存在的工具类不报错、静默不生成（`overflow-wrap:anywhere` 在 v4 叫 `wrap-anywhere`，`break-anywhere` 不存在＝假通过）——改完断词／布局类必须 grep dist CSS 确认规则真生成（选择器是转义形态）；`var(--space-…)` 写了刻度里没有的档，会让整条声明作废而不只是那一个值回落。
 - **React／Radix 静默坑**：①`setState` 更新函数里绝不读 `event.currentTarget`（更新器在事件处理返回后才执行），同一份数据同时挂 state＋ref 必须单一写入口；②Radix 开层落焦不能挂 `onOpenAutoFocus`（私有 API），Portal 首渲染晚一个 commit 挂载内容（presence 的 mounted 态）——断言要等。
 - **改动不生效先查三处**：改 HTML 类名／DOM 结构后必须 grep JS 里所有引用旧类名的选择器、逐个同步；改了 CSS／JS 但浏览器不生效，先查缓存戳（`<link>`／`<script>` 上的查询串）；改了前端源码必须先 `npm run build` 再看（跑的是 dist，见 `document/tdd.md` §7.1）。
 

@@ -439,7 +439,7 @@ export function DirectoryPicker({
                 key={entry.path}
                 className={cn(
                   // 行＝「1px 透明描边槽 ＋ padding 补偿」：选中环显色时内容不被顶偏 1px。
-                  "flex items-center gap-3 border border-transparent px-[calc(var(--s-3)-1px)] py-[calc(var(--s-2)-1px)]",
+                  "flex items-center gap-3 border border-transparent px-[calc(var(--space-12)-1px)] py-[calc(var(--space-8)-1px)]",
                   "first:rounded-t-[calc(var(--r-md)-1px)] last:rounded-b-[calc(var(--r-md)-1px)]",
                   isSelected
                     ? "border-primary/30 bg-primary/8 text-primary dark:bg-primary/22"

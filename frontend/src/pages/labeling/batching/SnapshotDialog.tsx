@@ -223,7 +223,7 @@ export function SnapshotDialog({
               <button
                 aria-selected={position === index}
                 className={cn(
-                  // §12 .seg-item：项高 --h-sm、圆角 --r-sm、内距 --s-3；选中白底浮起 sh-1；
+                  // §12 .seg-item：项高 --h-sm、圆角 --r-sm、内距 --space-12；选中白底浮起 sh-1；
                   // 段文案是具体名字，超宽在 140 上限处省略（稿 .lb-snap-segrow .seg-item）。
                   "h-(--h-sm) min-w-0 max-w-[140px] rounded-md px-3 text-t-sm",
                   position === index

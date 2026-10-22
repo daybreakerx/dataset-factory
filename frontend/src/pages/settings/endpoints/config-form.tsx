@@ -156,7 +156,7 @@ export function ConfigForm({
           value={draftName}
           placeholder={creating ? "新建配置" : undefined}
           onInput={(event) => onNameInput(event.currentTarget.value)}
-          className="min-w-24 max-w-[380px] w-fit shrink-[1] basis-auto field-sizing-content -ml-[calc(var(--s-1)+1px)] rounded-md border border-transparent bg-transparent p-1 text-t-xl font-semibold text-foreground hover:border-input focus:border-n-400 focus:outline-none"
+          className="min-w-24 max-w-[380px] w-fit shrink-[1] basis-auto field-sizing-content -ml-[calc(var(--space-4)+1px)] rounded-md border border-transparent bg-transparent p-1 text-t-xl font-semibold text-foreground hover:border-input focus:border-n-400 focus:outline-none"
         />
         {!creating && (
           <Tip label="删除配置">

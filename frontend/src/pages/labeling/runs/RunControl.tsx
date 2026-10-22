@@ -14,7 +14,7 @@ import { useRunWatch } from "./use-run-watch";
 /** 组内反馈行的让位与图标档（§22 `.lb-runhint`／`.lb-runerr`／`.lb-runwarn` 三条共用）：
  *  正常区间全文在场、放不下才省略号；折行档（<874）解除 min-width 压到 auto；图标档
  *  （<663）转 inline-flex——文字隐、14px 图标显、命中区外扩 5px（稿 `::before inset -5px`），
- *  组内间距随之收到 --s-2（在组根声明）。 */
+ *  组内间距随之收到 --space-8（在组根声明）。 */
 const FEEDBACK_LINE =
   "min-w-0 overflow-hidden text-ellipsis " +
   "whitespace-nowrap text-t-sm @max-[874px]/lbctx:min-w-auto " +

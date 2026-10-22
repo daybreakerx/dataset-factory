@@ -161,7 +161,7 @@ export function BatchOverview({
           </time>
         </Tip>
       )}
-      {/* 第二段＝§25 .ovs2（flex:none／段间另给 --s-3／t-sm／nowrap），六档互斥各占一色；
+      {/* 第二段＝§25 .ovs2（flex:none／段间另给 --space-12／t-sm／nowrap），六档互斥各占一色；
           「正在校验…」是 .ovs2--busy，比结论段小一号（t-xs）。 */}
       {journalRun || (report && !report.imports_available) ? null : error ? (
         // 普通失败句才挂播报（带出口的处置句不挂——常驻状态不是一次性结果）。
