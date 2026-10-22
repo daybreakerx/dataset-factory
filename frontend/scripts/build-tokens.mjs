@@ -155,10 +155,12 @@ function variableName(item) {
   if (v.startsWith('w-col-')) return `width/col-${v.slice(6)}`;
   if (v.startsWith('w-modal-')) return `width/modal-${v.slice(8)}`;
   if (v.startsWith('t-')) return `font/size/${v.slice(2)}`;
-  if (v.startsWith('lh-')) return `font/line-height/${v.slice(3)}`;
+  // 行高在 CSS 里是无单位倍数，Figma 变量只能存像素，映射会失真；行高由文字样式承载。
+  if (v.startsWith('lh-')) return null;
   if (v.startsWith('fw-')) return `font/weight/${v.slice(3)}`;
   if (v.startsWith('font-')) return `font/family/${v.slice(5)}`;
-  if (v.startsWith('z-')) return `z/${v.slice(2)}`;
+  // z-index 是代码层概念，Figma 没有对应属性。
+  if (v.startsWith('z-')) return null;
   if (v.startsWith('dur-')) return `motion/duration/${v.slice(4)}`;
   if (v === 'ease') return 'motion/easing/default';
   return null;
@@ -219,6 +221,7 @@ for (const item of tokens) {
     name,
     type,
     description: item.token.$description || '',
+    cssVar: item.token.$extensions?.cssVar || null,
     light,
     dark: dark ?? null
   });
