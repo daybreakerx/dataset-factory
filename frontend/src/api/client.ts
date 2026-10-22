@@ -86,8 +86,8 @@ function extractProblem(data: unknown): {
 /**
  * 从后端错误响应里取出可读消息。
  *
- * 后端有两套错误体：域异常 → `{"detail": "一句话"}`；FastAPI 校验失败 → `{"detail":
- * [{loc, msg}, ...]}`。这里把两种都摊平成文本，一次把校验错误报全。
+ * 后端错误体统一为 problem+json（detail 是一句话）；FastAPI 422 校验失败是约定
+ * 保留项 → `{"detail": [{loc, msg}, ...]}`。这里把两种都摊平成文本，一次把校验错误报全。
  */
 export function extractDetail(data: unknown, status: number): string {
   if (data !== null && typeof data === "object" && "detail" in data) {
