@@ -38,13 +38,26 @@ function resolveAlias(value) {
   return m ? m[1] : null;
 }
 
+function valueToCss(value) {
+  if (value && typeof value === 'object' && 'value' in value && 'unit' in value) {
+    return `${value.value}${value.unit}`;
+  }
+  if (value && typeof value === 'object' && value.colorSpace && value.hex) {
+    const alpha = value.alpha ?? 1;
+    return alpha < 1
+      ? `${value.hex}${Math.round(alpha * 255).toString(16).padStart(2, '0').toUpperCase()}`
+      : value.hex;
+  }
+  return value;
+}
+
 function cssValue(token, mode = 'light') {
   if (mode === 'dark') {
     const dark = token.$extensions?.modes?.dark;
     if (!dark) return null;
-    return dark.cssValue ?? dark.value;
+    return dark.cssValue ?? valueToCss(dark.value);
   }
-  return token.$extensions?.cssValue ?? token.$value;
+  return token.$extensions?.cssValue ?? valueToCss(token.$value);
 }
 
 function fontFamilyValue(token) {
@@ -61,7 +74,9 @@ function primitiveValue(token) {
 }
 
 function formatDimension(v) {
-  return typeof v === 'number' ? `${v}px` : String(v);
+  if (typeof v === 'number') return `${v}px`;
+  if (v && typeof v === 'object' && 'value' in v && 'unit' in v) return `${v.value}${v.unit}`;
+  return String(v);
 }
 
 function cssLine(token) {
@@ -177,6 +192,7 @@ function hexToRgba(hex) {
 
 function parseNumber(value) {
   if (typeof value === 'number') return value;
+  if (value && typeof value === 'object' && 'value' in value) return value.value;
   const m = String(value).match(/^(-?\d+(?:\.\d+)?)/);
   return m ? Number(m[1]) : null;
 }
@@ -191,19 +207,31 @@ function variableValue(token, mode) {
       if (figmaOverride?.alias) return { alias: figmaOverride.alias, opacity: figmaOverride.opacity };
       return { alias: alias.replace(/^color\./, 'color/') };
     }
-    if (/^#[0-9A-Fa-f]{6,8}$/.test(modeValue)) return { color: hexToRgba(modeValue) };
+    if (modeValue && typeof modeValue === 'object' && modeValue.colorSpace) {
+      const [r, g, b] = modeValue.components;
+      return { color: { r, g, b, a: modeValue.alpha ?? 1 } };
+    }
+    if (typeof modeValue === 'string' && /^#[0-9A-Fa-f]{6,8}$/.test(modeValue)) {
+      return { color: hexToRgba(modeValue) };
+    }
     return null;
   }
   if (token.$type === 'dimension') {
     const alias = resolveAlias(modeValue);
     if (alias) return { alias: alias.replace(/^radius\./, 'radius/') };
+    if (modeValue && typeof modeValue === 'object' && 'value' in modeValue) return modeValue.value;
     return parseNumber(modeValue);
   }
   if (token.$type === 'number') return parseNumber(modeValue);
   if (token.$type === 'fontFamily') {
     return Array.isArray(modeValue) ? modeValue[0] : String(modeValue);
   }
-  if (token.$type === 'duration') return parseNumber(modeValue);
+  if (token.$type === 'duration') {
+    if (modeValue && typeof modeValue === 'object' && 'value' in modeValue) {
+      return modeValue.unit === 's' ? modeValue.value * 1000 : modeValue.value;
+    }
+    return parseNumber(modeValue);
+  }
   if (token.$type === 'cubicBezier') return modeValue;
   return null;
 }
@@ -242,7 +270,12 @@ for (const item of tokens) {
   const family = familyToken?.token.$extensions?.figmaFamily || 'HarmonyOS Sans SC';
   const size = sizeToken ? parseNumber(sizeToken.token.$value) : null;
   const weight = weightToken ? Number(weightToken.token.$value) : 400;
-  const lineHeight = String(v.lineHeight);
+  const lineHeightExt = item.token.$extensions?.figmaLineHeight;
+  const lineHeight = lineHeightExt
+    ? `${lineHeightExt.value}${lineHeightExt.unit === 'PERCENT' ? '%' : 'px'}`
+    : typeof v.lineHeight === 'number'
+      ? `${Math.round(v.lineHeight * 1000) / 10}%`
+      : String(v.lineHeight);
   textStyles.push({
     name: styleName,
     fontFamily: family,
@@ -252,13 +285,45 @@ for (const item of tokens) {
   });
 }
 
+function shadowColorToHex(color) {
+  if (typeof color === 'string') return color;
+  if (color && typeof color === 'object' && color.colorSpace) {
+    const h = (x) => Math.round(x * 255).toString(16).padStart(2, '0').toUpperCase();
+    const base = color.hex
+      ? color.hex.replace('#', '').toUpperCase()
+      : `${h(color.components[0])}${h(color.components[1])}${h(color.components[2])}`;
+    const alpha = color.alpha ?? 1;
+    return `#${base}${alpha < 1 ? h(alpha) : ''}`;
+  }
+  return String(color);
+}
+
+function shadowLength(value) {
+  if (typeof value === 'number') return value;
+  if (value && typeof value === 'object' && 'value' in value) return value.value;
+  return value;
+}
+
+function shadowToEffect(shadow) {
+  return {
+    color: shadowColorToHex(shadow.color),
+    offsetX: shadowLength(shadow.offsetX),
+    offsetY: shadowLength(shadow.offsetY),
+    blur: shadowLength(shadow.blur),
+    spread: shadowLength(shadow.spread)
+  };
+}
+
 const effectStyles = [];
 for (const item of tokens) {
   if (item.token.$type !== 'shadow') continue;
   const nameMap = { '1': '阴影/1 卡片', '2': '阴影/2 悬浮', '3': '阴影/3 浮层' };
   const key = item.path.split('.')[1];
   if (!nameMap[key]) continue;
-  effectStyles.push({ name: nameMap[key], effects: item.token.$value });
+  const effects = Array.isArray(item.token.$value)
+    ? item.token.$value.map(shadowToEffect)
+    : item.token.$value;
+  effectStyles.push({ name: nameMap[key], effects });
 }
 
 const figma = {

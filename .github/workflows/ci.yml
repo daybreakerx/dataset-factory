@@ -128,6 +128,12 @@ jobs:
           npm run gen:api
           git diff --exit-code -- src/api-types.gen.ts
 
+      # 设计令牌（frontend/tokens.json）是单一源，取值形状按严格 DTCG 2025.10 校验。
+      # 先校验源，再比对生成物；两步都过才算 token 层健康。
+      - name: Design token validation
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run tokens:validate
+
       # 设计令牌（frontend/tokens.json）是单一源，tokens.css 是生成物。
       # 这一步挡住「改了 token 源忘了重新生成」——与 API 类型漂移检查同一思路。
       - name: Design token drift check
