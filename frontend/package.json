@@ -17,7 +17,9 @@
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "depcruise": "depcruise src --config .dependency-cruiser.cjs",
-    "gen:api": "openapi-typescript ../backend/openapi.json -o src/api-types.gen.ts"
+    "gen:api": "openapi-typescript ../backend/openapi.json -o src/api-types.gen.ts",
+    "tokens:build": "node scripts/build-tokens.mjs",
+    "tokens:check": "node scripts/build-tokens.mjs --check"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

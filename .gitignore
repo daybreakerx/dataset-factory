@@ -39,6 +39,9 @@ build/
 storybook-static/
 *.egg-info/
 
+# 设计令牌的 Figma 同步载荷（由 tokens:build 生成、供本地同步）
+frontend/tokens.figma.json
+
 # 注意：uv.lock 要入库（锁定确切版本、保证可复现安装），不要忽略它
 
 # 密钥 / 凭据（纵深防御：密钥实际存 ~/.dataset_factory 在仓外，这里挡住误建误提交）

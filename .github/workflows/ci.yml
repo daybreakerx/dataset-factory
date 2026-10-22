@@ -128,6 +128,12 @@ jobs:
           npm run gen:api
           git diff --exit-code -- src/api-types.gen.ts
 
+      # 设计令牌（frontend/tokens.json）是单一源，tokens.css 是生成物。
+      # 这一步挡住「改了 token 源忘了重新生成」——与 API 类型漂移检查同一思路。
+      - name: Design token drift check
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run tokens:check
+
       # 以下三步与平台无关（Biome / tsc / Vite 都是同一份 JS 实现，产物字节一致），
       # 只在 ubuntu 侧跑一遍；Windows 侧保留 npm ci + 生成类型漂移检查 + Vitest
       # （Vitest 跑的是真实源码在 Windows 路径分隔符下的行为，平台敏感）。

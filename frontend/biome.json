@@ -6,7 +6,8 @@
       "*.ts",
       "*.json",
       "index.html",
-      "!src/api-types.gen.ts"
+      "!src/api-types.gen.ts",
+      "!tokens.figma.json"
     ]
   },
   "css": {
