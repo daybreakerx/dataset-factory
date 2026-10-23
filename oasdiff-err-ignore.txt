@@ -10,23 +10,3 @@ POST /api/endpoints/\{cid\}/activate
 (GET|PUT) /api/config
 is_active
 endpoint_id
-
-# 错误契约收敛（PRD：错误响应统一 problem+json）：
-# 一期五域（打标/会话、提示词、技能包、端点配置、服务运行）的错误体由 {"detail"}
-# 简形改为 RFC 9457 problem+json——蓄意的形状变更；涉及路径的豁免仅本次有效，
-# 收敛落账后随本文件一并清理。
-#
-POST /api/label
-GET /api/sessions
-POST /api/sessions/\{session_id\}/strategy
-DELETE /api/sessions/\{session_id\}
-GET /api/prompts/\{pid\}
-POST /api/prompts/\{pid\}/rename
-GET /api/skills
-POST /api/skills
-PUT /api/skills
-DELETE /api/skills
-POST /api/endpoints
-PUT /api/endpoints
-DELETE /api/endpoints
-POST /api/service/shutdown
