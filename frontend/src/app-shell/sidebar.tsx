@@ -13,6 +13,7 @@ import {
   PanelLeftOpenIcon,
   SettingsIcon,
   TagsIcon,
+  UnplugIcon,
 } from "lucide-react";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { ShutdownButton } from "../components/shutdown-button";
@@ -94,7 +95,7 @@ export function Sidebar({
       )}
     >
       {page !== "settings" && (
-        <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+        <div className={cn("flex items-center gap-3 px-4 pt-4 pb-3", collapsed && "justify-center")}>
           {brandInteractive ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -182,7 +183,7 @@ export function Sidebar({
             <ul className="space-y-1">
               {(
                 [
-                  { key: "endpoints", label: "端点配置", icon: SettingsIcon },
+                  { key: "endpoints", label: "端点配置", icon: UnplugIcon },
                   { key: "skills", label: "技能", icon: FolderInputIcon },
                   { key: "service", label: "运行日志", icon: ActivityIcon },
                 ] as const
