@@ -39,3 +39,16 @@ class EvalRunOccupiedError(EvalError):
         """携占用者信息（进程号 / 启动时间），供 API 层挂到 problem 扩展字段。"""
         super().__init__(message)
         self.occupier = occupier
+
+
+class EvalJudgeFormatError(EvalError):
+    """judge 输出解析／校验不过——修复重试的信号与超限后的条目级失败原因。
+
+    不直接映射 HTTP（运行层把它转成该条目的失败记录）；problems 携全部问题
+    清单（修复重试的回喂消息与运行记录共用）。
+    """
+
+    def __init__(self, problems: list[str]) -> None:
+        """携问题清单（每句一个可读问题）。"""
+        super().__init__("；".join(problems))
+        self.problems = problems

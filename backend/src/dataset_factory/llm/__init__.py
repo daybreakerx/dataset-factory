@@ -18,6 +18,7 @@ from .client import (
     Completer,
     OpenAIChatClient,
     ProbeResult,
+    StructuredCompleter,
     build_completer,
     probe_endpoint,
 )
@@ -114,6 +115,7 @@ __all__ = [
     "Role",
     "SecretValue",
     "StreamDelta",
+    "StructuredCompleter",
     "TextPart",
     "UnsupportedImageError",
     "VideoPart",

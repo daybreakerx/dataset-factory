@@ -14,7 +14,7 @@ import logging
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, replace
 from time import perf_counter
-from typing import Protocol, cast
+from typing import Protocol, cast, runtime_checkable
 
 import httpx
 import openai
@@ -28,6 +28,7 @@ from openai.types.chat import (
     ChatCompletionSystemMessageParam,
     ChatCompletionUserMessageParam,
 )
+from openai.types.chat.completion_create_params import ResponseFormat
 
 from .._obs import ms_since
 from .config import EndpointConfig, RequestConfig, SecretValue
@@ -76,6 +77,34 @@ class Completer(Protocol):
 
         Raises:
             LLMError: 模型调用失败（含流中途失败）。
+        """
+        ...
+
+
+@runtime_checkable
+class StructuredCompleter(Protocol):
+    """结构化输出能力接口：带 ``response_format`` 的非流式补全。
+
+    独立成能力接口而不改 :class:`Completer` 签名——既有实现（测试假客户端等）
+    零改动；调用方按 ``isinstance`` 探测，不具备该能力的实现走无 schema 档。
+    llm 层不解释 schema 语义、原样透传（与 ``extra_body`` 同一思路）。
+    """
+
+    def complete_structured(
+        self, messages: Sequence[Message], response_format: dict[str, object] | None
+    ) -> str:
+        """发送一轮带 ``response_format`` 的消息、返回模型产出的文本。
+
+        Args:
+            messages: provider 中立消息序列。
+            response_format: OpenAI 兼容的 response_format 载荷；None = 不带
+                （等价 complete）。
+
+        Returns:
+            模型产出文本。
+
+        Raises:
+            LLMError: 模型调用失败（含端点拒绝该 response_format 形状）。
         """
         ...
 
@@ -130,7 +159,32 @@ class OpenAIChatClient:
         Raises:
             LLMError: SDK 调用失败（翻译成对应分类异常），或响应无 choices / 无文本内容。
         """
-        payload = [_to_openai_message(message) for message in messages]
+        return self._send_messages(
+            [_to_openai_message(message) for message in messages], response_format=None
+        )
+
+    def complete_structured(
+        self, messages: Sequence[Message], response_format: dict[str, object] | None
+    ) -> str:
+        """带 ``response_format`` 的非流式补全（结构化输出；None 等价 complete）。
+
+        schema 的派生与降级策略在调用方（eval 域的 judge 协议），本层只透传。
+
+        Raises:
+            LLMError: SDK 调用失败（含端点拒绝该 response_format 形状 → LLMBadRequestError）。
+        """
+        return self._send_messages(
+            [_to_openai_message(message) for message in messages],
+            response_format=response_format,
+        )
+
+    def _send_messages(
+        self,
+        payload: list[ChatCompletionMessageParam],
+        *,
+        response_format: dict[str, object] | None,
+    ) -> str:
+        """发一次非流式 create 并取回文本（complete / complete_structured 共用发送核）。"""
         start = perf_counter()
         try:
             response = self._client.chat.completions.create(
@@ -141,6 +195,11 @@ class OpenAIChatClient:
                 temperature=_given_or_omit(self._request.temperature),
                 top_p=_given_or_omit(self._request.top_p),
                 max_tokens=_given_or_omit(self._request.max_tokens),
+                # 第三方类型噪音定点豁免：SDK 的 ResponseFormat 联合是三个 typed dict，
+                # dict 载荷运行时会被 SDK 收窄——llm 层按「透传不解释」持 dict。
+                response_format=cast(
+                    "ResponseFormat | openai.Omit", _given_or_omit(response_format)
+                ),
                 extra_body=_effective_extra_body(self._request),
             )
         except openai.APIError as exc:
