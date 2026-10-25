@@ -1316,3 +1316,36 @@ class EvalSamplesView(BaseModel):
     progress: dict[str, dict[str, bool]] = Field(
         description="素材主干 → {dimension, pair}：是否已有对应人工打分"
     )
+
+
+class EvalReportCreateRequest(BaseModel):
+    """POST reports 的请求体：从哪次运行聚合报告。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str | None = Field(
+        default=None, description="运行标识；缺省 = 最近一次运行"
+    )
+
+
+class EvalReportSummaryView(BaseModel):
+    """报告快照摘要（列表行）。"""
+
+    report_id: str = Field(description="报告标识（＝运行标识，一运行一报告）")
+    run_id: str = Field(description="运行标识")
+    generated_at: str = Field(description="生成时刻（UTC ISO 8601）")
+    status: str | None = Field(description="对应运行的状态")
+
+
+class EvalReportView(BaseModel):
+    """报告全文：五层结构（layers 的键 presence 按启用的评测模式，未启用为 null）。"""
+
+    report_id: str = Field(description="报告标识")
+    batch: str = Field(description="打分批次标识（eN）")
+    run_id: str = Field(description="运行标识")
+    generated_at: str = Field(description="生成时刻")
+    status: str | None = Field(description="运行状态")
+    counters: dict[str, int] | None = Field(default=None, description="运行计数")
+    layers: dict[str, object] = Field(
+        description="五层：ranking / dimensions / trust / badcase / reproducibility"
+    )

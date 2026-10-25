@@ -37,26 +37,32 @@ from ..eval import (
     HumanSettings,
     PairwiseSettings,
     append_manual_score,
+    build_report,
     create_eval_batch,
     delete_eval_batch,
     get_eval_batch,
     latest_manual_scores,
     list_eval_batches,
+    list_reports,
     manual_progress,
     parse_seq,
     read_eval_config,
+    read_report,
     update_eval_batch,
     update_eval_config,
     validate_references,
 )
 from ..workdir import RunOccupiedError
 from .deps import workdir_root
-from .problems import problem
+from .problems import ProblemError, problem
 from .schemas import (
     EvalBatchCreateRequest,
     EvalBatchUpdateRequest,
     EvalBatchView,
     EvalConfigPayload,
+    EvalReportCreateRequest,
+    EvalReportSummaryView,
+    EvalReportView,
     EvalRunAccepted,
     EvalRunStatusView,
     EvalSamplesView,
@@ -556,3 +562,112 @@ def get_manual_scores(
     if annotator is not None:
         records = [row for row in records if row.get("annotator") == annotator]
     return [ManualScoreView.model_validate(row) for row in records]
+
+
+# -- 报告（快照按次生成、历史可回看） ---------------------------------------
+
+
+@eval_router.post(
+    "/{eN}/reports",
+    status_code=201,
+    response_model=EvalReportView,
+    responses={
+        404: {
+            "model": Problem,
+            "content": {"application/problem+json": {}},
+            "description": "wid / 打分批次 / 运行不存在"
+            "（workdir-not-found / eval-batch-not-found / eval-run-not-found）",
+        },
+        422: problem("运行不属于该打分批次（problem+json: eval-report-mismatch）"),
+    },
+)
+def create_eval_report(
+    wid: str, eN: str, body: EvalReportCreateRequest | None = None
+) -> EvalReportView:
+    """从一次运行聚合报告快照（缺省＝最近一次运行；重出同 run_id 即覆盖）。"""
+    workdir = workdir_root(wid)
+    seq = parse_seq(eN)
+    get_eval_batch(workdir, seq)
+    run_id = body.run_id if body is not None and body.run_id else None
+    if run_id is None:
+        latest = _latest_eval_run_dir(workdir, seq)
+        if latest is None:
+            raise ProblemError(
+                404,
+                "eval-run-not-found",
+                "没有可出报告的运行",
+                "该打分批次还没有跑过打分——先启动一次打分运行。",
+            )
+        run_id = latest.name
+    try:
+        report = build_report(workdir, seq, run_id)
+    except FileNotFoundError as exc:
+        raise ProblemError(
+            404,
+            "eval-run-not-found",
+            "运行不存在",
+            f"运行 {run_id} 不存在——请检查运行标识。",
+        ) from exc
+    except ValueError as exc:
+        raise ProblemError(
+            422,
+            "eval-report-mismatch",
+            "运行与打分批次不匹配",
+            str(exc),
+        ) from exc
+    return EvalReportView.model_validate(report)
+
+
+@eval_router.get(
+    "/{eN}/reports",
+    response_model=list[EvalReportSummaryView],
+    responses={
+        404: problem(
+            "wid 或打分批次不存在（workdir-not-found / eval-batch-not-found）"
+        ),
+    },
+)
+def list_eval_reports(wid: str, eN: str) -> list[EvalReportSummaryView]:
+    """报告快照列表（最新在前）。"""
+    workdir = workdir_root(wid)
+    seq = parse_seq(eN)
+    get_eval_batch(workdir, seq)
+    return [
+        EvalReportSummaryView.model_validate(row) for row in list_reports(workdir, seq)
+    ]
+
+
+@eval_router.get(
+    "/{eN}/reports/{rid}",
+    response_model=EvalReportView,
+    responses={
+        404: {
+            "model": Problem,
+            "content": {"application/problem+json": {}},
+            "description": "wid / 打分批次 / 报告不存在"
+            "（workdir-not-found / eval-batch-not-found / eval-report-not-found）",
+        },
+    },
+)
+def get_eval_report(wid: str, eN: str, rid: str) -> EvalReportView:
+    """读一份报告快照全文（历史报告可回看、读数可复现）。"""
+    workdir = workdir_root(wid)
+    seq = parse_seq(eN)
+    get_eval_batch(workdir, seq)
+    try:
+        report = read_report(workdir, seq, rid)
+    except FileNotFoundError as exc:
+        raise ProblemError(
+            404,
+            "eval-report-not-found",
+            "报告不存在",
+            f"报告 {rid} 不存在——可从 reports 列表核对标识。",
+        ) from exc
+    except ValueError as exc:
+        raise ProblemError(
+            404,
+            "eval-report-not-found",
+            "报告与打分批次不匹配",
+            str(exc),
+        ) from exc
+    return EvalReportView.model_validate(report)

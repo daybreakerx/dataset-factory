@@ -76,6 +76,7 @@ from .judge import (
     parse_dimension_output,
     parse_pairwise_output,
 )
+from .report import build_report
 from .store import EvalStore
 
 __all__ = [
@@ -790,6 +791,17 @@ class EvalRunner:
             f" / 跳过 {self._counters['skipped']}（计划 {self._counters['planned']}）。"
         )
         (run_dir / "run.log").write_text("\n".join(log_lines) + "\n", encoding="utf-8")
+        if status == RUN_STATUS_COMPLETED:
+            try:
+                # 评测完自动出报告（PRD）；报告失败不推翻已完成的运行——
+                # 可经 reports 端点按 run_id 重出，评分三件套已完整在盘。
+                build_report(self._workdir, self._seq, self._run_id)
+            except Exception:
+                logger.warning(
+                    "报告生成失败（可经 reports 端点重出）：run=%s",
+                    self._run_id,
+                    exc_info=True,
+                )
         self._status = status
         self._emit(
             RunFinishedEvent(

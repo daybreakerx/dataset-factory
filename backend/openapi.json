@@ -1352,6 +1352,134 @@
         "title": "EvalPairwisePayload",
         "type": "object"
       },
+      "EvalReportCreateRequest": {
+        "additionalProperties": false,
+        "description": "POST reports 的请求体：从哪次运行聚合报告。",
+        "properties": {
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "运行标识；缺省 = 最近一次运行",
+            "title": "Run Id"
+          }
+        },
+        "title": "EvalReportCreateRequest",
+        "type": "object"
+      },
+      "EvalReportSummaryView": {
+        "description": "报告快照摘要（列表行）。",
+        "properties": {
+          "generated_at": {
+            "description": "生成时刻（UTC ISO 8601）",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "report_id": {
+            "description": "报告标识（＝运行标识，一运行一报告）",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "run_id": {
+            "description": "运行标识",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "对应运行的状态",
+            "title": "Status"
+          }
+        },
+        "required": [
+          "report_id",
+          "run_id",
+          "generated_at",
+          "status"
+        ],
+        "title": "EvalReportSummaryView",
+        "type": "object"
+      },
+      "EvalReportView": {
+        "description": "报告全文：五层结构（layers 的键 presence 按启用的评测模式，未启用为 null）。",
+        "properties": {
+          "batch": {
+            "description": "打分批次标识（eN）",
+            "title": "Batch",
+            "type": "string"
+          },
+          "counters": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "运行计数",
+            "title": "Counters"
+          },
+          "generated_at": {
+            "description": "生成时刻",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "layers": {
+            "additionalProperties": true,
+            "description": "五层：ranking / dimensions / trust / badcase / reproducibility",
+            "title": "Layers",
+            "type": "object"
+          },
+          "report_id": {
+            "description": "报告标识",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "run_id": {
+            "description": "运行标识",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "运行状态",
+            "title": "Status"
+          }
+        },
+        "required": [
+          "report_id",
+          "batch",
+          "run_id",
+          "generated_at",
+          "status",
+          "layers"
+        ],
+        "title": "EvalReportView",
+        "type": "object"
+      },
       "EvalRunAccepted": {
         "description": "打分运行受理响应。",
         "properties": {
@@ -10086,6 +10214,224 @@
           }
         },
         "summary": "Put Manual Score",
+        "tags": [
+          "评测（打分批次）"
+        ]
+      }
+    },
+    "/api/workdirs/{wid}/eval-batches/{eN}/reports": {
+      "get": {
+        "description": "报告快照列表（最新在前）。",
+        "operationId": "list_eval_reports_api_workdirs__wid__eval_batches__eN__reports_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eN",
+            "required": true,
+            "schema": {
+              "title": "En",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvalReportSummaryView"
+                  },
+                  "title": "Response List Eval Reports Api Workdirs  Wid  Eval Batches  En  Reports Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "wid 或打分批次不存在（workdir-not-found / eval-batch-not-found）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Eval Reports",
+        "tags": [
+          "评测（打分批次）"
+        ]
+      },
+      "post": {
+        "description": "从一次运行聚合报告快照（缺省＝最近一次运行；重出同 run_id 即覆盖）。",
+        "operationId": "create_eval_report_api_workdirs__wid__eval_batches__eN__reports_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eN",
+            "required": true,
+            "schema": {
+              "title": "En",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/EvalReportCreateRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalReportView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "wid / 打分批次 / 运行不存在（workdir-not-found / eval-batch-not-found / eval-run-not-found）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "运行不属于该打分批次（problem+json: eval-report-mismatch）"
+          }
+        },
+        "summary": "Create Eval Report",
+        "tags": [
+          "评测（打分批次）"
+        ]
+      }
+    },
+    "/api/workdirs/{wid}/eval-batches/{eN}/reports/{rid}": {
+      "get": {
+        "description": "读一份报告快照全文（历史报告可回看、读数可复现）。",
+        "operationId": "get_eval_report_api_workdirs__wid__eval_batches__eN__reports__rid__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eN",
+            "required": true,
+            "schema": {
+              "title": "En",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rid",
+            "required": true,
+            "schema": {
+              "title": "Rid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalReportView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "wid / 打分批次 / 报告不存在（workdir-not-found / eval-batch-not-found / eval-report-not-found）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Eval Report",
         "tags": [
           "评测（打分批次）"
         ]

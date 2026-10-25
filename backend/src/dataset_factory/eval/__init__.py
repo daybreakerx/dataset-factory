@@ -60,6 +60,7 @@ from .manual import (
     manual_progress,
     read_manual_scores,
 )
+from .report import LANDIS_KOCH_BANDS, build_report, list_reports, read_report
 from .runner import (
     RUN_STATUS_COMPLETED,
     RUN_STATUS_INTERRUPTED,
@@ -74,6 +75,7 @@ __all__ = [
     "DUAL_SAMPLED",
     "KIND_BINARY",
     "KIND_SCORE5",
+    "LANDIS_KOCH_BANDS",
     "RUN_STATUS_COMPLETED",
     "RUN_STATUS_INTERRUPTED",
     "DeleteEvalBatchResult",
@@ -99,12 +101,14 @@ __all__ = [
     "append_manual_score",
     "build_dimension_messages",
     "build_pairwise_messages",
+    "build_report",
     "create_eval_batch",
     "delete_eval_batch",
     "dimension_response_schema",
     "get_eval_batch",
     "latest_manual_scores",
     "list_eval_batches",
+    "list_reports",
     "manual_progress",
     "pairwise_response_schema",
     "parse_dimension_output",
@@ -112,6 +116,7 @@ __all__ = [
     "parse_seq",
     "read_eval_config",
     "read_manual_scores",
+    "read_report",
     "update_eval_batch",
     "update_eval_config",
     "validate_references",

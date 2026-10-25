@@ -488,3 +488,46 @@ def test_samples_without_run_returns_empty(
     assert body["random"] == []
     assert body["targeted"] is None
     assert body["progress"] == {}
+
+
+# --------------------------------------------------------------------------
+# 报告端点
+# --------------------------------------------------------------------------
+
+
+def test_report_created_after_run_and_readable(
+    seeded_for_runs: tuple[TestClient, str, str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """运行完成自动出报告：列表可列、全文五层可读、未知报告 404。"""
+    client, wid, _, _ = seeded_for_runs
+    monkeypatch.setattr("dataset_factory.eval.runner.build_completer", _fast_factory)
+    started = client.post(f"/api/workdirs/{wid}/eval-batches/e1/runs")
+    run_id = str(started.json()["run_id"])
+    for _ in range(100):
+        if (
+            client.get(f"/api/workdirs/{wid}/eval-batches/e1/runs/current").json()
+            is None
+        ):
+            break
+        time.sleep(0.05)
+    listed = client.get(f"/api/workdirs/{wid}/eval-batches/e1/reports").json()
+    assert [row["report_id"] for row in listed] == [run_id]
+    detail = client.get(f"/api/workdirs/{wid}/eval-batches/e1/reports/{run_id}")
+    assert detail.status_code == 200
+    layers = detail.json()["layers"]
+    assert layers["dimensions"] is not None
+    assert layers["trust"]["landis_koch_bands"]
+    missing = client.get(f"/api/workdirs/{wid}/eval-batches/e1/reports/nope")
+    assert missing.status_code == 404
+    assert missing.json()["type"] == "eval-report-not-found"
+
+
+def test_report_post_without_run_returns_404(
+    seeded_for_runs: tuple[TestClient, str, str, Path],
+) -> None:
+    """批次在但没跑过打分 → 404（eval-run-not-found）。"""
+    client, wid, _, _ = seeded_for_runs
+    response = client.post(f"/api/workdirs/{wid}/eval-batches/e1/reports")
+    assert response.status_code == 404
+    assert response.json()["type"] == "eval-run-not-found"
