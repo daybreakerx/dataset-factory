@@ -1,4 +1,4 @@
-共 64 条命令
+共 75 条命令
 batch add
 batch edit
 batch exclude
@@ -22,6 +22,17 @@ config remove
 config set
 config show
 config test
+eval add
+eval edit
+eval list
+eval report list
+eval report show
+eval rm
+eval run
+eval score
+eval scores
+eval show
+eval status
 export plan
 export run
 label

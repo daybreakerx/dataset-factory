@@ -41,6 +41,7 @@ from ..eval import (
     create_eval_batch,
     delete_eval_batch,
     get_eval_batch,
+    latest_eval_run_dir,
     latest_manual_scores,
     list_eval_batches,
     list_reports,
@@ -430,28 +431,6 @@ def _sse_frame(event: str, data: dict[str, object]) -> str:
 # -- 人工打分与题单（人工数据不绑打分批次配置——经 eval 域全局存取） ---------
 
 
-def _latest_eval_run_dir(workdir: Path, seq: int) -> Path | None:
-    """该打分批次最近一次运行目录（目录名字典序即时间序）；没有运行返回 None。"""
-    store = EvalStore(workdir)
-    if not store.runs_dir.is_dir():
-        return None
-    best: Path | None = None
-    for directory in store.runs_dir.iterdir():
-        marker = directory / "run.json"
-        if not marker.is_file():
-            continue
-        try:
-            record: object = json.loads(marker.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(record, dict):
-            continue
-        matches = cast("dict[str, object]", record).get("batch") == f"e{seq}"
-        if matches and (best is None or directory.name > best.name):
-            best = directory
-    return best
-
-
 @eval_router.get(
     "/{eN}/samples",
     response_model=EvalSamplesView,
@@ -469,7 +448,7 @@ def get_eval_samples(wid: str, eN: str) -> EvalSamplesView:
     workdir = workdir_root(wid)
     seq = parse_seq(eN)
     get_eval_batch(workdir, seq)
-    run_dir = _latest_eval_run_dir(workdir, seq)
+    run_dir = latest_eval_run_dir(workdir, seq)
     random_stems: list[str] = []
     targeted: dict[str, object] | None = None
     if run_dir is not None:
@@ -590,7 +569,7 @@ def create_eval_report(
     get_eval_batch(workdir, seq)
     run_id = body.run_id if body is not None and body.run_id else None
     if run_id is None:
-        latest = _latest_eval_run_dir(workdir, seq)
+        latest = latest_eval_run_dir(workdir, seq)
         if latest is None:
             raise ProblemError(
                 404,

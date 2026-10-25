@@ -39,6 +39,7 @@ from .._obs import RequestIdFilter
 from . import (
     batch,
     config,
+    eval,
     export,
     label,
     prompt,
@@ -97,6 +98,7 @@ app.add_typer(session.app, name="session")
 app.add_typer(workdir.app, name="workdir")
 app.add_typer(batch.app, name="batch")
 app.add_typer(export.app, name="export")
+app.add_typer(eval.app, name="eval")
 app.add_typer(strategy.app, name="strategy")
 app.command(name="label")(label.label)
 app.command(name="chat")(label.chat)

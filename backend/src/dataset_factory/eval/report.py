@@ -36,9 +36,37 @@ from .store import EvalStore
 __all__ = [
     "LANDIS_KOCH_BANDS",
     "build_report",
+    "latest_eval_run_dir",
     "list_reports",
     "read_report",
 ]
+
+
+def latest_eval_run_dir(workdir: Path, seq: int) -> Path | None:
+    """该打分批次最近一次运行目录（目录名字典序即时间序）；没有运行返回 None。
+
+    坏的 run.json 跳过——「挑最近一份可读的」是清点口径，单份损坏不挡路。
+    """
+    store = EvalStore(workdir)
+    if not store.runs_dir.is_dir():
+        return None
+    best: Path | None = None
+    for directory in store.runs_dir.iterdir():
+        marker = directory / "run.json"
+        if not marker.is_file():
+            continue
+        try:
+            loaded: object = json.loads(marker.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        matches = (
+            isinstance(loaded, dict)
+            and cast("dict[str, object]", loaded).get("batch") == f"e{seq}"
+        )
+        if matches and (best is None or directory.name > best.name):
+            best = directory
+    return best
+
 
 #: Bootstrap 次数与随机种子（固定种子＝同数据同区间；报告可复现的口径之一）。
 _BOOTSTRAP_DRAWS = 2000
