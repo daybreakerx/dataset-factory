@@ -1254,3 +1254,65 @@ class EvalRunStatusView(BaseModel):
         description="计划 / 已尝试 / 成功 / 失败 / 跳过 计数"
     )
     error: str | None = Field(default=None, description="失败原因（failed 时给）")
+
+
+class ManualScoreRequest(BaseModel):
+    """PUT manual-scores 的请求体：追加一条人工打分（按 kind 取必填组合）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["dimension", "pair"] = Field(
+        description="dimension = 候选 caption 的维度打分；pair = 一对候选的对比判定"
+    )
+    item: str = Field(description="素材主干")
+    batch: int | None = Field(
+        default=None, description="被测批次序号（kind = dimension 必填）"
+    )
+    a_batch: int | None = Field(
+        default=None, description="对比 A 侧批次序号（kind = pair 必填）"
+    )
+    b_batch: int | None = Field(
+        default=None, description="对比 B 侧批次序号（kind = pair 必填）"
+    )
+    annotator: str = Field(description="标注者标识（本地身份，匿名给个标识即可）")
+    scores: dict[str, int | str] | None = Field(
+        default=None, description="维度名 → 分数（1–5）或「有／无」（dimension 必填）"
+    )
+    winner: str | None = Field(
+        default=None, description="判定结果 A / B / tie（pair 必填）"
+    )
+    reason: str | None = Field(
+        default=None, description="理由；人工低分（≤2）必填，其余选填"
+    )
+
+
+class ManualScoreView(BaseModel):
+    """一条人工打分记录（追加后回读的现状）。"""
+
+    kind: str = Field(description="dimension / pair")
+    item: str = Field(description="素材主干")
+    batch: int | None = Field(default=None, description="被测批次序号（dimension）")
+    a_batch: int | None = Field(default=None, description="A 侧批次序号（pair）")
+    b_batch: int | None = Field(default=None, description="B 侧批次序号（pair）")
+    annotator: str = Field(description="标注者标识")
+    scores: dict[str, int | str] | None = Field(
+        default=None, description="维度分数（dimension）"
+    )
+    winner: str | None = Field(default=None, description="判定结果（pair）")
+    reason: str | None = Field(default=None, description="理由")
+    recorded_at: str = Field(description="记录时刻（UTC ISO 8601）")
+
+
+class EvalSamplesView(BaseModel):
+    """最近一次打分运行的题单与人工进度。"""
+
+    run_id: str | None = Field(
+        default=None, description="运行标识；null = 还没跑过打分"
+    )
+    random: list[str] = Field(description="随机抽检题单（素材主干，含定向并集视图）")
+    targeted: dict[str, object] | None = Field(
+        default=None, description="定向筛查题单（items + 挑选依据 basis）"
+    )
+    progress: dict[str, dict[str, bool]] = Field(
+        description="素材主干 → {dimension, pair}：是否已有对应人工打分"
+    )

@@ -36,10 +36,13 @@ from ..eval import (
     EvalStore,
     HumanSettings,
     PairwiseSettings,
+    append_manual_score,
     create_eval_batch,
     delete_eval_batch,
     get_eval_batch,
+    latest_manual_scores,
     list_eval_batches,
+    manual_progress,
     parse_seq,
     read_eval_config,
     update_eval_batch,
@@ -56,6 +59,9 @@ from .schemas import (
     EvalConfigPayload,
     EvalRunAccepted,
     EvalRunStatusView,
+    EvalSamplesView,
+    ManualScoreRequest,
+    ManualScoreView,
     Problem,
 )
 
@@ -413,3 +419,140 @@ def stream_eval_run(wid: str, eN: str, request: Request) -> StreamingResponse:
 def _sse_frame(event: str, data: dict[str, object]) -> str:
     """一条 SSE 帧（event + data 两行）；JSON 不转义中文，与跑批流同构。"""
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+# -- 人工打分与题单（人工数据不绑打分批次配置——经 eval 域全局存取） ---------
+
+
+def _latest_eval_run_dir(workdir: Path, seq: int) -> Path | None:
+    """该打分批次最近一次运行目录（目录名字典序即时间序）；没有运行返回 None。"""
+    store = EvalStore(workdir)
+    if not store.runs_dir.is_dir():
+        return None
+    best: Path | None = None
+    for directory in store.runs_dir.iterdir():
+        marker = directory / "run.json"
+        if not marker.is_file():
+            continue
+        try:
+            record: object = json.loads(marker.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(record, dict):
+            continue
+        matches = cast("dict[str, object]", record).get("batch") == f"e{seq}"
+        if matches and (best is None or directory.name > best.name):
+            best = directory
+    return best
+
+
+@eval_router.get(
+    "/{eN}/samples",
+    response_model=EvalSamplesView,
+    responses={
+        404: problem(
+            "wid 或打分批次不存在（workdir-not-found / eval-batch-not-found）"
+        ),
+    },
+)
+def get_eval_samples(wid: str, eN: str) -> EvalSamplesView:
+    """最近一次运行的题单（随机抽检／定向筛查）＋人工进度（按素材主干汇总）。
+
+    没有运行过时 run_id 为 null、两份题单为空——页面据此引导先跑一次打分。
+    """
+    workdir = workdir_root(wid)
+    seq = parse_seq(eN)
+    get_eval_batch(workdir, seq)
+    run_dir = _latest_eval_run_dir(workdir, seq)
+    random_stems: list[str] = []
+    targeted: dict[str, object] | None = None
+    if run_dir is not None:
+        try:
+            data: object = json.loads(
+                (run_dir / "samples.json").read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError):
+            data = None
+        if isinstance(data, dict):
+            record = cast("dict[str, object]", data)
+            random_raw = record.get("random")
+            if isinstance(random_raw, list):
+                random_stems = [str(stem) for stem in cast("list[object]", random_raw)]
+            targeted_raw = record.get("targeted")
+            if isinstance(targeted_raw, dict):
+                targeted = cast("dict[str, object]", targeted_raw)
+                items = targeted.get("items")
+                if isinstance(items, list):
+                    random_stems = sorted(
+                        set(random_stems)
+                        | {str(stem) for stem in cast("list[object]", items)}
+                    )
+    stems = sorted(set(random_stems))
+    return EvalSamplesView(
+        run_id=run_dir.name if run_dir is not None else None,
+        random=random_stems,
+        targeted=targeted,
+        progress=manual_progress(workdir, stems),
+    )
+
+
+@eval_router.put(
+    "/{eN}/manual-scores",
+    response_model=ManualScoreView,
+    responses={
+        400: problem("打分记录规则不过（problem+json: eval-config-invalid）"),
+        404: problem(
+            "wid 或打分批次不存在（workdir-not-found / eval-batch-not-found）"
+        ),
+    },
+)
+def put_manual_score(wid: str, eN: str, body: ManualScoreRequest) -> ManualScoreView:
+    """追加一条人工打分（改分＝再提交一条，读取按每键最近一条）。
+
+    人工数据不绑打分批次配置（删打分批次不随删）；路径挂在打分批次下只是
+    页面作用域。低分（五档 ≤2）理由必填。
+    """
+    workdir = workdir_root(wid)
+    get_eval_batch(workdir, parse_seq(eN))
+    record: dict[str, object] = {"kind": body.kind, "item": body.item}
+    if body.kind == "dimension":
+        record["batch"] = body.batch
+        record["scores"] = dict(body.scores) if body.scores is not None else {}
+    else:
+        record["a_batch"] = body.a_batch
+        record["b_batch"] = body.b_batch
+        record["winner"] = body.winner
+    record["annotator"] = body.annotator
+    if body.reason is not None:
+        record["reason"] = body.reason
+    stored = append_manual_score(workdir, record)
+    return ManualScoreView.model_validate(stored)
+
+
+@eval_router.get(
+    "/{eN}/manual-scores",
+    response_model=list[ManualScoreView],
+    responses={
+        404: problem(
+            "wid 或打分批次不存在（workdir-not-found / eval-batch-not-found）"
+        ),
+    },
+)
+def get_manual_scores(
+    wid: str,
+    eN: str,
+    kind: str | None = None,
+    item: str | None = None,
+    annotator: str | None = None,
+) -> list[ManualScoreView]:
+    """读当前有效的人工打分（每键最近一条；按 kind / item / annotator 过滤）。"""
+    workdir = workdir_root(wid)
+    get_eval_batch(workdir, parse_seq(eN))
+    records = latest_manual_scores(workdir)
+    if kind is not None:
+        records = [row for row in records if row.get("kind") == kind]
+    if item is not None:
+        records = [row for row in records if row.get("item") == item]
+    if annotator is not None:
+        records = [row for row in records if row.get("annotator") == annotator]
+    return [ManualScoreView.model_validate(row) for row in records]

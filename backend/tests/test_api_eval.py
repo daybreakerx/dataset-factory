@@ -426,3 +426,65 @@ def test_stream_emits_start_items_finish(
     assert "event: run-started" in joined
     assert "event: item-updated" in joined
     assert "event: run-finished" in joined
+
+
+# --------------------------------------------------------------------------
+# 人工打分与题单端点
+# --------------------------------------------------------------------------
+
+
+def test_manual_score_put_and_get(
+    seeded_for_runs: tuple[TestClient, str, str, Path],
+) -> None:
+    """PUT 追加维度打分（回读现状）→ GET 按过滤读当前有效记录。"""
+    client, wid, _, _ = seeded_for_runs
+    put = client.put(
+        f"/api/workdirs/{wid}/eval-batches/e1/manual-scores",
+        json={
+            "kind": "dimension",
+            "item": "cat",
+            "batch": 1,
+            "annotator": "我",
+            "scores": {"场景描述": 4},
+            "reason": "不错",
+        },
+    )
+    assert put.status_code == 200
+    assert put.json()["recorded_at"]
+    listed = client.get(
+        f"/api/workdirs/{wid}/eval-batches/e1/manual-scores", params={"kind": "pair"}
+    )
+    assert listed.json() == []
+
+
+def test_manual_score_low_score_without_reason_rejected(
+    seeded_for_runs: tuple[TestClient, str, str, Path],
+) -> None:
+    """人工低分（≤2）缺理由 → 400 聚合消息。"""
+    client, wid, _, _ = seeded_for_runs
+    response = client.put(
+        f"/api/workdirs/{wid}/eval-batches/e1/manual-scores",
+        json={
+            "kind": "dimension",
+            "item": "cat",
+            "batch": 1,
+            "annotator": "我",
+            "scores": {"场景描述": 1},
+        },
+    )
+    assert response.status_code == 400
+    assert "理由必填" in response.json()["detail"]
+
+
+def test_samples_without_run_returns_empty(
+    seeded_for_runs: tuple[TestClient, str, str, Path],
+) -> None:
+    """没跑过打分：samples 视图 run_id=null、题单为空、进度为空。"""
+    client, wid, _, _ = seeded_for_runs
+    response = client.get(f"/api/workdirs/{wid}/eval-batches/e1/samples")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["run_id"] is None
+    assert body["random"] == []
+    assert body["targeted"] is None
+    assert body["progress"] == {}
