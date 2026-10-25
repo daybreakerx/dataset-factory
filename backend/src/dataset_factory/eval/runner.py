@@ -228,7 +228,7 @@ class _ItemPlan:
 
     stem: str
     asset_path: Path
-    captions: dict[int, str] = field(default_factory=dict)
+    captions: dict[int, str] = field(default_factory=lambda: dict[int, str]())
     reference: str | None = None
 
     def caption_for(self, batch: int, benchmark: int | None) -> str:
