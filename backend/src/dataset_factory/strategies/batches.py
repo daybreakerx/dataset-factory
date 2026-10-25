@@ -58,6 +58,7 @@ __all__ = [
     "read_snapshot",
     "remove_exclusions",
     "set_batch_active",
+    "set_batch_benchmark",
     "update_batch",
 ]
 
@@ -72,6 +73,9 @@ class BatchEntry:
     snapshot: str  # 快照文件名（sN.json）
     active: bool  # False = 停用（隐藏）：不出现在下拉 / 列表 / 打包选项
     created_at: str
+    benchmark: bool = (
+        False  # True = 基准位：产物为摆放的参照，禁跑批（打分页指定基准的批次）
+    )
 
 
 def parse_seq(raw: str) -> int:
@@ -104,6 +108,7 @@ def _entry_from_dict(data: object) -> BatchEntry:
     snapshot = record.get("snapshot")
     active = record.get("active")
     created_at = record.get("created_at")
+    benchmark_raw = record.get("benchmark")
     if (
         not isinstance(seq, int)
         or isinstance(seq, bool)
@@ -116,6 +121,9 @@ def _entry_from_dict(data: object) -> BatchEntry:
         raise WorkdirMetadataCorruptedError(
             "工作目录状态文件的批次记录缺字段或类型不对——请检查 .dsf/state.json。"
         )
+    benchmark = (
+        benchmark_raw if isinstance(benchmark_raw, bool) else False
+    )  # 缺键兼容旧 state
     return BatchEntry(
         seq=seq,
         name=name,
@@ -123,6 +131,7 @@ def _entry_from_dict(data: object) -> BatchEntry:
         snapshot=snapshot,
         active=active,
         created_at=created_at,
+        benchmark=benchmark,
     )
 
 
@@ -173,6 +182,7 @@ def _entries_into_state(
             "snapshot": entry.snapshot,
             "active": entry.active,
             "created_at": entry.created_at,
+            "benchmark": entry.benchmark,
         }
         for entry in entries
     ]
@@ -365,6 +375,25 @@ def set_batch_active(workdir: Path, seq: int, active: bool) -> BatchEntry:
         entries = _entries_from_state(state)
         entry = _require_entry(entries, seq)
         entry.active = active
+        _entries_into_state(state, _replace_entry(entries, entry))
+        return entry
+
+    return store.mutate_state(mutator)
+
+
+def set_batch_benchmark(workdir: Path, seq: int, benchmark: bool) -> BatchEntry:
+    """置位／复位基准位：该批次产物为摆放的参照、禁跑批（打分页指定基准的批次）。
+
+    基准位只表达「禁跑保护」与界面标记，不改产物与快照；评测配置引用哪个批次
+    当基准是 eval 域的事——可指定摆放的参照批次（置位禁跑），也可指定模型
+    产出的参照模型批次（不置位、照常可跑），两边独立。
+    """
+    store = WorkdirStore(workdir)
+
+    def mutator(state: dict[str, object]) -> BatchEntry:
+        entries = _entries_from_state(state)
+        entry = _require_entry(entries, seq)
+        entry.benchmark = benchmark
         _entries_into_state(state, _replace_entry(entries, entry))
         return entry
 

@@ -68,12 +68,13 @@ show_missing = true
 root_packages = ["dataset_factory"]
 
 [[tool.importlinter.contracts]]
-name = "分层：cli（启动器）> api（HTTP 入口）> runs（跑批编排）> labeling（单张打标）> 策略 > 工作目录 > 能力 > 数据域（单向；核心禁止 import 入口层）"
+name = "分层：cli（启动器）> api（HTTP 入口）> runs（跑批编排）> eval（评测编排）> labeling（单张打标）> 策略 > 工作目录 > 能力 > 数据域（单向；核心禁止 import 入口层）"
 type = "layers"
 layers = [
     "dataset_factory.cli",
     "dataset_factory.api",
     "dataset_factory.runs",
+    "dataset_factory.eval",
     "dataset_factory.labeling",
     "dataset_factory.strategies",
     "dataset_factory.export",
@@ -170,6 +171,9 @@ only_mutate = [
     "src/dataset_factory/cli/operations.py",
     "src/dataset_factory/cli/workdir.py",
     "src/dataset_factory/export/packing.py",
+    "src/dataset_factory/eval/batches.py",
+    "src/dataset_factory/eval/config.py",
+    "src/dataset_factory/eval/store.py",
     "src/dataset_factory/runs/runner.py",
     "src/dataset_factory/sessions/store.py",
     "src/dataset_factory/strategies/batches.py",

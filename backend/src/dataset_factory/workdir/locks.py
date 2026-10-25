@@ -286,10 +286,16 @@ _STATE_LOCK_TIMEOUT_SECONDS: float = 10.0
 class RunLock:
     """一个工作目录的运行锁：非阻塞抢锁 + run-info 写读清（同一个工作目录一把锁）。"""
 
-    def __init__(self, dsf_path: Path) -> None:
-        """以 ``.dsf/`` 路径构造（锁文件与占用者文件都落在这里）。"""
+    def __init__(self, dsf_path: Path, *, occupied_detail: str | None = None) -> None:
+        """以锁目录构造（锁文件与占用者文件都落在这里）。
+
+        occupied_detail：抢锁失败且读不到占用者信息时的拒绝文案；None 用打标
+        跑批的默认文案——eval 域复用本类（锁目录为 ``.dsf/eval/``）时传入评测
+        口径的文案，占用者信息照旧挂 run-info.json。
+        """
         self._lock = shared_file_lock(dsf_path / _RUN_LOCK_NAME)
         self._info_path = dsf_path / _RUN_INFO_NAME
+        self._occupied_detail = occupied_detail
         self._acquired = False
 
     def acquire(self, occupier: dict[str, Any]) -> None:
@@ -308,11 +314,12 @@ class RunLock:
                 self._lock.acquire(timeout=0)
         except Timeout as exc:
             existing = read_occupier(self._info_path)
-            detail = (
-                "工作目录正被另一个跑批运行占用。"
-                if existing is None
-                else _occupier_sentence(existing)
+            fallback = (
+                self._occupied_detail
+                if self._occupied_detail is not None
+                else "工作目录正被另一个跑批运行占用。"
             )
+            detail = fallback if existing is None else _occupier_sentence(existing)
             raise RunOccupiedError(detail, occupier=existing) from exc
         self._acquired = True
         try:

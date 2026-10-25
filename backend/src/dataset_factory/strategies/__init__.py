@@ -21,6 +21,7 @@ from .batches import (
     read_snapshot,
     remove_exclusions,
     set_batch_active,
+    set_batch_benchmark,
     update_batch,
 )
 from .errors import (
@@ -81,6 +82,7 @@ __all__ = [
     "remove_exclusions",
     "require_refs_exist",
     "set_batch_active",
+    "set_batch_benchmark",
     "set_current_strategy",
     "strategy_content_hash",
     "update_batch",
