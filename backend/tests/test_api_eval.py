@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +15,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from dataset_factory.api import create_app
-from dataset_factory.llm import create_config
+from dataset_factory.llm import (
+    Completer,
+    EndpointConfig,
+    Message,
+    StreamDelta,
+    TextPart,
+    create_config,
+)
 from dataset_factory.prompts import Prompt, save_prompt
 from dataset_factory.strategies import create_batch, create_strategy
 
@@ -249,6 +257,18 @@ def test_benchmark_endpoints_toggle_flag(
 # --------------------------------------------------------------------------
 
 _GOOD_DIMENSION = '{"场景描述": 4, "无幻觉": "无", "理由": "准确。"}'
+
+
+def _fast_factory(_config: EndpointConfig) -> Completer:
+    """快回假件工厂（不打盹）。"""
+    return _FakeJudgeCompleter()
+
+
+def _slow_factory(_config: EndpointConfig) -> Completer:
+    """每调用延时假件工厂（拉长运行供 SSE 测试接流）。"""
+    return _FakeJudgeCompleter(delay=0.12)
+
+
 _GOOD_PAIRWISE = '{"winner": "A", "理由": "A 更准确。"}'
 
 
@@ -259,26 +279,22 @@ class _FakeJudgeCompleter:
         """存每调用延时。"""
         self._delay = delay
 
-    def complete(self, messages: object) -> str:
+    def complete(self, messages: Sequence[Message]) -> str:
         """纯文本档。"""
         return self._reply(messages)
 
-    def stream(self, messages: object) -> object:
+    def stream(self, messages: Sequence[Message]) -> Iterator[StreamDelta]:
         """judge 协议不走流式——Protocol 齐备性桩。"""
         raise NotImplementedError
 
     def complete_structured(
-        self, messages: object, response_format: dict[str, object] | None
+        self, messages: Sequence[Message], response_format: dict[str, object] | None
     ) -> str:
         """结构化档（同路由）。"""
         return self._reply(messages)
 
-    def _reply(self, messages: object) -> str:
-        from dataset_factory.llm import TextPart
-
+    def _reply(self, messages: Sequence[Message]) -> str:
         if self._delay:
-            import time
-
             time.sleep(self._delay)
         text = chr(10).join(
             part.text
@@ -344,10 +360,7 @@ def test_start_run_completes_then_current_idle(
 ) -> None:
     """受理 202 → 后台跑完 → current 回 null（成功后出注册表）、run.json 落盘。"""
     client, wid, _, workdir = seeded_for_runs
-    monkeypatch.setattr(
-        "dataset_factory.eval.runner.build_completer",
-        lambda _config: _FakeJudgeCompleter(),
-    )
+    monkeypatch.setattr("dataset_factory.eval.runner.build_completer", _fast_factory)
     started = client.post(f"/api/workdirs/{wid}/eval-batches/e1/runs")
     assert started.status_code == 202
     run_id = str(started.json()["run_id"])
@@ -400,10 +413,7 @@ def test_stream_emits_start_items_finish(
 ) -> None:
     """SSE 流：run-started → item-updated… → run-finished 后关流。"""
     client, wid, _, _ = seeded_for_runs
-    monkeypatch.setattr(
-        "dataset_factory.eval.runner.build_completer",
-        lambda _config: _FakeJudgeCompleter(delay=0.12),
-    )
+    monkeypatch.setattr("dataset_factory.eval.runner.build_completer", _slow_factory)
     started = client.post(f"/api/workdirs/{wid}/eval-batches/e1/runs")
     assert started.status_code == 202
     frames: list[str] = []
