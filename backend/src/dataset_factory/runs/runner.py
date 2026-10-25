@@ -76,7 +76,7 @@ from ..workdir.importer import hash_file
 from ..workdir.locks import RunLock
 from ..workdir.store import WorkdirStore
 from .control import stop_mode
-from .errors import BatchInactiveError
+from .errors import BatchInactiveError, BenchmarkBatchError
 from .journal import (
     RunJournal,
     empty_counters,
@@ -442,6 +442,11 @@ class BatchRunner:
         if not entry.active:
             raise BatchInactiveError(
                 f"批次 s{self._seq} 已停用（隐藏）——请先在批次列表里「显示」再跑批。"
+            )
+        if entry.benchmark:
+            raise BenchmarkBatchError(
+                f"批次 s{self._seq} 是基准批次（产物为摆放的参照）——禁跑批，"
+                "一跑会把参照覆盖成模型产物。"
             )
         store = WorkdirStore(self._workdir)
         lock = RunLock(store.dsf_path)

@@ -52,6 +52,7 @@ from ..prompts import (
 )
 from ..runs import (
     BatchInactiveError,
+    BenchmarkBatchError,
     RetryItemNotEligibleError,
     RunError,
     RunJournalCorruptedError,
@@ -247,6 +248,7 @@ _PROBLEM_RULES: tuple[_ProblemRule, ...] = (
         extras_from="occupier",
     ),
     _ProblemRule(BatchInactiveError, 409, "batch-inactive", "批次已停用"),
+    _ProblemRule(BenchmarkBatchError, 409, "batch-benchmark", "基准批次禁跑批"),
     _ProblemRule(RunNotActiveError, 404, "run-not-active", "当前没有进行中的跑批"),
     # run（损坏所在的那份运行目录名）进扩展字段：就地出口拿它去调清理端点。
     _ProblemRule(

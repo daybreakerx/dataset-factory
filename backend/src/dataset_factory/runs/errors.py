@@ -23,6 +23,14 @@ class BatchInactiveError(RunError):
     """批次处于停用（隐藏）状态，不允许启动跑批——HTTP 409 problem+json（batch-inactive）。"""
 
 
+class BenchmarkBatchError(RunError):
+    """基准批次禁跑批——HTTP 409 problem+json（batch-benchmark）。
+
+    基准批次的产物是摆放的参照（无打标哈希锚点），一跑批会被判「无锚点→重打」
+    把参照覆盖成模型产物——禁跑是硬约束（评测需求的既定口径）。
+    """
+
+
 class RunJournalCorruptedError(RunError):
     """历史运行流水（items.jsonl）损坏——HTTP 500 problem+json（run-journal-corrupted）。
 

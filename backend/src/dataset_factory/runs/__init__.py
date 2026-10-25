@@ -24,6 +24,7 @@ labeling（逐条调用纯素材路径）、llm（异常分类）。
 
 from .errors import (
     BatchInactiveError,
+    BenchmarkBatchError,
     RetryItemNotEligibleError,
     RunError,
     RunJournalCorruptedError,
@@ -85,6 +86,7 @@ __all__ = [
     "TERMINAL_RUN_STATUSES",
     "BatchInactiveError",
     "BatchRunner",
+    "BenchmarkBatchError",
     "ItemDeltaEvent",
     "ItemRecord",
     "ItemRow",

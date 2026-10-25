@@ -53,6 +53,12 @@ from .judge import (
     parse_dimension_output,
     parse_pairwise_output,
 )
+from .runner import (
+    RUN_STATUS_COMPLETED,
+    RUN_STATUS_INTERRUPTED,
+    EvalRunner,
+    RunReport,
+)
 from .store import EvalBatchEntry, EvalStore
 
 __all__ = [
@@ -61,6 +67,8 @@ __all__ = [
     "DUAL_SAMPLED",
     "KIND_BINARY",
     "KIND_SCORE5",
+    "RUN_STATUS_COMPLETED",
+    "RUN_STATUS_INTERRUPTED",
     "DeleteEvalBatchResult",
     "DimensionSpec",
     "DimensionVerdict",
@@ -72,12 +80,14 @@ __all__ = [
     "EvalError",
     "EvalJudgeFormatError",
     "EvalRunOccupiedError",
+    "EvalRunner",
     "EvalStore",
     "HumanSettings",
     "JudgeCallRecord",
     "JudgeCaller",
     "PairwiseSettings",
     "PairwiseVerdict",
+    "RunReport",
     "build_dimension_messages",
     "build_pairwise_messages",
     "create_eval_batch",
