@@ -24,6 +24,7 @@ from ..eval import (
     EvalConfigCorruptedError,
     EvalConfigError,
     EvalError,
+    EvalRunNotActiveError,
     EvalRunOccupiedError,
 )
 from ..export import ExportError
@@ -137,6 +138,10 @@ def create_app(frontend_dir: Path | None = None) -> FastAPI:
     # 磁盘运行锁是跨进程权威，注册表只做进程内快速拒绝与 current/stop/stream 的寻址）。
     app.state.run_registry = {}
     app.state.run_registry_guard = threading.Lock()
+    # 打分运行注册表：同构的 eval 侧（工作目录 realpath → 运行中的 EvalRunner；
+    # 评测与打标各自一把注册表——两类运行本就可并行，互不占用）。
+    app.state.eval_run_registry = {}
+    app.state.eval_run_registry_guard = threading.Lock()
     app.include_router(routes_labeling.router)
     app.include_router(routes_prompts.router)
     app.include_router(routes_skills.router)
@@ -224,6 +229,9 @@ _PROBLEM_RULES: tuple[_ProblemRule, ...] = (
     _ProblemRule(StrategyError, 500, "strategy-error", "策略数据异常"),
     # —— 评测（打分批次）域 ——
     _ProblemRule(EvalBatchNotFoundError, 404, "eval-batch-not-found", "打分批次不存在"),
+    _ProblemRule(
+        EvalRunNotActiveError, 404, "eval-run-not-active", "没有进行中的打分运行"
+    ),
     _ProblemRule(EvalConfigError, 400, "eval-config-invalid", "打分批次配置不合法"),
     _ProblemRule(
         EvalConfigCorruptedError, 409, "eval-config-corrupted", "打分批次配置损坏"

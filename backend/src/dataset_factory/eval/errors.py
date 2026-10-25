@@ -52,3 +52,7 @@ class EvalJudgeFormatError(EvalError):
         """携问题清单（每句一个可读问题）。"""
         super().__init__("；".join(problems))
         self.problems = problems
+
+
+class EvalRunNotActiveError(EvalError):
+    """该打分批次当前没有进行中的打分运行——HTTP 404 problem+json（eval-run-not-active）。"""

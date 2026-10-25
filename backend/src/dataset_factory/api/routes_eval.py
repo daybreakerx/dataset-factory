@@ -1,22 +1,38 @@
-"""eval 域端点：打分批次生命周期（质检与评测页的后端面之一）。
+"""eval 域端点：打分批次生命周期 + 打分运行（质检与评测页的后端面）。
 
-``eval_router``（/api/workdirs/{wid}/eval-batches）：列表 / 新建（201 +
-Location）/ 详情 / PATCH（名称 / 描述 / **评测配置全量替换**——与打标批次
-「组合不可改」相反，改了保存重跑即重算）/ 删除（配置＋该批次的运行记录与
-报告快照移入可恢复暂存；人工打分不随删）。
+``eval_router``（/api/workdirs/{wid}/eval-batches）：
+- 批次：列表 / 新建（201 + Location）/ 详情 / PATCH（名称 / 描述 / **评测配置
+  全量替换**——与打标批次「组合不可改」相反，改了保存重跑即重算）/ 删除。
+- 运行：POST ``/{eN}/runs``（受理 202）/ ``runs/current``（轮询）/ ``runs/stop``
+  （协作取消）/ ``runs/stream``（SSE 帧与跑批同构）——与 routes_runs 同构：
+  注册表按工作目录键控（内存态、重启即丢；磁盘 eval 运行锁是跨进程权威）、
+  后台线程执行、受理后的失败走 SSE / current 呈现。
 
-错误一律 problem+json（404 workdir / 打分批次不存在、400 配置规则或引用
-不合法、409 配置文件损坏）。发车与条目评分视图等运行端点随后续主题长入。
+错误一律 problem+json（404 workdir / 打分批次 / 运行不存在、400 配置规则或
+引用不合法、409 配置文件损坏 / 评测运行占用）。
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Response
+import asyncio
+import json
+import logging
+import os
+import queue
+import threading
+from collections.abc import AsyncIterator
+from pathlib import Path
+from typing import cast
+
+from fastapi import APIRouter, Request, Response
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from ..eval import (
     DimensionSpec,
     EvalBatchConfig,
     EvalBatchEntry,
+    EvalRunner,
+    EvalRunNotActiveError,
     EvalStore,
     HumanSettings,
     PairwiseSettings,
@@ -30,6 +46,7 @@ from ..eval import (
     update_eval_config,
     validate_references,
 )
+from ..workdir import RunOccupiedError
 from .deps import workdir_root
 from .problems import problem
 from .schemas import (
@@ -37,7 +54,12 @@ from .schemas import (
     EvalBatchUpdateRequest,
     EvalBatchView,
     EvalConfigPayload,
+    EvalRunAccepted,
+    EvalRunStatusView,
+    Problem,
 )
+
+logger = logging.getLogger(__name__)
 
 eval_router = APIRouter(
     prefix="/api/workdirs/{wid}/eval-batches", tags=["评测（打分批次）"]
@@ -200,3 +222,194 @@ def delete_eval(wid: str, eN: str) -> Response:
     """
     delete_eval_batch(workdir_root(wid), parse_seq(eN))
     return Response(status_code=204)
+
+
+# -- 打分运行（受理＋进度＋停止＋SSE） ---------------------------------------
+
+_TERMINAL_STATUSES = frozenset({"completed", "interrupted", "failed"})
+_RETRY_AFTER_SECONDS = 2
+
+
+def _run_registry(request: Request) -> tuple[dict[str, EvalRunner], threading.Lock]:
+    """取应用级打分运行注册表与其守卫锁（create_app 装配，随应用实例隔离）。"""
+    return (
+        cast("dict[str, EvalRunner]", request.app.state.eval_run_registry),
+        cast("threading.Lock", request.app.state.eval_run_registry_guard),
+    )
+
+
+def _active_runner(request: Request, workdir: Path, seq: int) -> EvalRunner:
+    """查该工作目录的当前打分运行并校验批次归属；无运行 / 批次不符 → 404。
+
+    批次校验不可省（URL 是批次作用域、注册表按工作目录键控）——e2 的 stop /
+    current 不能命中 e1 的运行。
+    """
+    registry, guard = _run_registry(request)
+    with guard:
+        runner = registry.get(str(workdir))
+    if runner is None or runner.snapshot()["batch"] != f"e{seq}":
+        raise EvalRunNotActiveError(
+            "该打分批次当前没有进行中的打分运行——启动一次打分后再试。"
+        )
+    return runner
+
+
+def _require_active(runner: EvalRunner) -> EvalRunner:
+    """对 stop / stream 的额外校验：已到终态的注册表残留按 404 处理。"""
+    if runner.snapshot()["status"] in _TERMINAL_STATUSES:
+        raise EvalRunNotActiveError(
+            "该打分批次当前没有进行中的打分运行——启动一次打分后再试。"
+        )
+    return runner
+
+
+@eval_router.post(
+    "/{eN}/runs",
+    status_code=202,
+    response_model=EvalRunAccepted,
+    responses={
+        400: problem("裁判引用不成立（problem+json: eval-config-invalid）"),
+        404: problem(
+            "wid 或打分批次不存在（workdir-not-found / eval-batch-not-found）"
+        ),
+        409: {
+            "model": Problem,
+            "content": {"application/problem+json": {}},
+            "description": "该工作目录已有打分（评测）运行（problem+json: eval-run-occupied）",
+        },
+    },
+)
+def start_eval_run(wid: str, eN: str, request: Request) -> JSONResponse:
+    """受理一次打分运行：同步预检 + 登记注册表 + 后台线程执行，202 立即返回。
+
+    预检（批次与配置可读、裁判引用现查）在受理之前完成，把能在请求内确定的
+    错误同步报给客户端；跨进程的 eval 运行锁占用在后台线程抢锁时才暴露，经
+    SSE / current 呈现（status=failed + 一条 failed 的 run-finished 事件）。
+    """
+    workdir = workdir_root(wid)
+    seq = parse_seq(eN)
+    get_eval_batch(workdir, seq)
+    validate_references(workdir, read_eval_config(workdir, seq))
+
+    registry, guard = _run_registry(request)
+    key = str(workdir)
+    runner = EvalRunner(workdir, seq, trigger="web")
+    with guard:
+        existing = registry.get(key)
+        if existing is not None and existing.snapshot()["status"] != "failed":
+            raise RunOccupiedError(
+                "该工作目录已有打分（评测）运行——等它结束或停止后再试。",
+                occupier={"pid": os.getpid(), "batch": f"e{seq}"},
+            )
+        registry[key] = runner
+    run_id = str(runner.snapshot()["run_id"])
+
+    def thread_body() -> None:
+        try:
+            runner.run()
+        except Exception:
+            logger.warning("打分运行 %s 失败（已通知订阅者）", run_id, exc_info=True)
+        finally:
+            with guard:
+                if (
+                    registry.get(key) is runner
+                    and runner.snapshot()["status"] != "failed"
+                ):
+                    del registry[key]
+
+    threading.Thread(target=thread_body, name=f"dsf-eval-{run_id}", daemon=True).start()
+    return JSONResponse(
+        status_code=202,
+        content=EvalRunAccepted(run_id=run_id).model_dump(),
+        headers={"Retry-After": str(_RETRY_AFTER_SECONDS)},
+    )
+
+
+@eval_router.get(
+    "/{eN}/runs/current",
+    response_model=EvalRunStatusView | None,
+    responses={
+        404: problem(
+            "wid 或打分批次不存在（workdir-not-found / eval-batch-not-found）"
+        ),
+    },
+)
+def current_eval_run(wid: str, eN: str, request: Request) -> EvalRunStatusView | None:
+    """当前打分运行进度快照（轮询用）；空闲时返回 200 + null（空闲轮询合法）。"""
+    seq = parse_seq(eN)
+    workdir = workdir_root(wid)
+    get_eval_batch(workdir, seq)
+    try:
+        runner = _active_runner(request, workdir, seq)
+    except EvalRunNotActiveError:
+        return None
+    return EvalRunStatusView(**runner.snapshot())
+
+
+@eval_router.post(
+    "/{eN}/runs/stop",
+    status_code=204,
+    responses={
+        404: problem(
+            "该打分批次当前没有进行中的打分运行（problem+json: eval-run-not-active）"
+        ),
+    },
+)
+def stop_eval_run(wid: str, eN: str, request: Request) -> Response:
+    """请求停止当前打分运行（协作取消：当前调用在安全点停下）。"""
+    seq = parse_seq(eN)
+    runner = _require_active(_active_runner(request, workdir_root(wid), seq))
+    runner.stop()
+    return Response(status_code=204)
+
+
+@eval_router.get(
+    "/{eN}/runs/stream",
+    responses={
+        404: problem(
+            "该打分批次当前没有进行中的打分运行（problem+json: eval-run-not-active）"
+        ),
+    },
+)
+def stream_eval_run(wid: str, eN: str, request: Request) -> StreamingResponse:
+    """SSE 业务事件流：run-started → item-updated… → run-finished（终态即关流）。"""
+    seq = parse_seq(eN)
+    runner = _require_active(_active_runner(request, workdir_root(wid), seq))
+    events: queue.Queue[object] = queue.Queue()
+
+    def _forward(event: object) -> None:
+        events.put(event)
+        if getattr(event, "kind", "") == "run-finished":
+            events.put(None)  # 终态哨兵：关流
+
+    async def generate() -> AsyncIterator[str]:
+        unsubscribe = runner.subscribe(_forward)  # type: ignore[arg-type]
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = events.get_nowait()
+                except queue.Empty:
+                    # 等模型期间保持可取消，不占线程池干等下一条业务事件。
+                    await asyncio.sleep(0.1)
+                    continue
+                if event is None:
+                    break
+                yield _sse_frame(
+                    getattr(event, "kind", ""),
+                    getattr(event, "to_payload", dict)(),
+                )
+        finally:
+            unsubscribe()
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+def _sse_frame(event: str, data: dict[str, object]) -> str:
+    """一条 SSE 帧（event + data 两行）；JSON 不转义中文，与跑批流同构。"""
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"

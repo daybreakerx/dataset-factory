@@ -39,6 +39,7 @@ from .errors import (
     EvalConfigError,
     EvalError,
     EvalJudgeFormatError,
+    EvalRunNotActiveError,
     EvalRunOccupiedError,
 )
 from .judge import (
@@ -79,6 +80,7 @@ __all__ = [
     "EvalConfigError",
     "EvalError",
     "EvalJudgeFormatError",
+    "EvalRunNotActiveError",
     "EvalRunOccupiedError",
     "EvalRunner",
     "EvalStore",

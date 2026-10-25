@@ -1352,6 +1352,69 @@
         "title": "EvalPairwisePayload",
         "type": "object"
       },
+      "EvalRunAccepted": {
+        "description": "打分运行受理响应。",
+        "properties": {
+          "run_id": {
+            "description": "运行标识（.dsf/eval/runs/ 下的目录名）",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "EvalRunAccepted",
+        "type": "object"
+      },
+      "EvalRunStatusView": {
+        "description": "打分运行进度快照（轮询与 SSE 断线重连后的全量刷新同款数据）。",
+        "properties": {
+          "batch": {
+            "description": "打分批次标识（eN）",
+            "title": "Batch",
+            "type": "string"
+          },
+          "counters": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "计划 / 已尝试 / 成功 / 失败 / 跳过 计数",
+            "title": "Counters",
+            "type": "object"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "失败原因（failed 时给）",
+            "title": "Error"
+          },
+          "run_id": {
+            "description": "运行标识",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "description": "running / completed / interrupted / failed",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "batch",
+          "status",
+          "counters"
+        ],
+        "title": "EvalRunStatusView",
+        "type": "object"
+      },
       "ExclusionsRequest": {
         "description": "排除名单增删的请求体：条目数组（素材主干）。",
         "properties": {
@@ -9542,6 +9605,279 @@
           }
         },
         "summary": "Patch Eval",
+        "tags": [
+          "评测（打分批次）"
+        ]
+      }
+    },
+    "/api/workdirs/{wid}/eval-batches/{eN}/runs": {
+      "post": {
+        "description": "受理一次打分运行：同步预检 + 登记注册表 + 后台线程执行，202 立即返回。\n\n预检（批次与配置可读、裁判引用现查）在受理之前完成，把能在请求内确定的\n错误同步报给客户端；跨进程的 eval 运行锁占用在后台线程抢锁时才暴露，经\nSSE / current 呈现（status=failed + 一条 failed 的 run-finished 事件）。",
+        "operationId": "start_eval_run_api_workdirs__wid__eval_batches__eN__runs_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eN",
+            "required": true,
+            "schema": {
+              "title": "En",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalRunAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "裁判引用不成立（problem+json: eval-config-invalid）"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "wid 或打分批次不存在（workdir-not-found / eval-batch-not-found）"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "该工作目录已有打分（评测）运行（problem+json: eval-run-occupied）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Eval Run",
+        "tags": [
+          "评测（打分批次）"
+        ]
+      }
+    },
+    "/api/workdirs/{wid}/eval-batches/{eN}/runs/current": {
+      "get": {
+        "description": "当前打分运行进度快照（轮询用）；空闲时返回 200 + null（空闲轮询合法）。",
+        "operationId": "current_eval_run_api_workdirs__wid__eval_batches__eN__runs_current_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eN",
+            "required": true,
+            "schema": {
+              "title": "En",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/EvalRunStatusView"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Current Eval Run Api Workdirs  Wid  Eval Batches  En  Runs Current Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "wid 或打分批次不存在（workdir-not-found / eval-batch-not-found）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Current Eval Run",
+        "tags": [
+          "评测（打分批次）"
+        ]
+      }
+    },
+    "/api/workdirs/{wid}/eval-batches/{eN}/runs/stop": {
+      "post": {
+        "description": "请求停止当前打分运行（协作取消：当前调用在安全点停下）。",
+        "operationId": "stop_eval_run_api_workdirs__wid__eval_batches__eN__runs_stop_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eN",
+            "required": true,
+            "schema": {
+              "title": "En",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "该打分批次当前没有进行中的打分运行（problem+json: eval-run-not-active）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stop Eval Run",
+        "tags": [
+          "评测（打分批次）"
+        ]
+      }
+    },
+    "/api/workdirs/{wid}/eval-batches/{eN}/runs/stream": {
+      "get": {
+        "description": "SSE 业务事件流：run-started → item-updated… → run-finished（终态即关流）。",
+        "operationId": "stream_eval_run_api_workdirs__wid__eval_batches__eN__runs_stream_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eN",
+            "required": true,
+            "schema": {
+              "title": "En",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "该打分批次当前没有进行中的打分运行（problem+json: eval-run-not-active）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Eval Run",
         "tags": [
           "评测（打分批次）"
         ]

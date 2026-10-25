@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -240,3 +242,177 @@ def test_benchmark_endpoints_toggle_flag(
     assert client.get(f"/api/workdirs/{wid}/batches/s2").json()["benchmark"] is False
     cleared = client.post(f"/api/workdirs/{wid}/batches/s1/unbenchmark")
     assert cleared.json()["benchmark"] is False
+
+
+# --------------------------------------------------------------------------
+# 打分运行端点（受理 / 轮询 / SSE）——completer 经 monkeypatch 注入假件
+# --------------------------------------------------------------------------
+
+_GOOD_DIMENSION = '{"场景描述": 4, "无幻觉": "无", "理由": "准确。"}'
+_GOOD_PAIRWISE = '{"winner": "A", "理由": "A 更准确。"}'
+
+
+class _FakeJudgeCompleter:
+    """按消息路由的假裁判端点（可设每调用延时，供 SSE 测试拉长运行）。"""
+
+    def __init__(self, delay: float = 0.0) -> None:
+        """存每调用延时。"""
+        self._delay = delay
+
+    def complete(self, messages: object) -> str:
+        """纯文本档。"""
+        return self._reply(messages)
+
+    def stream(self, messages: object) -> object:
+        """judge 协议不走流式——Protocol 齐备性桩。"""
+        raise NotImplementedError
+
+    def complete_structured(
+        self, messages: object, response_format: dict[str, object] | None
+    ) -> str:
+        """结构化档（同路由）。"""
+        return self._reply(messages)
+
+    def _reply(self, messages: object) -> str:
+        from dataset_factory.llm import TextPart
+
+        if self._delay:
+            import time
+
+            time.sleep(self._delay)
+        text = chr(10).join(
+            part.text
+            for message in messages
+            for part in message.parts
+            if isinstance(part, TextPart)
+        )
+        return _GOOD_PAIRWISE if "<caption-a>" in text else _GOOD_DIMENSION
+
+
+@pytest.fixture
+def seeded_for_runs(client: TestClient, wid: str) -> tuple[TestClient, str, str, Path]:
+    """预置可评对象：两素材登记在册、s1/s2 各有产物、裁判策略与打分批次就绪。"""
+    from dataset_factory.llm import SecretValue, create_config
+    from dataset_factory.strategies import create_batch, create_strategy
+    from dataset_factory.workdir import WorkdirStore
+
+    create_config(
+        "main",
+        "https://api.example.com/v1",
+        "test-model",
+        api_key=SecretValue("test-key"),
+    )
+    save_prompt(Prompt(name="详细描述", description="", body="你是裁判"))
+    workdir = Path(str(client.get(f"/api/workdirs/{wid}").json()["path"]))
+    for name in ("cat.jpg", "dog.jpg"):
+        (workdir / name).write_bytes(b"fake-image-bytes")
+    WorkdirStore(workdir).append_import_record(
+        {
+            "imported_at": "2026-01-01T00:00:00Z",
+            "source": "",
+            "files": [
+                {"name": "cat.jpg", "sha256": "0" * 64},
+                {"name": "dog.jpg", "sha256": "0" * 64},
+            ],
+        }
+    )
+    for seq in (1, 2):
+        create_batch(
+            workdir,
+            name=f"批次{seq}",
+            description="",
+            endpoint_id="main",
+            prompt_id="详细描述",
+            skill_ids=[],
+        )
+        (workdir / f"s{seq}__cat.txt").write_text("一只猫", encoding="utf-8")
+        (workdir / f"s{seq}__dog.txt").write_text("一只狗", encoding="utf-8")
+    judge = create_strategy(
+        name="裁判", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    response = client.post(
+        f"/api/workdirs/{wid}/eval-batches",
+        json={"name": "第一评", "config": _config_payload(judge.id)},
+    )
+    assert response.status_code == 201
+    return client, wid, judge.id, workdir
+
+
+def test_start_run_completes_then_current_idle(
+    seeded_for_runs: tuple[TestClient, str, str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """受理 202 → 后台跑完 → current 回 null（成功后出注册表）、run.json 落盘。"""
+    client, wid, _, workdir = seeded_for_runs
+    monkeypatch.setattr(
+        "dataset_factory.eval.runner.build_completer",
+        lambda _config: _FakeJudgeCompleter(),
+    )
+    started = client.post(f"/api/workdirs/{wid}/eval-batches/e1/runs")
+    assert started.status_code == 202
+    run_id = str(started.json()["run_id"])
+    final: object = None
+    for _ in range(100):
+        current = client.get(f"/api/workdirs/{wid}/eval-batches/e1/runs/current")
+        body = current.json()
+        if body is None:
+            final = "idle"
+            break
+        final = body
+        if body["status"] in ("completed", "interrupted", "failed"):
+            break
+        time.sleep(0.05)
+    assert final == "idle"
+    record = json.loads(
+        (workdir / ".dsf" / "eval" / "runs" / run_id / "run.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert record["status"] == "completed"
+
+
+def test_start_run_rejects_broken_judge_reference(
+    seeded_for_runs: tuple[TestClient, str, str, Path],
+) -> None:
+    """裁判策略被删后受理 → 400 同步报（预检在受理之前）。"""
+    from dataset_factory.strategies import delete_strategy
+
+    client, wid, judge_id, _ = seeded_for_runs
+    delete_strategy(judge_id)
+    response = client.post(f"/api/workdirs/{wid}/eval-batches/e1/runs")
+    assert response.status_code == 400
+    assert response.json()["type"] == "eval-config-invalid"
+
+
+def test_stop_without_active_run_returns_404(
+    seeded_for_runs: tuple[TestClient, str, str, Path],
+) -> None:
+    """无进行中的打分运行 → stop 404（eval-run-not-active）。"""
+    client, wid, _, _ = seeded_for_runs
+    response = client.post(f"/api/workdirs/{wid}/eval-batches/e1/runs/stop")
+    assert response.status_code == 404
+    assert response.json()["type"] == "eval-run-not-active"
+
+
+def test_stream_emits_start_items_finish(
+    seeded_for_runs: tuple[TestClient, str, str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SSE 流：run-started → item-updated… → run-finished 后关流。"""
+    client, wid, _, _ = seeded_for_runs
+    monkeypatch.setattr(
+        "dataset_factory.eval.runner.build_completer",
+        lambda _config: _FakeJudgeCompleter(delay=0.12),
+    )
+    started = client.post(f"/api/workdirs/{wid}/eval-batches/e1/runs")
+    assert started.status_code == 202
+    frames: list[str] = []
+    with client.stream(
+        "GET", f"/api/workdirs/{wid}/eval-batches/e1/runs/stream"
+    ) as stream:
+        for chunk in stream.iter_text():
+            frames.append(chunk)
+    joined = "".join(frames)
+    assert "event: run-started" in joined
+    assert "event: item-updated" in joined
+    assert "event: run-finished" in joined

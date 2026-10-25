@@ -1236,3 +1236,21 @@ class EvalBatchView(BaseModel):
     description: str = Field(description="说明文字")
     created_at: str = Field(description="创建时刻（UTC ISO 8601）")
     config: EvalConfigPayload = Field(description="评测配置全文")
+
+
+class EvalRunAccepted(BaseModel):
+    """打分运行受理响应。"""
+
+    run_id: str = Field(description="运行标识（.dsf/eval/runs/ 下的目录名）")
+
+
+class EvalRunStatusView(BaseModel):
+    """打分运行进度快照（轮询与 SSE 断线重连后的全量刷新同款数据）。"""
+
+    run_id: str = Field(description="运行标识")
+    batch: str = Field(description="打分批次标识（eN）")
+    status: str = Field(description="running / completed / interrupted / failed")
+    counters: dict[str, int] = Field(
+        description="计划 / 已尝试 / 成功 / 失败 / 跳过 计数"
+    )
+    error: str | None = Field(default=None, description="失败原因（failed 时给）")
