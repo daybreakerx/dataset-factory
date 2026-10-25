@@ -222,8 +222,13 @@
         "description": "批次摘要——列表 / 详情 / 配置补丁 / 停用召回的响应体。\n\n组合全文在快照文件（.dsf/strategies/sN.json），本视图只带元数据；\nproduct_count 供删除确认弹窗展示「将删多少个产物」。",
         "properties": {
           "active": {
-            "description": "是否启用（False = 已停用，不出现在下拉 / 打包选项）",
+            "description": "是否启用（False = 已停用，不出现在下拉 / 列表 / 打包选项）",
             "title": "Active",
+            "type": "boolean"
+          },
+          "benchmark": {
+            "description": "基准位：产物为摆放的参照、禁跑批（打分页指定基准的批次）",
+            "title": "Benchmark",
             "type": "boolean"
           },
           "created_at": {
@@ -300,6 +305,7 @@
           "description",
           "active",
           "created_at",
+          "benchmark",
           "product_count"
         ],
         "title": "BatchView",
@@ -994,6 +1000,356 @@
           "model"
         ],
         "title": "EndpointUpdateRequest",
+        "type": "object"
+      },
+      "EvalBatchCreateRequest": {
+        "additionalProperties": false,
+        "description": "POST /api/workdirs/{wid}/eval-batches 的请求体：新建打分批次。",
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/EvalConfigPayload",
+            "description": "评测配置（保存时全量校验）"
+          },
+          "description": {
+            "default": "",
+            "description": "说明文字",
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "description": "显示名（可改、允许重名）",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "config"
+        ],
+        "title": "EvalBatchCreateRequest",
+        "type": "object"
+      },
+      "EvalBatchUpdateRequest": {
+        "additionalProperties": false,
+        "description": "PATCH /api/workdirs/{wid}/eval-batches/{eN} 的请求体。\n\n与打标批次「组合不可改」相反——评测配置全量可替换；name / description /\nconfig 三者至少给一个。",
+        "properties": {
+          "config": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalConfigPayload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "评测配置（全量替换）；缺省 = 不变"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "说明文字；缺省 = 不变",
+            "title": "Description"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "显示名；缺省 = 不变",
+            "title": "Name"
+          }
+        },
+        "title": "EvalBatchUpdateRequest",
+        "type": "object"
+      },
+      "EvalBatchView": {
+        "description": "打分批次摘要（配置全文随视图携带——评测页即改即存的数据源）。",
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/EvalConfigPayload",
+            "description": "评测配置全文"
+          },
+          "created_at": {
+            "description": "创建时刻（UTC ISO 8601）",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "description": "说明文字",
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "description": "打分批次标识（eN 形式，如 e1）",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "显示名",
+            "title": "Name",
+            "type": "string"
+          },
+          "seq": {
+            "description": "序号（只增不复用，独立于打标批次的 sN 空间）",
+            "title": "Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "seq",
+          "name",
+          "description",
+          "created_at",
+          "config"
+        ],
+        "title": "EvalBatchView",
+        "type": "object"
+      },
+      "EvalConfigPayload": {
+        "additionalProperties": false,
+        "description": "打分批次的评测配置（与 .dsf/eval/e<N>/config.json 同形）。",
+        "properties": {
+          "benchmark": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "基准批次序号；null = 无基准（候选互比）",
+            "title": "Benchmark"
+          },
+          "candidates": {
+            "description": "被测批次序号清单（sN 的 N，≥1、不重复）",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "dataset_license": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "参照许可",
+            "title": "Dataset License"
+          },
+          "dataset_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "参照来源数据集名（报告可复现层呈现）",
+            "title": "Dataset Source"
+          },
+          "dimension_scoring": {
+            "description": "维度评分模式（单点 rubric 绝对分）",
+            "title": "Dimension Scoring",
+            "type": "boolean"
+          },
+          "dimensions": {
+            "description": "维度清单（开了维度评分才非空）；schema 由它运行时派生",
+            "items": {
+              "$ref": "#/components/schemas/EvalDimensionPayload"
+            },
+            "title": "Dimensions",
+            "type": "array"
+          },
+          "human": {
+            "$ref": "#/components/schemas/EvalHumanPayload",
+            "description": "人工介入设置"
+          },
+          "judges": {
+            "description": "裁判策略库 ID 清单（多裁判 = 多条）",
+            "items": {
+              "type": "string"
+            },
+            "title": "Judges",
+            "type": "array"
+          },
+          "pairwise": {
+            "description": "对比排名模式（pairwise 整体比）",
+            "title": "Pairwise",
+            "type": "boolean"
+          },
+          "pairwise_settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalPairwisePayload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "对比设置（开对比排名时必填）"
+          }
+        },
+        "required": [
+          "candidates",
+          "judges",
+          "dimensions",
+          "dimension_scoring",
+          "pairwise",
+          "human"
+        ],
+        "title": "EvalConfigPayload",
+        "type": "object"
+      },
+      "EvalDimensionPayload": {
+        "additionalProperties": false,
+        "description": "一条评测维度：名称 + 刻度。",
+        "properties": {
+          "kind": {
+            "description": "刻度：score5 = 五档评分（1–5）；binary = 是非判断（无幻觉：有／无）",
+            "enum": [
+              "score5",
+              "binary"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "description": "维度名（如 场景描述 / 画面风格 / 无幻觉）",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "EvalDimensionPayload",
+        "type": "object"
+      },
+      "EvalHumanPayload": {
+        "additionalProperties": false,
+        "description": "人工介入设置：通道管「哪些题」、活动管「在这些题上做什么」。",
+        "properties": {
+          "dimension_manual": {
+            "description": "维度人工（随维度评分模式显隐）",
+            "title": "Dimension Manual",
+            "type": "boolean"
+          },
+          "full": {
+            "description": "全量通道（与随机抽检／定向筛查互斥）",
+            "title": "Full",
+            "type": "boolean"
+          },
+          "pairwise_manual": {
+            "description": "对比人工（随对比排名模式显隐）",
+            "title": "Pairwise Manual",
+            "type": "boolean"
+          },
+          "random_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "随机抽检数量（绝对题数，开通道时 ≥1）",
+            "title": "Random Count"
+          },
+          "random_enabled": {
+            "description": "随机抽检通道开关（量裁判准不准，出 κ／一致率）",
+            "title": "Random Enabled",
+            "type": "boolean"
+          },
+          "targeted_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "定向筛查数量（绝对题数，开通道时 ≥1）",
+            "title": "Targeted Count"
+          },
+          "targeted_enabled": {
+            "description": "定向筛查通道开关（捞坏条目，出查准率与 badcase 清单）",
+            "title": "Targeted Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "full",
+          "random_enabled",
+          "targeted_enabled",
+          "dimension_manual",
+          "pairwise_manual"
+        ],
+        "title": "EvalHumanPayload",
+        "type": "object"
+      },
+      "EvalPairwisePayload": {
+        "additionalProperties": false,
+        "description": "对比排名设置：双序策略、抽验比例与子采样上限。",
+        "properties": {
+          "dual_order": {
+            "description": "双序策略：full = 全量双序（默认）；sampled = 随机抽验双序；none = 不双序·单序随机左右",
+            "enum": [
+              "full",
+              "sampled",
+              "none"
+            ],
+            "title": "Dual Order",
+            "type": "string"
+          },
+          "dual_order_ratio": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "随机抽验双序的比例（1–100，百分比）；仅 dual_order = sampled 时携带",
+            "title": "Dual Order Ratio"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "对比范围上限（对数）；null = 全量。纯 API 成本、控钱用",
+            "title": "Limit"
+          }
+        },
+        "required": [
+          "dual_order"
+        ],
+        "title": "EvalPairwisePayload",
         "type": "object"
       },
       "ExclusionsRequest": {
@@ -6894,6 +7250,69 @@
         ]
       }
     },
+    "/api/workdirs/{wid}/batches/{sN}/benchmark": {
+      "post": {
+        "description": "置位基准位：产物为摆放的参照、禁跑批（打分页指定基准的批次）。",
+        "operationId": "benchmark_batch_api_workdirs__wid__batches__sN__benchmark_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sN",
+            "required": true,
+            "schema": {
+              "title": "Sn",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "wid 或批次不存在（workdir-not-found / batch-not-found）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Benchmark Batch",
+        "tags": [
+          "批次（策略实例）"
+        ]
+      }
+    },
     "/api/workdirs/{wid}/batches/{sN}/exclusions": {
       "delete": {
         "description": "把条目移出排除打包名单（撤销排除），返回当前名单。",
@@ -7976,6 +8395,69 @@
         ]
       }
     },
+    "/api/workdirs/{wid}/batches/{sN}/unbenchmark": {
+      "post": {
+        "description": "复位基准位（恢复可跑批）。",
+        "operationId": "unbenchmark_batch_api_workdirs__wid__batches__sN__unbenchmark_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sN",
+            "required": true,
+            "schema": {
+              "title": "Sn",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "wid 或批次不存在（workdir-not-found / batch-not-found）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unbenchmark Batch",
+        "tags": [
+          "批次（策略实例）"
+        ]
+      }
+    },
     "/api/workdirs/{wid}/batches/{sN}/unhide": {
       "post": {
         "description": "召回已停用的批次。",
@@ -8708,6 +9190,360 @@
         "summary": "Get Deletion Preview",
         "tags": [
           "工作目录"
+        ]
+      }
+    },
+    "/api/workdirs/{wid}/eval-batches": {
+      "get": {
+        "description": "列出工作目录全部打分批次（按序号升序，配置全文随视图携带）。",
+        "operationId": "list_eval_api_workdirs__wid__eval_batches_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EvalBatchView"
+                  },
+                  "title": "Response List Eval Api Workdirs  Wid  Eval Batches Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Eval",
+        "tags": [
+          "评测（打分批次）"
+        ]
+      },
+      "post": {
+        "description": "新建打分批次（保存时全量校验：规则聚合报、引用现查）。\n\n201 + Location 指向新打分批次。",
+        "operationId": "create_eval_api_workdirs__wid__eval_batches_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalBatchCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalBatchView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "配置规则或引用不合法（problem+json: eval-config-invalid）"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "wid 不存在（workdir-not-found）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "请求体缺必填字段（FastAPI 校验）"
+          }
+        },
+        "summary": "Create Eval",
+        "tags": [
+          "评测（打分批次）"
+        ]
+      }
+    },
+    "/api/workdirs/{wid}/eval-batches/{eN}": {
+      "delete": {
+        "description": "删除打分批次：配置、该批次的运行记录与报告快照移入可恢复暂存。\n\n人工打分不随删（绑素材 × 批次 × 条目 × 标注者、不绑打分批次配置）；\n删前告知内容量由界面负责（列表视图即数据源）。",
+        "operationId": "delete_eval_api_workdirs__wid__eval_batches__eN__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eN",
+            "required": true,
+            "schema": {
+              "title": "En",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "wid 或打分批次不存在（workdir-not-found / eval-batch-not-found）"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "评测运行占用中（problem+json: eval-run-occupied）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Eval",
+        "tags": [
+          "评测（打分批次）"
+        ]
+      },
+      "get": {
+        "description": "按序号查单个打分批次（新建 201 的 Location 指向这里）。",
+        "operationId": "get_eval_detail_api_workdirs__wid__eval_batches__eN__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eN",
+            "required": true,
+            "schema": {
+              "title": "En",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalBatchView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "wid 或打分批次不存在（workdir-not-found / eval-batch-not-found）"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "配置文件损坏（problem+json: eval-config-corrupted）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Eval Detail",
+        "tags": [
+          "评测（打分批次）"
+        ]
+      },
+      "patch": {
+        "description": "改名称 / 描述 / 评测配置（配置全量替换，改了保存重跑即重算）。\n\n配置替换先过域校验（规则＋引用）再动名称——名称与配置分两步落盘，\n校验不过时名称也不会被半改。",
+        "operationId": "patch_eval_api_workdirs__wid__eval_batches__eN__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wid",
+            "required": true,
+            "schema": {
+              "title": "Wid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eN",
+            "required": true,
+            "schema": {
+              "title": "En",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalBatchUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalBatchView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "配置规则或引用不合法（problem+json: eval-config-invalid）"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "wid 或打分批次不存在（workdir-not-found / eval-batch-not-found）"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "配置文件损坏（problem+json: eval-config-corrupted）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/problem+json": {}
+            },
+            "description": "请求体空补丁或含未声明字段（extra=forbid）"
+          }
+        },
+        "summary": "Patch Eval",
+        "tags": [
+          "评测（打分批次）"
         ]
       }
     },

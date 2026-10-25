@@ -736,9 +736,12 @@ class BatchView(BaseModel):
     name: str = Field(description="策略显示名（纯显示别名，可改、允许重名）")
     description: str = Field(description="说明文字")
     active: bool = Field(
-        description="是否启用（False = 已停用，不出现在下拉 / 打包选项）"
+        description="是否启用（False = 已停用，不出现在下拉 / 列表 / 打包选项）"
     )
     created_at: str = Field(description="创建时刻（UTC ISO 8601）")
+    benchmark: bool = Field(
+        description="基准位：产物为摆放的参照、禁跑批（打分页指定基准的批次）"
+    )
     product_count: int = Field(description="该批次现有产物 txt 数")
     run_status: str | None = Field(
         default=None,
@@ -1110,3 +1113,126 @@ class ExportAccepted(BaseModel):
     """打包任务受理响应。"""
 
     task_id: str = Field(description="任务句柄（GET /tasks/{id} 轮询）")
+
+
+# —— 评测（打分批次）：配置可变（与打标批次「创建即冻结」相反，改了保存重跑即重算） ——
+
+
+class EvalDimensionPayload(BaseModel):
+    """一条评测维度：名称 + 刻度。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(description="维度名（如 场景描述 / 画面风格 / 无幻觉）")
+    kind: Literal["score5", "binary"] = Field(
+        description="刻度：score5 = 五档评分（1–5）；binary = 是非判断（无幻觉：有／无）"
+    )
+
+
+class EvalPairwisePayload(BaseModel):
+    """对比排名设置：双序策略、抽验比例与子采样上限。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dual_order: Literal["full", "sampled", "none"] = Field(
+        description="双序策略：full = 全量双序（默认）；sampled = 随机抽验双序；none = 不双序·单序随机左右"
+    )
+    dual_order_ratio: int | None = Field(
+        default=None,
+        description="随机抽验双序的比例（1–100，百分比）；仅 dual_order = sampled 时携带",
+    )
+    limit: int | None = Field(
+        default=None,
+        description="对比范围上限（对数）；null = 全量。纯 API 成本、控钱用",
+    )
+
+
+class EvalHumanPayload(BaseModel):
+    """人工介入设置：通道管「哪些题」、活动管「在这些题上做什么」。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    full: bool = Field(description="全量通道（与随机抽检／定向筛查互斥）")
+    random_enabled: bool = Field(
+        description="随机抽检通道开关（量裁判准不准，出 κ／一致率）"
+    )
+    random_count: int | None = Field(
+        default=None, description="随机抽检数量（绝对题数，开通道时 ≥1）"
+    )
+    targeted_enabled: bool = Field(
+        description="定向筛查通道开关（捞坏条目，出查准率与 badcase 清单）"
+    )
+    targeted_count: int | None = Field(
+        default=None, description="定向筛查数量（绝对题数，开通道时 ≥1）"
+    )
+    dimension_manual: bool = Field(description="维度人工（随维度评分模式显隐）")
+    pairwise_manual: bool = Field(description="对比人工（随对比排名模式显隐）")
+
+
+class EvalConfigPayload(BaseModel):
+    """打分批次的评测配置（与 .dsf/eval/e<N>/config.json 同形）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    candidates: list[int] = Field(description="被测批次序号清单（sN 的 N，≥1、不重复）")
+    benchmark: int | None = Field(
+        default=None, description="基准批次序号；null = 无基准（候选互比）"
+    )
+    judges: list[str] = Field(description="裁判策略库 ID 清单（多裁判 = 多条）")
+    dimensions: list[EvalDimensionPayload] = Field(
+        description="维度清单（开了维度评分才非空）；schema 由它运行时派生"
+    )
+    dimension_scoring: bool = Field(description="维度评分模式（单点 rubric 绝对分）")
+    pairwise: bool = Field(description="对比排名模式（pairwise 整体比）")
+    pairwise_settings: EvalPairwisePayload | None = Field(
+        default=None, description="对比设置（开对比排名时必填）"
+    )
+    human: EvalHumanPayload = Field(description="人工介入设置")
+    dataset_source: str | None = Field(
+        default=None, description="参照来源数据集名（报告可复现层呈现）"
+    )
+    dataset_license: str | None = Field(default=None, description="参照许可")
+
+
+class EvalBatchCreateRequest(BaseModel):
+    """POST /api/workdirs/{wid}/eval-batches 的请求体：新建打分批次。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(description="显示名（可改、允许重名）")
+    description: str = Field(default="", description="说明文字")
+    config: EvalConfigPayload = Field(description="评测配置（保存时全量校验）")
+
+
+class EvalBatchUpdateRequest(BaseModel):
+    """PATCH /api/workdirs/{wid}/eval-batches/{eN} 的请求体。
+
+    与打标批次「组合不可改」相反——评测配置全量可替换；name / description /
+    config 三者至少给一个。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, description="显示名；缺省 = 不变")
+    description: str | None = Field(default=None, description="说明文字；缺省 = 不变")
+    config: EvalConfigPayload | None = Field(
+        default=None, description="评测配置（全量替换）；缺省 = 不变"
+    )
+
+    @model_validator(mode="after")
+    def _at_least_one(self) -> EvalBatchUpdateRequest:
+        """三样都没给 = 空补丁，当场 422。"""
+        if self.name is None and self.description is None and self.config is None:
+            raise ValueError("至少修改名称、描述或评测配置之一。")
+        return self
+
+
+class EvalBatchView(BaseModel):
+    """打分批次摘要（配置全文随视图携带——评测页即改即存的数据源）。"""
+
+    id: str = Field(description="打分批次标识（eN 形式，如 e1）")
+    seq: int = Field(description="序号（只增不复用，独立于打标批次的 sN 空间）")
+    name: str = Field(description="显示名")
+    description: str = Field(description="说明文字")
+    created_at: str = Field(description="创建时刻（UTC ISO 8601）")
+    config: EvalConfigPayload = Field(description="评测配置全文")

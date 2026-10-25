@@ -19,6 +19,13 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from ..eval import (
+    EvalBatchNotFoundError,
+    EvalConfigCorruptedError,
+    EvalConfigError,
+    EvalError,
+    EvalRunOccupiedError,
+)
 from ..export import ExportError
 from ..labeling import (
     EmptyTurnError,
@@ -90,6 +97,7 @@ from ..workdir import (
 from ..workdir.locks import sweep_cleaned_maintenance_records
 from . import (
     routes_endpoints,
+    routes_eval,
     routes_export,
     routes_filesystem,
     routes_items,
@@ -142,6 +150,7 @@ def create_app(frontend_dir: Path | None = None) -> FastAPI:
     app.include_router(routes_items.router)
     app.include_router(routes_strategies.library_router)
     app.include_router(routes_strategies.batches_router)
+    app.include_router(routes_eval.eval_router)
     directory = frontend_dir if frontend_dir is not None else _default_frontend_dir()
     if directory.is_dir():
         app.mount("/", StaticFiles(directory=directory, html=True), name="frontend")
@@ -212,6 +221,22 @@ _PROBLEM_RULES: tuple[_ProblemRule, ...] = (
     _ProblemRule(BatchNotFoundError, 404, "batch-not-found", "批次不存在"),
     # 基类兜底（库策略文件损坏等）：500 档，消息已可操作。
     _ProblemRule(StrategyError, 500, "strategy-error", "策略数据异常"),
+    # —— 评测（打分批次）域 ——
+    _ProblemRule(EvalBatchNotFoundError, 404, "eval-batch-not-found", "打分批次不存在"),
+    _ProblemRule(EvalConfigError, 400, "eval-config-invalid", "打分批次配置不合法"),
+    _ProblemRule(
+        EvalConfigCorruptedError, 409, "eval-config-corrupted", "打分批次配置损坏"
+    ),
+    # occupier 进扩展字段（谁在占用评测运行）；语义同 RunOccupiedError。
+    _ProblemRule(
+        EvalRunOccupiedError,
+        409,
+        "eval-run-occupied",
+        "工作目录已有打分（评测）运行",
+        extras_from="occupier",
+    ),
+    # eval 域基类兜底：500 档，消息已可操作。
+    _ProblemRule(EvalError, 500, "eval-error", "评测数据异常"),
     # occupier 进 RFC 9457 扩展字段（前端提示「谁在占用」用）；跨进程残留信息损坏时为
     # None，detail 已有笼统文案兜底。
     _ProblemRule(

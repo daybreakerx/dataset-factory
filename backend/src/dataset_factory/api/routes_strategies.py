@@ -53,6 +53,7 @@ from ..strategies import (
     rebind_strategy,
     remove_exclusions,
     set_batch_active,
+    set_batch_benchmark,
     update_batch,
     update_strategy,
 )
@@ -495,6 +496,34 @@ def hide_batch(wid: str, sN: str, request: Request) -> BatchView:
 def unhide_batch(wid: str, sN: str) -> BatchView:
     """召回已停用的批次。"""
     entry = set_batch_active(workdir_root(wid), parse_seq(sN), active=True)
+    return _to_batch_view(wid, entry)
+
+
+@batches_router.post(
+    "/{sN}/benchmark",
+    response_model=BatchView,
+    responses={
+        404: problem("wid 或批次不存在（workdir-not-found / batch-not-found）"),
+    },
+)
+def benchmark_batch(wid: str, sN: str) -> BatchView:
+    """置位基准位：产物为摆放的参照、禁跑批（打分页指定基准的批次）。"""
+    seq = parse_seq(sN)
+    entry = set_batch_benchmark(workdir_root(wid), seq, True)
+    return _to_batch_view(wid, entry)
+
+
+@batches_router.post(
+    "/{sN}/unbenchmark",
+    response_model=BatchView,
+    responses={
+        404: problem("wid 或批次不存在（workdir-not-found / batch-not-found）"),
+    },
+)
+def unbenchmark_batch(wid: str, sN: str) -> BatchView:
+    """复位基准位（恢复可跑批）。"""
+    seq = parse_seq(sN)
+    entry = set_batch_benchmark(workdir_root(wid), seq, False)
     return _to_batch_view(wid, entry)
 
 
