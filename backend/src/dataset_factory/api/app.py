@@ -24,6 +24,7 @@ from ..eval import (
     EvalConfigCorruptedError,
     EvalConfigError,
     EvalError,
+    EvalReportCorruptedError,
     EvalRunNotActiveError,
     EvalRunOccupiedError,
 )
@@ -235,6 +236,9 @@ _PROBLEM_RULES: tuple[_ProblemRule, ...] = (
     _ProblemRule(EvalConfigError, 400, "eval-config-invalid", "打分批次配置不合法"),
     _ProblemRule(
         EvalConfigCorruptedError, 409, "eval-config-corrupted", "打分批次配置损坏"
+    ),
+    _ProblemRule(
+        EvalReportCorruptedError, 409, "eval-report-corrupted", "报告数据损坏"
     ),
     # occupier 进扩展字段（谁在占用评测运行）；语义同 RunOccupiedError。
     _ProblemRule(

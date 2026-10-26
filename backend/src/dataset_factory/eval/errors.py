@@ -32,6 +32,14 @@ class EvalConfigCorruptedError(EvalError):
     """
 
 
+class EvalReportCorruptedError(EvalError):
+    """报告快照或运行产物损坏（读不了、不是 JSON、形状不对）——HTTP 409 problem+json（eval-report-corrupted）。
+
+    与报告「不属于该批次」（用户指错标识，ValueError）分开：这边是盘上数据
+    坏了（手修或重跑该次打分重新生成）。
+    """
+
+
 class EvalRunOccupiedError(EvalError):
     """该工作目录已有打分（评测）运行在跑——HTTP 409 problem+json（eval-run-occupied）。"""
 
