@@ -244,7 +244,17 @@ for (const item of tokens) {
   if (type !== 'color' && type !== 'dimension' && type !== 'number' && type !== 'fontFamily' && type !== 'duration' && type !== 'cubicBezier') continue;
   const light = variableValue(item.token, 'light');
   if (light == null) continue;
-  const dark = variableValue(item.token, 'dark');
+  let dark = variableValue(item.token, 'dark');
+  // 无显式暗色的令牌在暗色集合里的取值回退：纯别名令牌（text-1、border 等）沿用别名形式，
+  // 落进暗色集合后按暗色阶解析、「随刻度翻转」即由此而来；accent 这类「别名+透明度」在
+  // 构建时被展开成字面值，按 $extensions.figma.alias 指回别名、同样随暗色阶翻亮；
+  // 纯字面值令牌（状态点等）亮暗本就同值，留给同步脚本按亮色镜像。
+  if (dark == null) {
+    if (light.alias) dark = light;
+    else if (item.token.$type === 'color' && item.token.$extensions?.figma?.alias) {
+      dark = { alias: item.token.$extensions.figma.alias, opacity: item.token.$extensions.figma.opacity ?? 1 };
+    }
+  }
   variables.push({
     name,
     type,

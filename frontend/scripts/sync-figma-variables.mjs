@@ -442,6 +442,77 @@ for (let i = 0; i < desired.length; i++) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 配对暗色集合：Drafts 套餐每个集合只能有 1 个 mode，Dark mode 建不出来时
+// 改为维护第二个集合——变量与亮色同名（同名是暗色稿重绑映射的键），
+// 取值 = 令牌显式暗色 ?? 亮色形式；别名形式在暗色集合内解析、随暗色阶翻转。
+// 将来升级套餐回到单集合双 mode 后，本段自动停用（darkMode 存在即跳过）。
+// ---------------------------------------------------------------------------
+
+const DARK_COLLECTION_NAME = 'Dataset Factory / Tokens / Dark';
+
+let darkPairCollection = null;
+let darkPairModeId = null;
+if (darkMode) {
+  console.log('单集合已含 Dark mode，跳过配对暗色集合同步。');
+} else if (DRY) {
+  console.log(`（dry-run）将同步配对暗色集合：${DARK_COLLECTION_NAME}`);
+} else {
+  darkPairCollection = defs.collections.find((c) => c.name === DARK_COLLECTION_NAME);
+  if (!darkPairCollection) {
+    const created = await rpc('create_variable_collection', { name: DARK_COLLECTION_NAME });
+    darkPairCollection = {
+      id: created.collectionId,
+      name: DARK_COLLECTION_NAME,
+      modes: [{ modeId: created.defaultModeId, name: 'Mode 1' }]
+    };
+    console.log(`已创建配对暗色集合：${DARK_COLLECTION_NAME}`);
+  }
+  if (darkPairCollection.modes?.[0]?.name !== 'Dark') {
+    await rpc('update_variable_collection', {
+      collectionId: darkPairCollection.id,
+      modes: [{ modeId: darkPairCollection.modes[0].modeId, name: 'Dark' }]
+    });
+  }
+  darkPairModeId = darkPairCollection.modes[0].modeId;
+
+  const defsBeforeCreate = await rpc('get_variable_defs', {});
+  const darkCurrent = new Map(
+    defsBeforeCreate.variables
+      .filter((v) => v.collectionId === darkPairCollection.id)
+      .map((v) => [v.name, v])
+  );
+  const darkMissing = desired.filter((v) => !darkCurrent.has(v.name));
+  for (const item of darkMissing) {
+    const created = await rpc('create_variable', {
+      name: item.name,
+      collectionId: darkPairCollection.id,
+      resolvedType: item.resolvedType,
+      ...(item.scopes ? { scopes: item.scopes } : {})
+    });
+    if (!created?.variableId) throw new Error(`创建暗色变量失败：${item.name}`);
+  }
+  if (darkMissing.length) console.log(`暗色集合新增变量：${darkMissing.length} 个`);
+
+  const defsForIds = await rpc('get_variable_defs', {});
+  const idsDark = new Map(
+    defsForIds.variables.filter((v) => v.collectionId === darkPairCollection.id).map((v) => [v.name, v.id])
+  );
+  for (let i = 0; i < desired.length; i++) {
+    const item = desired[i];
+    const id = idsDark.get(item.name);
+    if (!id) throw new Error(`暗色集合变量不存在：${item.name}`);
+    const value = convertValue(item.dark ?? item.light, item.resolvedType, idsDark);
+    await rpc('set_variable_value', { variableId: id, modeId: darkPairModeId, value });
+    if (item.cssVar) {
+      await rpc('set_variable_code_syntax', { variableId: id, codeSyntax: { WEB: item.cssVar } });
+    }
+    if ((i + 1) % 20 === 0 || i === desired.length - 1) {
+      console.log(`暗色集合已写入取值 ${i + 1}/${desired.length}`);
+    }
+  }
+}
+
 const verified = await rpc('get_variable_defs', {});
 const finalVars = verified.variables.filter((v) => v.collectionId === collection.id);
 const byName = new Map(finalVars.map((v) => [v.name, v]));
@@ -464,6 +535,40 @@ const checks = [
   ['motion/duration/1 应为 0.12 秒', () => Math.abs(lightCheck('motion/duration/1') - 0.12) < 1e-6],
   ['motion/easing/default 应为自定义贝塞尔', () => lightCheck('motion/easing/default')?.type === 'CUSTOM_CUBIC_BEZIER']
 ];
+
+if (darkPairCollection) {
+  const darkVars = verified.variables.filter((v) => v.collectionId === darkPairCollection.id);
+  const darkByName = new Map(darkVars.map((v) => [v.name, v]));
+  const darkCheck = (name) => darkByName.get(name)?.valuesByMode?.[darkPairModeId];
+  const near = (v, key, target, eps = 0.001) => v && Math.abs(v[key] - target) < eps;
+  checks.push(
+    [`暗色集合变量数应为 ${desired.length}`, () => darkVars.length === desired.length],
+    [
+      '暗色 color/primary 应为 #3C83F6',
+      () => {
+        const v = darkCheck('color/primary');
+        return near(v, 'r', 0.2353) && near(v, 'g', 0.5137) && near(v, 'b', 0.9647);
+      }
+    ],
+    [
+      '暗色 color/input 应为 #6F7B8B',
+      () => {
+        const v = darkCheck('color/input');
+        return near(v, 'r', 0.4353) && near(v, 'g', 0.4824) && near(v, 'b', 0.5451);
+      }
+    ],
+    ['暗色 color/text-1 应为别名（随暗色阶翻转）', () => darkCheck('color/text-1')?.type === 'VARIABLE_ALIAS'],
+    [
+      '暗色 color/accent 应为近白墨 6%（组合或字面均可）',
+      () => {
+        const v = darkCheck('color/accent');
+        if (!v) return false;
+        if (v.color?.type === 'VARIABLE_ALIAS') return Math.abs(v.opacity - 0.06) < 1e-6;
+        return near(v, 'a', 0.06, 0.002) && near(v, 'r', 0.8902) && near(v, 'g', 0.898) && near(v, 'b', 0.9098);
+      }
+    ]
+  );
+}
 
 console.log(`\n同步完成：${finalVars.length} 个变量（目标 ${desired.length} 个）`);
 if (missingAfter.length) console.log(`仍缺失：${missingAfter.map((v) => v.name).join('、')}`);
