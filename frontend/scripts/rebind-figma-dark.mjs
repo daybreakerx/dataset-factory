@@ -179,10 +179,10 @@ async function rpc(toolName, args) {
 const eps = (a, b, e = 0.004) => Math.abs(a - b) < e;
 const zipRgb = (arr) => ({ r: arr[0], g: arr[1], b: arr[2] });
 
-// 主色 tint：亮色 #2463EB@α → 暗色 #3C83F6@α'（比例按 design.md 2.7 三·补：/8→/22、/10→/26）
+// 主色 tint：亮色 #2463EB@α → 暗色 #3C83F6@α'（比例按 design.md 2.7 三·补：/8→/22、/10→/26、悬停再高一档 /34）
 const PRIMARY_LIGHT = [0.1412, 0.3882, 0.9216];
 const PRIMARY_DARK = [0.2353, 0.5137, 0.9647];
-const PRIMARY_ALPHA_MAP = [[0.08, 0.22], [0.10, 0.26]];
+const PRIMARY_ALPHA_MAP = [[0.08, 0.22], [0.10, 0.26], [0.30, 0.34], [1, 1]];
 
 // accent 半透明墨：亮色 #111827@6% → 暗色 #E3E5E8@6%
 const ACCENT_INK_LIGHT = [0.0667, 0.0941, 0.1529];
@@ -311,11 +311,17 @@ function mapBoundVariables(bv) {
 
 function mapLiteralTint(color, opacity, label) {
   const rgb = [color.r, color.g, color.b];
-  const isPrimary = rgb.every((c, i) => eps(c, PRIMARY_LIGHT[i]));
-  if (isPrimary) {
+  const isPrimaryLight = rgb.every((c, i) => eps(c, PRIMARY_LIGHT[i]));
+  const isPrimaryDark = rgb.every((c, i) => eps(c, PRIMARY_DARK[i]));
+  if (isPrimaryLight || isPrimaryDark) {
+    // 已是暗色色相的也参与透明度校正：映射表升级后重跑能把上一轮按旧规则写过的透明度修正过来
     const hit = PRIMARY_ALPHA_MAP.find(([a]) => eps(opacity, a, 0.006));
-    if (!hit) flags.push(`primary tint 透明度 ${opacity} 无映射 @ ${label}（已换暗色色相、透明度原样——审计复核）`);
-    return { color: zipRgb(PRIMARY_DARK), opacity: hit ? hit[1] : opacity };
+    if (!hit) {
+      if (isPrimaryLight) flags.push(`primary tint 透明度 ${opacity} 无映射 @ ${label}（已换暗色色相、透明度原样——审计复核）`);
+      return isPrimaryLight ? { color: zipRgb(PRIMARY_DARK), opacity } : null;
+    }
+    if (isPrimaryDark && eps(opacity, hit[1], 0.006)) return null;
+    return { color: zipRgb(PRIMARY_DARK), opacity: hit[1] };
   }
   if (rgb.every((c, i) => eps(c, ACCENT_INK_LIGHT[i])) && eps(opacity, 0.06, 0.006)) {
     return { color: zipRgb(ACCENT_INK_DARK), opacity };
@@ -478,7 +484,7 @@ console.log(`亮色 COLOR 变量 ${lightColorIds.size} 个；暗色 COLOR 变量
 const styles = await rpc('get_styles', {});
 const effectStyles = styles.effects ?? [];
 const lightShadowStyleIds = new Set(
-  effectStyles.filter((s) => s.name.startsWith('阴影/')).map((s) => s.id)
+  effectStyles.filter((s) => s.name.startsWith('阴影/') && !s.name.endsWith('·暗')).map((s) => s.id)
 );
 const effectStyleNameById = new Map(effectStyles.map((s) => [s.id, s.name]));
 const darkShadowStyleIdByName = new Map(
