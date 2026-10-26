@@ -56,7 +56,7 @@
     "knip": "^6.37.0",
     "openapi-typescript": "^7.13.0",
     "postcss": "^8.5.28",
-    "storybook": "^10.6.1",
+    "storybook": "^10.6.4",
     "typescript": "^5.9.3",
     "vite": "^8.3.0",
     "vitest": "^5.0.0"
