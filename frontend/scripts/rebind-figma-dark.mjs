@@ -9,6 +9,10 @@
  * 用法：node scripts/rebind-figma-dark.mjs <rootNodeId> [--dry-run]
  * 前置：sync-figma-variables.mjs 已建好配对暗色集合；figwright 插件在线（3055）。
  * 幂等：二跑应零写入。
+ *
+ * 亮色稿的同款手拼件字面色未改（观感与令牌亮值一致、走查已过，字面节点不会随令牌
+ * 变化）——日后改动亮色令牌值，需按下方的 LITERAL_BIND_RULES / LITERAL_CLEAR_RULES
+ * 同步或补绑亮色稿对应节点。
  */
 import fs from 'node:fs';
 import path from 'node:path';
