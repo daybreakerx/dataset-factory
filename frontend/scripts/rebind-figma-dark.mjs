@@ -217,7 +217,79 @@ const DARK_SHADOW_EFFECTS = {
 
 const flags = [];
 let scanned = 0;
-let writes = { fills: 0, strokes: 0, effects: 0, styles: 0 };
+let writes = { fills: 0, strokes: 0, effects: 0, styles: 0, nodeBinds: 0, labels: 0 };
+const DIAG = process.argv.includes('--diag');
+const LABELS = process.argv.includes('--labels');
+const TO_DARK = process.argv.includes('--to-dark');
+const diag = { nodeBound: 0, styleBound: 0, literalFills: new Map(), literalStrokes: new Map(), literalTextFills: new Map() };
+const litKey = (paint) => {
+  const c = paint.color ?? {};
+  const hex = [c.r, c.g, c.b].map((v) => Math.round(v * 255).toString(16).padStart(2, '0').toUpperCase()).join('');
+  const a = paint.opacity ?? 1;
+  return `#${hex}@${Math.round(a * 1000) / 1000}`;
+};
+
+// ---------------------------------------------------------------------------
+// 标签改写（--labels）：色板标签「令牌名\n#HEX」按令牌解析值更新；
+// --to-dark 用暗色解析值，否则用亮色解析值（修正亮色稿里的陈旧 hex）。
+// 别名链在 tokens.figma.json 的变量表内递归解析，组合透明度输出 8 位 hex。
+// ---------------------------------------------------------------------------
+
+const varByFigmaName = new Map(TOKENS.variables.map((v) => [v.name, v]));
+const colorLabelByName = new Map(
+  TOKENS.variables.filter((v) => v.type === 'color').map((v) => [v.name.replace(/^color\//, ''), v])
+);
+
+function tokenHex(varItem, mode) {
+  let v = mode === 'dark' ? (varItem.dark ?? varItem.light) : varItem.light;
+  let opacity = null;
+  const seen = new Set();
+  while (v && typeof v === 'object') {
+    if (v.alias) {
+      if (seen.has(v.alias)) return null;
+      seen.add(v.alias);
+      if (v.opacity != null) opacity = v.opacity;
+      const target = varByFigmaName.get(v.alias);
+      if (!target) return null;
+      v = mode === 'dark' ? (target.dark ?? target.light) : target.light;
+      continue;
+    }
+    if (v.color) {
+      const c = v.color;
+      const alpha = opacity ?? c.a ?? 1;
+      const base = [c.r, c.g, c.b].map((x) => Math.round(x * 255).toString(16).padStart(2, '0').toUpperCase()).join('');
+      return alpha < 1 ? `#${base}${Math.round(alpha * 255).toString(16).padStart(2, '0').toUpperCase()}` : `#${base}`;
+    }
+    return null;
+  }
+  return null;
+}
+
+function collectTextOps(node) {
+  const ops = [];
+  if (node.type === 'TEXT' && typeof node.characters === 'string') {
+    let chars = node.characters;
+    let changed = false;
+    const from = chars.split('\n').join(' | ');
+    if (TO_DARK && chars.includes('Dataset Factory / Tokens（Light）')) {
+      chars = chars.replace('Dataset Factory / Tokens（Light）', 'Dataset Factory / Tokens / Dark');
+      changed = true;
+    }
+    const m = chars.match(/^([A-Za-z0-9-]+)\n#([0-9A-Fa-f]{6,8})$/);
+    if (m && colorLabelByName.has(m[1])) {
+      const hex = tokenHex(colorLabelByName.get(m[1]), TO_DARK ? 'dark' : 'light');
+      if (hex && hex.toUpperCase() !== `#${m[2]}`.toUpperCase()) {
+        chars = `${m[1]}\n${hex}`;
+        changed = true;
+      }
+    }
+    if (changed) ops.push({ tool: 'set_text', args: { nodeId: node.id, characters: chars }, from });
+  }
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) ops.push(...collectTextOps(child));
+  }
+  return ops;
+}
 
 function mapBoundVariables(bv) {
   if (!bv || typeof bv !== 'object') return null;
@@ -309,12 +381,19 @@ function mapEffects(effects, label) {
   return changed ? out : null;
 }
 
+function boundIdsFromEntry(entry) {
+  // 序列化形态兼容：字符串 id 数组或 {type:'VARIABLE_ALIAS', id} 对象数组
+  if (!Array.isArray(entry)) return [];
+  return entry.map((v) => (typeof v === 'string' ? v : v?.id)).filter(Boolean);
+}
+
 function collect(node) {
   scanned++;
   const label = `${node.name}(${node.id})`;
   const ops = [];
-  if (node.styles && typeof node.styles === 'object' && lightShadowStyleIds.has(node.styles.effect)) {
-    const lightName = effectStyleNameById.get(node.styles.effect);
+  const styleField = node.styles ?? node.styleIds;
+  if (styleField && typeof styleField === 'object' && lightShadowStyleIds.has(styleField.effect)) {
+    const lightName = effectStyleNameById.get(styleField.effect);
     const darkId = darkShadowStyleIdByName.get(`${lightName} ·暗`);
     if (darkId) {
       ops.push({ tool: 'apply_style_to_node', args: { nodeId: node.id, styleId: darkId, field: 'effect' } });
@@ -322,11 +401,38 @@ function collect(node) {
       flags.push(`缺少暗色阴影样式：${lightName} ·暗 @ ${label}`);
     }
   }
+  // 节点级绑定：fills/strokes 整列绑 COLOR 变量（bind_variable_to_paint 按列内序号写）
+  if (node.boundVariables && typeof node.boundVariables === 'object') {
+    for (const target of ['fills', 'strokes']) {
+      boundIdsFromEntry(node.boundVariables[target]).forEach((id, index) => {
+        if (!lightColorIds.has(id)) return;
+        const darkId = darkColorByName.get(lightColorIds.get(id));
+        if (!darkId) throw new Error(`暗色集合缺少同名颜色变量：${lightColorIds.get(id)}`);
+        ops.push({ tool: 'bind_variable_to_paint', args: { nodeId: node.id, target, index, variableId: darkId } });
+      });
+    }
+  }
+  const nodeBoundTargets = new Set(['fills', 'strokes'].filter((t) => boundIdsFromEntry(node.boundVariables?.[t]).length));
+  if (DIAG) {
+    for (const p of node.fills ?? []) {
+      if (p.type === 'SOLID' && !p.boundVariables?.color && !nodeBoundTargets.has('fills')) {
+        const key = `${node.type === 'TEXT' ? 'TEXT ' : ''}${litKey(p)}`;
+        diag.literalFills.set(key, (diag.literalFills.get(key) ?? 0) + 1);
+      }
+    }
+    for (const p of node.strokes ?? []) {
+      if (p.type === 'SOLID' && !p.boundVariables?.color && !nodeBoundTargets.has('strokes')) {
+        diag.literalStrokes.set(litKey(p), (diag.literalStrokes.get(litKey(p)) ?? 0) + 1);
+      }
+    }
+    if (styleField && typeof styleField === 'object' && Object.keys(styleField).length) diag.styleBound++;
+    if (node.boundVariables) diag.nodeBound++;
+  }
   const fills = mapPaints(node.fills, label);
   if (fills) ops.push({ tool: 'set_fills', args: { nodeId: node.id, fills } });
   const strokes = mapPaints(node.strokes, label);
   if (strokes) ops.push({ tool: 'set_strokes', args: { nodeId: node.id, strokes } });
-  if (!lightShadowStyleIds.has(node.styles?.effect)) {
+  if (!(styleField && typeof styleField === 'object' && lightShadowStyleIds.has(styleField.effect))) {
     const effects = mapEffects(node.effects, label);
     if (effects) ops.push({ tool: 'set_effects', args: { nodeId: node.id, effects } });
   }
@@ -344,6 +450,8 @@ function countRemainingLightBindings(node) {
       if (val && typeof val === 'object' && val.type === 'VARIABLE_ALIAS' && lightColorIds.has(val.id)) count++;
     }
   };
+  hit(node.boundVariables?.fills);
+  hit(node.boundVariables?.strokes);
   for (const p of node.fills ?? []) { hit(p.boundVariables); for (const s of p.gradientStops ?? []) hit(s.boundVariables); }
   for (const p of node.strokes ?? []) { hit(p.boundVariables); for (const s of p.gradientStops ?? []) hit(s.boundVariables); }
   for (const e of node.effects ?? []) hit(e.boundVariables);
@@ -390,31 +498,59 @@ console.log(`读取根节点：${rootId}`);
 const { node } = await rpc('get_node', { nodeId: rootId });
 if (!node) throw new Error(`节点不存在：${rootId}`);
 
-const ops = collect(node);
-console.log(`扫描 ${scanned} 个节点；待写操作 ${ops.length} 个（fills ${ops.filter((o) => o.tool === 'set_fills').length} / strokes ${ops.filter((o) => o.tool === 'set_strokes').length} / effects ${ops.filter((o) => o.tool === 'set_effects').length} / 样式 ${ops.filter((o) => o.tool === 'apply_style_to_node').length}）`);
+const labelOps = LABELS ? collectTextOps(node) : [];
+const ops = LABELS ? [] : collect(node);
+console.log(`扫描 ${scanned} 个节点；待写操作 ${ops.length} 个（fills ${ops.filter((o) => o.tool === 'set_fills').length} / strokes ${ops.filter((o) => o.tool === 'set_strokes').length} / effects ${ops.filter((o) => o.tool === 'set_effects').length} / 节点级重绑 ${ops.filter((o) => o.tool === 'bind_variable_to_paint').length} / 效果样式 ${ops.filter((o) => o.tool === 'apply_style_to_node').length}）${LABELS ? `；标签待改 ${labelOps.length} 条` : ''}`);
+if (DIAG) {
+  const top = (map, n = 20) => [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${k}×${v}`).join('  ');
+  console.log(`[diag] 节点级绑定 ${diag.nodeBound} 个；样式绑定 ${diag.styleBound} 个`);
+  console.log(`[diag] 字面填色 TOP：${top(diag.literalFills) || '（无）'}`);
+  console.log(`[diag] 字面描边 TOP：${top(diag.literalStrokes) || '（无）'}`);
+}
 if (flags.length) console.log(`预警 ${flags.length} 条：\n  - ${flags.join('\n  - ')}`);
+if (LABELS && DRY) {
+  for (const op of labelOps) console.log(`  ${op.from} → ${op.args.characters.split('\n').join(' | ')}`);
+}
 
 if (DRY) {
   console.log('dry-run 结束：未写入。');
-  process.exit(0);
-}
-
-let failed = 0;
-for (let i = 0; i < ops.length; i++) {
-  const op = ops[i];
-  try {
-    await rpc(op.tool, op.args);
-    writes[op.tool === 'apply_style_to_node' ? 'styles' : op.tool.replace('set_', '')]++;
-  } catch (error) {
-    failed++;
-    if (failed <= 5) console.error(`写入失败：${op.tool} ${op.args.nodeId}：${error.message}`);
+  process.exitCode = 0;
+} else if (LABELS) {
+  let lfail = 0;
+  for (let i = 0; i < labelOps.length; i++) {
+    try {
+      await rpc('set_text', labelOps[i].args);
+      writes.labels++;
+    } catch (error) {
+      lfail++;
+      if (lfail <= 5) console.error(`标签写入失败：${labelOps[i].args.nodeId}：${error.message}`);
+    }
+    if ((i + 1) % 10 === 0 || i === labelOps.length - 1) {
+      console.log(`标签已写 ${i + 1}/${labelOps.length}`);
+    }
   }
-  if ((i + 1) % 20 === 0 || i === ops.length - 1) {
-    console.log(`已写入 ${i + 1}/${ops.length}`);
+  console.log(`\n标签更新完成：${writes.labels} 条；失败 ${lfail}`);
+  if (lfail > 0) process.exitCode = 2;
+} else {
+  let failed = 0;
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i];
+    try {
+      await rpc(op.tool, op.args);
+      if (op.tool === 'apply_style_to_node') writes.styles++;
+      else if (op.tool === 'bind_variable_to_paint') writes.nodeBinds++;
+      else writes[op.tool.replace('set_', '')]++;
+    } catch (error) {
+      failed++;
+      if (failed <= 5) console.error(`写入失败：${op.tool} ${op.args.nodeId}：${error.message}`);
+    }
+    if ((i + 1) % 20 === 0 || i === ops.length - 1) {
+      console.log(`已写入 ${i + 1}/${ops.length}`);
+    }
   }
-}
 
-const { node: after } = await rpc('get_node', { nodeId: rootId });
-const remaining = countRemainingLightBindings(after);
-console.log(`\n重绑完成：fills ${writes.fills} / strokes ${writes.strokes} / effects ${writes.effects} / 效果样式 ${writes.styles}；失败 ${failed}；残留亮色绑定 ${remaining}`);
-if (remaining > 0) process.exit(2);
+  const { node: after } = await rpc('get_node', { nodeId: rootId });
+  const remaining = countRemainingLightBindings(after);
+  console.log(`\n重绑完成：fills ${writes.fills} / strokes ${writes.strokes} / effects ${writes.effects} / 节点级重绑 ${writes.nodeBinds} / 效果样式 ${writes.styles}；失败 ${failed}；残留亮色绑定 ${remaining}`);
+  if (remaining > 0 || failed > 0) process.exitCode = 2;
+}
