@@ -242,6 +242,27 @@ const LITERAL_BIND_RULES = [
   { names: ['批次概览'], rgb: BLACK, alpha: 1, type: 'TEXT', token: 'color/foreground' },
   { names: ['快照'], rgb: BLACK, alpha: 1, type: 'TEXT', token: 'color/text-1' }
 ];
+// n 阶字面值 → 同名暗色令牌（不限节点名、限不透明度≈1；白色与纯黑语义歧义不入表——
+// 白色可能是 on-ink/primary-foreground（暗色保持白），纯黑可能是品牌资产。先于本表的命名规则优先。）
+const VALUE_BIND_RULES = [
+  { rgb: [0.9725, 0.9725, 0.9725], token: 'color/background' },
+  { rgb: [0.9882, 0.9882, 0.9922], token: 'color/n-25' },
+  { rgb: [0.9765, 0.9804, 0.9843], token: 'color/n-50' },
+  { rgb: [0.9255, 0.9255, 0.9333], token: 'color/n-75' },
+  { rgb: [0.949, 0.9569, 0.9686], token: 'color/n-100' },
+  { rgb: [0.9176, 0.9255, 0.9451], token: 'color/n-150' },
+  { rgb: [0.8941, 0.9059, 0.9255], token: 'color/n-200' },
+  { rgb: [0.8392, 0.8549, 0.8824], token: 'color/n-250' },
+  { rgb: [0.8157, 0.8353, 0.8667], token: 'color/n-300' },
+  { rgb: [0.6078, 0.6392, 0.6902], token: 'color/n-400' },
+  { rgb: [0.4, 0.4549, 0.5216], token: 'color/n-500' },
+  { rgb: [0.2784, 0.3333, 0.4], token: 'color/n-600' },
+  { rgb: [0.2078, 0.2588, 0.3333], token: 'color/n-700' },
+  { rgb: [0.0941, 0.1373, 0.1843], token: 'color/n-800' },
+  { rgb: [0.0667, 0.0941, 0.1529], token: 'color/n-900' },
+  { rgb: [0.0471, 0.0667, 0.1137], token: 'color/n-1000' }
+];
+
 const LITERAL_CLEAR_RULES = [
   { names: ['策略切换', '提示词切换', 'seg-item', '服务状态行', 'btn · 快照', 'strategy-group'], rgb: WHITE, alpha: 1 },
   { names: ['srow-path', 'srow-stats', 'srow-import', 'srow-clean', 'brow-1', 'brow-2', 'brow-3', 'brow-4'], rgb: WHITE, alpha: 1 },
@@ -377,6 +398,14 @@ function matchLiteralRules(node, paint) {
   for (const r of LITERAL_CLEAR_RULES) {
     if (!r.names.includes(node.name) || !eq(r.rgb) || !eps(op, r.alpha, 0.004)) continue;
     return { kind: 'clear' };
+  }
+  if (eps(op, 1, 0.004)) {
+    for (const r of VALUE_BIND_RULES) {
+      if (!eq(r.rgb)) continue;
+      const darkId = darkColorByName.get(r.token);
+      if (!darkId) throw new Error(`暗色集合缺少变量：${r.token}`);
+      return { kind: 'bind', variableId: darkId };
+    }
   }
   return null;
 }
