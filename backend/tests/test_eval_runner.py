@@ -8,23 +8,30 @@ from __future__ import annotations
 
 import json
 import random
+import threading
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from dataset_factory.eval import (
     DUAL_FULL,
+    DUAL_SAMPLED,
     KIND_BINARY,
     KIND_SCORE5,
     DimensionSpec,
     EvalBatchConfig,
+    EvalBatchNotFoundError,
     EvalConfigError,
     EvalRunner,
+    EvalRunOccupiedError,
+    EvalStore,
     HumanSettings,
     PairwiseSettings,
     RunReport,
     create_eval_batch,
+    delete_eval_batch,
 )
 from dataset_factory.llm import (
     LLMRateLimitError,
@@ -39,10 +46,11 @@ from dataset_factory.runs import BatchRunner, BenchmarkBatchError
 from dataset_factory.strategies import (
     create_batch,
     create_strategy,
+    delete_batch,
     delete_strategy,
     set_batch_benchmark,
 )
-from dataset_factory.workdir import RunOccupiedError, WorkdirStore
+from dataset_factory.workdir import RunLock, RunOccupiedError, WorkdirStore
 
 
 class RecordingCompleter:
@@ -143,6 +151,7 @@ def _config(
     benchmark: int | None = None,
     pairwise: bool = True,
     dual_order: str = DUAL_FULL,
+    ratio: int | None = None,
     limit: int | None = None,
     human: HumanSettings | None = None,
 ) -> EvalBatchConfig:
@@ -160,7 +169,7 @@ def _config(
         pairwise_settings=None
         if not pairwise
         else PairwiseSettings(
-            dual_order=dual_order, dual_order_ratio=None, limit=limit
+            dual_order=dual_order, dual_order_ratio=ratio, limit=limit
         ),
         human=human
         or HumanSettings(
@@ -240,6 +249,50 @@ def test_full_run_scores_dimensions_and_pairs(seeded: Path) -> None:
     samples = json.loads((run_dir / "samples.json").read_text(encoding="utf-8"))
     assert samples == {"random": [], "targeted": None}
     assert "<reference>" in completer.calls[0]  # 基准参照块进 judge 输入
+
+
+def test_run_record_carries_candidate_snapshots(seeded: Path) -> None:
+    """run.json 带被测批次的策略快照（报告可复现层的运行侧数据源）。"""
+    workdir = seeded
+    judge = create_strategy(
+        name="裁判", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    seq = create_eval_batch(
+        workdir, name="第一评", description="", config=_config(judge.id)
+    ).seq
+    report, _ = _run(workdir, seq)
+    record = json.loads((report.run_dir / "run.json").read_text(encoding="utf-8"))
+    candidates = record["candidates"]
+    assert [row["batch"] for row in candidates] == ["s1", "s2"]
+    for row in candidates:
+        snapshot = row["snapshot"]
+        assert snapshot["endpoint"]["model"] == "test-model"  # 批次配置快照
+        assert snapshot["prompt"]["body"] == "你是裁判"
+
+
+def test_sampled_dual_order_randomizes_left_right_of_single_order_pairs(
+    seeded: Path,
+) -> None:
+    """双序抽验（sampled）下没抽中双序的对也随机左右，不恒为 a<b。"""
+    workdir = seeded
+    judge = create_strategy(
+        name="裁判", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    seq = create_eval_batch(
+        workdir,
+        name="第一评",
+        description="",
+        config=_config(judge.id, benchmark=3, dual_order=DUAL_SAMPLED, ratio=1),
+    ).seq
+    report, _ = _run(workdir, seq, rng=random.Random(3))  # noqa: S311
+    rows = _read_jsonl(report.run_dir / "pairs.jsonl")
+    # 每素材 3 对（s1/s2/s3）× 1 序（比例 1% 该种子未抽中双序）——左右必须两种都出现。
+    assert len(rows) == 6
+    orders: set[tuple[int, int]] = {
+        (cast("int", row["a_batch"]), cast("int", row["b_batch"])) for row in rows
+    }
+    assert any(a < b for a, b in orders)
+    assert any(a > b for a, b in orders)
 
 
 def test_unregistered_asset_without_caption_excluded(seeded: Path) -> None:
@@ -326,10 +379,38 @@ def test_stop_mid_run_leaves_interrupted(seeded: Path) -> None:
     assert samples["targeted"] is None  # 中断即无判分可依
 
 
+def test_run_exception_marks_run_json_failed(seeded: Path) -> None:
+    """运行中抛非预期异常：run.json 落 failed 终态（不永留 running）。"""
+    workdir = seeded
+    judge = create_strategy(
+        name="裁判", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    seq = create_eval_batch(
+        workdir,
+        name="第一评",
+        description="",
+        config=_config(judge.id, pairwise=False),
+    ).seq
+
+    def responder(_text: str) -> str:
+        raise RuntimeError("judge 端点崩了")
+
+    with pytest.raises(RuntimeError, match="judge 端点崩了"):
+        _run(workdir, seq, responder)
+    runs = list((workdir / ".dsf" / "eval" / "runs").iterdir())
+    assert len(runs) == 1
+    record = json.loads((runs[0] / "run.json").read_text(encoding="utf-8"))
+    assert record["status"] == "failed"
+    assert record["error"] == "judge 端点崩了"
+    assert record["finished_at"]
+    assert record["counters"]["attempted"] == 0
+    assert not list((workdir / ".dsf" / "eval" / "reports").glob("*.json"))
+
+
 def test_occupied_lock_rejects_second_eval_run(
     seeded: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """eval 运行锁被占 → 第二个打分运行启动即拒（评测之间互斥）。"""
+    """锁占用的拒绝在域边界翻成 EvalRunOccupiedError（RunOccupiedError 不外泄）。"""
     workdir = seeded
     judge = create_strategy(
         name="裁判", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
@@ -358,9 +439,102 @@ def test_occupied_lock_rejects_second_eval_run(
         completer_factory=lambda _config: RecordingCompleter(_default_responder),
         rng=random.Random(1),  # noqa: S311
     )
-    with pytest.raises(RunOccupiedError, match="占用"):
+    with pytest.raises(EvalRunOccupiedError, match="占用") as exc_info:
         runner.run()
+    assert exc_info.value.occupier == {"pid": 1}
     assert runner.snapshot()["status"] == "failed"
+
+
+def test_real_eval_lock_held_elsewhere_reports_eval_occupied(seeded: Path) -> None:
+    """真实 eval 运行锁被占 → EvalRunOccupiedError 携原占用者，且不建运行目录。"""
+    workdir = seeded
+    judge = create_strategy(
+        name="裁判", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    seq = create_eval_batch(
+        workdir, name="第一评", description="", config=_config(judge.id)
+    ).seq
+    eval_dir = EvalStore(workdir).eval_dir
+    holder = RunLock(eval_dir)
+    errors: list[EvalRunOccupiedError] = []
+
+    def attempt() -> None:
+        runner = EvalRunner(
+            workdir,
+            seq,
+            completer_factory=lambda _config: RecordingCompleter(_default_responder),
+            rng=random.Random(1),  # noqa: S311
+        )
+        # 断言在收集后统一做（线程里 assert 不透传异常）。
+        try:
+            runner.run()
+        except EvalRunOccupiedError as exc:
+            errors.append(exc)
+
+    # 跨线程持有才是真占用（filelock 的计数按实例记账、同线程重入会成功）。
+    holder.acquire({"pid": 4321, "batch": "e9", "run_id": "other-run"})
+    try:
+        worker = threading.Thread(target=attempt)
+        worker.start()
+        worker.join(15)
+    finally:
+        holder.release()
+
+    assert not worker.is_alive()
+    assert len(errors) == 1
+    failure = errors[0]
+    assert not isinstance(failure, RunOccupiedError)  # 域边界已翻译，不混用类型
+    assert failure.occupier is not None
+    assert failure.occupier["pid"] == 4321
+    assert "评测" in str(failure)
+    assert not list((workdir / ".dsf" / "eval" / "runs").glob("*/run.json"))
+
+
+def test_candidate_batch_deleted_after_lock_fails_run_without_report(
+    seeded: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """抢到评测锁的那一刻被测批次被删：运行失败，不留孤儿运行与 completed 报告。
+
+    复现的是原实现的 TOCTOU：先读配置、后抢锁，删除恰好落在两步之间——配置已在
+    手里照样开跑，为已删的批次建出运行记录与报告（静默缩小参评范围）。
+    """
+    workdir = seeded
+    judge = create_strategy(
+        name="裁判", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    seq = create_eval_batch(
+        workdir, name="第一评", description="", config=_config(judge.id)
+    ).seq
+
+    class _DeletingRunLock(RunLock):
+        """抢到评测锁后立刻删掉被测批次（模拟锁外预检与锁内开跑之间的删除）。"""
+
+        def acquire(self, occupier: dict[str, object]) -> None:
+            """先真抢锁，再制造「批次已被删」的现场。"""
+            super().acquire(occupier)
+            delete_batch(workdir, 1)
+
+    monkeypatch.setattr("dataset_factory.eval.runner.RunLock", _DeletingRunLock)
+    with pytest.raises(EvalConfigError, match="被测批次不存在"):
+        _run(workdir, seq)
+    eval_dir = workdir / ".dsf" / "eval"
+    assert not list((eval_dir / "runs").glob("*/run.json"))  # 没有孤儿运行记录
+    assert not list((eval_dir / "reports").glob("*.json"))  # 更没有 completed 报告
+
+
+def test_eval_batch_deleted_before_run_reports_batch_not_found(seeded: Path) -> None:
+    """打分批次本身被删：锁内复核报 EvalBatchNotFoundError（不静默跳过）。"""
+    workdir = seeded
+    judge = create_strategy(
+        name="裁判", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    seq = create_eval_batch(
+        workdir, name="第一评", description="", config=_config(judge.id)
+    ).seq
+    delete_eval_batch(workdir, seq)
+    with pytest.raises(EvalBatchNotFoundError, match="不在工作目录中"):
+        _run(workdir, seq)
+    assert not list((workdir / ".dsf" / "eval" / "runs").glob("*/run.json"))
 
 
 def test_run_fails_clearly_when_judge_strategy_deleted(seeded: Path) -> None:
@@ -405,6 +579,95 @@ def test_samples_random_before_judge_and_targeted_after(seeded: Path) -> None:
     assert targeted is not None
     assert targeted["items"] == ["cat"]  # s1__cat 判「有幻觉」→ 优先全收
     assert "cat" in targeted["basis"]["hallucination"]
+
+
+def test_targeted_only_pairwise_manual_skips_dimension_badcases(seeded: Path) -> None:
+    """只勾对比人工：定向名单只收胜负分歧，不收维度坏例（幻觉 / 低分）。"""
+    workdir = seeded
+    judge = create_strategy(
+        name="裁判", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    human = HumanSettings(
+        full=False,
+        random_enabled=False,
+        random_count=None,
+        targeted_enabled=True,
+        targeted_count=2,
+        dimension_manual=False,
+        pairwise_manual=True,
+    )
+
+    def responder(text: str) -> str:
+        """对局按「含窗台的 caption 在哪一位」判胜——换位后 winner 跟着翻即分歧。"""
+        if "<caption-a>" not in text:
+            return _GOOD_DIMENSION
+        caption_a = text.split("<caption-a>")[1].split("</caption-a>")[0]
+        caption_b = text.split("<caption-b>")[1].split("</caption-b>")[0]
+        if "窗台" in caption_a:
+            winner = "A"
+        elif "窗台" in caption_b:
+            winner = "B"
+        else:
+            winner = "tie"
+        return json.dumps({"winner": winner, "理由": "按参照判。"}, ensure_ascii=False)
+
+    seq = create_eval_batch(
+        workdir,
+        name="第一评",
+        description="",
+        config=_config(judge.id, human=human),
+    ).seq
+    report, _ = _run(workdir, seq, responder)
+    targeted = json.loads(
+        (report.run_dir / "samples.json").read_text(encoding="utf-8")
+    )["targeted"]
+    assert targeted["items"] == ["cat"]  # 只有 cat 的两序胜负不一致
+    assert targeted["basis"]["divergent"] == ["cat"]
+    # 维度人工没开：维度坏例（s1__cat 判「有幻觉」）不该进名单与依据。
+    assert targeted["basis"]["hallucination"] == []
+    assert targeted["basis"]["low_score"] == []
+
+
+def test_targeted_only_dimension_manual_skips_pairwise_divergence(
+    seeded: Path,
+) -> None:
+    """只勾维度人工：定向名单只收幻觉 / 低分，不收对局胜负分歧。"""
+    workdir = seeded
+    judge = create_strategy(
+        name="裁判", endpoint_id="main", prompt_id="详细描述", skill_ids=[]
+    )
+    human = HumanSettings(
+        full=False,
+        random_enabled=False,
+        random_count=None,
+        targeted_enabled=True,
+        targeted_count=1,
+        dimension_manual=True,
+        pairwise_manual=False,
+    )
+
+    def responder(text: str) -> str:
+        """对局总要给出「换位即翻」的胜负（制造分歧），维度评分照默认判。"""
+        if "<caption-a>" not in text:
+            return _default_responder(text)
+        caption_a = text.split("<caption-a>")[1].split("</caption-a>")[0]
+        return json.dumps(
+            {"winner": "A" if "一只猫" in caption_a else "B", "理由": "随便判。"},
+            ensure_ascii=False,
+        )
+
+    seq = create_eval_batch(
+        workdir,
+        name="第一评",
+        description="",
+        config=_config(judge.id, human=human),
+    ).seq
+    report, _ = _run(workdir, seq, responder)
+    targeted = json.loads(
+        (report.run_dir / "samples.json").read_text(encoding="utf-8")
+    )["targeted"]
+    assert targeted["items"] == ["cat"]  # 幻觉条目优先全收
+    assert targeted["basis"]["divergent"] == []  # 对比人工没开，分歧不入依据
 
 
 def test_labeling_run_rejects_benchmark_batch(seeded: Path) -> None:

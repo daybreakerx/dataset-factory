@@ -15,11 +15,17 @@ from .locks import (
     MAINTENANCE_WAIT_SECONDS,
     RunLock,
     StateLock,
+    acquire_eval_run_lock,
     import_guard,
     maintenance_guard,
     maintenance_record,
 )
 from .store import WorkdirRegistry, WorkdirStore, registered_path
+
+#: 删除整个目录时撞上评测运行的拒绝文案（评测运行持 ``.dsf/eval/run.lock``）。
+_EVAL_OCCUPIED_DETAIL = (
+    "该工作目录正被一个打分（评测）运行占用，请等它结束或停止后再删除。"
+)
 
 
 @dataclass(frozen=True)
@@ -41,6 +47,24 @@ class DeletionResult:
     remaining_path: str | None
 
 
+#: 删除清单里要跳过的运行时文件（相对工作目录根）。
+#:
+#: 删除前本函数抢着打标锁与评测锁（含 ``.dsf/eval/`` 那一把），被锁住的文件另一个
+#: 句柄读不出来（Windows 的 LockFileEx 按句柄拒绝读），也没必要算进「要删多少字节」。
+_RUNTIME_FILES = frozenset(
+    {
+        Path(".dsf") / "run.lock",
+        Path(".dsf") / "run-info.json",
+        Path(".dsf") / "imports.lock",
+        Path(".dsf") / "state.lock",
+        Path(".dsf") / "eval" / "run.lock",
+        Path(".dsf") / "eval" / "run-info.json",
+        Path(".dsf") / "eval" / "state.lock",
+        Path(".dsf") / "eval" / ".manual-scores.lock",
+    }
+)
+
+
 def _files(root: Path) -> dict[str, tuple[int, str]]:
     result: dict[str, tuple[int, str]] = {}
 
@@ -57,12 +81,7 @@ def _files(root: Path) -> dict[str, tuple[int, str]]:
         for name in names:
             path = Path(directory) / name
             relative = path.relative_to(root)
-            if relative.parent == Path(".dsf") and name in (
-                "run.lock",
-                "imports.lock",
-                "state.lock",
-                "run-info.json",
-            ):
+            if relative in _RUNTIME_FILES:
                 continue
             if not path.is_file():
                 raise WorkdirPathError("工作目录内包含特殊文件，请检查后再删除。")
@@ -150,7 +169,8 @@ def _original_materials(root: Path) -> bool:
 def delete_workdir(wid: str, confirmed_path: Path) -> DeletionResult:
     """核对确认路径后删除整个目录；中途失败保留记录以便重试。
 
-    运行、导入和状态写入均需退出后才能删除。删除记录位于数据根，目录内
+    打标运行、评测运行、导入和状态写入均需退出后才能删除（评测与打标各持自己的
+    运行锁、互不阻塞，所以两把要分别抢）。删除记录位于数据根，目录内
     Windows 锁句柄释放后仍由维护锁拒绝新写者。
     """
     root = _root(wid)
@@ -182,7 +202,14 @@ def delete_workdir(wid: str, confirmed_path: Path) -> DeletionResult:
             run = RunLock(store.dsf_path)
             state = StateLock(store.dsf_path)
             run.acquire({"operation": "delete", "pid": os.getpid()})
+            eval_run: RunLock | None = None
             try:
+                # 评测运行持自己的锁、与打标锁互不阻塞——整目录删除必须两把都到手。
+                eval_run = acquire_eval_run_lock(
+                    store.dsf_path,
+                    {"operation": "delete", "pid": os.getpid()},
+                    occupied_detail=_EVAL_OCCUPIED_DETAIL,
+                )
                 with import_guard(store.dsf_path):
                     state.acquire()
                     try:
@@ -204,7 +231,11 @@ def delete_workdir(wid: str, confirmed_path: Path) -> DeletionResult:
                     finally:
                         state.release()
             finally:
-                run.release()
+                try:
+                    if eval_run is not None:
+                        eval_run.release()
+                finally:
+                    run.release()
         try:
             if root.exists():
                 shutil.rmtree(root)

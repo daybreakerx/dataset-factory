@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,6 +26,7 @@ from dataset_factory.llm import (
 )
 from dataset_factory.prompts import Prompt, save_prompt
 from dataset_factory.strategies import create_batch, create_strategy
+from dataset_factory.workdir import RunLock
 
 
 @pytest.fixture
@@ -305,6 +307,19 @@ class _FakeJudgeCompleter:
         return _GOOD_PAIRWISE if "<caption-a>" in text else _GOOD_DIMENSION
 
 
+class _GatedJudgeCompleter(_FakeJudgeCompleter):
+    """每次调用先等门——把运行钉在 running 状态，供并发请求断言。"""
+
+    def __init__(self, gate: threading.Event) -> None:
+        """记住门。"""
+        super().__init__(0.0)
+        self._gate = gate
+
+    def _reply(self, messages: Sequence[Message]) -> str:
+        self._gate.wait(10)
+        return super()._reply(messages)
+
+
 @pytest.fixture
 def seeded_for_runs(client: TestClient, wid: str) -> tuple[TestClient, str, str, Path]:
     """预置可评对象：两素材登记在册、s1/s2 各有产物、裁判策略与打分批次就绪。"""
@@ -376,6 +391,10 @@ def test_start_run_completes_then_current_idle(
             break
         time.sleep(0.05)
     assert final == "idle"
+    # 完成的运行已退出注册表：stream / stop 按 404（只有 failed 的残留可订阅回放）。
+    gone = client.get(f"/api/workdirs/{wid}/eval-batches/e1/runs/stream")
+    assert gone.status_code == 404
+    assert gone.json()["type"] == "eval-run-not-active"
     record = json.loads(
         (workdir / ".dsf" / "eval" / "runs" / run_id / "run.json").read_text(
             encoding="utf-8"
@@ -395,6 +414,96 @@ def test_start_run_rejects_broken_judge_reference(
     response = client.post(f"/api/workdirs/{wid}/eval-batches/e1/runs")
     assert response.status_code == 400
     assert response.json()["type"] == "eval-config-invalid"
+
+
+def test_second_start_while_running_returns_409_eval_run_occupied(
+    seeded_for_runs: tuple[TestClient, str, str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """同进程已有打分运行在跑 → 409 eval-run-occupied，占用者取那次运行的快照。"""
+    client, wid, _, _ = seeded_for_runs
+    gate = threading.Event()
+
+    def gated_factory(_config: EndpointConfig) -> Completer:
+        """把运行钉在 running 状态的假件。"""
+        return _GatedJudgeCompleter(gate)
+
+    monkeypatch.setattr("dataset_factory.eval.runner.build_completer", gated_factory)
+    first = client.post(f"/api/workdirs/{wid}/eval-batches/e1/runs")
+    assert first.status_code == 202
+    run_id = str(first.json()["run_id"])
+    try:
+        second = client.post(f"/api/workdirs/{wid}/eval-batches/e1/runs")
+        assert second.status_code == 409
+        assert second.headers["content-type"].startswith("application/problem+json")
+        body = second.json()
+        assert body["type"] == "eval-run-occupied"
+        assert body["occupier"]["run_id"] == run_id
+        assert body["occupier"]["batch"] == "e1"
+        assert body["occupier"]["status"] == "running"
+    finally:
+        gate.set()
+    for _ in range(200):
+        if (
+            client.get(f"/api/workdirs/{wid}/eval-batches/e1/runs/current").json()
+            is None
+        ):
+            break
+        time.sleep(0.02)
+
+
+def test_stream_replays_failed_run_and_failed_state_allows_restart(
+    seeded_for_runs: tuple[TestClient, str, str, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """跨进程锁被占导致受理后失败：current 见 failed、stream 回放 failed 终态（不再 404）。
+
+    失败终态留在注册表里给 SSE/current 呈现；它不算「占用」，锁放开后同一批次可以
+    立刻重启。
+    """
+    client, wid, _, workdir = seeded_for_runs
+    monkeypatch.setattr("dataset_factory.eval.runner.build_completer", _fast_factory)
+    holder = RunLock(workdir / ".dsf" / "eval")
+    holder.acquire({"pid": 4321, "batch": "e9", "run_id": "other-run"})
+    try:
+        started = client.post(f"/api/workdirs/{wid}/eval-batches/e1/runs")
+        assert started.status_code == 202
+        failed: dict[str, Any] | None = None
+        for _ in range(200):
+            body: object = client.get(
+                f"/api/workdirs/{wid}/eval-batches/e1/runs/current"
+            ).json()
+            if isinstance(body, dict):
+                record = cast("dict[str, Any]", body)
+                if record["status"] == "failed":
+                    failed = record
+                    break
+            time.sleep(0.02)
+        assert failed is not None
+        assert "占用" in str(failed["error"])
+
+        frames: list[str] = []
+        with client.stream(
+            "GET", f"/api/workdirs/{wid}/eval-batches/e1/runs/stream"
+        ) as stream:
+            assert stream.status_code == 200  # 旧实现这里 404，失败原因在 SSE 一路丢掉
+            for chunk in stream.iter_text():
+                frames.append(chunk)
+        joined = "".join(frames)
+        assert "event: run-finished" in joined
+        assert '"status": "failed"' in joined
+    finally:
+        holder.release()
+
+    restarted = client.post(f"/api/workdirs/{wid}/eval-batches/e1/runs")
+    assert restarted.status_code == 202  # failed 不拦新启动
+    for _ in range(200):
+        if (
+            client.get(f"/api/workdirs/{wid}/eval-batches/e1/runs/current").json()
+            is None
+        ):
+            break
+        time.sleep(0.02)
 
 
 def test_stop_without_active_run_returns_404(

@@ -30,8 +30,10 @@ from dataset_factory.workdir import (
     StateLockTimeoutError,
     WorkdirMaintenanceError,
     WorkdirPathError,
+    WorkdirRegistry,
     WorkdirStore,
 )
+from dataset_factory.workdir.deletion import delete_workdir
 from dataset_factory.workdir.locks import import_guard, maintenance_guard
 
 _HOLD_STATE_LOCK_SCRIPT = """
@@ -552,3 +554,40 @@ def test_run_lock_releases_when_info_cleanup_fails(
 
     assert not worker.is_alive()
     assert acquired == [True]
+
+
+def test_delete_workdir_refuses_while_eval_run_lock_held(workdir: Path) -> None:
+    """整目录删除要认评测运行锁：评测在跑就拒绝，目录与登记都完整。
+
+    评测运行持 ``.dsf/eval/run.lock``、与打标的 ``run.lock`` 互不阻塞——只认打标锁
+    会在评测跑到一半时把目录删掉。
+    """
+    (workdir / "a.jpg").write_bytes(b"image")
+    entry = WorkdirRegistry.register(workdir)
+    eval_dir = WorkdirStore(workdir).dsf_path / "eval"
+    eval_dir.mkdir()
+    holder = RunLock(eval_dir)
+    errors: list[Exception] = []
+
+    def remove() -> None:
+        try:
+            delete_workdir(entry.id, workdir)
+        except RunOccupiedError as exc:
+            errors.append(exc)
+
+    holder.acquire({"operation": "test", "batch": "e1"})
+    try:
+        worker = threading.Thread(target=remove)
+        worker.start()
+        worker.join(15)
+    finally:
+        holder.release()
+
+    assert not worker.is_alive()
+    assert len(errors) == 1
+    assert "评测" in str(errors[0])  # 占用者是评测运行，不能提示成「有跑批在跑」
+    assert (workdir / "a.jpg").read_bytes() == b"image"
+    assert Path(WorkdirRegistry.get(entry.id).path) == workdir
+    # 评测锁释放后照常可删：助手抢到的锁成对释放，没留下自己的占用。
+    assert delete_workdir(entry.id, workdir).deleted is True
+    assert not workdir.exists()

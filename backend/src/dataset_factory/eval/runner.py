@@ -46,18 +46,24 @@ from ..llm import (
     build_completer,
     read_config,
 )
-from ..strategies import StrategyNotFoundError, missing_refs
+from ..strategies import (
+    BatchNotFoundError,
+    StrategyNotFoundError,
+    missing_refs,
+    read_snapshot,
+)
 from ..strategies.snapshot import build_snapshot, tool_version
 from ..strategies.store import get_strategy
 from ..workdir import (
     RunLock,
+    RunOccupiedError,
     WorkdirStore,
     product_filename,
     product_has_content,
     registered_origins,
     scan_assets,
 )
-from .batches import get_eval_batch, read_eval_config
+from .batches import get_eval_batch, read_eval_config, validate_references
 from .config import (
     DUAL_FULL,
     DUAL_NONE,
@@ -66,7 +72,12 @@ from .config import (
     KIND_SCORE5,
     EvalBatchConfig,
 )
-from .errors import EvalConfigError, EvalError, EvalJudgeFormatError
+from .errors import (
+    EvalConfigError,
+    EvalError,
+    EvalJudgeFormatError,
+    EvalRunOccupiedError,
+)
 from .judge import (
     JudgeCaller,
     build_dimension_messages,
@@ -105,7 +116,8 @@ _BACKOFF_BASE_SECONDS = 1.0
 _JITTER_RATIO = 0.2
 
 _EVAL_OCCUPIED_DETAIL = (
-    "该工作目录正被另一个打分（评测）运行占用（评测与打标可并行、评测之间互斥）。"
+    "该工作目录正被另一个打分（评测）运行占用（评测与打标可并行、评测之间互斥）；"
+    "等它结束或停止后再试。"
 )
 
 
@@ -356,6 +368,7 @@ class EvalRunner:
         self._subscriber_guard = threading.Lock()
         self._finished_event: RunFinishedEvent | None = None
         store = EvalStore(workdir)
+        self._store = store
         self._run_id = _new_run_id(store.runs_dir)
         self._status = RUN_STATUS_RUNNING
         self._error: str | None = None
@@ -425,10 +438,12 @@ class EvalRunner:
         """执行一次打分运行（阻塞到结束 / 停止），返回最终报告。
 
         启动失败的异常（引用不成立、跨进程锁被占等）在此收口：状态置 failed、
-        错误进快照、发 failed 终态事件后原样重抛。
+        错误进快照、已落盘的 run.json 尽力改成 failed 终态、发 failed 终态事件后
+        原样重抛。
 
         Raises:
             EvalConfigError: 裁判策略被删或其引用缺失（引用不成立运行直接失败）。
+            EvalRunOccupiedError: 该工作目录已有打分运行在跑（跨进程锁占用）。
             EvalError: 打分批次或配置不存在 / 损坏。
         """
         self._status = RUN_STATUS_RUNNING
@@ -437,6 +452,7 @@ class EvalRunner:
         except Exception as exc:
             self._status = RUN_STATUS_FAILED
             self._error = str(exc)
+            self._persist_failed_status()
             self._emit(
                 RunFinishedEvent(
                     run_id=self._run_id,
@@ -448,23 +464,75 @@ class EvalRunner:
             )
             raise
 
+    def _persist_failed_status(self) -> None:
+        """失败路径尽力把 run.json 改成 failed 终态（写失败只告警，不掩盖原异常）。
+
+        运行记录停在 running 会让外部把它当成「还在跑」（current / 历史回读都靠
+        这个字段判终态）。run 目录还没建起来（启动校验就失败）时无事可做。
+        """
+        path = self._store.runs_dir / self._run_id / "run.json"
+        if not path.is_file():
+            return
+        try:
+            loaded: object = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            logger.warning(
+                "打分运行的失败终态未能写回 run.json（读不出来）：run=%s",
+                self._run_id,
+                exc_info=True,
+            )
+            return
+        if not isinstance(loaded, dict):
+            logger.warning(
+                "打分运行的失败终态未能写回 run.json（顶层不是对象）：run=%s",
+                self._run_id,
+            )
+            return
+        record = cast("dict[str, object]", loaded)
+        record["status"] = RUN_STATUS_FAILED
+        record["counters"] = dict(self._counters)
+        record["error"] = self._error
+        record["finished_at"] = now_iso()
+        try:
+            atomic_write_text(path, json.dumps(record, ensure_ascii=False, indent=2))
+        except OSError:
+            logger.warning(
+                "打分运行的失败终态未能写回 run.json（写不进去）：run=%s",
+                self._run_id,
+                exc_info=True,
+            )
+
     def _run(self) -> RunReport:
-        """锁的获取与释放都在这里（acquire 后任何失败都必须走到 release）。"""
-        get_eval_batch(self._workdir, self._seq)
-        config = read_eval_config(self._workdir, self._seq)
-        store = EvalStore(self._workdir)
-        lock = RunLock(store.eval_dir, occupied_detail=_EVAL_OCCUPIED_DETAIL)
-        lock.acquire(
-            {
-                "pid": os.getpid(),
-                "started_at": now_iso(),
-                "hostname": platform.node(),
-                "batch": f"e{self._seq}",
-                "run_id": self._run_id,
-            }
+        """抢评测运行锁，**锁内**校验批次与配置（锁外读会与删除竞态）。
+
+        锁外的预检（HTTP 受理 / CLI）只是提前失败；权威判定在锁内：抢到锁之后才
+        读批次与配置、跑规则校验与引用校验——否则删除可以在「读过配置」与「抢到
+        锁」之间完成，本次运行会为已删的批次建出孤儿运行与报告。
+        """
+        lock = RunLock(
+            self._store.eval_dir,
+            occupied_detail=_EVAL_OCCUPIED_DETAIL,
+            occupier_role="打分（评测）运行",
         )
         try:
-            return self._run_locked(store, config)
+            lock.acquire(
+                {
+                    "pid": os.getpid(),
+                    "started_at": now_iso(),
+                    "hostname": platform.node(),
+                    "batch": f"e{self._seq}",
+                    "run_id": self._run_id,
+                }
+            )
+        except RunOccupiedError as exc:
+            # 域边界翻译：本域对外只有 eval-run-occupied，RunOccupiedError 不外泄。
+            raise EvalRunOccupiedError(str(exc), occupier=exc.occupier) from exc
+        try:
+            get_eval_batch(self._workdir, self._seq)
+            config = read_eval_config(self._workdir, self._seq)
+            config.validate()
+            validate_references(self._workdir, config)
+            return self._run_locked(config)
         finally:
             lock.release()
 
@@ -586,6 +654,9 @@ class EvalRunner:
             elif dual_order == DUAL_SAMPLED:
                 ratio = settings.dual_order_ratio or 0 if settings else 0
                 pair.dual = self._rng.randrange(100) < ratio
+                if not pair.dual and self._rng.random() < 0.5:
+                    # 没抽中双序的对也是单序随机左右（PRD：其余对单序、左右随机）。
+                    pair.a_batch, pair.b_batch = pair.b_batch, pair.a_batch
             elif self._rng.random() < 0.5:
                 # 不双序·单序随机左右：换位一次即「A/B 随机」。
                 pair.a_batch, pair.b_batch = pair.b_batch, pair.a_batch
@@ -600,7 +671,25 @@ class EvalRunner:
             item.caption_for(b_batch, benchmark),
         )
 
-    def _run_locked(self, store: EvalStore, config: EvalBatchConfig) -> RunReport:
+    def _candidate_snapshots(self, config: EvalBatchConfig) -> list[dict[str, object]]:
+        """各被测批次的策略快照（运行记录里的复现数据；读不出就失败，不留缺口）。
+
+        Raises:
+            EvalConfigError: 被测批次的快照缺失或损坏（可复现性不允许静默留空）。
+        """
+        snapshots: list[dict[str, object]] = []
+        for seq in config.candidates:
+            try:
+                snapshot = read_snapshot(self._workdir, seq).to_json()
+            except (BatchNotFoundError, StrategyNotFoundError) as exc:
+                raise EvalConfigError(
+                    f"被测批次 s{seq} 的策略快照读不出来（{exc}）——"
+                    "请检查该批次与快照文件后重跑。"
+                ) from exc
+            snapshots.append({"batch": f"s{seq}", "snapshot": snapshot})
+        return snapshots
+
+    def _run_locked(self, config: EvalBatchConfig) -> RunReport:
         """持锁执行体：装配裁判、定计划、落 run.json、逐调用执行、收尾。"""
         judges = self._resolve_judges(config)
         items = self._plan_items(config)
@@ -612,7 +701,9 @@ class EvalRunner:
         )
         pair_calls = sum(1 + int(pair.dual) for pair in pairs) * len(judges)
         self._counters["planned"] = dimension_calls + pair_calls
-        run_dir = store.runs_dir / self._run_id
+        # 复现数据先取：快照读不出来就在建运行目录之前失败（不留空壳目录）。
+        candidate_snapshots = self._candidate_snapshots(config)
+        run_dir = self._store.runs_dir / self._run_id
         run_dir.mkdir(parents=True, exist_ok=True)
         started_at = now_iso()
         run_record: dict[str, object] = {
@@ -623,6 +714,9 @@ class EvalRunner:
                 {"strategy_id": plan.judge_id, "snapshot": plan.snapshot}
                 for plan in judges
             ],
+            # 复现数据：被测批次的策略快照（配置与裁判在上面／这里）。人工分由
+            # 报告生成时统一读取，三层消费同一份快照，不在运行记录里再存一份。
+            "candidates": candidate_snapshots,
             "trigger": self._trigger,
             "dsf_version": tool_version(),
             "counters": dict(self._counters),
@@ -928,9 +1022,13 @@ class EvalRunner:
     ) -> dict[str, object]:
         """生成定向筛查题单：按开启的人工活动取并集（专挑样本，推不了总体）。
 
-        挑选依据（judge 判分）：无幻觉判「有」的条目优先全收；维度均分相对分位
-        从低到高补足；开了对比人工再看双序胜负分歧的条目。缺口不补、名单缩水。
+        挑选依据（judge 判分）与人工活动一一对应：做了**维度人工**才收幻觉与低分
+        条目（无幻觉判「有」优先全收，维度均分相对分位从低到高补足）；做了**对比
+        人工**才收双序胜负分歧的条目；两个都做就取并集。只勾对比人工时不该把维度
+        坏例塞进这份名单（用户不会去评它）。缺口不补、名单缩水。
         """
+        dimension_manual = config.human.dimension_manual
+        pairwise_manual = config.human.pairwise_manual
         hallucination: set[str] = set()
         score_sum: dict[str, float] = {}
         score_count: dict[str, int] = {}
@@ -938,21 +1036,22 @@ class EvalRunner:
             dim.name for dim in config.dimensions if dim.kind == KIND_BINARY
         }
         score_names = {dim.name for dim in config.dimensions if dim.kind == KIND_SCORE5}
-        for row in dimension_rows:
-            if row.get("status") != "succeeded":
-                continue
-            item = str(row.get("item", ""))
-            scores = row.get("scores")
-            if not isinstance(scores, dict):
-                continue
-            for name, value in cast("dict[str, object]", scores).items():
-                if name in binary_names and value == "有":
-                    hallucination.add(item)
-                if name in score_names and isinstance(value, int):
-                    score_sum[item] = score_sum.get(item, 0.0) + value
-                    score_count[item] = score_count.get(item, 0) + 1
+        if dimension_manual:
+            for row in dimension_rows:
+                if row.get("status") != "succeeded":
+                    continue
+                item = str(row.get("item", ""))
+                scores = row.get("scores")
+                if not isinstance(scores, dict):
+                    continue
+                for name, value in cast("dict[str, object]", scores).items():
+                    if name in binary_names and value == "有":
+                        hallucination.add(item)
+                    if name in score_names and isinstance(value, int):
+                        score_sum[item] = score_sum.get(item, 0.0) + value
+                        score_count[item] = score_count.get(item, 0) + 1
         divergent: set[str] = set()
-        if config.human.pairwise_manual:
+        if pairwise_manual:
             verdicts: dict[tuple[object, ...], list[str]] = {}
             for row in pair_rows:
                 if row.get("status") != "succeeded":

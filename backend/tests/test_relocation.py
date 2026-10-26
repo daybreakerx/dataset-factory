@@ -675,3 +675,65 @@ def test_abandon_operations_reject_records_of_other_workdirs(
         abandon_switchover(other.id, source)
     with pytest.raises(WorkdirPathError, match="迁移记录与当前目录不匹配"):
         relocation_evidence(other.id, source)
+
+
+def test_relocation_refuses_while_eval_run_lock_held(tmp_path: Path) -> None:
+    """整目录迁移要认评测运行锁：评测在跑就拒绝，注册表与原目录原样。
+
+    评测运行持 ``.dsf/eval/run.lock``、与打标的 ``run.lock`` 互不阻塞——只认打标锁
+    会在评测跑到一半时把目录搬走。
+    """
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "a.jpg").write_bytes(b"image")
+    store = WorkdirStore(source)
+    entry = WorkdirRegistry.register(source)
+    destination = tmp_path / "destination"
+    eval_dir = store.dsf_path / "eval"
+    eval_dir.mkdir()
+    holder = RunLock(eval_dir)
+    errors: list[Exception] = []
+
+    def move() -> None:
+        try:
+            relocate_workdir(entry.id, destination)
+        except RunOccupiedError as exc:
+            errors.append(exc)
+
+    holder.acquire({"operation": "test", "batch": "e1"})
+    try:
+        worker = threading.Thread(target=move)
+        worker.start()
+        worker.join(15)
+    finally:
+        holder.release()
+
+    assert not worker.is_alive()
+    assert len(errors) == 1
+    assert "评测" in str(errors[0])  # 占用者是评测运行，不能提示成「有跑批在跑」
+    assert Path(WorkdirRegistry.get(entry.id).path) == source
+    assert not destination.exists()
+    assert (source / "a.jpg").read_bytes() == b"image"
+
+
+def test_relocation_copies_eval_data_without_runtime_locks(tmp_path: Path) -> None:
+    """有 ``.dsf/eval/`` 的目录照样能迁移：业务数据随迁，锁文件（读不了也没意义）不复制。"""
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "a.jpg").write_bytes(b"image")
+    store = WorkdirStore(source)
+    eval_dir = store.dsf_path / "eval"
+    eval_dir.mkdir()
+    (eval_dir / "state.json").write_text('{"batches": []}', encoding="utf-8")
+    lock = RunLock(eval_dir)
+    lock.acquire({"operation": "test", "batch": "e1"})
+    lock.release()  # 释放后锁文件仍在（preserve_lock_file），模拟一次跑过评测的目录
+    entry = WorkdirRegistry.register(source)
+    destination = tmp_path / "destination"
+
+    result = relocate_workdir(entry.id, destination)
+
+    assert result["cleanup_pending"] is False
+    assert (destination / ".dsf" / "eval" / "state.json").is_file()
+    assert not (destination / ".dsf" / "eval" / "run.lock").exists()
+    assert (destination / "a.jpg").read_bytes() == b"image"

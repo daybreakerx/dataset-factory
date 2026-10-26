@@ -18,11 +18,20 @@ from .locks import (
     MAINTENANCE_WAIT_SECONDS,
     RunLock,
     StateLock,
+    acquire_eval_run_lock,
     import_guard,
     maintenance_guard,
     maintenance_record,
 )
 from .store import WorkdirRegistry, WorkdirStore, registered_path
+
+#: 搬迁 / 清理整个目录时撞上评测运行的拒绝文案（评测运行持 ``.dsf/eval/run.lock``）。
+_EVAL_OCCUPIED_DETAIL = (
+    "该工作目录正被一个打分（评测）运行占用，请等它结束或停止后再迁移。"
+)
+_EVAL_OCCUPIED_CLEANUP_DETAIL = (
+    "该工作目录正被一个打分（评测）运行占用，请等它结束或停止后再清理旧位置。"
+)
 
 _RUNTIME_FILES = frozenset(
     Path(".dsf") / name
@@ -35,6 +44,10 @@ _RUNTIME_FILES = frozenset(
         "run-stop.json",
         "MIGRATED",
     )
+) | frozenset(
+    # 评测域的运行锁同样是「持有中读不出来」的运行时文件，不进复制清单。
+    Path(".dsf") / "eval" / name
+    for name in ("run.lock", "run-info.json", "state.lock", ".manual-scores.lock")
 )
 
 
@@ -253,7 +266,14 @@ def relocate_workdir(
         run = RunLock(store.dsf_path)
         state = StateLock(store.dsf_path)
         run.acquire({"operation": "relocate", "pid": os.getpid()})
+        eval_run: RunLock | None = None
         try:
+            # 评测运行持自己的锁、与打标锁互不阻塞——整目录搬迁必须两把都到手。
+            eval_run = acquire_eval_run_lock(
+                store.dsf_path,
+                {"operation": "relocate", "pid": os.getpid()},
+                occupied_detail=_EVAL_OCCUPIED_DETAIL,
+            )
             with import_guard(store.dsf_path):
                 state.acquire()
                 try:
@@ -346,7 +366,11 @@ def relocate_workdir(
                 finally:
                     state.release()
         finally:
-            run.release()
+            try:
+                if eval_run is not None:
+                    eval_run.release()
+            finally:
+                run.release()
         remaining = _remove_old_location(source, destination, payload)
         if not remaining:
             payload["status"] = "cleaned"
@@ -484,7 +508,14 @@ def retry_relocation_cleanup(
         run = RunLock(store.dsf_path)
         state = StateLock(store.dsf_path)
         run.acquire({"operation": "relocation-cleanup", "pid": os.getpid()})
+        eval_run: RunLock | None = None
         try:
+            # 清理旧位置同样是整目录删除：评测运行在跑就不动手。
+            eval_run = acquire_eval_run_lock(
+                store.dsf_path,
+                {"operation": "relocation-cleanup", "pid": os.getpid()},
+                occupied_detail=_EVAL_OCCUPIED_CLEANUP_DETAIL,
+            )
             with import_guard(store.dsf_path):
                 state.acquire()
                 try:
@@ -494,7 +525,11 @@ def retry_relocation_cleanup(
                 finally:
                     state.release()
         finally:
-            run.release()
+            try:
+                if eval_run is not None:
+                    eval_run.release()
+            finally:
+                run.release()
         if not pending:
             data["status"] = "cleaned"
             atomic_write_text(record, json.dumps(data))

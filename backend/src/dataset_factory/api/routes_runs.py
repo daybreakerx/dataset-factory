@@ -36,6 +36,7 @@ from ..runs import (
     TERMINAL_RUN_STATUSES,
     BatchInactiveError,
     BatchRunner,
+    BenchmarkBatchError,
     RetryItemNotEligibleError,
     RunEvent,
     RunFinishedEvent,
@@ -197,6 +198,14 @@ def start_run(
     if not entry.active:
         raise BatchInactiveError(
             f"批次 s{seq} 已停用（隐藏）——请先「显示」该批次再跑批。"
+        )
+    if entry.benchmark:
+        # 基准位也是预检的一部分（docstring 里的清单没列它，是为不搅动契约快照）：
+        # 基准批次的产物是摆放的参照，一跑就被覆盖成模型产物。域层（BatchRunner）
+        # 有同一道闸，这里提前到请求内报——受理 202 后才失败等于让用户白等一次。
+        raise BenchmarkBatchError(
+            f"批次 s{seq} 是基准批次（产物为摆放的参照）——禁跑批，"
+            "一跑会把参照覆盖成模型产物。"
         )
     snapshot = read_snapshot(workdir, seq)
     if body.items is not None:

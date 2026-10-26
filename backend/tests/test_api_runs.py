@@ -33,7 +33,11 @@ from dataset_factory.runs import (
     add_retry_items,
     read_retry_list,
 )
-from dataset_factory.strategies import create_batch, set_batch_active
+from dataset_factory.strategies import (
+    create_batch,
+    set_batch_active,
+    set_batch_benchmark,
+)
 from dataset_factory.workdir import WorkdirRegistry, WorkdirStore, import_assets
 from dataset_factory.workdir.locks import RunLock
 
@@ -618,6 +622,31 @@ def test_start_run_inactive_batch_returns_409(
             )
             assert response.status_code == 409
             assert response.json()["type"] == "batch-inactive"
+
+    asyncio.run(scenario())
+
+
+def test_start_run_benchmark_batch_returns_409(
+    temp_data_root: Path,
+    batch_env: tuple[Path, str],
+) -> None:
+    """基准批次禁跑批：请求内同步 409（batch-benchmark），不等后台线程才失败。"""
+    workdir, wid = batch_env
+    set_batch_benchmark(workdir, 1, True)
+
+    async def scenario() -> None:
+        transport = httpx.ASGITransport(app=create_app(frontend_dir=Path("no-dist")))
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as http:
+            response = await http.post(
+                f"/api/workdirs/{wid}/batches/s1/runs", json={"mode": "full"}
+            )
+            assert response.status_code == 409
+            assert response.headers["content-type"].startswith(
+                "application/problem+json"
+            )
+            assert response.json()["type"] == "batch-benchmark"
 
     asyncio.run(scenario())
 

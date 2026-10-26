@@ -60,7 +60,9 @@ __all__ = [
     "MAINTENANCE_WAIT_SECONDS",
     "RunLock",
     "StateLock",
+    "acquire_eval_run_lock",
     "import_guard",
+    "occupier_sentence",
     "read_occupier",
     "sweep_cleaned_maintenance_records",
 ]
@@ -278,6 +280,10 @@ _RUN_LOCK_NAME = "run.lock"
 _RUN_INFO_NAME = "run-info.json"
 _STATE_LOCK_NAME = "state.lock"
 
+#: 评测（打分）运行锁所在目录名（相对 ``.dsf/``）。只在此处写死这一次：workdir 层
+#: 不 import eval 域，靠本模块的助手认这把锁（见 :func:`acquire_eval_run_lock`）。
+_EVAL_RUN_LOCK_DIR = "eval"
+
 #: 状态锁的宽超时（秒）：临界区毫秒级，正常永远不会等满；等满 = 异常卡死的
 #: 诊断信号。构造参数可注入更短的值（测试与特殊调用方用）。
 _STATE_LOCK_TIMEOUT_SECONDS: float = 10.0
@@ -286,16 +292,25 @@ _STATE_LOCK_TIMEOUT_SECONDS: float = 10.0
 class RunLock:
     """一个工作目录的运行锁：非阻塞抢锁 + run-info 写读清（同一个工作目录一把锁）。"""
 
-    def __init__(self, dsf_path: Path, *, occupied_detail: str | None = None) -> None:
+    def __init__(
+        self,
+        dsf_path: Path,
+        *,
+        occupied_detail: str | None = None,
+        occupier_role: str = "跑批运行",
+    ) -> None:
         """以锁目录构造（锁文件与占用者文件都落在这里）。
 
         occupied_detail：抢锁失败且读不到占用者信息时的拒绝文案；None 用打标
         跑批的默认文案——eval 域复用本类（锁目录为 ``.dsf/eval/``）时传入评测
         口径的文案，占用者信息照旧挂 run-info.json。
+        occupier_role：读得到占用者信息时，拒绝文案里对占用者的称呼（评测域传
+        「打分（评测）运行」——同一条提示不能把评测说成跑批）。
         """
         self._lock = shared_file_lock(dsf_path / _RUN_LOCK_NAME)
         self._info_path = dsf_path / _RUN_INFO_NAME
         self._occupied_detail = occupied_detail
+        self._occupier_role = occupier_role
         self._acquired = False
 
     def acquire(self, occupier: dict[str, Any]) -> None:
@@ -319,7 +334,11 @@ class RunLock:
                 if self._occupied_detail is not None
                 else "工作目录正被另一个跑批运行占用。"
             )
-            detail = fallback if existing is None else _occupier_sentence(existing)
+            detail = (
+                fallback
+                if existing is None
+                else occupier_sentence(existing, role=self._occupier_role)
+            )
             raise RunOccupiedError(detail, occupier=existing) from exc
         self._acquired = True
         try:
@@ -441,8 +460,14 @@ def read_live_occupier(dsf_path: Path) -> dict[str, Any] | None:
             return None
 
 
-def _occupier_sentence(occupier: dict[str, Any]) -> str:
-    """把占用者信息拼成一句话（拒绝提示用；字段缺失就少说那句）。"""
+def occupier_sentence(occupier: dict[str, Any], *, role: str = "跑批运行") -> str:
+    """把占用者信息拼成一句话（拒绝提示用；字段缺失就少说那句）。
+
+    Args:
+        occupier: ``run-info.json`` 的内容（pid / started_at / batch 等）。
+        role: 对占用者的称呼——打标锁是「跑批运行」，评测锁是「打分（评测）运行」，
+            同一条提示不能张冠李戴。
+    """
     pid = occupier.get("pid")
     started_at = occupier.get("started_at")
     batch = occupier.get("batch")
@@ -454,4 +479,44 @@ def _occupier_sentence(occupier: dict[str, Any]) -> str:
     if batch is not None:
         parts.append(f"正在跑批次 {batch}")
     body = "、".join(parts) if parts else "占用者信息不完整"
-    return f"工作目录正被另一个跑批运行占用（{body}）；等它结束或停止后再试。"
+    return f"工作目录正被另一个{role}占用（{body}）；等它结束或停止后再试。"
+
+
+def acquire_eval_run_lock(
+    dsf_path: Path,
+    occupier: dict[str, Any],
+    *,
+    occupied_detail: str,
+) -> RunLock | None:
+    """破坏性目录操作再抢一把评测运行锁（删除 / 搬迁整个工作目录时必须认评测）。
+
+    评测运行持 ``.dsf/eval/run.lock``、与打标的 ``run.lock`` 互不阻塞（评测与打标
+    可并行），所以只认打标锁会在评测跑到一半时把目录搬走或删掉。调用方在自己
+    抢到打标锁**之后**调本函数：顺序固定为「先打标锁、后评测锁」，删除与迁移同序、
+    互不成环；维护锁由调用方全程持有，新评测启动进不来。
+
+    ``.dsf/eval/`` 不存在 = 该目录从未跑过评测，不凭空造锁文件（返回 None）。
+
+    Args:
+        dsf_path: 工作目录的 ``.dsf`` 路径（评测锁在它的 ``eval/`` 子目录）。
+        occupier: 本次操作的占用者信息（写进 ``.dsf/eval/run-info.json``，供后来者
+            看到「谁在删 / 谁在搬」）。
+        occupied_detail: 抢不到锁且读不到占用者信息时的拒绝文案（按操作给，说明
+            等评测结束之后该做什么）。
+
+    Returns:
+        抢到的评测运行锁（调用方负责成对 ``release``）；``.dsf/eval/`` 不存在时为 None。
+
+    Raises:
+        RunOccupiedError: 该工作目录有评测运行在跑。
+    """
+    eval_dir = dsf_path / _EVAL_RUN_LOCK_DIR
+    if not eval_dir.is_dir():
+        return None
+    lock = RunLock(
+        eval_dir,
+        occupied_detail=occupied_detail,
+        occupier_role="打分（评测）运行",
+    )
+    lock.acquire(occupier)
+    return lock

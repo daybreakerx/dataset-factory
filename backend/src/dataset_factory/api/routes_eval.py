@@ -17,7 +17,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import queue
 import threading
 from collections.abc import AsyncIterator
@@ -33,6 +32,7 @@ from ..eval import (
     EvalBatchEntry,
     EvalRunner,
     EvalRunNotActiveError,
+    EvalRunOccupiedError,
     EvalStore,
     HumanSettings,
     PairwiseSettings,
@@ -53,7 +53,7 @@ from ..eval import (
     update_eval_config,
     validate_references,
 )
-from ..workdir import RunOccupiedError
+from ..eval.runner import RUN_STATUS_RUNNING
 from .deps import workdir_root
 from .problems import ProblemError, problem
 from .schemas import (
@@ -268,8 +268,23 @@ def _active_runner(request: Request, workdir: Path, seq: int) -> EvalRunner:
 
 
 def _require_active(runner: EvalRunner) -> EvalRunner:
-    """对 stop / stream 的额外校验：已到终态的注册表残留按 404 处理。"""
+    """对 stop 的额外校验：已到终态的注册表残留按 404 处理。"""
     if runner.snapshot()["status"] in _TERMINAL_STATUSES:
+        raise EvalRunNotActiveError(
+            "该打分批次当前没有进行中的打分运行——启动一次打分后再试。"
+        )
+    return runner
+
+
+def _require_streamable(runner: EvalRunner) -> EvalRunner:
+    """对 stream 的校验：failed 也允许订阅（回放失败终态），completed / interrupted 仍 404。
+
+    跨进程锁占用时受理已 202、失败只发生在后台线程——客户端没有别的渠道拿到那次
+    运行的终态。404 会把「跨进程占用经 SSE 呈现」这条约定打空，所以失败的注册表
+    残留必须可订阅（``subscribe`` 会立刻补发已发生的 run-finished）。
+    """
+    status = runner.snapshot()["status"]
+    if status in _TERMINAL_STATUSES and status != "failed":
         raise EvalRunNotActiveError(
             "该打分批次当前没有进行中的打分运行——启动一次打分后再试。"
         )
@@ -302,17 +317,22 @@ def start_eval_run(wid: str, eN: str, request: Request) -> JSONResponse:
     workdir = workdir_root(wid)
     seq = parse_seq(eN)
     get_eval_batch(workdir, seq)
-    validate_references(workdir, read_eval_config(workdir, seq))
+    config = read_eval_config(workdir, seq)
+    config.validate()
+    validate_references(workdir, config)
 
     registry, guard = _run_registry(request)
     key = str(workdir)
     runner = EvalRunner(workdir, seq, trigger="web")
     with guard:
+        # 同进程占用也在这里同步拒绝（上面那句 docstring 不写，免得搅动契约快照）：
+        # 只有 status=running 算占用——failed 等终态是「留在注册表里给 SSE /
+        # current 呈现失败」的残留，不该挡住立刻重试；occupier 取那次运行的快照。
         existing = registry.get(key)
-        if existing is not None and existing.snapshot()["status"] != "failed":
-            raise RunOccupiedError(
+        if existing is not None and existing.snapshot()["status"] == RUN_STATUS_RUNNING:
+            raise EvalRunOccupiedError(
                 "该工作目录已有打分（评测）运行——等它结束或停止后再试。",
-                occupier={"pid": os.getpid(), "batch": f"e{seq}"},
+                occupier=existing.snapshot(),
             )
         registry[key] = runner
     run_id = str(runner.snapshot()["run_id"])
@@ -387,7 +407,9 @@ def stop_eval_run(wid: str, eN: str, request: Request) -> Response:
 def stream_eval_run(wid: str, eN: str, request: Request) -> StreamingResponse:
     """SSE 业务事件流：run-started → item-updated… → run-finished（终态即关流）。"""
     seq = parse_seq(eN)
-    runner = _require_active(_active_runner(request, workdir_root(wid), seq))
+    # 受理后失败的运行（如跨进程锁被占）也在订阅范围内：subscribe 会立刻补发那条
+    # failed 的 run-finished 再关流——失败原因不能在 SSE 这一路丢掉（旧实现 404）。
+    runner = _require_streamable(_active_runner(request, workdir_root(wid), seq))
     events: queue.Queue[object] = queue.Queue()
 
     def _forward(event: object) -> None:
