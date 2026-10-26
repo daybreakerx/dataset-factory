@@ -215,6 +215,35 @@ const DARK_SHADOW_EFFECTS = {
   ]
 };
 
+// ---------------------------------------------------------------------------
+// 字面值修复规则（暗色稿专属）：页面稿手拼件里有少量字面填色（亮色下与令牌同值、
+// 走查不暴露；暗色下暴露）。按「节点名＋字面值」双重匹配裁决，规则来源＝base.css：
+//   · 绑定类：字面值恰为某令牌亮色值 → 改绑暗色同名变量（透明度保留）
+//   · 清除类：HTML 里本就无底（透明件）→ 清空填色
+// 匹配约束：只动「无 boundVariables.color 的可见 SOLID 填色」；二跑零命中即幂等。
+// ---------------------------------------------------------------------------
+const WHITE = [1, 1, 1];
+const N100 = [0.949, 0.9569, 0.9686];
+const N200 = [0.8941, 0.9059, 0.9255];
+const BLACK = [0, 0, 0];
+const LITERAL_BIND_RULES = [
+  { names: ['主区'], rgb: WHITE, alpha: 1, type: null, token: 'color/background' },
+  { nameSuffix: '·暗', rgb: [0.9725, 0.9725, 0.9725], alpha: 1, type: 'FRAME', token: 'color/background' },
+  { names: ['form-card', 'card-basic', 'card-strategies', 'seg-item-active'], rgb: WHITE, alpha: 1, type: null, token: 'color/card' },
+  { names: ['seg'], rgb: N100, alpha: 1, type: null, token: 'color/muted' },
+  { names: ['Thumb'], rgb: N100, alpha: 0.6, type: null, token: 'color/muted' },
+  { names: ['mstage'], rgb: N100, alpha: 0.45, type: null, token: 'color/muted' },
+  { names: ['think', '待发附件卡'], rgb: N100, alpha: 0.4, type: null, token: 'color/muted' },
+  { names: ['divider · 本次运行/素材完整性', 'divider · 素材完整性/打包与导出'], rgb: N200, alpha: 1, type: 'RECTANGLE', token: 'color/border' },
+  { names: ['批次概览'], rgb: BLACK, alpha: 1, type: 'TEXT', token: 'color/foreground' },
+  { names: ['快照'], rgb: BLACK, alpha: 1, type: 'TEXT', token: 'color/text-1' }
+];
+const LITERAL_CLEAR_RULES = [
+  { names: ['策略切换', '提示词切换', 'seg-item', '服务状态行', 'btn · 快照', 'strategy-group'], rgb: WHITE, alpha: 1 },
+  { names: ['srow-path', 'srow-stats', 'srow-import', 'srow-clean', 'brow-1', 'brow-2', 'brow-3', 'brow-4'], rgb: WHITE, alpha: 1 },
+  { names: ['canvas · 批次概览', 'canvas · 条目预览'], rgb: WHITE, alpha: 1 }
+];
+
 const flags = [];
 let scanned = 0;
 let writes = { fills: 0, strokes: 0, effects: 0, styles: 0, nodeBinds: 0, labels: 0 };
@@ -329,10 +358,34 @@ function mapLiteralTint(color, opacity, label) {
   return null;
 }
 
-function mapPaints(paints, label) {
+function matchLiteralRules(node, paint) {
+  const op = paint.opacity ?? 1;
+  const rgb = [paint.color?.r, paint.color?.g, paint.color?.b];
+  const eq = (arr) => rgb.every((c, i) => eps(c, arr[i], 0.002));
+  for (const r of LITERAL_BIND_RULES) {
+    if (r.type && node.type !== r.type) continue;
+    if (r.nameSuffix && !node.name.endsWith(r.nameSuffix)) continue;
+    if ((!r.nameSuffix && !r.names.includes(node.name)) || !eq(r.rgb) || !eps(op, r.alpha, 0.004)) continue;
+    const darkId = darkColorByName.get(r.token);
+    if (!darkId) throw new Error(`暗色集合缺少变量：${r.token}`);
+    return { kind: 'bind', variableId: darkId };
+  }
+  for (const r of LITERAL_CLEAR_RULES) {
+    if (!r.names.includes(node.name) || !eq(r.rgb) || !eps(op, r.alpha, 0.004)) continue;
+    return { kind: 'clear' };
+  }
+  return null;
+}
+
+const literalBindOps = [];
+
+function mapPaints(paints, label, node, target = 'fills') {
   if (!Array.isArray(paints)) return null;
   let changed = false;
-  const out = paints.map((p) => {
+  let cleared = false;
+  const out = [];
+  for (let pi = 0; pi < paints.length; pi++) {
+    const p = paints[pi];
     const np = { ...p };
     if (p.boundVariables) {
       const mb = mapBoundVariables(p.boundVariables);
@@ -350,13 +403,21 @@ function mapPaints(paints, label) {
       });
       if (stopsChanged) changed = true;
     }
-    if (p.type === 'SOLID' && !(p.boundVariables && p.boundVariables.color)) {
+    if (p.type === 'SOLID' && p.visible !== false && !(p.boundVariables && p.boundVariables.color) && node) {
       const t = mapLiteralTint(p.color, p.opacity ?? 1, label);
       if (t) { np.color = t.color; np.opacity = t.opacity; changed = true; }
+      else {
+        const rule = matchLiteralRules(node, p);
+        if (rule?.kind === 'bind') {
+          literalBindOps.push({ tool: 'bind_variable_to_paint', args: { nodeId: node.id, target, index: pi, variableId: rule.variableId } });
+        }
+        else if (rule?.kind === 'clear') { cleared = true; continue; }
+      }
     }
-    return np;
-  });
-  return changed ? out : null;
+    out.push(np);
+  }
+  if (cleared && !out.length) return [];
+  return changed || (cleared && out.length !== paints.length) ? out : null;
 }
 
 function mapEffects(effects, label) {
@@ -434,9 +495,9 @@ function collect(node) {
     if (styleField && typeof styleField === 'object' && Object.keys(styleField).length) diag.styleBound++;
     if (node.boundVariables) diag.nodeBound++;
   }
-  const fills = mapPaints(node.fills, label);
+  const fills = mapPaints(node.fills, label, node, 'fills');
   if (fills) ops.push({ tool: 'set_fills', args: { nodeId: node.id, fills } });
-  const strokes = mapPaints(node.strokes, label);
+  const strokes = mapPaints(node.strokes, label, node, 'strokes');
   if (strokes) ops.push({ tool: 'set_strokes', args: { nodeId: node.id, strokes } });
   if (!(styleField && typeof styleField === 'object' && lightShadowStyleIds.has(styleField.effect))) {
     const effects = mapEffects(node.effects, label);
@@ -505,7 +566,7 @@ const { node } = await rpc('get_node', { nodeId: rootId });
 if (!node) throw new Error(`节点不存在：${rootId}`);
 
 const labelOps = LABELS ? collectTextOps(node) : [];
-const ops = LABELS ? [] : collect(node);
+const ops = LABELS ? [] : [...collect(node), ...literalBindOps];
 console.log(`扫描 ${scanned} 个节点；待写操作 ${ops.length} 个（fills ${ops.filter((o) => o.tool === 'set_fills').length} / strokes ${ops.filter((o) => o.tool === 'set_strokes').length} / effects ${ops.filter((o) => o.tool === 'set_effects').length} / 节点级重绑 ${ops.filter((o) => o.tool === 'bind_variable_to_paint').length} / 效果样式 ${ops.filter((o) => o.tool === 'apply_style_to_node').length}）${LABELS ? `；标签待改 ${labelOps.length} 条` : ''}`);
 if (DIAG) {
   const top = (map, n = 20) => [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${k}×${v}`).join('  ');
