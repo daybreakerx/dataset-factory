@@ -7,7 +7,9 @@ temp_data_root 隔离的资产夹具建立（端点配置＋提示词→库策�
 from __future__ import annotations
 
 import json
+import shutil
 import threading
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -22,6 +24,8 @@ from dataset_factory.eval import (
     EvalBatchNotFoundError,
     EvalConfigCorruptedError,
     EvalConfigError,
+    EvalRunOccupiedError,
+    EvalStore,
     HumanSettings,
     PairwiseSettings,
     create_eval_batch,
@@ -42,6 +46,7 @@ from dataset_factory.strategies import (
     list_batches,
     set_batch_benchmark,
 )
+from dataset_factory.workdir import RunOccupiedError, WorkdirMetadataCorruptedError
 
 
 @pytest.fixture
@@ -249,8 +254,24 @@ def test_config_roundtrip_preserves_fields() -> None:
 )
 def test_config_from_json_rejects_bad_shapes(payload: str) -> None:
     """落盘 JSON 形状不对（类型错 / 缺字段）→ 按损坏报（EvalConfigCorruptedError）。"""
-    with pytest.raises(EvalConfigCorruptedError, match="损坏"):
+    with pytest.raises(EvalConfigCorruptedError, match="形状"):
         EvalBatchConfig.from_json(json.loads(payload))
+
+
+def test_config_validate_rejects_blank_dimension_name() -> None:
+    """空白维度名 → 报错（否则 judge 输出里出现空键，报告与人工分都对不上）。"""
+    config = _default_config()
+    config.dimensions = [DimensionSpec(name="   ", kind=KIND_SCORE5)]
+    with pytest.raises(EvalConfigError, match="不能为空白"):
+        config.validate()
+
+
+def test_config_validate_rejects_reserved_reason_dimension_name() -> None:
+    """维度名不能叫「理由」——judge 输出的理由字段会覆盖同名维度。"""
+    config = _default_config()
+    config.dimensions.append(DimensionSpec(name="理由", kind=KIND_SCORE5))
+    with pytest.raises(EvalConfigError, match="理由"):
+        config.validate()
 
 
 # --------------------------------------------------------------------------
@@ -397,6 +418,40 @@ def test_read_eval_config_missing_file_raises_corrupted(
         read_eval_config(workdir, 1)
 
 
+def test_read_state_rejects_non_object_root(workdir: Path) -> None:
+    """state.json 根是数组 → 按损坏报，而不是让下游拿到 list 换出 AttributeError。"""
+    store = EvalStore(workdir)
+    store.state_file.write_text("[]", encoding="utf-8")
+    with pytest.raises(WorkdirMetadataCorruptedError, match="根不是对象"):
+        store.read_state()
+    with pytest.raises(WorkdirMetadataCorruptedError, match="根不是对象"):
+        list_eval_batches(workdir)
+
+
+def test_read_state_reports_non_utf8_file(workdir: Path) -> None:
+    """state.json 不是合法 UTF-8 → 域错误（不甩 UnicodeDecodeError 裸栈）。"""
+    store = EvalStore(workdir)
+    store.state_file.write_bytes(b"\xff\xfe\x00")
+    with pytest.raises(WorkdirMetadataCorruptedError, match="损坏"):
+        store.read_state()
+
+
+def test_read_config_reports_non_utf8_file(
+    seeded: tuple[Path, str, list[int]],
+) -> None:
+    """config.json 不是合法 UTF-8 → EvalConfigCorruptedError（不甩 UnicodeDecodeError）。"""
+    workdir, judge_id, _ = seeded
+    create_eval_batch(
+        workdir,
+        name="第一评",
+        description="",
+        config=_default_config(judges=[judge_id]),
+    )
+    (workdir / ".dsf" / "eval" / "e1" / "config.json").write_bytes(b"\xff\xfe\x00")
+    with pytest.raises(EvalConfigCorruptedError, match="无法读取"):
+        read_eval_config(workdir, 1)
+
+
 def test_delete_removes_owned_runs_and_reports(
     seeded: tuple[Path, str, list[int]],
 ) -> None:
@@ -447,6 +502,104 @@ def test_delete_missing_raises(seeded: tuple[Path, str, list[int]]) -> None:
     workdir, _, _ = seeded
     with pytest.raises(EvalBatchNotFoundError):
         delete_eval_batch(workdir, 3)
+
+
+def test_delete_tolerates_already_missing_paths(
+    seeded: tuple[Path, str, list[int]],
+) -> None:
+    """配置目录已被外部删走 → 删除照样收口（缺文件不是错误，登记照常摘除）。"""
+    workdir, judge_id, _ = seeded
+    create_eval_batch(
+        workdir,
+        name="第一评",
+        description="",
+        config=_default_config(judges=[judge_id]),
+    )
+    shutil.rmtree(workdir / ".dsf" / "eval" / "e1")
+    result = delete_eval_batch(workdir, 1)
+    assert result.runs_removed == 0
+    assert list_eval_batches(workdir) == []
+
+
+def test_delete_retry_finishes_after_register_commit_failure(
+    seeded: tuple[Path, str, list[int]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """附属文件已进暂存、登记提交失败 → 重试可续删（不因「文件已不在原位」永久卡住）。"""
+    workdir, judge_id, _ = seeded
+    create_eval_batch(
+        workdir,
+        name="第一评",
+        description="",
+        config=_default_config(judges=[judge_id]),
+    )
+    own_run = workdir / ".dsf" / "eval" / "runs" / "20261026T000000Z"
+    own_run.mkdir()
+    (own_run / "run.json").write_text(json.dumps({"batch": "e1"}), encoding="utf-8")
+    original = EvalStore.mutate_state
+    calls = {"count": 0}
+
+    def flaky(
+        self: EvalStore, mutator: Callable[[dict[str, object]], object]
+    ) -> object:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise OSError("模拟登记提交失败")
+        return original(self, mutator)
+
+    monkeypatch.setattr(EvalStore, "mutate_state", flaky)
+    with pytest.raises(OSError, match="登记提交失败"):
+        delete_eval_batch(workdir, 1)
+    # 首轮现场：附属文件已进暂存、登记还在（可见可续删）。
+    assert not own_run.exists()
+    assert [item.seq for item in list_eval_batches(workdir)] == [1]
+    result = delete_eval_batch(workdir, 1)
+    assert result.runs_removed == 0
+    assert list_eval_batches(workdir) == []
+
+
+def test_delete_keeps_runs_with_unreadable_record(
+    seeded: tuple[Path, str, list[int]],
+) -> None:
+    """读不出归属的 run 记录原样保留（不能证明属于本批次就不搬）。"""
+    workdir, judge_id, _ = seeded
+    create_eval_batch(
+        workdir,
+        name="第一评",
+        description="",
+        config=_default_config(judges=[judge_id]),
+    )
+    broken = workdir / ".dsf" / "eval" / "runs" / "20261026T000000Z"
+    broken.mkdir()
+    (broken / "run.json").write_text("{坏记录", encoding="utf-8")
+    result = delete_eval_batch(workdir, 1)
+    assert result.runs_removed == 0
+    assert broken.exists()
+    assert list_eval_batches(workdir) == []
+
+
+def test_delete_rejects_while_eval_run_occupied(
+    seeded: tuple[Path, str, list[int]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """运行中删除 → eval 域的 EvalRunOccupiedError（不是 workdir 的 RunOccupiedError）。"""
+    workdir, judge_id, _ = seeded
+    create_eval_batch(
+        workdir,
+        name="第一评",
+        description="",
+        config=_default_config(judges=[judge_id]),
+    )
+    occupier = {"pid": 4321, "batch": "e1"}
+
+    def occupied(_self: object, _occupier: dict[str, object]) -> None:
+        raise RunOccupiedError("工作目录正被另一个跑批运行占用。", occupier=occupier)
+
+    monkeypatch.setattr("dataset_factory.eval.batches.RunLock.acquire", occupied)
+    with pytest.raises(EvalRunOccupiedError) as info:
+        delete_eval_batch(workdir, 1)
+    assert info.value.occupier == occupier
+    assert "打分（评测）运行占用" in str(info.value)
+    assert "4321" in str(info.value)
+    assert [item.seq for item in list_eval_batches(workdir)] == [1]  # 现场未动
 
 
 def test_seq_only_increases_after_delete(seeded: tuple[Path, str, list[int]]) -> None:

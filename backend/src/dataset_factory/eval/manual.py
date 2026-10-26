@@ -19,7 +19,10 @@ import os
 from pathlib import Path
 from typing import cast
 
+from filelock import Timeout
+
 from .._clock import now_iso
+from .._locks import shared_file_lock
 from .errors import EvalConfigError
 from .store import EvalStore
 
@@ -32,6 +35,12 @@ __all__ = [
 
 #: 五档评分的低分线（≤2 必填理由）。
 LOW_SCORE_THRESHOLD = 2
+
+#: 人工打分追加的跨进程/跨线程写锁（点前缀与既有锁文件同一约定，落在 eval 目录内）。
+_MANUAL_SCORES_LOCK_NAME = ".manual-scores.lock"
+
+#: 等写锁的上限（秒）：临界区只有「读末尾—截尾—追加」的毫秒级 IO，等满 = 异常卡死。
+_LOCK_TIMEOUT_SECONDS = 10.0
 
 _WINNERS = ("A", "B", "tie")
 
@@ -112,38 +121,72 @@ def validate_manual_score(record: dict[str, object]) -> None:
 def append_manual_score(workdir: Path, record: dict[str, object]) -> dict[str, object]:
     """校验并追加一条人工打分（改分＝再追加一条，读取按每键最近一条）。
 
+    「读末尾—截断残缺尾行—追加」整段在跨进程写锁内完成：两个写者交错时，
+    后到的那个会拿着旧偏移去截断，把对方刚写好的完整行截掉。锁文件是
+    ``.dsf/eval/.manual-scores.lock``（层中立的共享实例，与 skills / prompts 同约定）。
+
     Returns:
         落盘的完整记录（补齐 recorded_at）。
+
+    Raises:
+        EvalConfigError: 记录不合法，或写锁等待超时。
     """
     validate_manual_score(record)
     stored = {**record, "recorded_at": now_iso()}
     line = (json.dumps(stored, ensure_ascii=False) + "\n").encode("utf-8")
     path = EvalStore(workdir).manual_scores_file
-    with path.open("a+b") as handle:
-        handle.seek(0)
-        raw = handle.read()
-        if raw and not raw.endswith(b"\n"):
-            handle.truncate(raw.rfind(b"\n") + 1)
-        handle.seek(0, os.SEEK_END)
-        handle.write(line)
-        handle.flush()
-        os.fsync(handle.fileno())
+    try:
+        with (
+            shared_file_lock(path.parent / _MANUAL_SCORES_LOCK_NAME).acquire(
+                timeout=_LOCK_TIMEOUT_SECONDS
+            ),
+            path.open("a+b") as handle,
+        ):
+            handle.seek(0)
+            raw = handle.read()
+            if raw and not raw.endswith(b"\n"):
+                handle.truncate(raw.rfind(b"\n") + 1)
+            handle.seek(0, os.SEEK_END)
+            handle.write(line)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except Timeout as exc:
+        raise EvalConfigError("人工打分文件正在被另一个进程写入，请稍后重试。") from exc
+    except OSError as exc:
+        raise EvalConfigError(
+            f"人工打分记录写入失败（{path}）：{exc.strerror or exc}"
+        ) from exc
     return stored
 
 
 def read_manual_scores(workdir: Path) -> list[dict[str, object]]:
-    """读全部人工打分记录（追加序＝时间正序；残缺尾行容忍、中间坏行 fail loud）。"""
+    """读全部人工打分记录（追加序＝时间正序；残缺尾行容忍、中间坏行 fail loud）。
+
+    Raises:
+        EvalConfigError: 文件读不了、中间有条目不是合法 JSON，或不是对象。
+    """
     path = EvalStore(workdir).manual_scores_file
     if not path.exists():
         return []
-    raw = path.read_bytes()
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise EvalConfigError(
+            f"人工打分记录文件无法读取（{path}）——请检查权限后重试。"
+        ) from exc
     if raw and not raw.endswith(b"\n"):
         raw = raw[: raw.rfind(b"\n") + 1]
     records: list[dict[str, object]] = []
-    for line in raw.splitlines():
+    for lineno, line in enumerate(raw.splitlines(), start=1):
         if not line.strip():
             continue
-        data: object = json.loads(line)
+        try:
+            data: object = json.loads(line)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise EvalConfigError(
+                f"人工打分记录文件损坏（第 {lineno} 行不是合法 JSON：{exc}）——"
+                "请检查 .dsf/eval/manual-scores.jsonl。"
+            ) from exc
         if not isinstance(data, dict):
             raise EvalConfigError(
                 "人工打分记录文件损坏（有一条不是对象）——请检查 "

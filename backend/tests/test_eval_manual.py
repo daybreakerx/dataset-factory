@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import threading
 from pathlib import Path
 
 import pytest
@@ -122,3 +124,63 @@ def test_progress_flags_per_stem(tmp_path: Path) -> None:
     assert progress["cat"] == {"dimension": True, "pair": True}
     assert progress["dog"] == {"dimension": True, "pair": False}
     assert progress["bird"] == {"dimension": False, "pair": False}
+
+
+def test_concurrent_appends_keep_every_line(tmp_path: Path) -> None:
+    """并发追加（含残缺尾行的截断步骤）不丢行：整段读末尾—截尾—追加在写锁内。"""
+    workdir = tmp_path
+    append_manual_score(workdir, _dimension(item="seed"))
+    scores_file = workdir / ".dsf" / "eval" / "manual-scores.jsonl"
+    # 预置一条崩溃留下的残缺尾行：没有它，「截断残缺尾行」这一步不会被触发，
+    # 两个写者各持旧偏移互相截断的竞态也就测不出来。
+    with scores_file.open("ab") as handle:
+        handle.write(b'{"kind": "dimension", "item": "torn')
+
+    threads_count, appends_per_thread = 6, 5
+    barrier = threading.Barrier(threads_count)
+    failures: list[BaseException] = []
+
+    def _worker(index: int) -> None:
+        barrier.wait()
+        try:
+            for step in range(appends_per_thread):
+                append_manual_score(workdir, _dimension(item=f"item-{index}-{step}"))
+        except BaseException as exc:  # noqa: BLE001 - 线程里的异常带回主线程断言
+            failures.append(exc)
+
+    threads = [
+        threading.Thread(target=_worker, args=(index,))
+        for index in range(threads_count)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert failures == []
+    records = read_manual_scores(workdir)  # 每行都必须是合法 JSON 对象
+    assert len(records) == 1 + threads_count * appends_per_thread
+    assert len({record["item"] for record in records}) == len(records)
+
+
+def test_read_reports_middle_bad_line(tmp_path: Path) -> None:
+    """中间坏行 → EvalConfigError（带行号与修法），不是 JSONDecodeError 裸栈。"""
+    scores_file = tmp_path / ".dsf" / "eval" / "manual-scores.jsonl"
+    scores_file.parent.mkdir(parents=True)
+    scores_file.write_text(
+        json.dumps(_dimension(item="cat"), ensure_ascii=False) + "\n{坏行\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(EvalConfigError, match="第 2 行"):
+        read_manual_scores(tmp_path)
+
+
+def test_read_tolerates_torn_tail(tmp_path: Path) -> None:
+    """残缺尾行（写到一半崩溃）照旧容忍——它不是损坏证据。"""
+    scores_file = tmp_path / ".dsf" / "eval" / "manual-scores.jsonl"
+    scores_file.parent.mkdir(parents=True)
+    scores_file.write_text(
+        json.dumps(_dimension(item="cat"), ensure_ascii=False) + '\n{"kind": "dim',
+        encoding="utf-8",
+    )
+    assert len(read_manual_scores(tmp_path)) == 1

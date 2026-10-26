@@ -189,17 +189,24 @@ class EvalStore:
 
         读不需要状态锁：写入侧只有 ``mutate_state`` 一个入口 + 原子写，读到的
         要么是完整旧版、要么是完整新版。文件损坏抛 WorkdirMetadataCorruptedError
-        （fail loud——坏文件不静默兜底）。
+        （fail loud——坏文件不静默兜底）。根必须是 JSON 对象：数组 / 标量当作
+        损坏报，而不是让它流进下游换成 ``AttributeError``（那会变成 500 的裸栈）。
         """
         if not self.state_file.exists():
             return {}
         try:
             raw = self.state_file.read_text(encoding="utf-8")
-            return json.loads(raw) if raw.strip() else {}
-        except (json.JSONDecodeError, OSError) as exc:
+            data: object = json.loads(raw) if raw.strip() else {}
+        except (UnicodeDecodeError, json.JSONDecodeError, OSError) as exc:
             raise WorkdirMetadataCorruptedError(
                 f"评测状态文件损坏（{self.state_file}），请重建或删除该文件后重试。",
             ) from exc
+        if not isinstance(data, dict):
+            raise WorkdirMetadataCorruptedError(
+                f"评测状态文件的根不是对象（{self.state_file}），"
+                "请重建或删除该文件后重试。"
+            )
+        return cast("dict[str, object]", data)
 
     def mutate_state[T](self, mutator: Callable[[dict[str, object]], T]) -> T:
         """eval state.json 的唯一写入口：读—改—写三步全在状态锁内完成。
@@ -230,13 +237,13 @@ class EvalStore:
         """读某打分批次的配置；文件缺失或无法解析按损坏处理（fail loud）。
 
         Raises:
-            EvalConfigCorruptedError: 配置文件读不了或 JSON 不合法；形状问题
-                由 ``EvalBatchConfig.from_json`` 继续判。
+            EvalConfigCorruptedError: 配置文件读不了、不是合法 UTF-8 或 JSON 不合法；
+                形状问题由 ``EvalBatchConfig.from_json`` 继续判。
         """
         path = self.config_file(seq)
         try:
             data: object = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+        except (UnicodeDecodeError, OSError, json.JSONDecodeError) as exc:
             raise EvalConfigCorruptedError(
                 f"打分批次 e{seq} 的配置文件缺失或无法读取（{path}）——"
                 "请检查后重试，或删除该打分批次重建。",

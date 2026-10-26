@@ -16,7 +16,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from .._clock import now_iso
 from ..strategies import (
@@ -26,10 +26,14 @@ from ..strategies import (
     list_batches,
     missing_refs,
 )
-from ..workdir import WorkdirStore
+from ..workdir import RunOccupiedError, WorkdirStore
 from ..workdir.locks import RunLock, workdir_write
 from .config import EvalBatchConfig
-from .errors import EvalBatchNotFoundError, EvalConfigError
+from .errors import (
+    EvalBatchNotFoundError,
+    EvalConfigError,
+    EvalRunOccupiedError,
+)
 from .store import EvalBatchEntry, EvalStore, entries_from_state, entries_into_state
 
 __all__ = [
@@ -260,11 +264,12 @@ def _record_batch_field(path: Path) -> str | None:
     """读一个 JSON 记录的 batch 字段；缺失、损坏一律返回 None。
 
     删除只信读得出的归属（与 find_strategy_references 同一容忍度——清点路径
-    不因单份损坏挡住整批删除）；读不出的残留随后续清理出口处置。
+    不因单份损坏挡住整批删除）。读不出归属的 run / report 当作「无法证明属于本
+    批次」原样留在盘上：它们是现场证据，删除不越权替他域清垃圾。
     """
     try:
         data: object = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     if not isinstance(data, dict):
         return None
@@ -292,6 +297,21 @@ def _owned_reports(store: EvalStore, seq: int) -> list[Path]:
     return owned
 
 
+def _delete_occupied_detail(occupier: dict[str, Any] | None) -> str:
+    """运行中删除的拒绝文案：带占用者摘要（读不到占用者时退回笼统说明）。"""
+    if not occupier:
+        return _DELETE_OCCUPIED_DETAIL
+    parts: list[str] = []
+    for key, label in (("pid", "进程号"), ("started_at", "启动于"), ("batch", "批次")):
+        value = occupier.get(key)
+        if value is not None:
+            parts.append(f"{label} {value}")
+    body = "、".join(parts) if parts else "占用者信息不完整"
+    return (
+        f"该工作目录正有一个打分（评测）运行占用（{body}）——请等它结束或停止后再删除。"
+    )
+
+
 @workdir_write
 def delete_eval_batch(workdir: Path, seq: int) -> DeleteEvalBatchResult:
     """删除打分批次：配置目录＋该批次的运行记录与报告快照，最后提交登记。
@@ -301,15 +321,27 @@ def delete_eval_batch(workdir: Path, seq: int) -> DeleteEvalBatchResult:
     （``.dsf/trash``，经 ``WorkdirStore.quarantine_paths``）、不硬删；人工打分
     不动（不绑打分批次配置）。
 
+    暂存前先滤掉已经不存在的路径：外部手删、或上一轮暂存成功而登记提交失败后
+    重试，都会遇到「要搬的东西已经不在原位」。缺文件不是错误——重试的意义就是
+    从上次停下的地方接着删完。
+
     Raises:
         EvalBatchNotFoundError: 打分批次不存在。
+        EvalRunOccupiedError: 该工作目录正有一个打分运行在跑。
     """
     get_eval_batch(workdir, seq)  # 不存在先报错，失败时现场不动
     store = EvalStore(workdir)
     lock = RunLock(store.eval_dir, occupied_detail=_DELETE_OCCUPIED_DETAIL)
-    lock.acquire(
-        {"pid": os.getpid(), "batch": f"e{seq}", "operation": "delete-eval-batch"}
-    )
+    try:
+        lock.acquire(
+            {"pid": os.getpid(), "batch": f"e{seq}", "operation": "delete-eval-batch"}
+        )
+    except RunOccupiedError as exc:
+        # 评测域边界把「工作目录被占用」翻成评测口径的错误类型（eval-run-occupied），
+        # 不把 workdir 的通用类型漏给 API / CLI（否则映射成 run-occupied，提示张冠李戴）。
+        raise EvalRunOccupiedError(
+            _delete_occupied_detail(exc.occupier), occupier=exc.occupier
+        ) from exc
     try:
         run_dirs = _owned_run_dirs(store, seq)
         reports = _owned_reports(store, seq)
@@ -326,7 +358,10 @@ def delete_eval_batch(workdir: Path, seq: int) -> DeleteEvalBatchResult:
             )
 
         # 先删附属文件、后提交登记（中途失败＝「批次还在、文件少一半」，可见可续删）。
-        WorkdirStore(workdir).quarantine_paths([batch_dir, *run_dirs, *reports])
+        # quarantine 内部逐项重命名并整体回滚，缺项会直接拒绝——故先滤掉已不在原位的。
+        movable = [path for path in (batch_dir, *run_dirs, *reports) if path.exists()]
+        if movable:
+            WorkdirStore(workdir).quarantine_paths(movable)
         store.mutate_state(mutator)
         return DeleteEvalBatchResult(
             runs_removed=len(run_dirs),

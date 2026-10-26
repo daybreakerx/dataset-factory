@@ -13,10 +13,13 @@ from dataset_factory.cli.main import app
 from dataset_factory.eval import (
     KIND_BINARY,
     KIND_SCORE5,
+    RUN_STATUS_INTERRUPTED,
     DimensionSpec,
     EvalBatchConfig,
+    EvalRunner,
     HumanSettings,
     PairwiseSettings,
+    RunReport,
 )
 from dataset_factory.llm import (
     Message,
@@ -35,6 +38,11 @@ runner = CliRunner()
 def _fake_factory(_config: object) -> object:
     """快回假件工厂。"""
     return _FakeJudge()
+
+
+def _broken_factory(_config: object) -> object:
+    """恒定输出不可解析文本的假裁判工厂（制造条目级失败）。"""
+    return _BrokenJudge()
 
 
 _GOOD_DIMENSION = '{"场景描述": 4, "无幻觉": "无", "理由": "准确。"}'
@@ -66,6 +74,24 @@ class _FakeJudge:
             if isinstance(part, TextPart)
         )
         return _GOOD_PAIRWISE if "<caption-a>" in text else _GOOD_DIMENSION
+
+
+class _BrokenJudge:
+    """输出永远解析不了的假裁判（每个调用都记条目级失败）。"""
+
+    def complete(self, messages: Sequence[Message]) -> str:
+        """纯文本档：交一段没有 JSON 的文本。"""
+        return "完全看不懂的输出"
+
+    def stream(self, messages: Sequence[Message]) -> Iterator[StreamDelta]:
+        """Protocol 齐备性桩。"""
+        raise NotImplementedError
+
+    def complete_structured(
+        self, messages: Sequence[Message], response_format: dict[str, object] | None
+    ) -> str:
+        """结构化档：同样的坏输出。"""
+        return "完全看不懂的输出"
 
 
 @pytest.fixture
@@ -236,3 +262,175 @@ def test_run_status_and_report(
     layers = json.loads(shown.stdout)["layers"]
     assert layers["ranking"] is not None
     assert layers["dimensions"] is not None
+
+
+def test_domain_errors_go_to_stderr_with_exit_1(
+    prepared: tuple[Path, str, str],
+) -> None:
+    """eval 域异常 → stderr「错误：…」＋退出码 1，绝不甩原始 traceback。"""
+    root, config_json, _ = prepared
+    runner.invoke(
+        app, ["eval", "add", str(root), "--name", "第一评", "--json", config_json]
+    )
+
+    missing = runner.invoke(app, ["eval", "show", str(root), "e99"])
+    assert missing.exit_code == 1
+    assert "错误：" in missing.stderr
+    assert "e99" in missing.stderr
+    assert "Traceback" not in missing.output
+
+    bad_ref = json.loads(config_json)
+    bad_ref["candidates"] = [99]
+    bad_add = runner.invoke(
+        app,
+        [
+            "eval",
+            "add",
+            str(root),
+            "--name",
+            "坏引用",
+            "--json",
+            json.dumps(bad_ref, ensure_ascii=False),
+        ],
+    )
+    assert bad_add.exit_code == 1
+    assert "错误：" in bad_add.stderr
+    assert "被测批次不存在" in bad_add.stderr
+    assert "Traceback" not in bad_add.output
+
+    low_score = runner.invoke(
+        app,
+        [
+            "eval",
+            "score",
+            str(root),
+            "e1",
+            "--json",
+            json.dumps(
+                {
+                    "kind": "dimension",
+                    "item": "cat",
+                    "batch": 1,
+                    "annotator": "我",
+                    "scores": {"场景描述": 1},
+                },
+                ensure_ascii=False,
+            ),
+        ],
+    )
+    assert low_score.exit_code == 1
+    assert "错误：" in low_score.stderr
+    assert "理由必填" in low_score.stderr
+    assert "Traceback" not in low_score.output
+
+
+def test_add_rejects_malformed_config_json(
+    prepared: tuple[Path, str, str],
+) -> None:
+    """--json 语法错与形状错都按用法错误给 2（形状错不再甩域异常栈）。"""
+    root, _, _ = prepared
+    for payload in ("{不是 JSON", "[]"):
+        rejected = runner.invoke(
+            app, ["eval", "add", str(root), "--name", "坏配置", "--json", payload]
+        )
+        # 用法错误走 click 的错误框（exit 2）；框内正文在 pytest 的捕获流上会被
+        # 本地编码折损，故只断言「是用法错误」这一可编码的事实与无 traceback。
+        assert rejected.exit_code == 2, rejected.output
+        assert "Invalid value" in rejected.stderr
+        assert "Traceback" not in rejected.output
+
+
+def test_run_exits_130_on_interruption(
+    prepared: tuple[Path, str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """中断报告照常出 stdout，但退出码是 130（与打标跑批同口径）。"""
+    root, config_json, _ = prepared
+    runner.invoke(
+        app, ["eval", "add", str(root), "--name", "第一评", "--json", config_json]
+    )
+
+    def fake_run(_self: EvalRunner) -> RunReport:
+        return RunReport(
+            run_id="中断样例",
+            status=RUN_STATUS_INTERRUPTED,
+            counters={
+                "planned": 2,
+                "attempted": 1,
+                "succeeded": 1,
+                "failed": 0,
+                "skipped": 0,
+            },
+            run_dir=root,
+        )
+
+    monkeypatch.setattr(EvalRunner, "run", fake_run)
+    interrupted = runner.invoke(app, ["eval", "run", str(root), "e1"])
+    assert interrupted.exit_code == 130, interrupted.output
+    assert json.loads(interrupted.stdout)["status"] == "interrupted"
+
+
+def test_run_exits_1_when_items_failed(
+    prepared: tuple[Path, str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """有条目失败 → 报告照常出 stdout，退出码 1（脚本据此判定没全绿）。"""
+    root, config_json, _ = prepared
+    monkeypatch.setattr("dataset_factory.eval.runner.build_completer", _broken_factory)
+    runner.invoke(
+        app, ["eval", "add", str(root), "--name", "第一评", "--json", config_json]
+    )
+    ran = runner.invoke(app, ["eval", "run", str(root), "e1"])
+    assert ran.exit_code == 1, ran.output
+    payload = json.loads(ran.stdout)
+    assert payload["status"] == "completed"
+    assert payload["counters"]["failed"] > 0
+    assert "Traceback" not in ran.output
+
+
+def test_status_skips_corrupt_run_record(
+    prepared: tuple[Path, str, str],
+) -> None:
+    """最近一次 run.json 损坏 → 跳过并输出 null（不给 traceback）。"""
+    root, config_json, _ = prepared
+    runner.invoke(
+        app, ["eval", "add", str(root), "--name", "第一评", "--json", config_json]
+    )
+    broken = root / ".dsf" / "eval" / "runs" / "20261026T000000Z"
+    broken.mkdir()
+    (broken / "run.json").write_text("{坏记录", encoding="utf-8")
+    status = runner.invoke(app, ["eval", "status", str(root), "e1"])
+    assert status.exit_code == 0
+    assert json.loads(status.stdout) is None
+    assert "Traceback" not in status.output
+
+
+def test_status_reads_run_record_only_once(
+    prepared: tuple[Path, str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """选中后不再二次读 run.json：读取期文件被移走/改坏也不会甩原始栈。"""
+    root, config_json, _ = prepared
+    runner.invoke(
+        app, ["eval", "add", str(root), "--name", "第一评", "--json", config_json]
+    )
+    run_dir = root / ".dsf" / "eval" / "runs" / "20261026T000000Z"
+    run_dir.mkdir()
+    (run_dir / "run.json").write_text(
+        json.dumps({"batch": "e1", "status": "completed"}), encoding="utf-8"
+    )
+    original_read_text = Path.read_text
+    reads = {"count": 0}
+
+    def counting(
+        self: Path, encoding: str | None = None, errors: str | None = None
+    ) -> str:
+        if self.name == "run.json":
+            reads["count"] += 1
+            if reads["count"] > 1:
+                raise OSError("模拟读取期文件被移走")
+        return original_read_text(self, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", counting)
+    status = runner.invoke(app, ["eval", "status", str(root), "e1"])
+    assert status.exit_code == 0, status.output
+    assert json.loads(status.stdout)["status"] == "completed"
+    assert reads["count"] == 1
+    assert "Traceback" not in status.output

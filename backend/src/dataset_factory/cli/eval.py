@@ -16,7 +16,9 @@ from typing import Annotated, cast
 import typer
 
 from ..eval import (
+    RUN_STATUS_INTERRUPTED,
     EvalBatchConfig,
+    EvalError,
     EvalRunner,
     append_manual_score,
     create_eval_batch,
@@ -58,11 +60,15 @@ def _eval_location(path: Path, eval_batch: str) -> tuple[Path, int]:
 
 
 def _config_from_json(raw: str) -> EvalBatchConfig:
-    """--json 直传的配置 → 域配置对象（形状错按用法错误处理）。"""
+    """--json 直传的配置 → 域配置对象（JSON 语法错与形状错都按用法错误处理）。
+
+    ``EvalBatchConfig.from_json`` 抛的是 ``EvalConfigCorruptedError``（不是
+    ``ValueError``）——这里必须一起接住，否则坏形状会甩原始栈而不是用法错误。
+    """
     try:
         data: object = json.loads(raw)
         return EvalBatchConfig.from_json(data)
-    except (json.JSONDecodeError, ValueError) as exc:
+    except (ValueError, EvalError) as exc:
         raise typer.BadParameter(f"评测配置 JSON 不合法：{exc}") from exc
 
 
@@ -197,11 +203,17 @@ def run(
             )
 
     runner.subscribe(progress)
-    with cancellation(on_stop=runner.stop):
+    with cancellation(runner.stop) as stop:
         report = runner.run()
     print_result(
         {"run_id": report.run_id, "status": report.status, "counters": report.counters}
     )
+    # 退出码与打标跑批同一口径：被中止照常出中断报告但取 130；有条目失败取 1，
+    # 让脚本按退出码判定这次打分是否全绿（报告本身照样在 stdout）。
+    if stop.is_set() or report.status == RUN_STATUS_INTERRUPTED:
+        raise typer.Exit(130)
+    if report.counters.get("failed", 0):
+        raise typer.Exit(1)
 
 
 @app.command("status")
@@ -218,26 +230,25 @@ def status(
     if not runs_dir.is_dir():
         print_result(None)
         return
-    best: Path | None = None
+    # 一次读盘：挑选与输出共用同一份解析结果。损坏或读不出的 run.json 在挑选阶段
+    # 就被跳过（与打标 status 同一容忍度），选中的记录不再二次读取——避免「刚选中
+    # 就又被改坏」时甩原始栈。
+    latest: dict[str, object] | None = None
     for directory in sorted(runs_dir.iterdir(), reverse=True):
         marker = directory / "run.json"
         if not marker.is_file():
             continue
         try:
             record: object = json.loads(marker.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             continue
         if (
             isinstance(record, dict)
             and cast("dict[str, object]", record).get("batch") == f"e{seq}"
         ):
-            best = directory
+            latest = cast("dict[str, object]", record)
             break
-    if best is None:
-        print_result(None)
-        return
-    loaded: object = json.loads((best / "run.json").read_text(encoding="utf-8"))
-    print_result(loaded)
+    print_result(latest)
 
 
 @app.command("score")

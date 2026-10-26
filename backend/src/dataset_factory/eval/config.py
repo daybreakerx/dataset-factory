@@ -41,6 +41,9 @@ DUAL_SAMPLED = "sampled"
 DUAL_NONE = "none"
 _DUAL_ORDER_MODES = (DUAL_FULL, DUAL_SAMPLED, DUAL_NONE)
 
+#: 保留的维度名：judge 输出固定带「理由」字段（见 judge 模块），维度同名会被覆盖。
+_RESERVED_DIMENSION_NAME = "理由"
+
 
 @dataclass
 class DimensionSpec:
@@ -124,6 +127,13 @@ class EvalBatchConfig:
         if len(set(names)) != len(names):
             problems.append("维度名有重复")
         for dim in self.dimensions:
+            if not dim.name.strip():
+                problems.append("维度名不能为空白")
+            elif dim.name == _RESERVED_DIMENSION_NAME:
+                problems.append(
+                    f"维度名不能叫「{_RESERVED_DIMENSION_NAME}」——"
+                    "judge 输出的理由字段会用同名覆盖它"
+                )
             if dim.kind not in _DIMENSION_KINDS:
                 problems.append(f"维度「{dim.name}」的刻度不合法（{dim.kind}）")
         settings = self.pairwise_settings
@@ -250,10 +260,14 @@ class EvalBatchConfig:
 
 
 def _corrupted(detail: str) -> EvalConfigCorruptedError:
-    """构造一条带修法的损坏错误。"""
+    """构造一条带修法的形状错误。
+
+    ``from_json`` 同时服务「读落盘配置」与「CLI --json 入参」两个入口，提示里
+    两处都点名——否则从命令行传错形状时会看到「检查 config.json」这种对不上的指引。
+    """
     return EvalConfigCorruptedError(
-        f"打分批次配置文件损坏（{detail}）——请检查对应批次的 config.json，"
-        "或删除该打分批次后重建。"
+        f"打分批次配置形状不对（{detail}）——请检查该批次的 config.json "
+        "或命令行 --json 入参后重试。"
     )
 
 
