@@ -462,8 +462,8 @@ export function LabelingPage({
         />
       )}
       {creating ? (
-        // 新建批次＝全宽表单卡替换两栏（稿 `新建批次.html`「主区＝全宽表单卡替换两栏」／
-        // behavior/pages.md L36；2026-10-14 用户令对稿，撤旧「画布内换块」的顶栏＋左列保留式）：
+        // 新建批次＝全宽表单卡替换两栏（Pixso `10 打标 · 新建批次` 页面稿与规格板；
+        // 撤旧「画布内换块」的顶栏＋左列保留式）：
         // creating 态下顶栏、其下页级错误行与左列条目整块让位，表单铺满主区、自带内距与滚动。
         <NewBatchForm
           onBack={() => setCreating(false)}

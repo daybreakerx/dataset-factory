@@ -1,7 +1,7 @@
 /**
  * 项目自持 SVG 图标——只装「lucide 包内已无对应形状」的图标，外包属性与 lucide
  * 一致（24×24 栅格、fill none、stroke currentColor 2px 圆角），用法可无缝互换。
- * 形状基准＝稿侧 prototype/assets/icons.js（单一事实源，path 同源抄录）。
+ * 形状基准＝Pixso `02 Components · 控件` 页 `Icons` 区母版（path 与 lucide-react 同源）。
  */
 import type { ComponentProps } from "react";
 

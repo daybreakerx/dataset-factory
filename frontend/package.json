@@ -20,8 +20,7 @@
     "gen:api": "openapi-typescript ../backend/openapi.json -o src/api-types.gen.ts",
     "tokens:build": "node scripts/build-tokens.mjs",
     "tokens:validate": "node scripts/validate-tokens.mjs",
-    "tokens:check": "node scripts/build-tokens.mjs --check",
-    "tokens:figma": "node scripts/sync-figma-variables.mjs"
+    "tokens:check": "node scripts/build-tokens.mjs --check"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
