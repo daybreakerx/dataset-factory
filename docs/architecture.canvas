@@ -8,7 +8,7 @@
 		{"id":"5a6b70819203a1b2","type":"group","x":20,"y":720,"width":900,"height":240,"color":"#3b82f6","label":"编排层"},
 		{"id":"6b70819203a1b2c3","type":"group","x":20,"y":960,"width":900,"height":120,"color":"#f59e0b","label":"能力层"},
 		{"id":"4f5a6b70819203a1","type":"group","x":20,"y":520,"width":900,"height":90,"color":"#60a5fa","label":"入口层"},
-		{"id":"c3d4e5f607182930","type":"text","text":"**质量底座**\n\n测试金字塔：pytest 1485 / Vitest 421 / E2E 45 / L4 27 屏 · 契约：OpenAPI 91 + oasdiff 相邻门禁\nimport-linter ×3 契约 · dep-cruiser ×5 规则 · CI：双系统六 job","x":-5,"y":1920,"width":940,"height":120,"color":"#94a3b8"},
+		{"id":"c3d4e5f607182930","type":"text","text":"**质量底座**\n\n测试金字塔：pytest 1485 / Vitest 424 / E2E 45 / L4 27 屏 · 契约：OpenAPI 91 + oasdiff 相邻门禁\nimport-linter ×3 契约 · dep-cruiser ×5 规则 · CI：双系统六 job","x":-5,"y":1920,"width":940,"height":120,"color":"#94a3b8"},
 		{"id":"a1b2c3d4e5f60718","type":"text","text":"**工作目录 .dsf/**（与素材同级，可多个；清理 / 删除 / 迁移维护链）\n\n- `imports.jsonl` —— 素材登记（哈希 / 白名单 / 复制或就地采用）\n- `strategies/sN.json` —— 批次策略快照（序号只增，copy-on-apply）\n- `runs/<时间戳>/` —— run.json · items.jsonl · run.log · 产物 txt\n- `eval/` —— 打分批次 state · runs 流水 · manual-scores · reports 快照","x":-5,"y":1640,"width":460,"height":260,"color":"#22c55e"},
 		{"id":"b2c3d4e5f6071829","type":"text","text":"**全局数据根 ~/.dataset_factory**\n\n- `endpoints` —— 端点配置与密钥（页内 chip 选择，无全局指针）\n- `prompts` / `skills` —— 提示词库与技能包的源\n- 应用配置、缓存、导出临时区与 quarantine 回收","x":480,"y":1640,"width":460,"height":240,"color":"#22c55e"},
 		{"id":"9203a1b2c3d4e5f6","type":"text","text":"本地数据（数据根 ~/.dataset_factory；凭据不进导出包）","x":0,"y":1560,"width":940,"height":40},
