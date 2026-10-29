@@ -9,14 +9,21 @@
 		{"id":"371ef007316e4717","type":"text","text":"**条目 items.jsonl**\n\n+ 六分组监控\n+ 可重试/不可重试分类\n+ 哈希命中即跳过（续跑）\n+ 排队中覆盖发车、关机 busy","x":0,"y":1185,"width":340,"height":200,"color":"#16a34a"},
 		{"id":"67afcbcc29dc4b9e","type":"text","text":"**运行 runs/时间戳/**\n\n+ run.json 运行状态\n+ items.jsonl 条目\n+ journal 事件流 · 占用锁\n+ 停止两档：已完成保留 / 已中断停因","x":900,"y":920,"width":340,"height":200,"color":"#3b82f6"},
 		{"id":"d50065b5b8184f51","type":"text","text":"**重试列表 RetryList**\n\n+ 常驻 tab，跨会话持久\n+ 可重试 3 次，退避 1/2/4s+抖动\n+ 429 遵循 Retry-After","x":340,"y":880,"width":300,"height":200,"color":"#d97706"},
-		{"id":"b40af4e1db7644ab","type":"text","text":"**批次 = 策略 × 工作目录**\n\n+ s1/s2 批次序号，建批即快照\n+ 两来源：素材组 / 工作目录\n+ 配对冲突默认入包","x":920,"y":630,"width":300,"height":170,"color":"#3b82f6"},
+		{"id":"b40af4e1db7644ab","type":"text","text":"**批次 = 策略 × 工作目录**\n\n+ s1/s2 批次序号，建批即快照\n+ 两来源：素材组 / 工作目录\n+ 配对冲突默认入包\n+ 可置基准位（产物为参照、禁跑）","x":920,"y":630,"width":300,"height":190,"color":"#3b82f6"},
 		{"id":"4524198c957745c9","type":"text","text":"**提示词库 prompts**\n\n+ 提示词主干源\n+ 应用时复制入快照","x":660,"y":-95,"width":260,"height":130,"color":"#64748b"},
 		{"id":"0cd1e2508469443a","type":"text","text":"**技能包 skills**\n\n+ 技能装配源\n+ 应用时复制入快照","x":1160,"y":-95,"width":260,"height":130,"color":"#64748b"},
 		{"id":"30f661d3bebb41dd","type":"text","text":"**端点配置 endpoints**\n\n+ url 与密钥\n+ 页内 chip 选择\n+ 无全局指针","x":1600,"y":220,"width":260,"height":160,"color":"#64748b"},
 		{"id":"febd649b15014bbc","type":"text","text":"**打包计划 ExportPlan**\n\n+ 入包资格判定\n+ 将入包 / 被排除两清单逐条列原因\n+ 打包前完整性哈希校验","x":1570,"y":935,"width":320,"height":170,"color":"#3b82f6"},
 		{"id":"c8f1d5aeb17e4a93","type":"text","text":"**导出包 zip（001 配对）**\n\n+ 001 三位定宽编号\n+ 图文平铺配对、非 ASCII 重命名\n+ 无 manifest、凭据不入包","x":1570,"y":1300,"width":320,"height":170,"color":"#16a34a"},
 		{"id":"ada757aca57947c4","type":"text","text":"领域对象、落点与关系（copy-on-apply＝应用时复制入快照的冻结关系）","x":290,"y":-344,"width":740,"height":50},
-		{"id":"d7f71c1e68a84e50","type":"text","text":"# 数据模型与关系","x":-40,"y":-359,"width":300,"height":65}
+		{"id":"d7f71c1e68a84e50","type":"text","text":"# 数据模型与关系","x":-40,"y":-359,"width":300,"height":65},
+		{"id":"a1c2e3f4b5d60718","type":"group","x":2000,"y":500,"width":560,"height":660,"color":"#8b5cf6","label":"评测域 .dsf/eval/（与打标同工作目录、只读写本目录）"},
+		{"id":"b2d3f4a5c6e71829","type":"text","text":"**评测域入口**\n\n打分批次 eN 只增不复用\n配置可全量改；人工分不绑配置","x":2020,"y":540,"width":520,"height":70,"color":"#8b5cf6"},
+		{"id":"c3e4a5b6d7f82930","type":"text","text":"**state.json**\n\n打分批次清单 eN · 序号只增","x":2020,"y":630,"width":250,"height":100,"color":"#16a34a"},
+		{"id":"d4f5b6c7e8a93041","type":"text","text":"**eN/config.json**\n\n可变配置（全量可改）\n被测／基准批次 · 裁判 · 维度 · 模式 · 人工设置","x":2290,"y":630,"width":250,"height":120,"color":"#3b82f6"},
+		{"id":"e5a6c7d8f9ba4152","type":"text","text":"**runs/<runid>/**\n\nrun.json 运行快照（当次配置＋策略全文）\nscores.jsonl · pairs.jsonl · samples.json · run.log","x":2020,"y":780,"width":520,"height":110,"color":"#3b82f6"},
+		{"id":"f6b7d8e9a0cb5263","type":"text","text":"**manual-scores.jsonl**\n\n人工打分追加流（条目级、带标注者）\n不绑打分批次配置","x":2020,"y":920,"width":250,"height":110,"color":"#d97706"},
+		{"id":"a7c8e9f0b1dc6374","type":"text","text":"**reports/<rid>.json**\n\n报告快照（五层＋当次配置＋运行 ID）\n一运行一报告；删除批次随删","x":2290,"y":920,"width":250,"height":110,"color":"#16a34a"}
 	],
 	"edges":[
 		{"id":"dfc351d4e7124bb7","fromNode":"f7581c1b4d20452c","fromSide":"left","toNode":"a6791c479b72472c","toSide":"top","label":"登记（哈希/白名单）"},
@@ -35,6 +42,11 @@
 		{"id":"ce5298c3308943d3","fromNode":"371ef007316e4717","fromSide":"bottom","toNode":"ff71d52f275d4c62","toSide":"left","label":"成功产出"},
 		{"id":"e485f724351041db","fromNode":"67afcbcc29dc4b9e","fromSide":"bottom","toNode":"ff71d52f275d4c62","toSide":"top","label":"归集"},
 		{"id":"c90551167d7240e8","fromNode":"febd649b15014bbc","fromSide":"bottom","toNode":"c8f1d5aeb17e4a93","toSide":"top","label":"平铺导出（无 manifest）"},
-		{"id":"e6d82b7fb4d3426d","fromNode":"67afcbcc29dc4b9e","fromSide":"right","toNode":"febd649b15014bbc","toSide":"left","label":"打包前生成"}
+		{"id":"e6d82b7fb4d3426d","fromNode":"67afcbcc29dc4b9e","fromSide":"right","toNode":"febd649b15014bbc","toSide":"left","label":"打包前生成"},
+		{"id":"b8d9f0a1c2ed7485","fromNode":"b40af4e1db7644ab","fromSide":"right","toNode":"d4f5b6c7e8a93041","toSide":"left","color":"#8b5cf6","label":"引用 sN（被测／基准）"},
+		{"id":"c9e0a1b2d3fe8596","fromNode":"c3e4a5b6d7f82930","fromSide":"right","toNode":"d4f5b6c7e8a93041","toSide":"left","label":"配置"},
+		{"id":"d0f1b2c3e40f96a7","fromNode":"d4f5b6c7e8a93041","fromSide":"bottom","toNode":"e5a6c7d8f9ba4152","toSide":"top","label":"运行快照"},
+		{"id":"e1a2c3d4f510a7b8","fromNode":"e5a6c7d8f9ba4152","fromSide":"bottom","toNode":"a7c8e9f0b1dc6374","toSide":"top","label":"聚合"},
+		{"id":"f2b3d4e5a621b8c9","fromNode":"f6b7d8e9a0cb5263","fromSide":"right","toNode":"a7c8e9f0b1dc6374","toSide":"left","label":"生成时快照"}
 	]
 }

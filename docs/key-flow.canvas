@@ -26,7 +26,13 @@
 		{"id":"23196a82fc6b4ab2","type":"text","text":"◇ **还有条目？**","x":320,"y":1480,"width":340,"height":90,"color":"#d97706"},
 		{"id":"6b454f43d3b44e58","type":"text","text":"**入失败分组**（停止仍保留产物）\n\n失败入常驻重试列表，跨会话持久","x":1020,"y":1210,"width":380,"height":90,"color":"#ef4444"},
 		{"id":"3d71acad49fb4acb","type":"text","text":"**写产物 sN__主干.txt**\n\n与 items.jsonl","x":320,"y":1340,"width":340,"height":90,"color":"#16a34a"},
-		{"id":"7676729fa4ca4183","type":"text","text":"◇ **结果分类**\n\n可重试？","x":320,"y":1210,"width":340,"height":90,"color":"#d97706"}
+		{"id":"7676729fa4ca4183","type":"text","text":"◇ **结果分类**\n\n可重试？","x":320,"y":1210,"width":340,"height":90,"color":"#d97706"},
+		{"id":"a7e5c1d9b3f60482","type":"group","x":1000,"y":1360,"width":460,"height":530,"color":"#8b5cf6","label":"评测链（独立运行，可与打标并行）"},
+		{"id":"b8f6d2e0c4a71593","type":"text","text":"**建打分批次 eN**\n\n被测批次 ×N ＋（可选）基准批次\n裁判策略 · 维度清单 · 评测模式 · 人工介入设置","x":1020,"y":1400,"width":420,"height":90,"color":"#3b82f6"},
+		{"id":"c9a7e3f1d5b826a4","type":"text","text":"**judge 打分（eval 独立锁）**\n\n维度分全量 · pairwise 按范围\n结构化输出三级降级 · 轨迹留痕","x":1020,"y":1510,"width":420,"height":90,"color":"#3b82f6"},
+		{"id":"dab8f402e6c937b5","type":"text","text":"**人工介入（可选）**\n\n随机抽检／定向筛查／全量\n人工分条目级沉淀、不绑配置","x":1020,"y":1620,"width":420,"height":90,"color":"#d97706"},
+		{"id":"ebc90513f7da48c6","type":"text","text":"**报告快照（五层）**\n\n排名／维度／可信度／badcase／可复现\n一运行一报告，历史可回看","x":1020,"y":1730,"width":420,"height":80,"color":"#16a34a"},
+		{"id":"fcda1624a8eb59d7","type":"text","text":"**打回重标** → 复用重试列表（零新增）","x":1020,"y":1830,"width":420,"height":50,"color":"#ef4444"}
 	],
 	"edges":[
 		{"id":"a9c06c9a8a2a443b","fromNode":"655a7740e1544ee8","fromSide":"bottom","toNode":"7b2c143cbed0461c","toSide":"top"},
@@ -52,6 +58,11 @@
 		{"id":"b73656ff9575439d","fromNode":"23196a82fc6b4ab2","fromSide":"bottom","toNode":"5f4a50aff4444e45","toSide":"top","label":"全部完成"},
 		{"id":"7ca8eda8768a4aa2","fromNode":"5f4a50aff4444e45","fromSide":"bottom","toNode":"818426b02b3946f2","toSide":"top"},
 		{"id":"52dd480f07664279","fromNode":"818426b02b3946f2","fromSide":"bottom","toNode":"b08ceb802e25417e","toSide":"top"},
-		{"id":"4c14f571fe424254","fromNode":"23196a82fc6b4ab2","fromSide":"left","toNode":"ca521ffa8beb4c01","toSide":"left","label":"下一条"}
+		{"id":"4c14f571fe424254","fromNode":"23196a82fc6b4ab2","fromSide":"left","toNode":"ca521ffa8beb4c01","toSide":"left","label":"下一条"},
+		{"id":"d1b7e4a2f9c30685","fromNode":"3d71acad49fb4acb","fromSide":"right","toNode":"b8f6d2e0c4a71593","toSide":"left","color":"#8b5cf6","label":"产物就绪"},
+		{"id":"e2c8f5b3a0d41796","fromNode":"b8f6d2e0c4a71593","fromSide":"bottom","toNode":"c9a7e3f1d5b826a4","toSide":"top"},
+		{"id":"f3d9a6c4b1e528a7","fromNode":"c9a7e3f1d5b826a4","fromSide":"bottom","toNode":"dab8f402e6c937b5","toSide":"top"},
+		{"id":"a4e0b7d5c2f639b8","fromNode":"dab8f402e6c937b5","fromSide":"bottom","toNode":"ebc90513f7da48c6","toSide":"top"},
+		{"id":"b5f1c8e6d3a740c9","fromNode":"ebc90513f7da48c6","fromSide":"bottom","toNode":"fcda1624a8eb59d7","toSide":"top"}
 	]
 }
