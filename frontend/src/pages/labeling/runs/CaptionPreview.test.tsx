@@ -29,6 +29,7 @@ const batches: components["schemas"]["BatchView"][] = [1, 2, 3, 4, 5].map((seq) 
   seq,
   name: `策略${seq}`,
   active: seq !== 5,
+  benchmark: false,
   created_at: "2026-09-17T00:00:00Z",
   description: "",
   product_count: 1,

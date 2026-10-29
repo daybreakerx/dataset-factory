@@ -95,7 +95,12 @@ export function Sidebar({
       )}
     >
       {page !== "settings" && (
-        <div className={cn("flex items-center gap-3 px-4 pt-4 pb-3", collapsed && "justify-center")}>
+        <div
+          className={cn(
+            "flex items-center gap-3 px-4 pt-4 pb-3",
+            collapsed && "justify-center",
+          )}
+        >
           {brandInteractive ? (
             <Tooltip>
               <TooltipTrigger asChild>

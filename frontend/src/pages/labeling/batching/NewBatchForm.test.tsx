@@ -109,6 +109,7 @@ beforeEach(() => {
     name: "Test",
     description: "",
     active: true,
+    benchmark: false,
     created_at: "",
     product_count: 0,
   });

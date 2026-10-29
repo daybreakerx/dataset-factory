@@ -106,6 +106,7 @@ beforeEach(() => {
     name: "新策略",
     description: "",
     active: true,
+    benchmark: false,
     created_at: "",
     product_count: 0,
   });
@@ -315,6 +316,7 @@ describe("新增策略弹窗", () => {
               name: "新策略",
               description: "",
               active: true,
+              benchmark: false,
               created_at: "",
               product_count: 0,
             });

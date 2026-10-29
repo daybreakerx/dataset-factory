@@ -954,6 +954,26 @@ export interface paths {
         patch: operations["patch_batch_api_workdirs__wid__batches__sN__patch"];
         trace?: never;
     };
+    "/api/workdirs/{wid}/batches/{sN}/benchmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Benchmark Batch
+         * @description 置位基准位：产物为摆放的参照、禁跑批（打分页指定基准的批次）。
+         */
+        post: operations["benchmark_batch_api_workdirs__wid__batches__sN__benchmark_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workdirs/{wid}/batches/{sN}/exclusions": {
         parameters: {
             query?: never;
@@ -1249,6 +1269,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workdirs/{wid}/batches/{sN}/unbenchmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unbenchmark Batch
+         * @description 复位基准位（恢复可跑批）。
+         */
+        post: operations["unbenchmark_batch_api_workdirs__wid__batches__sN__unbenchmark_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workdirs/{wid}/batches/{sN}/unhide": {
         parameters: {
             query?: never;
@@ -1364,6 +1404,243 @@ export interface paths {
          * @description 删除前展示实际文件范围与原始素材警告。
          */
         get: operations["get_deletion_preview_api_workdirs__wid__delete_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/eval-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Eval
+         * @description 列出工作目录全部打分批次（按序号升序，配置全文随视图携带）。
+         */
+        get: operations["list_eval_api_workdirs__wid__eval_batches_get"];
+        put?: never;
+        /**
+         * Create Eval
+         * @description 新建打分批次（保存时全量校验：规则聚合报、引用现查）。
+         *
+         *     201 + Location 指向新打分批次。
+         */
+        post: operations["create_eval_api_workdirs__wid__eval_batches_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/eval-batches/{eN}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Eval Detail
+         * @description 按序号查单个打分批次（新建 201 的 Location 指向这里）。
+         */
+        get: operations["get_eval_detail_api_workdirs__wid__eval_batches__eN__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Eval
+         * @description 删除打分批次：配置、该批次的运行记录与报告快照移入可恢复暂存。
+         *
+         *     人工打分不随删（绑素材 × 批次 × 条目 × 标注者、不绑打分批次配置）；
+         *     删前告知内容量由界面负责（列表视图即数据源）。
+         */
+        delete: operations["delete_eval_api_workdirs__wid__eval_batches__eN__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Eval
+         * @description 改名称 / 描述 / 评测配置（配置全量替换，改了保存重跑即重算）。
+         *
+         *     配置替换先过域校验（规则＋引用）再动名称——名称与配置分两步落盘，
+         *     校验不过时名称也不会被半改。
+         */
+        patch: operations["patch_eval_api_workdirs__wid__eval_batches__eN__patch"];
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/eval-batches/{eN}/manual-scores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Manual Scores
+         * @description 读当前有效的人工打分（每键最近一条；按 kind / item / annotator 过滤）。
+         */
+        get: operations["get_manual_scores_api_workdirs__wid__eval_batches__eN__manual_scores_get"];
+        /**
+         * Put Manual Score
+         * @description 追加一条人工打分（改分＝再提交一条，读取按每键最近一条）。
+         *
+         *     人工数据不绑打分批次配置（删打分批次不随删）；路径挂在打分批次下只是
+         *     页面作用域。低分（五档 ≤2）理由必填。
+         */
+        put: operations["put_manual_score_api_workdirs__wid__eval_batches__eN__manual_scores_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/eval-batches/{eN}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Eval Reports
+         * @description 报告快照列表（最新在前）。
+         */
+        get: operations["list_eval_reports_api_workdirs__wid__eval_batches__eN__reports_get"];
+        put?: never;
+        /**
+         * Create Eval Report
+         * @description 从一次运行聚合报告快照（缺省＝最近一次运行；重出同 run_id 即覆盖）。
+         */
+        post: operations["create_eval_report_api_workdirs__wid__eval_batches__eN__reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/eval-batches/{eN}/reports/{rid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Eval Report
+         * @description 读一份报告快照全文（历史报告可回看、读数可复现）。
+         */
+        get: operations["get_eval_report_api_workdirs__wid__eval_batches__eN__reports__rid__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/eval-batches/{eN}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Eval Run
+         * @description 受理一次打分运行：同步预检 + 登记注册表 + 后台线程执行，202 立即返回。
+         *
+         *     预检（批次与配置可读、裁判引用现查）在受理之前完成，把能在请求内确定的
+         *     错误同步报给客户端；跨进程的 eval 运行锁占用在后台线程抢锁时才暴露，经
+         *     SSE / current 呈现（status=failed + 一条 failed 的 run-finished 事件）。
+         */
+        post: operations["start_eval_run_api_workdirs__wid__eval_batches__eN__runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/eval-batches/{eN}/runs/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Current Eval Run
+         * @description 当前打分运行进度快照（轮询用）；空闲时返回 200 + null（空闲轮询合法）。
+         */
+        get: operations["current_eval_run_api_workdirs__wid__eval_batches__eN__runs_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/eval-batches/{eN}/runs/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Eval Run
+         * @description 请求停止当前打分运行（协作取消：当前调用在安全点停下）。
+         */
+        post: operations["stop_eval_run_api_workdirs__wid__eval_batches__eN__runs_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/eval-batches/{eN}/runs/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Eval Run
+         * @description SSE 业务事件流：run-started → item-updated… → run-finished（终态即关流）。
+         */
+        get: operations["stream_eval_run_api_workdirs__wid__eval_batches__eN__runs_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workdirs/{wid}/eval-batches/{eN}/samples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Eval Samples
+         * @description 最近一次运行的题单（随机抽检／定向筛查）＋人工进度（按素材主干汇总）。
+         *
+         *     没有运行过时 run_id 为 null、两份题单为空——页面据此引导先跑一次打分。
+         */
+        get: operations["get_eval_samples_api_workdirs__wid__eval_batches__eN__samples_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1875,9 +2152,14 @@ export interface components {
         BatchView: {
             /**
              * Active
-             * @description 是否启用（False = 已停用，不出现在下拉 / 打包选项）
+             * @description 是否启用（False = 已停用，不出现在下拉 / 列表 / 打包选项）
              */
             active: boolean;
+            /**
+             * Benchmark
+             * @description 基准位：产物为摆放的参照、禁跑批（打分页指定基准的批次）
+             */
+            benchmark: boolean;
             /**
              * Created At
              * @description 创建时刻（UTC ISO 8601）
@@ -2254,6 +2536,367 @@ export interface components {
             new_name?: string | null;
             /** @description 请求参数（生成 + 传输）；缺省 = 沿用已有参数不变；提供 = 整体替换（未提供的参数键视为清除） */
             request_params?: components["schemas"]["EndpointRequestParams"] | null;
+        };
+        /**
+         * EvalBatchCreateRequest
+         * @description POST /api/workdirs/{wid}/eval-batches 的请求体：新建打分批次。
+         */
+        EvalBatchCreateRequest: {
+            /** @description 评测配置（保存时全量校验） */
+            config: components["schemas"]["EvalConfigPayload"];
+            /**
+             * Description
+             * @description 说明文字
+             * @default
+             */
+            description: string;
+            /**
+             * Name
+             * @description 显示名（可改、允许重名）
+             */
+            name: string;
+        };
+        /**
+         * EvalBatchUpdateRequest
+         * @description PATCH /api/workdirs/{wid}/eval-batches/{eN} 的请求体。
+         *
+         *     与打标批次「组合不可改」相反——评测配置全量可替换；name / description /
+         *     config 三者至少给一个。
+         */
+        EvalBatchUpdateRequest: {
+            /** @description 评测配置（全量替换）；缺省 = 不变 */
+            config?: components["schemas"]["EvalConfigPayload"] | null;
+            /**
+             * Description
+             * @description 说明文字；缺省 = 不变
+             */
+            description?: string | null;
+            /**
+             * Name
+             * @description 显示名；缺省 = 不变
+             */
+            name?: string | null;
+        };
+        /**
+         * EvalBatchView
+         * @description 打分批次摘要（配置全文随视图携带——评测页即改即存的数据源）。
+         */
+        EvalBatchView: {
+            /** @description 评测配置全文 */
+            config: components["schemas"]["EvalConfigPayload"];
+            /**
+             * Created At
+             * @description 创建时刻（UTC ISO 8601）
+             */
+            created_at: string;
+            /**
+             * Description
+             * @description 说明文字
+             */
+            description: string;
+            /**
+             * Id
+             * @description 打分批次标识（eN 形式，如 e1）
+             */
+            id: string;
+            /**
+             * Name
+             * @description 显示名
+             */
+            name: string;
+            /**
+             * Seq
+             * @description 序号（只增不复用，独立于打标批次的 sN 空间）
+             */
+            seq: number;
+        };
+        /**
+         * EvalConfigPayload
+         * @description 打分批次的评测配置（与 .dsf/eval/e<N>/config.json 同形）。
+         */
+        EvalConfigPayload: {
+            /**
+             * Benchmark
+             * @description 基准批次序号；null = 无基准（候选互比）
+             */
+            benchmark?: number | null;
+            /**
+             * Candidates
+             * @description 被测批次序号清单（sN 的 N，≥1、不重复）
+             */
+            candidates: number[];
+            /**
+             * Dataset License
+             * @description 参照许可
+             */
+            dataset_license?: string | null;
+            /**
+             * Dataset Source
+             * @description 参照来源数据集名（报告可复现层呈现）
+             */
+            dataset_source?: string | null;
+            /**
+             * Dimension Scoring
+             * @description 维度评分模式（单点 rubric 绝对分）
+             */
+            dimension_scoring: boolean;
+            /**
+             * Dimensions
+             * @description 维度清单（开了维度评分才非空）；schema 由它运行时派生
+             */
+            dimensions: components["schemas"]["EvalDimensionPayload"][];
+            /** @description 人工介入设置 */
+            human: components["schemas"]["EvalHumanPayload"];
+            /**
+             * Judges
+             * @description 裁判策略库 ID 清单（多裁判 = 多条）
+             */
+            judges: string[];
+            /**
+             * Pairwise
+             * @description 对比排名模式（pairwise 整体比）
+             */
+            pairwise: boolean;
+            /** @description 对比设置（开对比排名时必填） */
+            pairwise_settings?: components["schemas"]["EvalPairwisePayload"] | null;
+        };
+        /**
+         * EvalDimensionPayload
+         * @description 一条评测维度：名称 + 刻度。
+         */
+        EvalDimensionPayload: {
+            /**
+             * Kind
+             * @description 刻度：score5 = 五档评分（1–5）；binary = 是非判断（无幻觉：有／无）
+             * @enum {string}
+             */
+            kind: "score5" | "binary";
+            /**
+             * Name
+             * @description 维度名（如 场景描述 / 画面风格 / 无幻觉）
+             */
+            name: string;
+        };
+        /**
+         * EvalHumanPayload
+         * @description 人工介入设置：通道管「哪些题」、活动管「在这些题上做什么」。
+         */
+        EvalHumanPayload: {
+            /**
+             * Dimension Manual
+             * @description 维度人工（随维度评分模式显隐）
+             */
+            dimension_manual: boolean;
+            /**
+             * Full
+             * @description 全量通道（与随机抽检／定向筛查互斥）
+             */
+            full: boolean;
+            /**
+             * Pairwise Manual
+             * @description 对比人工（随对比排名模式显隐）
+             */
+            pairwise_manual: boolean;
+            /**
+             * Random Count
+             * @description 随机抽检数量（绝对题数，开通道时 ≥1）
+             */
+            random_count?: number | null;
+            /**
+             * Random Enabled
+             * @description 随机抽检通道开关（量裁判准不准，出 κ／一致率）
+             */
+            random_enabled: boolean;
+            /**
+             * Targeted Count
+             * @description 定向筛查数量（绝对题数，开通道时 ≥1）
+             */
+            targeted_count?: number | null;
+            /**
+             * Targeted Enabled
+             * @description 定向筛查通道开关（捞坏条目，出查准率与 badcase 清单）
+             */
+            targeted_enabled: boolean;
+        };
+        /**
+         * EvalPairwisePayload
+         * @description 对比排名设置：双序策略、抽验比例与子采样上限。
+         */
+        EvalPairwisePayload: {
+            /**
+             * Dual Order
+             * @description 双序策略：full = 全量双序（默认）；sampled = 随机抽验双序；none = 不双序·单序随机左右
+             * @enum {string}
+             */
+            dual_order: "full" | "sampled" | "none";
+            /**
+             * Dual Order Ratio
+             * @description 随机抽验双序的比例（1–100，百分比）；仅 dual_order = sampled 时携带
+             */
+            dual_order_ratio?: number | null;
+            /**
+             * Limit
+             * @description 对比范围上限（对数）；null = 全量。纯 API 成本、控钱用
+             */
+            limit?: number | null;
+        };
+        /**
+         * EvalReportCreateRequest
+         * @description POST reports 的请求体：从哪次运行聚合报告。
+         */
+        EvalReportCreateRequest: {
+            /**
+             * Run Id
+             * @description 运行标识；缺省 = 最近一次运行
+             */
+            run_id?: string | null;
+        };
+        /**
+         * EvalReportSummaryView
+         * @description 报告快照摘要（列表行）。
+         */
+        EvalReportSummaryView: {
+            /**
+             * Generated At
+             * @description 生成时刻（UTC ISO 8601）
+             */
+            generated_at: string;
+            /**
+             * Report Id
+             * @description 报告标识（＝运行标识，一运行一报告）
+             */
+            report_id: string;
+            /**
+             * Run Id
+             * @description 运行标识
+             */
+            run_id: string;
+            /**
+             * Status
+             * @description 对应运行的状态
+             */
+            status: string | null;
+        };
+        /**
+         * EvalReportView
+         * @description 报告全文：五层结构（layers 的键 presence 按启用的评测模式，未启用为 null）。
+         */
+        EvalReportView: {
+            /**
+             * Batch
+             * @description 打分批次标识（eN）
+             */
+            batch: string;
+            /**
+             * Counters
+             * @description 运行计数
+             */
+            counters?: {
+                [key: string]: number;
+            } | null;
+            /**
+             * Generated At
+             * @description 生成时刻
+             */
+            generated_at: string;
+            /**
+             * Layers
+             * @description 五层：ranking / dimensions / trust / badcase / reproducibility
+             */
+            layers: {
+                [key: string]: unknown;
+            };
+            /**
+             * Report Id
+             * @description 报告标识
+             */
+            report_id: string;
+            /**
+             * Run Id
+             * @description 运行标识
+             */
+            run_id: string;
+            /**
+             * Status
+             * @description 运行状态
+             */
+            status: string | null;
+        };
+        /**
+         * EvalRunAccepted
+         * @description 打分运行受理响应。
+         */
+        EvalRunAccepted: {
+            /**
+             * Run Id
+             * @description 运行标识（.dsf/eval/runs/ 下的目录名）
+             */
+            run_id: string;
+        };
+        /**
+         * EvalRunStatusView
+         * @description 打分运行进度快照（轮询与 SSE 断线重连后的全量刷新同款数据）。
+         */
+        EvalRunStatusView: {
+            /**
+             * Batch
+             * @description 打分批次标识（eN）
+             */
+            batch: string;
+            /**
+             * Counters
+             * @description 计划 / 已尝试 / 成功 / 失败 / 跳过 计数
+             */
+            counters: {
+                [key: string]: number;
+            };
+            /**
+             * Error
+             * @description 失败原因（failed 时给）
+             */
+            error?: string | null;
+            /**
+             * Run Id
+             * @description 运行标识
+             */
+            run_id: string;
+            /**
+             * Status
+             * @description running / completed / interrupted / failed
+             */
+            status: string;
+        };
+        /**
+         * EvalSamplesView
+         * @description 最近一次打分运行的题单与人工进度。
+         */
+        EvalSamplesView: {
+            /**
+             * Progress
+             * @description 素材主干 → {dimension, pair}：是否已有对应人工打分
+             */
+            progress: {
+                [key: string]: {
+                    [key: string]: boolean;
+                };
+            };
+            /**
+             * Random
+             * @description 随机抽检题单（素材主干，含定向并集视图）
+             */
+            random: string[];
+            /**
+             * Run Id
+             * @description 运行标识；null = 还没跑过打分
+             */
+            run_id?: string | null;
+            /**
+             * Targeted
+             * @description 定向筛查题单（items + 挑选依据 basis）
+             */
+            targeted?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * ExclusionsRequest
@@ -2799,6 +3442,118 @@ export interface components {
             caption: string;
             /** Session Id */
             session_id: string;
+        };
+        /**
+         * ManualScoreRequest
+         * @description PUT manual-scores 的请求体：追加一条人工打分（按 kind 取必填组合）。
+         */
+        ManualScoreRequest: {
+            /**
+             * A Batch
+             * @description 对比 A 侧批次序号（kind = pair 必填）
+             */
+            a_batch?: number | null;
+            /**
+             * Annotator
+             * @description 标注者标识（本地身份，匿名给个标识即可）
+             */
+            annotator: string;
+            /**
+             * B Batch
+             * @description 对比 B 侧批次序号（kind = pair 必填）
+             */
+            b_batch?: number | null;
+            /**
+             * Batch
+             * @description 被测批次序号（kind = dimension 必填）
+             */
+            batch?: number | null;
+            /**
+             * Item
+             * @description 素材主干
+             */
+            item: string;
+            /**
+             * Kind
+             * @description dimension = 候选 caption 的维度打分；pair = 一对候选的对比判定
+             * @enum {string}
+             */
+            kind: "dimension" | "pair";
+            /**
+             * Reason
+             * @description 理由；人工低分（≤2）必填，其余选填
+             */
+            reason?: string | null;
+            /**
+             * Scores
+             * @description 维度名 → 分数（1–5）或「有／无」（dimension 必填）
+             */
+            scores?: {
+                [key: string]: number | string;
+            } | null;
+            /**
+             * Winner
+             * @description 判定结果 A / B / tie（pair 必填）
+             */
+            winner?: string | null;
+        };
+        /**
+         * ManualScoreView
+         * @description 一条人工打分记录（追加后回读的现状）。
+         */
+        ManualScoreView: {
+            /**
+             * A Batch
+             * @description A 侧批次序号（pair）
+             */
+            a_batch?: number | null;
+            /**
+             * Annotator
+             * @description 标注者标识
+             */
+            annotator: string;
+            /**
+             * B Batch
+             * @description B 侧批次序号（pair）
+             */
+            b_batch?: number | null;
+            /**
+             * Batch
+             * @description 被测批次序号（dimension）
+             */
+            batch?: number | null;
+            /**
+             * Item
+             * @description 素材主干
+             */
+            item: string;
+            /**
+             * Kind
+             * @description dimension / pair
+             */
+            kind: string;
+            /**
+             * Reason
+             * @description 理由
+             */
+            reason?: string | null;
+            /**
+             * Recorded At
+             * @description 记录时刻（UTC ISO 8601）
+             */
+            recorded_at: string;
+            /**
+             * Scores
+             * @description 维度分数（dimension）
+             */
+            scores?: {
+                [key: string]: number | string;
+            } | null;
+            /**
+             * Winner
+             * @description 判定结果（pair）
+             */
+            winner?: string | null;
         };
         /**
          * Problem
@@ -6360,6 +7115,48 @@ export interface operations {
             };
         };
     };
+    benchmark_batch_api_workdirs__wid__batches__sN__benchmark_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                sN: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchView"];
+                };
+            };
+            /** @description wid 或批次不存在（workdir-not-found / batch-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     add_batch_exclusions_api_workdirs__wid__batches__sN__exclusions_post: {
         parameters: {
             query?: never;
@@ -7045,6 +7842,48 @@ export interface operations {
             };
         };
     };
+    unbenchmark_batch_api_workdirs__wid__batches__sN__unbenchmark_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                sN: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchView"];
+                };
+            };
+            /** @description wid 或批次不存在（workdir-not-found / batch-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     unhide_batch_api_workdirs__wid__batches__sN__unhide_post: {
         parameters: {
             query?: never;
@@ -7561,6 +8400,724 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_eval_api_workdirs__wid__eval_batches_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalBatchView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_eval_api_workdirs__wid__eval_batches_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvalBatchCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalBatchView"];
+                };
+            };
+            /** @description 配置规则或引用不合法（problem+json: eval-config-invalid） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description wid 不存在（workdir-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description 请求体缺必填字段（FastAPI 校验） */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    get_eval_detail_api_workdirs__wid__eval_batches__eN__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalBatchView"];
+                };
+            };
+            /** @description wid 或打分批次不存在（workdir-not-found / eval-batch-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description 配置文件损坏（problem+json: eval-config-corrupted） */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_eval_api_workdirs__wid__eval_batches__eN__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description wid 或打分批次不存在（workdir-not-found / eval-batch-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description 评测运行占用中（problem+json: eval-run-occupied） */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_eval_api_workdirs__wid__eval_batches__eN__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvalBatchUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalBatchView"];
+                };
+            };
+            /** @description 配置规则或引用不合法（problem+json: eval-config-invalid） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description wid 或打分批次不存在（workdir-not-found / eval-batch-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description 配置文件损坏（problem+json: eval-config-corrupted） */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description 请求体空补丁或含未声明字段（extra=forbid） */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    get_manual_scores_api_workdirs__wid__eval_batches__eN__manual_scores_get: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+                item?: string | null;
+                annotator?: string | null;
+            };
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualScoreView"][];
+                };
+            };
+            /** @description wid 或打分批次不存在（workdir-not-found / eval-batch-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_manual_score_api_workdirs__wid__eval_batches__eN__manual_scores_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualScoreRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualScoreView"];
+                };
+            };
+            /** @description 打分记录规则不过（problem+json: eval-config-invalid） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description wid 或打分批次不存在（workdir-not-found / eval-batch-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_eval_reports_api_workdirs__wid__eval_batches__eN__reports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalReportSummaryView"][];
+                };
+            };
+            /** @description wid 或打分批次不存在（workdir-not-found / eval-batch-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_eval_report_api_workdirs__wid__eval_batches__eN__reports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["EvalReportCreateRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalReportView"];
+                };
+            };
+            /** @description wid / 打分批次 / 运行不存在（workdir-not-found / eval-batch-not-found / eval-run-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description 运行不属于该打分批次（problem+json: eval-report-mismatch） */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+        };
+    };
+    get_eval_report_api_workdirs__wid__eval_batches__eN__reports__rid__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+                rid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalReportView"];
+                };
+            };
+            /** @description wid / 打分批次 / 报告不存在（workdir-not-found / eval-batch-not-found / eval-report-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_eval_run_api_workdirs__wid__eval_batches__eN__runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalRunAccepted"];
+                };
+            };
+            /** @description 裁判引用不成立（problem+json: eval-config-invalid） */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description wid 或打分批次不存在（workdir-not-found / eval-batch-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description 该工作目录已有打分（评测）运行（problem+json: eval-run-occupied） */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    current_eval_run_api_workdirs__wid__eval_batches__eN__runs_current_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalRunStatusView"] | null;
+                };
+            };
+            /** @description wid 或打分批次不存在（workdir-not-found / eval-batch-not-found） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_eval_run_api_workdirs__wid__eval_batches__eN__runs_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 该打分批次当前没有进行中的打分运行（problem+json: eval-run-not-active） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_eval_run_api_workdirs__wid__eval_batches__eN__runs_stream_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 该打分批次当前没有进行中的打分运行（problem+json: eval-run-not-active） */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_eval_samples_api_workdirs__wid__eval_batches__eN__samples_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                wid: string;
+                eN: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalSamplesView"];
+                };
+            };
+            /** @description wid 或打分批次不存在（workdir-not-found / eval-batch-not-found） */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
