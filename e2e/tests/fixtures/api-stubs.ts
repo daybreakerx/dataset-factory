@@ -81,6 +81,18 @@ export const API_STUBS: Record<string, unknown> = {
       updated_at: "2026-01-01T00:00:00+00:00",
     },
   ],
+  // 冷启动时引用异步灌入会触发一次动作级自动保存（StrategyToolbar.runAutoSave）；
+  // 不覆盖则回 404「桩表未覆盖」，错误条是否在采集前渲染不定，基线随机假红。
+  "PUT /api/strategies/st1": {
+    id: "st1",
+    name: "基线策略",
+    description: "视觉基线用策略",
+    enabled: true,
+    prompt_id: "p-1",
+    skill_ids: ["k-1"],
+    endpoint_id: "e-1",
+    updated_at: "2026-01-01T00:00:00+00:00",
+  },
   "GET /api/workdirs": [
     {
       id: "probe",
